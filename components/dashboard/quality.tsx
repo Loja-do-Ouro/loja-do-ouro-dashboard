@@ -1,9 +1,19 @@
-import type { Period } from "@/lib/bi/periods";
+import { localDate, shift, type Period } from "@/lib/bi/periods";
 import { calculatedChecks, canonicalOrders, detail, latestQuality, overview, trackingCheck, type Store } from "@/lib/bi/model";
-import { integer, timestamp } from "./format";
+import { integer, text, timestamp } from "./format";
 import { DetailNote, Empty, Panel, Table } from "./ui";
 
-export function QualityView({ store, range }: { store: Store; range: Period }) {
+const INGEST_MESSAGES: Record<string, string> = {
+  completed: "Recolha concluída. Os valores abaixo já usam os dados novos.",
+  partial: "Recolha parcial: algumas fontes falharam. Ver as notas da recolha.",
+  failed: "A recolha falhou. Ver as notas da recolha.",
+  config: "Recolha indisponível: faltam credenciais Shopify, Windsor ou Supabase no servidor.",
+  range: "Intervalo inválido: até 62 dias completos, terminando no máximo ontem.",
+};
+const RUN_STATUS: Record<string, string> = { completed: "Concluída", partial: "Parcial", running: "Em curso", failed: "Falhou" };
+
+export function QualityView({ store, range, ingestStatus }: { store: Store; range: Period; ingestStatus?: string }) {
+  const maxDate = shift(localDate(), -1);
   const s = overview(store, range),
     checks = latestQuality(store, range),
     o = canonicalOrders(detail(store, range, store.mode === "live" ? "shopify_live" : "shopify", "orders", true)),
@@ -136,6 +146,41 @@ export function QualityView({ store, range }: { store: Store; range: Period }) {
             dados estejam validados.
           </Empty>
         )}
+      </Panel>
+      <Panel title="Recolha de dados" eyebrow="Fechos guardados">
+        {ingestStatus && (
+          <p role="status" className="notice">
+            {INGEST_MESSAGES[ingestStatus] || INGEST_MESSAGES.failed}
+          </p>
+        )}
+        <form method="post" action="/api/admin/ingest" className="calendar-panel">
+          <label>
+            Desde
+            <input type="date" name="from" max={maxDate} />
+          </label>
+          <label>
+            Até
+            <input type="date" name="to" max={maxDate} />
+          </label>
+          <button type="submit">Recolher dados <span>→</span></button>
+          <p>Sem datas: os três últimos dias fechados. Até 62 dias por recolha; pode demorar alguns minutos.</p>
+        </form>
+        <Table
+          headers={["Início", "Origem", "Estado", "Notas"]}
+          rows={[...store.runs]
+            .slice(0, 10)
+            .map((r) => [
+              timestamp(typeof r.started_at === "string" ? r.started_at : null),
+              text(r.trigger_type),
+              RUN_STATUS[String(r.status)] || text(r.status),
+              text(r.notes),
+            ])}
+          empty="Sem recolhas registadas desde o fim deste período."
+        />
+        <p className="panel-note">
+          A recolha automática corre todas as noites. Este botão serve para
+          recuperar dias em falta ou reconsultar revisões.
+        </p>
       </Panel>
       <Panel title="Relatórios e revisões" eyebrow="Histórico preservado">
         {reports.length ? (

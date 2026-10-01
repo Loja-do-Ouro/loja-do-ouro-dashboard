@@ -251,7 +251,7 @@ export default async function Page({
           ) : section === "audience" ? (
             <Audience store={store} range={sel.range} />
           ) : (
-            <QualityView store={store} range={sel.range} />
+            <QualityView store={store} range={sel.range} ingestStatus={typeof q.ingest === "string" ? q.ingest : undefined} />
           )}
           <footer>
             <span>
