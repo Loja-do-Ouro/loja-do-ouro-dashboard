@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "node scripts/verify-production-data.mjs && next build",
     "start": "next start",
-    "test": "tsc lib/bi/model.ts lib/bi/periods.ts lib/bi/live-model.ts --module commonjs --target ES2022 --skipLibCheck --outDir .test-build && node --test tests/*.cjs"
+    "test": "tsc lib/bi/model.ts lib/bi/periods.ts lib/bi/live-model.ts lib/rate-limit.ts --module commonjs --target ES2022 --skipLibCheck --rootDir lib --outDir .test-build && node --test tests/*.cjs"
   },
   "dependencies": {
     "next": "16.3.3",

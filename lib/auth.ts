@@ -43,19 +43,26 @@ export function isAuthConfigured() {
   return Boolean(c.username && c.password && c.secret);
 }
 
+// The password is part of the signing key, so changing DASHBOARD_PASSWORD
+// invalidates every open session without rotating the session secret.
+function signingKey(c: ReturnType<typeof authConfig>) {
+  return `${c.secret}\u0000${c.password}`;
+}
+
 export async function createSessionToken(username: string) {
-  const { secret } = authConfig();
-  if (!secret) throw new Error("DASHBOARD_SESSION_SECRET em falta");
+  const config = authConfig();
+  if (!config.secret) throw new Error("DASHBOARD_SESSION_SECRET em falta");
   const payload = bytesToBase64Url(encoder.encode(JSON.stringify({ u: username, exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS })));
-  return `${payload}.${await sign(payload, secret)}`;
+  return `${payload}.${await sign(payload, signingKey(config))}`;
 }
 
 export async function validateSessionToken(token?: string | null) {
   if (!token) return false;
-  const { username, secret } = authConfig();
+  const config = authConfig();
+  const { username, secret } = config;
   if (!username || !secret) return false;
   const [payload, signature] = token.split(".");
-  if (!payload || !signature || !(await verifySignature(payload, signature, secret))) return false;
+  if (!payload || !signature || !(await verifySignature(payload, signature, signingKey(config)))) return false;
   try {
     const json = new TextDecoder().decode(base64UrlToBytes(payload));
     const parsed = JSON.parse(json) as { u?: string; exp?: number };

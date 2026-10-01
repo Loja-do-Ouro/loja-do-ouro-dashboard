@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   });
   const complete =
     store.errors.length === 0 && coverage.every((c) => c.complete);
-  // Read-only monitor. Nightly ingestion is performed by the authorised BI workflow.
+  // Read-only coverage monitor, called on demand. Nightly ingestion is /api/cron/ingest.
   return Response.json(
     {
       ok: complete,

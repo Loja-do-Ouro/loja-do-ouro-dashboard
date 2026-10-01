@@ -1,7 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const p = require("../.test-build/periods.js");
-const m = require("../.test-build/model.js");
+const p = require("../.test-build/bi/periods.js");
+const m = require("../.test-build/bi/model.js");
 const empty = () => ({
   daily: [],
   datasets: [],

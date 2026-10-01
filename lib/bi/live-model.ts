@@ -1,4 +1,4 @@
-import { detail, number, sum, type Row, type Store } from "./model";
+import { awaitingFulfillment, detail, isPaid, isPending, number, sum, type Row, type Store } from "./model";
 import { localDate, type Period } from "./periods";
 
 // Windsor emits reversal rows (order_count=0) alongside the canonical order.
@@ -36,9 +36,9 @@ export function liveCommerce(store: Store, range: Period) {
   const d = detail(store, range, "shopify_live", "orders");
   const safe = d.datasets.length > 0 && d.datasets.every(x => x.metadata.conflicts === 0)
     && d.rows.every(r => r.currency === "EUR" && number(r.current_total) !== null);
-  const paid = d.rows.filter(r => !r.cancelled_at && ["PAID", "PARTIALLY_REFUNDED"].includes(String(r.financial_status)));
-  const pending = d.rows.filter(r => !r.cancelled_at && ["PENDING", "AUTHORIZED", "PARTIALLY_PAID"].includes(String(r.financial_status)));
-  const ready = paid.filter(r => ["UNFULFILLED", "PARTIALLY_FULFILLED", "UNSHIPPED"].includes(String(r.fulfillment_status)));
+  const paid = d.rows.filter(isPaid);
+  const pending = d.rows.filter(isPending);
+  const ready = d.rows.filter(awaitingFulfillment);
   const paidValue = safe && d.rows.length ? (paid.length ? sum(paid, "current_total") : 0) : null;
   return {
     ...d, safe, paid, pending, ready, paidValue,
