@@ -10,6 +10,7 @@ import { requireViewer } from "@/lib/viewer";
 import { currency, integer, percent } from "@/components/dashboard/format";
 import { Change, Panel } from "@/components/dashboard/ui";
 import { AppShell, PageHeading } from "@/components/shell";
+import { BarValue } from "@/components/stores";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -76,6 +77,9 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
     return { store: s, shop, shopBefore, gold, goldBefore, ad, online };
   });
   table.sort((a, b) => b.shop.value + b.gold.totalValue - (a.shop.value + a.gold.totalValue));
+  const maxShop = Math.max(0, ...table.map((r) => r.shop.value));
+  const maxGold = Math.max(0, ...table.map((r) => r.gold.totalValue));
+  const maxSpend = Math.max(0, ...table.map((r) => r.ad?.spend || 0));
   const totalSpend = table.reduce((a, r) => a + (r.ad?.spend || 0), 0);
   const partial = table.some((r) => r.gold.partialMonthly);
 
@@ -111,7 +115,7 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
               {table.map(({ store, shop, shopBefore }) => (
                 <tr key={store.id}>
                   <td><Link href={`/lojas?${new URLSearchParams({ loja: store.code, mes: to.slice(0, 7) })}`}>{store.name}</Link></td>
-                  <td>{currency(shop.value)}</td>
+                  <td><BarValue value={shop.value} max={maxShop}>{currency(shop.value)}</BarValue></td>
                   <td><Change a={shop.served ? shop.value : null} b={shopBefore.served ? shopBefore.value : null} /></td>
                   <td>{integer(shop.sales)}</td>
                   <td>{integer(shop.served)}</td>
@@ -139,7 +143,7 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
                   <td>{integer(gold.digital)}</td>
                   <td>{percent(gold.digitalShare)}</td>
                   <td>{integer(gold.totalGrams)}</td>
-                  <td>{currency(gold.totalValue)}</td>
+                  <td><BarValue value={gold.totalValue} max={maxGold}>{currency(gold.totalValue)}</BarValue></td>
                   <td><Change a={gold.customers ? gold.totalValue : null} b={goldBefore.customers ? goldBefore.totalValue : null} /></td>
                 </tr>
               ))}
@@ -162,7 +166,7 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
               {table.map(({ store, ad, online, gold }) => (
                 <tr key={store.id}>
                   <td>{store.name}{!store.ads_keyword && <small className="muted block">sem campanha associada</small>}</td>
-                  <td>{ad ? currency(ad.spend) : "—"}</td>
+                  <td>{ad ? <BarValue value={ad.spend} max={maxSpend}>{currency(ad.spend)}</BarValue> : "—"}</td>
                   <td>{ad && totalSpend ? percent((ad.spend / totalSpend) * 100) : "—"}</td>
                   <td>{ad ? integer(ad.clicks) : "—"}</td>
                   <td>{integer(online)}</td>

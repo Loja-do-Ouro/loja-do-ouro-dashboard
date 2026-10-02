@@ -21,14 +21,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="login-shell">
       <section className="login-card">
-        <div className="login-mark">LO</div>
+        <div className="login-brand">
+          <img src="/logo-loja-do-ouro.png" alt="Loja do Ouro" width="220" height="127" />
+          <span>Área de gestão</span>
+        </div>
         <div className="login-copy">
-          <span>LOJA DO OURO</span>
-          <h1>Área de administração</h1>
+          <h1>Bem-vindo</h1>
           <p>Entre com o utilizador e a palavra-passe que recebeu do administrador.</p>
         </div>
-        {error && <div className="login-error">{ERRORS[error] || ERRORS.invalid}</div>}
-        {q.ok === "logout" && !error && <div className="login-info">Sessão terminada.</div>}
+        {error && <div className="login-error" role="alert">{ERRORS[error] || ERRORS.invalid}</div>}
+        {q.ok === "logout" && !error && <div className="login-info" role="status">Sessão terminada.</div>}
         <form className="login-form" method="post" action="/api/auth/login">
           <input type="hidden" name="redirect" value={redirect} />
           <label>
@@ -41,8 +43,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </label>
           <button type="submit">Entrar</button>
         </form>
-        <small>Loja do Ouro · área privada · em computadores partilhados, termine sempre a sessão no fim.</small>
+        <small>Área privada · em computadores partilhados, termine sempre a sessão no fim.</small>
       </section>
+      <p className="login-foot">Loja do Ouro · Grupo · desde 2007</p>
     </main>
   );
 }

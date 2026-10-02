@@ -9,7 +9,7 @@ import { requireViewer } from "@/lib/viewer";
 import { currency, integer, percent, timestamp } from "@/components/dashboard/format";
 import { Change, Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { Breakdown, inputAmount, monthLabel, monthShort, MonthNav, Select, StoreChips, weekday, YesNo } from "@/components/stores";
+import { BarValue, Breakdown, inputAmount, monthLabel, monthShort, MonthNav, Select, StoreChips, weekday, YesNo } from "@/components/stores";
 import { removeGoldEntry, saveGoldEntry } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,7 @@ export default async function GoldPage({ searchParams }: { searchParams: Promise
       goldTotals(entries, monthly, all, { store_id: store.id, operation: op, from: range.from, to: range.last });
     return { month: m, used: at("used", r), pawn: at("pawn", r), usedBefore: at("used", p) };
   });
+  const maxValue = Math.max(...history.map((h) => h.used.totalValue));
   const link = (params: Record<string, string>) => `/lojas/ouro?${new URLSearchParams({ loja: store.code, mes: month, dia: day, ...params })}`;
   const ok = typeof q.ok === "string" ? OK[q.ok] : undefined;
   const error = typeof q.erro === "string" ? q.erro.slice(0, 300) : undefined;
@@ -222,7 +223,7 @@ export default async function GoldPage({ searchParams }: { searchParams: Promise
                     <td>{integer(h.used.customers || null)}</td>
                     <td>{percent(h.used.digitalShare)}</td>
                     <td>{grams(h.used.totalGrams || null)}</td>
-                    <td>{currency(h.used.totalValue || null)}</td>
+                    <td><BarValue value={h.used.totalValue} max={maxValue}>{currency(h.used.totalValue || null)}</BarValue></td>
                     <td><Change a={h.used.totalValue || null} b={h.usedBefore.totalValue || null} /></td>
                     <td>{integer(h.pawn.customers || null)}</td>
                     <td>{currency(h.pawn.totalValue || null)}</td>

@@ -204,7 +204,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
                 <tr key={r.id} className={r.id === editing?.id ? "selected-row" : ""}>
                   <td>{r.sale_number || "—"}</td>
                   <td>{r.sold ? <span className="pill ok">Venda</span> : <span className="pill warn">{label(all, "no_sale_reason", r.no_sale_reason)}</span>}</td>
-                  <td>{r.sold ? currency(Number(r.total_value)) : "—"}</td>
+                  <td>{r.sold && r.total_value !== null ? currency(Number(r.total_value)) : "—"}</td>
                   <td>
                     {(r.items || []).map((it, i) => (
                       <small key={i} className="block">

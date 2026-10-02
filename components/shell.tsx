@@ -66,10 +66,10 @@ export function AppShell({
         <Link href="/" className="brand" aria-label="Loja do Ouro · início">
           <img
             className="official-logo"
-            src="https://res.cloudinary.com/vbnyvvyq/image/upload/e_trim:10,q_100,f_png/v1788866860/Logo_LojaOuro_Vector1_1.png"
+            src="/logo-loja-do-ouro.png"
             alt="Loja do Ouro"
             width="160"
-            height="60"
+            height="92"
           />
           <span className="brand-caption">ADMINISTRAÇÃO</span>
         </Link>

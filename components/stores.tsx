@@ -7,8 +7,8 @@ export const monthLabel = (m: string) => {
   const label = new Intl.DateTimeFormat("pt-PT", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${m}-15T12:00:00Z`));
   return label[0].toUpperCase() + label.slice(1);
 };
-export const monthShort = (m: string) =>
-  new Intl.DateTimeFormat("pt-PT", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${m}-15T12:00:00Z`)).replace(".", "");
+const SHORT_MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+export const monthShort = (m: string) => `${SHORT_MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
 export const weekday = (d: string) => new Intl.DateTimeFormat("pt-PT", { weekday: "long", timeZone: "UTC" }).format(new Date(`${d}T12:00:00Z`));
 export const inputAmount = (v: number | null | undefined) =>
   v === null || v === undefined ? "" : new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 2, useGrouping: false }).format(Number(v));
@@ -80,6 +80,16 @@ export function YesNo({ name, value, required }: { name: string; value: boolean 
     <span className="yes-no">
       <label><input type="radio" name={name} value="sim" defaultChecked={value === true} required={required} /> Sim</label>
       <label><input type="radio" name={name} value="nao" defaultChecked={value === false} /> Não</label>
+    </span>
+  );
+}
+
+// A number with a bar proportional to the largest value of its column.
+export function BarValue({ value, max, children }: { value: number; max: number; children: React.ReactNode }) {
+  return (
+    <span className="bar-value">
+      <i style={{ width: `${max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0}%` }} aria-hidden="true" />
+      <span>{children}</span>
     </span>
   );
 }
