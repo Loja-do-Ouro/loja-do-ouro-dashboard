@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { selection, periodLabel, previous, localDate } from "@/lib/bi/periods";
 import { loadPeriods } from "@/lib/bi/store";
 import { liveCommerce } from "@/lib/bi/live-model";
@@ -11,6 +12,9 @@ import { Sales } from "@/components/dashboard/sales";
 import { Marketing } from "@/components/dashboard/marketing";
 import { Audience } from "@/components/dashboard/audience";
 import { QualityView } from "@/components/dashboard/quality";
+import { AppShell, ONLINE_SECTIONS } from "@/components/shell";
+import { canSeeOnline, homePath } from "@/lib/permissions";
+import { requireViewer } from "@/lib/viewer";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function Page({
@@ -18,6 +22,8 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const viewer = await requireViewer();
+  if (!canSeeOnline(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams,
     sel = selection(q),
     section =
@@ -42,13 +48,6 @@ export default async function Page({
       (r) => r.period_start === sel.range.from && r.period_end === sel.range.to,
     )
     .sort((a, b) => b.version - a.version)[0];
-  const nav = [
-    ["overview", "Visão geral", "grid"],
-    ["sales", "Vendas e operação", "bag"],
-    ["marketing", "Marketing e canais", "ads"],
-    ["audience", "Públicos e regiões", "people"],
-    ["quality", "Relatórios e qualidade", "check"],
-  ];
   const href = (part: string, key = sel.key, range = sel.range) =>
     `/?${new URLSearchParams({ period: key, section: part, ...(key === "custom" ? { from: range.from, to: range.to } : {}) })}`;
   const updated = [
@@ -59,64 +58,15 @@ export default async function Page({
   ]
     .filter((x): x is string => !!x)
     .sort();
-  const title = nav.find((n) => n[0] === section)![1];
+  const title = ONLINE_SECTIONS.find((n) => n[0] === section)![1];
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link href="/" className="brand" aria-label="Loja do Ouro · início">
-          <img
-            className="official-logo"
-            src="https://res.cloudinary.com/vbnyvvyq/image/upload/e_trim:10,q_100,f_png/v1788866860/Logo_LojaOuro_Vector1_1.png"
-            alt="Loja do Ouro"
-            width="160"
-            height="60"
-          />
-          <span className="brand-caption">ADMINISTRAÇÃO</span>
-        </Link>
-        <div className="nav-label">ESPAÇO DE GESTÃO</div>
-        <nav aria-label="Navegação principal">
-          {nav.map(([id, label, icon]) => (
-            <Link
-              key={id}
-              href={href(id)}
-              aria-label={label}
-              className={section === id ? "active" : ""}
-              aria-current={section === id ? "page" : undefined}
-            >
-              <Icon name={icon} />
-              <span>{label}</span>
-              {id === "quality" && critical.length > 0 && (
-                <b>{critical.length}</b>
-              )}
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="private-label">
-            <Icon name="check" />
-            <span>
-              Área privada<small>Dados reservados à administração</small>
-            </span>
-          </div>
-          <form action="/api/auth/logout" method="post">
-            <button className="logout">
-              <Icon name="exit" />
-              Terminar sessão
-            </button>
-          </form>
-        </div>
-      </aside>
-      <div className="main-wrap">
-        <header className="topbar">
-          <span>
-            Loja do Ouro <i>/</i> <strong>{title}</strong>
-          </span>
-          <div>
-            <span className="status-dot" />
-            Consulta de gestão <span className="avatar">LO</span>
-          </div>
-        </header>
-        <main id="conteudo">
+    <AppShell
+      viewer={viewer}
+      current={section}
+      title={title}
+      onlineHref={(part) => href(part)}
+      badges={{ quality: critical.length }}
+    >
           <div className="page-heading">
             <div>
               <span className="eyebrow">ADMINISTRAÇÃO</span>
@@ -264,9 +214,7 @@ export default async function Page({
               Consulta em {localDate()} · {live ? "Leitura das fontes via Windsor; cache upstream possível." : "Abrir a página não atualiza as fontes."}
             </small>
           </footer>
-        </main>
-      </div>
-    </div>
+    </AppShell>
   );
 }
 

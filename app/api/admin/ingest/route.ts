@@ -3,12 +3,16 @@ import { ingest, ingestRange } from "@/lib/bi/ingest";
 import { shopifyConfigured } from "@/lib/bi/shopify";
 import { writerConfigured } from "@/lib/bi/supabase-write";
 import { windsorConfigured } from "@/lib/bi/windsor";
+import { canSeeOnline } from "@/lib/permissions";
+import { loadViewer } from "@/lib/viewer";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-// Manual collection from the dashboard. The proxy requires a valid session for
-// this path, and the session cookie is SameSite=Lax, so cross-site posts carry no session.
+// Manual collection from the dashboard, for people with Loja Online access.
+// The session cookie is SameSite=Lax, so cross-site posts carry no session.
 export async function POST(request: Request) {
+  const viewer = await loadViewer();
+  if (!viewer || viewer.mustChangePassword || !canSeeOnline(viewer)) return new NextResponse("Sem permissão.", { status: 403 });
   const form = await request.formData();
   const back = (status: string) => {
     const url = new URL("/", request.url);

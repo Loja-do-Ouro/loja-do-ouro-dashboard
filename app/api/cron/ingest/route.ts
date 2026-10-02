@@ -2,7 +2,7 @@ import { ingest, ingestRange } from "@/lib/bi/ingest";
 import { shopifyConfigured } from "@/lib/bi/shopify";
 import { writerConfigured } from "@/lib/bi/supabase-write";
 import { windsorConfigured } from "@/lib/bi/windsor";
-import { constantTimeTextEqual } from "@/lib/auth";
+import { constantTimeTextEqual } from "@/lib/session";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
