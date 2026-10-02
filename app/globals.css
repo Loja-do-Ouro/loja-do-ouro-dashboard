@@ -3198,3 +3198,246 @@ textarea:focus-visible,
     padding-bottom: 100px;
   }
 }
+
+/* ---------------------------------------------------------- ranking */
+.ranking-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.ranking-filters .chips {
+  margin: 0;
+}
+.podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0 22px;
+  align-items: end;
+}
+.podium-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 20px 18px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.podium-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--line);
+}
+.podium-card h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 18px;
+  color: var(--ink);
+}
+.podium-card strong {
+  font-family: var(--display);
+  font-size: 26px;
+  color: var(--petrol);
+  font-variant-numeric: tabular-nums;
+}
+.podium-card small {
+  color: var(--muted);
+}
+.podium-medal {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 30px;
+  line-height: 1;
+}
+.podium-place {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.podium-card.place-1 {
+  order: 2;
+  padding-top: 30px;
+  padding-bottom: 26px;
+  background: linear-gradient(160deg, var(--petrol), var(--petrol-2));
+  border-color: var(--petrol);
+}
+.podium-card.place-1::before {
+  background: linear-gradient(90deg, var(--gold), var(--gold-2));
+}
+.podium-card.place-1 h2,
+.podium-card.place-1 strong {
+  color: #fff;
+}
+.podium-card.place-1 .podium-place {
+  color: var(--gold-2);
+}
+.podium-card.place-1 small {
+  color: rgba(255, 255, 255, 0.72);
+}
+.podium-card.place-1 .change.up {
+  color: #9fd8bf;
+}
+.podium-card.place-1 .change.down {
+  color: #f1b3a9;
+}
+.podium-card.place-1 .change.muted {
+  color: rgba(255, 255, 255, 0.6);
+}
+.podium-card.place-2 {
+  order: 1;
+}
+.podium-card.place-2::before {
+  background: #b9c2c6;
+}
+.podium-card.place-3 {
+  order: 3;
+}
+.podium-card.place-3::before {
+  background: #c49a6c;
+}
+.rank-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 13px;
+  background: var(--paper);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.rank-badge.r1 {
+  background: linear-gradient(135deg, var(--gold), var(--gold-2));
+  color: #fff;
+  border-color: var(--gold);
+}
+.rank-badge.r2 {
+  background: #e3e8ea;
+  color: var(--petrol);
+  border-color: #c9d1d4;
+}
+.rank-badge.r3 {
+  background: #f1e2d1;
+  color: #8a5a2b;
+  border-color: #e0c5a5;
+}
+.ranking-table td:nth-child(2) a {
+  font-weight: 600;
+  color: var(--petrol);
+  text-decoration: none;
+}
+.ranking-table td:nth-child(2) a:hover {
+  text-decoration: underline;
+}
+@media (max-width: 760px) {
+  .podium {
+    grid-template-columns: 1fr;
+  }
+  .podium-card.place-1,
+  .podium-card.place-2,
+  .podium-card.place-3 {
+    order: 0;
+  }
+}
+
+/* ---------------------------------------------------------- reports admin */
+.report-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.status-card span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.status-card strong {
+  font-family: var(--display);
+  font-size: 18px;
+  color: var(--ink);
+}
+.status-card small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.status-card.ok {
+  border-left-color: var(--green);
+}
+.status-card.warn {
+  border-left-color: var(--gold);
+}
+.report-layout {
+  align-items: start;
+}
+.email-preview {
+  display: block;
+  width: 100%;
+  height: 900px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f5f3ee;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.plain-list li {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.plain-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.weekday-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.weekday-picker legend {
+  width: 100%;
+}
+.ranking-table th:nth-child(2),
+.ranking-table td:nth-child(2) {
+  text-align: left;
+  white-space: nowrap;
+}
+.ranking-table th:first-child,
+.ranking-table td:first-child {
+  text-align: center;
+  width: 44px;
+}

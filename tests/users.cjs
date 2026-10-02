@@ -154,3 +154,28 @@ test("Months end today at the latest; codes are made from names", () => {
   assert.equal(rec.storeCode("Figueira da Foz "), "figueira-da-foz");
   assert.equal(rec.optionCode("Campanha Dia da Mãe"), "campanha_dia_da_mae");
 });
+
+test("Store ranking orders every store by sales or gold and keeps stores without data", () => {
+  const stores = [{ id: "a", code: "a", name: "Abrantes" }, { id: "b", code: "b", name: "Benfica" }, { id: "c", code: "c", name: "Coimbra" }];
+  const sale = (store_id, sale_date, value) => ({ store_id, sale_date, sold: value !== null, total_value: value, seen_where: null, client_type: null, campaign: false, bought_online: false, items: [] });
+  const sales = [sale("a", "2026-10-01", 100), sale("b", "2026-10-01", 300), sale("b", "2026-09-30", 50), sale("a", "2026-09-30", 900)];
+  const gold = [{ store_id: "a", operation: "used", entry_date: "2026-10-01", heard_from: "google", closed: true, grams_9: null, value_9: null, grams_14: null, value_14: null, grams_18: null, value_18: null, grams_19: 5, value_19: 400, grams_22: null, value_22: null, grams_24: null, value_24: null }];
+  const range = { from: "2026-10-01", to: "2026-10-01" };
+  const prev = { from: "2026-09-30", to: "2026-09-30" };
+  const bySales = rec.storeTable(stores, sales, gold, [], options, range, prev);
+  assert.deepEqual(bySales.map((r) => [r.store.id, r.rank]), [["b", 1], ["a", 2], ["c", 3]]);
+  assert.equal(bySales[0].shop.value, 300);
+  assert.equal(bySales[0].shopBefore.value, 50);
+  const byGold = rec.storeTable(stores, sales, gold, [], options, range, prev, "gold");
+  assert.equal(byGold[0].store.id, "a");
+  assert.equal(byGold[0].gold.totalValue, 400);
+});
+
+test("Missing-data alert skips closed weekdays and stores that recorded sales or gold", () => {
+  const stores = [{ id: "a", name: "A", closed_weekdays: [0] }, { id: "b", name: "B", closed_weekdays: [0] }, { id: "c", name: "C" }, { id: "d", name: "D", closed_weekdays: [0] }];
+  const sales = [{ store_id: "a", sale_date: "2026-10-01" }, { store_id: "b", sale_date: "2026-09-30" }];
+  const entries = [{ store_id: "d", entry_date: "2026-10-01" }];
+  assert.deepEqual(rec.missingStores(stores, sales, entries, "2026-10-01").map((s) => s.id), ["b", "c"]);
+  // 2026-10-04 is a Sunday: only the store open on Sundays is missing.
+  assert.deepEqual(rec.missingStores(stores, sales, entries, "2026-10-04").map((s) => s.id), ["c"]);
+});

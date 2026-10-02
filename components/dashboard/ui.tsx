@@ -13,6 +13,8 @@ export function Icon({ name = "grid" }: { name?: string }) {
     arrow: "M5 12h14 M14 7l5 5-5 5",
     calendar: "M5 5h14v16H5z M8 2v6 M16 2v6 M5 10h14",
     exit: "M10 3H4v18h6 M10 12h11 M17 8l4 4-4 4",
+    trophy: "M8 4h8v5a4 4 0 0 1-8 0V4 M8 6H4a3 3 0 0 0 4 4 M16 6h4a3 3 0 0 1-4 4 M12 13v4 M8 21h8 M9 17h6v4H9z",
+    mail: "M3 5h18v14H3z M3 6l9 7 9-7",
   };
   return (
     <svg

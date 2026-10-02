@@ -31,6 +31,13 @@ export async function saveUser(form: FormData) {
       p_password: String(form.get("password") || ""),
       p_must_change: form.get("must_change") === "on",
     });
+    if (viewer.isSuper)
+      await rpc("ldo_save_user_contact", {
+        p_session: viewer.session,
+        p_user_id: saved || id,
+        p_email: String(form.get("email") || "").trim().toLowerCase().slice(0, 160),
+        p_receive_reports: form.get("receive_reports") === "on",
+      });
   } catch (e) {
     error = userMessage(e);
   }

@@ -324,3 +324,43 @@ export function storeCode(value: string) {
 export function optionCode(value: string) {
   return storeCode(value).replace(/-/g, "_").slice(0, 40);
 }
+
+export type RankStore = { id: string; code: string; name: string; ads_keyword?: string | null; closed_weekdays?: number[] };
+export type Period2 = { from: string; to: string };
+
+// One row per store for a period and the one before it, ranked by what the store sold.
+export function storeTable(
+  stores: RankStore[],
+  sales: ShopSale[],
+  entries: GoldEntry[],
+  monthly: GoldMonthly[],
+  options: Options,
+  range: Period2,
+  prev: Period2,
+  by: "sales" | "gold" = "sales",
+) {
+  const inRange = (d: string, p: Period2) => d >= p.from && d <= p.to;
+  const rows = stores.map((store) => {
+    const mine = sales.filter((r) => r.store_id === store.id);
+    const shop = summarizeShop(mine.filter((r) => inRange(r.sale_date, range)), options);
+    const shopBefore = summarizeShop(mine.filter((r) => inRange(r.sale_date, prev)), options);
+    const gold = goldTotals(entries, monthly, options, { store_id: store.id, ...range });
+    const goldBefore = goldTotals(entries, monthly, options, { store_id: store.id, ...prev });
+    return { store, shop, shopBefore, gold, goldBefore, rank: 0 };
+  });
+  const key = (r: (typeof rows)[number]) => (by === "gold" ? r.gold.totalValue : r.shop.value);
+  rows.sort((a, b) => key(b) - key(a) || b.shop.served - a.shop.served || a.store.name.localeCompare(b.store.name));
+  rows.forEach((r, i) => (r.rank = i + 1));
+  return rows;
+}
+
+const weekdayOf = (d: string) => new Date(`${d}T12:00:00Z`).getUTCDay();
+
+// Active stores open that day without any sale/visit or gold purchase record.
+export function missingStores(stores: RankStore[], sales: Pick<ShopSale, "store_id" | "sale_date">[], entries: Pick<GoldEntry, "store_id" | "entry_date">[], day: string) {
+  const reported = new Set([
+    ...sales.filter((s) => s.sale_date === day).map((s) => s.store_id),
+    ...entries.filter((e) => e.entry_date === day).map((e) => e.store_id),
+  ]);
+  return stores.filter((s) => !(s.closed_weekdays || []).includes(weekdayOf(day)) && !reported.has(s.id));
+}

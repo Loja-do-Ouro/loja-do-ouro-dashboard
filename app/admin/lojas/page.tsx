@@ -10,7 +10,8 @@ import { saveStore } from "./actions";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Lojas · Loja do Ouro" };
 
-type Store = { id: string; code: string; name: string; city: string | null; active: boolean; sort_order: number; managers: number; staff: number; ads_keyword: string | null };
+type Store = { id: string; code: string; name: string; city: string | null; active: boolean; sort_order: number; managers: number; staff: number; ads_keyword: string | null; closed_weekdays: number[] | null };
+const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const OK: Record<string, string> = { created: "Loja criada.", updated: "Loja atualizada." };
 
 export default async function StoresAdminPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -47,7 +48,8 @@ export default async function StoresAdminPage({ searchParams }: { searchParams: 
                   <tr key={s.id} className={s.id === editing?.id ? "selected-row" : ""}>
                     <td>
                       {s.name}
-                      <small className="muted block">{s.code}{s.ads_keyword ? ` · Google Ads: “${s.ads_keyword}”` : " · sem campanha Google Ads"}</small>
+                      <small className="muted block">{s.code}{s.ads_keyword ? ` · Google Ads: “${s.ads_keyword}”` : " · sem campanha Google Ads"}
+                        {s.closed_weekdays?.length ? ` · fecha: ${s.closed_weekdays.map((d) => WEEKDAYS[d].slice(0, 3).toLowerCase()).join(", ")}` : ""}</small>
                     </td>
                     <td>{s.city || "—"}</td>
                     <td>
@@ -86,6 +88,15 @@ export default async function StoresAdminPage({ searchParams }: { searchParams: 
               Palavra da campanha Google Ads (a campanha cujo nome a contém conta para esta loja, ex.: “FOZ”)
               <input name="ads_keyword" maxLength={40} defaultValue={editing?.ads_keyword || ""} />
             </label>
+            <fieldset className="wide weekday-picker">
+              <legend>Dias em que a loja está fechada (não gera alerta de falta de dados)</legend>
+              {WEEKDAYS.map((d, i) => (
+                <label key={d} className="check">
+                  <input type="checkbox" name="closed" value={i} defaultChecked={editing ? Boolean(editing.closed_weekdays?.includes(i)) : i === 0} />
+                  <span>{d}</span>
+                </label>
+              ))}
+            </fieldset>
             <label className="check wide">
               <input type="checkbox" name="active" defaultChecked={editing ? editing.active : true} />
               <span>Loja ativa</span>

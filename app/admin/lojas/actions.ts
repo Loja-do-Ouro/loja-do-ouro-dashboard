@@ -29,6 +29,8 @@ export async function saveStore(form: FormData) {
         p_sort_order: Number.isInteger(order) ? order : 100,
         p_ads_keyword: String(form.get("ads_keyword") || "").trim().slice(0, 40),
       });
+      const closed = [...new Set(form.getAll("closed").map(Number))].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).sort();
+      await rpc("ldo_save_store_schedule", { p_session: viewer.session, p_store_id: saved || id, p_closed_weekdays: closed });
     } catch (e) {
       error = userMessage(e);
     }

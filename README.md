@@ -62,7 +62,19 @@ Substituem os dois Excel das lojas (importados em outubro de 2026 com `scripts/i
 - **Vendas e atendimentos** (`/lojas`, antes "Análise de Vendas"): um registo por cliente atendido, com ou sem venda — n.º de venda, valor, artigos (referência, material, tipo), campanha, tipo de cliente, onde viu o produto, se já comprou online, para quem é, reposição, motivo de não venda e o que procurava.
 - **Compra de ouro** (`/lojas/ouro`, antes "Eficácia das campanhas de marketing"): um registo por cliente que vem vender ouro usado ou fazer contrato, com como conheceu a Loja do Ouro (as opções marcadas como "internet" dão a % digital), se fechou negócio, e gramas e valor pago por quilate. Os meses anteriores (2022–set. 2026) vêm dos totais mensais do Excel.
 - **Comparar lojas** (`/lojas/comparar`, Gestores): vendas, compra de ouro e gasto Google Ads por loja. A campanha conta para a loja cuja palavra (Administração → Lojas) aparece no nome; o custo por cliente da internet é uma relação, não prova de atribuição.
+- **Ranking das lojas** (`/lojas/ranking`, Gestores): todas as lojas ordenadas por valor vendido ou por compra de ouro (ontem, semana, mês ou datas à escolha), com pódio, comparação com o período anterior e, para um só dia, as lojas que não registaram dados.
 - **Listas de opções** (`/admin/opcoes`, Super Admin): as escolhas dos formulários.
+
+### Relatórios por email
+
+Tarefas agendadas no Vercel (`vercel.json`, horas UTC) chamam `/api/cron/reports` com `CRON_SECRET`:
+
+- `?run=morning` (07:30 UTC): relatório diário do dia anterior; às segundas também o semanal e no dia 1 o mensal. Cada um inclui a loja online (vendas Shopify, investimento, sessões), o resumo das lojas físicas e o ranking das 13 lojas.
+- `?run=evening` (21:00 UTC): alerta "lojas que não comunicaram dados" — lojas ativas, abertas nesse dia da semana (Administração → Lojas → dias de fecho), sem nenhum atendimento nem compra de ouro registado. Não é enviado se todas registaram.
+
+Destinatários: Super Admins ativos com email e "Receber relatórios" (Administração → Utilizadores). Em Administração → Relatórios por email há a pré-visualização, o envio de teste e o registo de envios.
+
+Variáveis: `RESEND_API_KEY` (envio via [Resend](https://resend.com)), `REPORTS_TOKEN` (acesso do servidor aos dados; o hash está em `ldo_private.report_token`), opcionais `REPORTS_FROM` (remetente, depois de verificar o domínio no Resend; até lá usa `onboarding@resend.dev`, que só entrega ao email da conta Resend) e `DASHBOARD_URL` (links nos emails).
 
 Dados em falta não são zero. Utilizadores distintos e ticket médio exigem consulta oficial de todo o período. A concordância de totais não certifica tracking. Custos incompletos não permitem calcular lucro.
 

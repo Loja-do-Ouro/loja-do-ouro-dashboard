@@ -43,7 +43,12 @@ export function AppShell({
       items: [
         { key: "lojas", label: "Vendas e atendimentos", href: "/lojas", icon: "bag" },
         { key: "ouro", label: "Compra de ouro", href: "/lojas/ouro", icon: "sales" },
-        ...(canCompareStores(viewer) ? [{ key: "comparar", label: "Comparar lojas", href: "/lojas/comparar", icon: "grid" }] : []),
+        ...(canCompareStores(viewer)
+          ? [
+              { key: "ranking", label: "Ranking das lojas", href: "/lojas/ranking", icon: "trophy" },
+              { key: "comparar", label: "Comparar lojas", href: "/lojas/comparar", icon: "grid" },
+            ]
+          : []),
       ],
     });
   if (!locked && canManageUsers(viewer))
@@ -55,6 +60,7 @@ export function AppShell({
           ? [
               { key: "admin-lojas", label: "Lojas", href: "/admin/lojas", icon: "bag" },
               { key: "opcoes", label: "Listas de opções", href: "/admin/opcoes", icon: "check" },
+              ...(viewer.isSuper ? [{ key: "relatorios", label: "Relatórios por email", href: "/admin/relatorios", icon: "mail" }] : []),
             ]
           : []),
       ],

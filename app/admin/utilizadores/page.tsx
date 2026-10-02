@@ -24,6 +24,8 @@ type User = {
   must_change_password: boolean;
   locked: boolean;
   last_login_at: string | null;
+  email: string | null;
+  receive_reports: boolean;
 };
 type Store = { id: string; code: string; name: string; active: boolean };
 
@@ -92,7 +94,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                   <tr key={u.id} className={u.id === editing?.id ? "selected-row" : ""}>
                     <td>
                       {u.full_name || u.username}
-                      <small className="muted block">{u.username}</small>
+                      <small className="muted block">{u.username}{viewer.isSuper && u.is_super_admin && u.email ? ` · ${u.receive_reports ? "recebe relatórios" : "sem relatórios"}` : ""}</small>
                     </td>
                     <td>
                       {u.is_super_admin && <span className="tag gold">Super Admin</span>}
@@ -169,6 +171,19 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                 <label className="check">
                   <input type="checkbox" name="online_access" defaultChecked={editing?.online_access} />
                   <span><strong>Loja Online</strong> — Shopify, campanhas, redes sociais, públicos e qualidade dos dados.</span>
+                </label>
+              </fieldset>
+            )}
+            {viewer.isSuper && (
+              <fieldset className="wide">
+                <legend>Relatórios por email</legend>
+                <label>
+                  Email
+                  <input name="email" type="email" maxLength={160} autoComplete="off" spellCheck={false} placeholder="nome@lojadoouro.pt" defaultValue={editing?.email || ""} />
+                </label>
+                <label className="check">
+                  <input type="checkbox" name="receive_reports" defaultChecked={editing ? editing.receive_reports : true} />
+                  <span>Receber os relatórios diários, semanais e mensais e o alerta de lojas sem dados (só Super Admins com email recebem).</span>
                 </label>
               </fieldset>
             )}
