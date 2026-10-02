@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { storeCode } from "@/lib/store-sales";
+import { storeCode } from "@/lib/store-records";
 import { rpc, userMessage } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 
@@ -27,6 +27,7 @@ export async function saveStore(form: FormData) {
         p_city: String(form.get("city") || ""),
         p_active: form.get("active") === "on",
         p_sort_order: Number.isInteger(order) ? order : 100,
+        p_ads_keyword: String(form.get("ads_keyword") || "").trim().slice(0, 40),
       });
     } catch (e) {
       error = userMessage(e);

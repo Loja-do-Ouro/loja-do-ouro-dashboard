@@ -41,7 +41,8 @@ export function AppShell({
     groups.push({
       label: "LOJAS FÍSICAS",
       items: [
-        { key: "lojas", label: "Vendas diárias", href: "/lojas", icon: "sales" },
+        { key: "lojas", label: "Vendas e atendimentos", href: "/lojas", icon: "bag" },
+        { key: "ouro", label: "Compra de ouro", href: "/lojas/ouro", icon: "sales" },
         ...(canCompareStores(viewer) ? [{ key: "comparar", label: "Comparar lojas", href: "/lojas/comparar", icon: "grid" }] : []),
       ],
     });
@@ -50,7 +51,12 @@ export function AppShell({
       label: "ADMINISTRAÇÃO",
       items: [
         { key: "utilizadores", label: "Utilizadores", href: "/admin/utilizadores", icon: "people" },
-        ...(canManageStores(viewer) ? [{ key: "admin-lojas", label: "Lojas", href: "/admin/lojas", icon: "bag" }] : []),
+        ...(canManageStores(viewer)
+          ? [
+              { key: "admin-lojas", label: "Lojas", href: "/admin/lojas", icon: "bag" },
+              { key: "opcoes", label: "Listas de opções", href: "/admin/opcoes", icon: "check" },
+            ]
+          : []),
       ],
     });
   const name = viewer.fullName || viewer.username;

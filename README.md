@@ -55,6 +55,15 @@ As regras são aplicadas em Supabase: as tabelas `ldo_app_*` e `ldo_store_sales*
 
 Variáveis: `BI_SUPABASE_URL` (ou `SUPABASE_URL`) e `SUPABASE_PUBLISHABLE_KEY`.
 
+### Lojas físicas
+
+Substituem os dois Excel das lojas (importados em outubro de 2026 com `scripts/import-store-excel.py`):
+
+- **Vendas e atendimentos** (`/lojas`, antes "Análise de Vendas"): um registo por cliente atendido, com ou sem venda — n.º de venda, valor, artigos (referência, material, tipo), campanha, tipo de cliente, onde viu o produto, se já comprou online, para quem é, reposição, motivo de não venda e o que procurava.
+- **Compra de ouro** (`/lojas/ouro`, antes "Eficácia das campanhas de marketing"): um registo por cliente que vem vender ouro usado ou fazer contrato, com como conheceu a Loja do Ouro (as opções marcadas como "internet" dão a % digital), se fechou negócio, e gramas e valor pago por quilate. Os meses anteriores (2022–set. 2026) vêm dos totais mensais do Excel.
+- **Comparar lojas** (`/lojas/comparar`, Gestores): vendas, compra de ouro e gasto Google Ads por loja. A campanha conta para a loja cuja palavra (Administração → Lojas) aparece no nome; o custo por cliente da internet é uma relação, não prova de atribuição.
+- **Listas de opções** (`/admin/opcoes`, Super Admin): as escolhas dos formulários.
+
 Dados em falta não são zero. Utilizadores distintos e ticket médio exigem consulta oficial de todo o período. A concordância de totais não certifica tracking. Custos incompletos não permitem calcular lucro.
 
 No modo direto, Shopify representa uma coorte recolhida pela data de criação portuguesa, com estado observado na consulta e cobertura não certificada. Linhas de reversão são excluídas por `order_count`; conflitos e moedas incompatíveis suspendem os agregados. Não se substituem `total_sales`, `average_order_value` ou MER por valores desta coorte. GA4 consulta utilizadores no período inteiro. Campanhas, ações, públicos, CRM e pesquisa são conjuntos distintos, com limitações explícitas.
@@ -64,10 +73,10 @@ O build de produção verifica a configuração do login e o acesso às quatro f
 ## Estrutura
 
 - `app/page.tsx` — loja online: enquadramento, períodos e secções.
-- `app/lojas/` — vendas diárias das lojas físicas e comparação entre lojas.
+- `app/lojas/` — vendas e atendimentos, compra de ouro e comparação entre lojas.
 - `app/admin/` — utilizadores e lojas; `app/conta/` — mudar a própria palavra-passe.
 - `components/shell.tsx` — menu e barra superior, conforme as permissões.
-- `lib/session.ts`, `lib/viewer.ts`, `lib/permissions.ts`, `lib/rate-limit.ts` — login, sessão e permissões; `lib/store-sales.ts` — campos e cálculos das vendas das lojas.
+- `lib/session.ts`, `lib/viewer.ts`, `lib/permissions.ts`, `lib/rate-limit.ts` — login, sessão e permissões; `lib/store-records.ts` — leitura dos formulários e totais das lojas físicas.
 - `components/dashboard/` — uma secção por ficheiro (`overview`, `sales`, `marketing`, `audience`, `quality`), mais `trend`, `ui` e `format`.
 - `lib/bi/` — `model` (cálculos e regras de estado das encomendas), `periods`, `store` (leitura), `live` + `windsor` (modo direto), `ingest` + `shopify` + `supabase-write` (recolha).
 

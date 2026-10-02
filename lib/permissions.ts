@@ -2,7 +2,7 @@
 // (ldo_* functions and row level security); this only shapes the interface.
 
 export type Level = "manager" | "store";
-export type StoreAccess = { id: string; code: string; name: string; level: Level };
+export type StoreAccess = { id: string; code: string; name: string; level: Level; ads_keyword?: string | null };
 export type Access = { id: string; isSuper: boolean; online: boolean; stores: StoreAccess[] };
 
 export const canSeeOnline = (a: Access) => a.isSuper || a.online;
@@ -27,21 +27,21 @@ export function grantableLevels(a: Access, storeId: string): Level[] {
 export const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const STORE_BACKDATE_DAYS = 31;
 
-// Gestor corrects any day; Loja only its own entry during the first 24 hours,
+// Gestor corrects any record; Loja only its own record during the first 24 hours,
 // and not once someone else (the Gestor) has corrected it.
-export function canEditSale(
+export function canEditRecord(
   a: Access,
   storeId: string,
-  sale: { created_by: string; created_at: string; updated_by?: string | null } | null,
+  record: { created_by: string; created_at: string; updated_by?: string | null } | null,
   now = Date.now(),
 ) {
   const store = a.stores.find((s) => s.id === storeId);
   if (!store) return false;
-  if (store.level === "manager" || !sale) return true;
+  if (store.level === "manager" || !record) return true;
   return (
-    sale.created_by === a.id &&
-    (!sale.updated_by || sale.updated_by === a.id) &&
-    now - Date.parse(sale.created_at) < EDIT_WINDOW_MS
+    record.created_by === a.id &&
+    (!record.updated_by || record.updated_by === a.id) &&
+    now - Date.parse(record.created_at) < EDIT_WINDOW_MS
   );
 }
 

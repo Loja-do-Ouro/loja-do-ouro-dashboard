@@ -10,7 +10,7 @@ import { saveStore } from "./actions";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Lojas · Loja do Ouro" };
 
-type Store = { id: string; code: string; name: string; city: string | null; active: boolean; sort_order: number; managers: number; staff: number };
+type Store = { id: string; code: string; name: string; city: string | null; active: boolean; sort_order: number; managers: number; staff: number; ads_keyword: string | null };
 const OK: Record<string, string> = { created: "Loja criada.", updated: "Loja atualizada." };
 
 export default async function StoresAdminPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -47,7 +47,7 @@ export default async function StoresAdminPage({ searchParams }: { searchParams: 
                   <tr key={s.id} className={s.id === editing?.id ? "selected-row" : ""}>
                     <td>
                       {s.name}
-                      <small className="muted block">{s.code}</small>
+                      <small className="muted block">{s.code}{s.ads_keyword ? ` · Google Ads: “${s.ads_keyword}”` : " · sem campanha Google Ads"}</small>
                     </td>
                     <td>{s.city || "—"}</td>
                     <td>
@@ -81,6 +81,10 @@ export default async function StoresAdminPage({ searchParams }: { searchParams: 
             <label className="wide">
               Código (aparece nos endereços; se ficar vazio é criado a partir do nome)
               <input name="code" maxLength={40} pattern="[a-z0-9\-]*" defaultValue={editing?.code || ""} />
+            </label>
+            <label className="wide">
+              Palavra da campanha Google Ads (a campanha cujo nome a contém conta para esta loja, ex.: “FOZ”)
+              <input name="ads_keyword" maxLength={40} defaultValue={editing?.ads_keyword || ""} />
             </label>
             <label className="check wide">
               <input type="checkbox" name="active" defaultChecked={editing ? editing.active : true} />

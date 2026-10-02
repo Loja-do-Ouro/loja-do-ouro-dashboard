@@ -2,56 +2,65 @@
 
 import { redirect } from "next/navigation";
 import { validDate } from "@/lib/bi/periods";
-import { parseSaleForm } from "@/lib/store-sales";
+import { parseGoldForm, parseShopSaleForm } from "@/lib/store-records";
 import { rpc, userMessage } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 
-function back(form: FormData, result: { ok?: string; erro?: string }) {
+function back(path: string, form: FormData, result: { ok?: string; erro?: string; editar?: string }) {
   const params = new URLSearchParams();
-  for (const key of ["loja", "mes", "data"]) {
+  for (const key of ["loja", "mes", "dia"]) {
     const v = String(form.get(key) || "");
     if (v) params.set(key, v);
   }
-  if (result.ok) params.set("ok", result.ok);
-  if (result.erro) params.set("erro", result.erro);
-  return `/lojas?${params}`;
+  for (const [k, v] of Object.entries(result)) if (v) params.set(k, v);
+  return `${path}?${params}`;
 }
 
-// Permissions are enforced again by ldo_save_store_sale in the database.
-export async function saveSale(form: FormData) {
+async function save(path: string, fn: string, form: FormData, parsed: { error?: string; data?: Record<string, unknown> }, dateKey: string) {
   const viewer = await requireViewer();
+  const id = String(form.get("record_id") || "") || null;
   const store = viewer.stores.find((s) => s.id === String(form.get("store_id") || ""));
-  const date = String(form.get("data") || "");
-  if (!store || !validDate(date)) redirect(back(form, { erro: "Loja ou data inválida." }));
-  const parsed = parseSaleForm(form);
-  if ("error" in parsed) redirect(back(form, { erro: parsed.error }));
+  const editar = id || undefined;
+  if (!store) redirect(back(path, form, { erro: "Loja inválida.", editar }));
+  if (parsed.error || !parsed.data) redirect(back(path, form, { erro: parsed.error, editar }));
+  if (!validDate(String(parsed.data[dateKey] || ""))) redirect(back(path, form, { erro: "Data inválida.", editar }));
   let error = "";
   try {
-    await rpc("ldo_save_store_sale", {
-      p_session: viewer.session,
-      p_store_id: store.id,
-      p_sale_date: date,
-      p_total_sales: parsed.values.total_sales,
-      p_receipts: parsed.values.receipts,
-      p_items: parsed.values.items,
-      p_cash: parsed.values.cash,
-      p_card: parsed.values.card,
-      p_other_payment: parsed.values.other_payment,
-      p_notes: parsed.notes,
-    });
+    await rpc(fn, { p_session: viewer.session, p_id: id, p_store_id: store.id, p_data: parsed.data });
   } catch (e) {
     error = userMessage(e);
   }
-  redirect(back(form, error ? { erro: error } : { ok: "saved" }));
+  // After saving, the day of the record stays open so the next one is quick to add.
+  const day = String(parsed.data[dateKey]);
+  form.set("dia", day);
+  form.set("mes", day.slice(0, 7));
+  redirect(back(path, form, error ? { erro: error, editar } : { ok: id ? "updated" : "saved" }));
 }
 
-export async function deleteSale(form: FormData) {
+async function remove(path: string, fn: string, form: FormData) {
   const viewer = await requireViewer();
   let error = "";
   try {
-    await rpc("ldo_remove_store_sale", { p_session: viewer.session, p_sale_id: String(form.get("sale_id") || "") });
+    await rpc(fn, { p_session: viewer.session, p_id: String(form.get("record_id") || "") });
   } catch (e) {
     error = userMessage(e);
   }
-  redirect(back(form, error ? { erro: error } : { ok: "deleted" }));
+  redirect(back(path, form, error ? { erro: error } : { ok: "deleted" }));
+}
+
+// ldo_save_shop_sale and ldo_save_gold_entry check every permission again in the database.
+export async function saveShopSale(form: FormData) {
+  await save("/lojas", "ldo_save_shop_sale", form, parseShopSaleForm(form), "sale_date");
+}
+
+export async function removeShopSale(form: FormData) {
+  await remove("/lojas", "ldo_remove_shop_sale", form);
+}
+
+export async function saveGoldEntry(form: FormData) {
+  await save("/lojas/ouro", "ldo_save_gold_entry", form, parseGoldForm(form), "entry_date");
+}
+
+export async function removeGoldEntry(form: FormData) {
+  await remove("/lojas/ouro", "ldo_remove_gold_entry", form);
 }
