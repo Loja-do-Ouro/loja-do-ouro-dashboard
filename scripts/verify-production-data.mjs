@@ -1,6 +1,11 @@
 // Read-only release gate. Log counts/configuration only, never URLs or secrets.
 if (process.env.VERCEL_ENV !== "production") {
   console.info("[release-check] Production data gate only runs on production builds.");
+} else if (process.env.RELEASE_SKIP_DATA_CHECK === "1") {
+  // Emergency override for a code fix while a source is down. Login is still required.
+  if (!process.env.DASHBOARD_USER || !process.env.DASHBOARD_PASSWORD || !process.env.DASHBOARD_SESSION_SECRET)
+    throw new Error("Release blocked: dashboard login is not configured.");
+  console.warn("[release-check] Data source check skipped by RELEASE_SKIP_DATA_CHECK=1.");
 } else {
   if (!process.env.DASHBOARD_USER || !process.env.DASHBOARD_PASSWORD || !process.env.DASHBOARD_SESSION_SECRET)
     throw new Error("Release blocked: dashboard login is not configured.");
@@ -12,10 +17,10 @@ if (process.env.VERCEL_ENV !== "production") {
     const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Lisbon",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
     const d=new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate()-1); const yesterday=d.toISOString().slice(0,10);
     const jobs=[
-      ["facebook","189245068300417","date,spend,account_currency,account_timezone"],
-      ["google_ads","266-236-4039","date,spend,account_currency_code,account_time_zone"],
-      ["googleanalytics4","292767515","sessions,totalusers,property_currency,property_timezone"],
-      ["shopify","lojadoouro-online.myshopify.com","order_id,order_count,order_currency,order_created_at,order_current_total_price"],
+      ["facebook",process.env.WINDSOR_META_ACCOUNT_ID || "189245068300417","date,spend,account_currency,account_timezone"],
+      ["google_ads",process.env.WINDSOR_GOOGLE_ACCOUNT_ID || "266-236-4039","date,spend,account_currency_code,account_time_zone"],
+      ["googleanalytics4",process.env.WINDSOR_GA4_ACCOUNT_ID || "292767515","sessions,totalusers,property_currency,property_timezone"],
+      ["shopify",process.env.WINDSOR_SHOPIFY_ACCOUNT_ID || "lojadoouro-online.myshopify.com","order_id,order_count,order_currency,order_created_at,order_current_total_price"],
     ];
     const results=await Promise.all(jobs.map(async([connector,account,fields])=>{
       const params=new URLSearchParams({api_key:key,select_accounts:account,date_from:yesterday,date_to:yesterday,fields,_renderer:"json"});

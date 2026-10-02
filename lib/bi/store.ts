@@ -1,8 +1,13 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { Period } from "./periods";
 import type { Store } from "./model";
 import { liveConfigured, loadLivePeriods } from "./live";
+import { BI_CACHE_TAG } from "./windsor";
+
+// Stored closes change only when the ingestion runs, which revalidates this tag.
+const STORED_REVALIDATE_SECONDS = 300;
 const TABLES = new Set([
   "ldo_bi_daily",
   "ldo_bi_datasets",
@@ -60,8 +65,8 @@ async function read<T>(
   }
   throw new Error("Cobertura incompleta: limite de paginação atingido.");
 }
-export const loadStore = cache(
-  async (from: string, to: string): Promise<Store> => {
+// Uncached read, used by the ingestion right after it writes.
+export async function readStore(from: string, to: string): Promise<Store> {
     const empty: Store = {
       daily: [],
       datasets: [],
@@ -138,8 +143,26 @@ export const loadStore = cache(
         "Sem registos acessíveis neste intervalo. Confirmar cobertura e permissões do utilizador BI.",
       );
     return empty;
+}
+class ReadFailure extends Error {}
+const cachedStore = unstable_cache(
+  async (from: string, to: string) => {
+    const store = await readStore(from, to);
+    // Failed reads are never cached; the next view retries.
+    if (store.errors.some((e) => /^(daily|datasets|quality|reports|runs):/.test(e))) throw new ReadFailure();
+    return store;
   },
+  ["bi-store"],
+  { revalidate: STORED_REVALIDATE_SECONDS, tags: [BI_CACHE_TAG] },
 );
+export const loadStore = cache(async (from: string, to: string): Promise<Store> => {
+  if (!configured()) return readStore(from, to);
+  try {
+    return await cachedStore(from, to);
+  } catch {
+    return readStore(from, to);
+  }
+});
 export async function loadPeriods(periods: Period[], selected = periods[0], section = "overview") {
   if (!configured() && liveConfigured()) return loadLivePeriods(periods, selected, section);
   return loadStore(

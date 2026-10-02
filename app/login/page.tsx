@@ -21,7 +21,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
         {error && (
           <div className="login-error">
-            {error === "config" ? "A autenticação ainda não está configurada no servidor." : "Utilizador ou palavra-passe inválidos."}
+            {error === "config"
+              ? "A autenticação ainda não está configurada no servidor."
+              : error === "locked"
+                ? "Demasiadas tentativas falhadas. Aguarde 15 minutos antes de tentar novamente."
+                : "Utilizador ou palavra-passe inválidos."}
           </div>
         )}
         <form className="login-form" method="post" action="/api/auth/login">

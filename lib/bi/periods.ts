@@ -115,6 +115,31 @@ export function selection(
   }
   return { key, range, previous: previous(range, key), windows, error };
 }
+// Ingestion window. Default: the last three closed days, so late source
+// revisions are picked up. A backfill is limited to 62 complete days.
+const REVISION_DAYS = 3;
+const MAX_BACKFILL_DAYS = 62;
+export function ingestRange(
+  q: { from?: string | null; to?: string | null },
+  now = new Date(),
+): Period {
+  const yesterday = shift(localDate(now), -1);
+  if (!q.from && !q.to)
+    return { from: shift(yesterday, -(REVISION_DAYS - 1)), to: yesterday };
+  const from = q.from || "",
+    to = q.to || "";
+  if (
+    !validDate(from) ||
+    !validDate(to) ||
+    from > to ||
+    to > yesterday ||
+    (Date.parse(to) - Date.parse(from)) / 86400000 >= MAX_BACKFILL_DAYS
+  )
+    throw new Error(
+      `Intervalo inválido: até ${MAX_BACKFILL_DAYS} dias completos, terminando no máximo ontem.`,
+    );
+  return { from, to };
+}
 export const periodLabel = (p: Period) =>
   p.from === p.to
     ? shortDate(p.from)

@@ -1,7 +1,7 @@
 const {test}=require("node:test");
 const assert=require("node:assert/strict");
-const {normalizeOrders,liveCommerce}=require("../.test-build/live-model.js");
-const {overview}=require("../.test-build/model.js");
+const {normalizeOrders,liveCommerce}=require("../.test-build/bi/live-model.js");
+const {overview}=require("../.test-build/bi/model.js");
 const period={from:"2026-09-16",to:"2026-09-16"};
 const base={order_id:"gid://shopify/Order/10",order_name:"#10online",order_count:1,order_created_at:"2026-09-15T23:12:36Z",order_updated_at:"2026-09-16T09:00:00Z",order_current_total_price:"120.54",order_net_payment:"120.54",order_currency:"EUR",order_financial_status:"PAID",order_fulfillment_status:"FULFILLED",order_cancelled_at:null};
 const store=(rows,conflicts=0)=>({daily:[],datasets:[{source:"shopify_live",dataset:"orders",period_start:period.from,period_end:period.to,rows,metadata:{complete:false,conflicts},fetched_at:"2026-09-17T01:00:00Z",status:"provisional",run_id:"live"}],quality:[],reports:[],runs:[],errors:[],mode:"live"});

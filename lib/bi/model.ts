@@ -325,6 +325,34 @@ export function canonicalOrders(d: Detail): Detail {
       (duplicates ? ` · ${duplicates} referências repetidas removidas` : ""),
   };
 }
+// Order status rules shared by the stored and direct views.
+export const isPaid = (r: Row) =>
+  !r.cancelled_at && ["PAID", "PARTIALLY_REFUNDED"].includes(String(r.financial_status));
+export const isPending = (r: Row) =>
+  !r.cancelled_at && ["PENDING", "AUTHORIZED", "PARTIALLY_PAID"].includes(String(r.financial_status));
+export const awaitingFulfillment = (r: Row) =>
+  isPaid(r) && ["UNFULFILLED", "PARTIALLY_FULFILLED", "UNSHIPPED"].includes(String(r.fulfillment_status));
+// Cancelled or voided orders have nothing left to prepare.
+export const isClosedWithoutPayment = (r: Row) =>
+  !!r.cancelled_at || String(r.financial_status) === "VOIDED";
+
+// One row per campaign: spend, conversions and attributed value summed over
+// ads and days. Rows without a valid number keep the campaign total unknown.
+export function byCampaign(rows: Row[], fields: string[]): Row[] {
+  const groups = new Map<string, Row[]>();
+  for (const r of rows) {
+    const key = String(r.campaign_id || r.campaign || "—");
+    groups.set(key, [...(groups.get(key) || []), r]);
+  }
+  return [...groups.values()]
+    .map((g): Row => ({
+      campaign: g[0].campaign,
+      campaign_id: g[0].campaign_id,
+      ads: new Set(g.map((r) => r.ad_id).filter(Boolean)).size,
+      ...Object.fromEntries(fields.map((f) => [f, sum(g, f)])),
+    }))
+    .sort((a, b) => (number(b.spend) || 0) - (number(a.spend) || 0));
+}
 export function unpaidAmount(r: Row): number | null {
   const explicit = number(r.outstanding);
   if (explicit !== null) return Math.max(0, explicit);
@@ -467,6 +495,16 @@ export function calculatedChecks(store: Store, p: Period) {
     }
   }
   const c = Object.fromEntries(s.composition.map((m) => [m.field, m.value]));
+  // The direct connector never supplies the sales report; that is a known
+  // limitation of the mode, not a divergence that needs attention.
+  if (store.mode === "live" && s.composition.every((m) => m.value === null) && s.sales.value === null) {
+    checks.push({
+      label: "Composição das vendas Shopify",
+      detail: "Não aplicável no modo direto: o conector não fornece o relatório de vendas. Disponível com os fechos guardados.",
+      warning: false,
+    });
+    return checks;
+  }
   const net = plus(plus(c.gross_sales, c.discounts), c.returns),
     total = plus(plus(c.net_sales, c.taxes), c.shipping_charges);
   checks.push({

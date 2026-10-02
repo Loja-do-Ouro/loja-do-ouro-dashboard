@@ -1,0 +1,28 @@
+import { NextResponse } from "next/server";
+import { ingest, ingestRange } from "@/lib/bi/ingest";
+import { shopifyConfigured } from "@/lib/bi/shopify";
+import { writerConfigured } from "@/lib/bi/supabase-write";
+import { windsorConfigured } from "@/lib/bi/windsor";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+// Manual collection from the dashboard. The proxy requires a valid session for
+// this path, and the session cookie is SameSite=Lax, so cross-site posts carry no session.
+export async function POST(request: Request) {
+  const form = await request.formData();
+  const back = (status: string) => {
+    const url = new URL("/", request.url);
+    url.searchParams.set("section", "quality");
+    url.searchParams.set("ingest", status);
+    return NextResponse.redirect(url, 303);
+  };
+  if (!writerConfigured() || !windsorConfigured() || !shopifyConfigured()) return back("config");
+  let range;
+  try {
+    range = ingestRange({ from: String(form.get("from") || "") || null, to: String(form.get("to") || "") || null });
+  } catch {
+    return back("range");
+  }
+  const result = await ingest(range, "manual_dashboard");
+  return back(result.status);
+}
