@@ -31,11 +31,11 @@ export default async function StoreSalesPage({ searchParams }: { searchParams: P
   const { month, from, to } = monthRange(q.mes, today);
   const day = typeof q.data === "string" && validDate(q.data) && q.data <= today ? q.data : today;
 
-  const sales = await rpc<Sale[]>(viewer.token, "ldo_store_sales_list", { p_store_id: store.id, p_from: from, p_to: to });
+  const sales = await rpc<Sale[]>("ldo_store_sales_list", { p_session: viewer.session, p_store_id: store.id, p_from: from, p_to: to });
   const current =
     day >= from && day <= to
       ? sales.find((s) => s.sale_date === day) || null
-      : (await rpc<Sale[]>(viewer.token, "ldo_store_sales_list", { p_store_id: store.id, p_from: day, p_to: day }))[0] || null;
+      : (await rpc<Sale[]>("ldo_store_sales_list", { p_session: viewer.session, p_store_id: store.id, p_from: day, p_to: day }))[0] || null;
   const manager = store.level === "manager";
   const tooOld = !manager && day < shift(today, -STORE_BACKDATE_DAYS);
   const editable = !tooOld && canEditSale(viewer, store.id, current);

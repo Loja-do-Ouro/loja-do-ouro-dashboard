@@ -2323,3 +2323,13 @@ table.nowrap-first td:first-child {
     padding: 6px;
   }
 }
+a.private-label:hover small,
+a.private-label.active small {
+  color: var(--green);
+  text-decoration: underline;
+}
+.topbar-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

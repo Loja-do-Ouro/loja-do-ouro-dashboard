@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { canManageStores, homePath } from "@/lib/permissions";
-import { select } from "@/lib/supabase";
+import { rpc } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
@@ -10,20 +10,15 @@ import { saveStore } from "./actions";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Lojas · Loja do Ouro" };
 
-type Store = { id: string; code: string; name: string; city: string | null; active: boolean; sort_order: number };
-type Assignment = { store_id: string; level: "manager" | "store" };
+type Store = { id: string; code: string; name: string; city: string | null; active: boolean; sort_order: number; managers: number; staff: number };
 const OK: Record<string, string> = { created: "Loja criada.", updated: "Loja atualizada." };
 
 export default async function StoresAdminPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
   if (!canManageStores(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const [stores, assignments] = await Promise.all([
-    select<Store>(viewer.token, "ldo_app_stores", { select: "id,code,name,city,active,sort_order", order: "sort_order.asc,name.asc" }),
-    select<Assignment>(viewer.token, "ldo_app_user_stores", { select: "store_id,level" }),
-  ]);
+  const stores = await rpc<Store[]>("ldo_list_stores", { p_session: viewer.session });
   const editing = typeof q.id === "string" ? stores.find((s) => s.id === q.id) || null : null;
-  const count = (id: string, level: Assignment["level"]) => assignments.filter((a) => a.store_id === id && a.level === level).length;
   const ok = typeof q.ok === "string" ? OK[q.ok] : undefined;
   const error = typeof q.erro === "string" ? q.erro.slice(0, 300) : undefined;
   const nextOrder = (stores.at(-1)?.sort_order || 0) + 10;
@@ -56,7 +51,7 @@ export default async function StoresAdminPage({ searchParams }: { searchParams: 
                     </td>
                     <td>{s.city || "—"}</td>
                     <td>
-                      {count(s.id, "manager")} gestores · {count(s.id, "store")} loja
+                      {s.managers} {s.managers === 1 ? "gestor" : "gestores"} · {s.staff} loja
                     </td>
                     <td>{s.active ? <span className="pill ok">Ativa</span> : <span className="pill">Desativada</span>}</td>
                     <td>

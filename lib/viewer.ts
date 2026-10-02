@@ -2,48 +2,49 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { ACCESS_COOKIE } from "./session";
-import { rpc, SupabaseError } from "./supabase";
+import { SESSION_COOKIE } from "./session";
+import { rpc } from "./supabase";
 import type { Access, StoreAccess } from "./permissions";
 
-export type Viewer = Access & { email: string; fullName: string | null; token: string };
+export type Viewer = Access & {
+  username: string;
+  fullName: string | null;
+  mustChangePassword: boolean;
+  session: string;
+};
 type Me = {
   id: string;
-  email: string;
+  username: string;
   full_name: string | null;
   is_super_admin: boolean;
   online_access: boolean;
+  must_change_password: boolean;
   stores: StoreAccess[];
 };
 
-export function toViewer(me: Me, token: string): Viewer {
+// Validates the session against Supabase once per request. An outage throws
+// (error page) instead of logging the person out.
+export const loadViewer = cache(async (): Promise<Viewer | null> => {
+  const session = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!session) return null;
+  const me = await rpc<Me | null>("ldo_me", { p_session: session });
+  if (!me) return null;
   return {
     id: me.id,
-    email: me.email,
+    username: me.username,
     fullName: me.full_name,
     isSuper: me.is_super_admin,
     online: me.online_access,
+    mustChangePassword: me.must_change_password,
     stores: me.stores || [],
-    token,
+    session,
   };
-}
-
-// Validates the session token against Supabase once per request.
-export const loadViewer = cache(async (): Promise<{ viewer: Viewer } | { error: "session" | "noaccess" }> => {
-  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-  if (!token) return { error: "session" };
-  try {
-    const me = await rpc<Me | null>(token, "ldo_me");
-    return me ? { viewer: toViewer(me, token) } : { error: "noaccess" };
-  } catch (e) {
-    // A rejected token means signing in again; an outage shows the error page instead of logging out.
-    if (e instanceof SupabaseError && (e.status === 401 || e.status === 403)) return { error: "session" };
-    throw e;
-  }
 });
 
-export async function requireViewer(): Promise<Viewer> {
-  const result = await loadViewer();
-  if ("error" in result) redirect(`/api/auth/logout?error=${result.error}`);
-  return result.viewer;
+// Every page and action starts here. A temporary password must be changed first.
+export async function requireViewer({ allowPasswordChange = false } = {}): Promise<Viewer> {
+  const viewer = await loadViewer();
+  if (!viewer) redirect("/api/auth/logout?error=session");
+  if (viewer.mustChangePassword && !allowPasswordChange) redirect("/conta?primeiro=1");
+  return viewer;
 }

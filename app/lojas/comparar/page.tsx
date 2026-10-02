@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { dates, localDate, periodLabel, shift, validDate } from "@/lib/bi/periods";
 import { canCompareStores, homePath, managedStores } from "@/lib/permissions";
 import { summarize, type Sale } from "@/lib/store-sales";
-import { selectAll } from "@/lib/supabase";
+import { rpcAll } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 import { currency, integer, percent } from "@/components/dashboard/format";
 import { Change, Panel } from "@/components/dashboard/ui";
@@ -30,12 +30,7 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
   const length = dates({ from, to }).length;
   const prev = { from: shift(from, -length), to: shift(from, -1) };
   const stores = managedStores(viewer);
-  const rows = await selectAll<Row>(viewer.token, "ldo_store_sales", {
-    select: "store_id,sale_date,total_sales,receipts,items",
-    store_id: `in.(${stores.map((s) => s.id).join(",")})`,
-    and: `(sale_date.gte.${prev.from},sale_date.lte.${to})`,
-    order: "sale_date.asc",
-  });
+  const rows = await rpcAll<Row>("ldo_compare_sales", { p_session: viewer.session, p_from: prev.from, p_to: to });
   const inRange = (r: Row, p: { from: string; to: string }) => r.sale_date >= p.from && r.sale_date <= p.to;
   const table = stores.map((s) => {
     const mine = rows.filter((r) => r.store_id === s.id);

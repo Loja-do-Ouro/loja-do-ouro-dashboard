@@ -11,8 +11,8 @@ export const maxDuration = 300;
 // Manual collection from the dashboard, for people with Loja Online access.
 // The session cookie is SameSite=Lax, so cross-site posts carry no session.
 export async function POST(request: Request) {
-  const session = await loadViewer();
-  if ("error" in session || !canSeeOnline(session.viewer)) return new NextResponse("Sem permissão.", { status: 403 });
+  const viewer = await loadViewer();
+  if (!viewer || viewer.mustChangePassword || !canSeeOnline(viewer)) return new NextResponse("Sem permissão.", { status: 403 });
   const form = await request.formData();
   const back = (status: string) => {
     const url = new URL("/", request.url);

@@ -19,7 +19,8 @@ export async function saveStore(form: FormData) {
   else if (!code) error = "Indique um código para a loja.";
   else
     try {
-      saved = await rpc<string>(viewer.token, "ldo_save_store", {
+      saved = await rpc<string>("ldo_save_store", {
+        p_session: viewer.session,
         p_store_id: id,
         p_code: code,
         p_name: name,

@@ -30,12 +30,14 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const groups: { label: string; items: Item[] }[] = [];
-  if (canSeeOnline(viewer))
+  // With a temporary password, only the account page is reachable.
+  const locked = viewer.mustChangePassword;
+  if (!locked && canSeeOnline(viewer))
     groups.push({
       label: "LOJA ONLINE",
       items: ONLINE_SECTIONS.map(([key, label, icon]) => ({ key, label, icon, href: onlineHref(key), badge: badges[key] })),
     });
-  if (viewer.stores.length)
+  if (!locked && viewer.stores.length)
     groups.push({
       label: "LOJAS FÍSICAS",
       items: [
@@ -43,7 +45,7 @@ export function AppShell({
         ...(canCompareStores(viewer) ? [{ key: "comparar", label: "Comparar lojas", href: "/lojas/comparar", icon: "grid" }] : []),
       ],
     });
-  if (canManageUsers(viewer))
+  if (!locked && canManageUsers(viewer))
     groups.push({
       label: "ADMINISTRAÇÃO",
       items: [
@@ -51,7 +53,7 @@ export function AppShell({
         ...(canManageStores(viewer) ? [{ key: "admin-lojas", label: "Lojas", href: "/admin/lojas", icon: "bag" }] : []),
       ],
     });
-  const name = viewer.fullName || viewer.email;
+  const name = viewer.fullName || viewer.username;
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -88,13 +90,13 @@ export function AppShell({
         ))}
         </div>
         <div className="sidebar-bottom">
-          <div className="private-label">
+          <Link href="/conta" className={`private-label${current === "conta" ? " active" : ""}`} title="A minha conta · mudar palavra-passe">
             <Icon name="check" />
             <span>
               {name}
-              <small>{viewer.isSuper ? "Super Admin" : viewer.email}</small>
+              <small>A minha conta</small>
             </span>
-          </div>
+          </Link>
           <form action="/api/auth/logout" method="post">
             <button className="logout">
               <Icon name="exit" />
@@ -110,7 +112,9 @@ export function AppShell({
           </span>
           <div>
             <span className="status-dot" />
-            {name} <span className="avatar">{initials(viewer.fullName, viewer.email)}</span>
+            <Link href="/conta" className="topbar-account" title="A minha conta">
+              {name} <span className="avatar">{initials(viewer.fullName, viewer.username)}</span>
+            </Link>
             <form action="/api/auth/logout" method="post" className="topbar-logout">
               <button aria-label="Terminar sessão" title="Terminar sessão">
                 <Icon name="exit" />

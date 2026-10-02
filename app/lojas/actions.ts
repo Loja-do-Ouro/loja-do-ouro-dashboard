@@ -27,7 +27,8 @@ export async function saveSale(form: FormData) {
   if ("error" in parsed) redirect(back(form, { erro: parsed.error }));
   let error = "";
   try {
-    await rpc(viewer.token, "ldo_save_store_sale", {
+    await rpc("ldo_save_store_sale", {
+      p_session: viewer.session,
       p_store_id: store.id,
       p_sale_date: date,
       p_total_sales: parsed.values.total_sales,
@@ -48,7 +49,7 @@ export async function deleteSale(form: FormData) {
   const viewer = await requireViewer();
   let error = "";
   try {
-    await rpc(viewer.token, "ldo_delete_store_sale", { p_sale_id: String(form.get("sale_id") || "") });
+    await rpc("ldo_remove_store_sale", { p_session: viewer.session, p_sale_id: String(form.get("sale_id") || "") });
   } catch (e) {
     error = userMessage(e);
   }

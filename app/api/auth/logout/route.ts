@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_COOKIE, clearSession, revokeSession } from "@/lib/session";
+import { clearSession, SESSION_COOKIE } from "@/lib/session";
+import { rpc } from "@/lib/supabase";
 
-const REASONS = new Set(["session", "noaccess", "expired"]);
+const REASONS = new Set(["session", "password", "noaccess"]);
 
 async function logout(request: NextRequest) {
-  await revokeSession(request.cookies.get(ACCESS_COOKIE)?.value);
+  const session = request.cookies.get(SESSION_COOKIE)?.value;
+  // Ends the session in Supabase too; best effort, the cookie is cleared anyway.
+  if (session) await rpc("ldo_logout", { p_session: session }).catch(() => undefined);
   const reason = new URL(request.url).searchParams.get("error") || "";
   const login = new URL("/login", request.url);
   if (REASONS.has(reason)) login.searchParams.set("error", reason);

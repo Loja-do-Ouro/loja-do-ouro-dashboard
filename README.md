@@ -43,7 +43,7 @@ O modo direto consulta os conectores, que podem servir cache upstream, e disting
 
 ### Acesso
 
-Login com conta Google por convite (Supabase Auth, fluxo PKCE). Só entra quem tem um utilizador ativo em `ldo_app_users` com o mesmo email; a primeira entrada liga a conta Google ao convite. A sessão fica em cookies httpOnly e termina após 12 horas sem uso. O `proxy.ts` só renova a sessão; cada página valida o token em Supabase (`ldo_me`) e verifica as permissões.
+Cada pessoa entra com utilizador e palavra-passe, criados no backoffice (Utilizadores). As palavras-passe ficam cifradas em Supabase (bcrypt) e nunca passam pelo código do dashboard depois do login. `ldo_login` devolve um token de sessão aleatório, guardado num cookie httpOnly durante 12 horas. Cinco palavras-passe erradas bloqueiam a conta durante 15 minutos, e há também um limite por endereço de rede. Uma palavra-passe nova, definida pelo administrador ou pela própria pessoa, termina as sessões abertas. Quem recebe uma palavra-passe temporária tem de a mudar no primeiro acesso.
 
 Permissões, independentes por utilizador:
 
@@ -51,9 +51,9 @@ Permissões, independentes por utilizador:
 - **Loja Online** — as secções Shopify, campanhas, públicos e qualidade.
 - **Lojas físicas**, por loja: **Gestor** (vê e compara as suas lojas, corrige e apaga registos, gere utilizadores de nível Loja nessas lojas) ou **Loja** (lança as vendas diárias, corrige o próprio lançamento durante 24 horas, vê o histórico).
 
-A base de dados aplica as mesmas regras: as tabelas `ldo_app_*` e `ldo_store_sales*` só têm políticas de leitura (RLS) e as escritas passam pelas funções `ldo_save_user`, `ldo_save_store`, `ldo_save_store_sale` e `ldo_delete_store_sale`, que verificam quem chama. Cada lançamento e correção fica em `ldo_store_sales_history` (antes/depois, quem e quando). Ver `supabase/migrations/`.
+As regras são aplicadas em Supabase: as tabelas `ldo_app_*` e `ldo_store_sales*` não são acessíveis diretamente, e todas as leituras e escritas passam pelas funções `ldo_*`, que recebem o token de sessão e verificam as permissões. Por isso o dashboard só precisa da chave pública do projeto. Cada lançamento, correção e apagamento fica em `ldo_store_sales_history` (antes/depois, quem e quando); apagar é sempre uma marca, nunca uma remoção. Ver `supabase/migrations/`.
 
-Variáveis: `BI_SUPABASE_URL` (ou `SUPABASE_URL`) e `SUPABASE_PUBLISHABLE_KEY` (chave pública do projeto). O fornecedor Google tem de estar ativo em Supabase → Authentication → Sign In / Providers, e os endereços do dashboard em Authentication → URL Configuration → Redirect URLs.
+Variáveis: `BI_SUPABASE_URL` (ou `SUPABASE_URL`) e `SUPABASE_PUBLISHABLE_KEY`.
 
 Dados em falta não são zero. Utilizadores distintos e ticket médio exigem consulta oficial de todo o período. A concordância de totais não certifica tracking. Custos incompletos não permitem calcular lucro.
 
@@ -65,9 +65,9 @@ O build de produção verifica a configuração do login e o acesso às quatro f
 
 - `app/page.tsx` — loja online: enquadramento, períodos e secções.
 - `app/lojas/` — vendas diárias das lojas físicas e comparação entre lojas.
-- `app/admin/` — utilizadores e lojas.
+- `app/admin/` — utilizadores e lojas; `app/conta/` — mudar a própria palavra-passe.
 - `components/shell.tsx` — menu e barra superior, conforme as permissões.
-- `lib/session.ts`, `lib/viewer.ts`, `lib/permissions.ts` — login Google, sessão e permissões; `lib/store-sales.ts` — campos e cálculos das vendas das lojas.
+- `lib/session.ts`, `lib/viewer.ts`, `lib/permissions.ts`, `lib/rate-limit.ts` — login, sessão e permissões; `lib/store-sales.ts` — campos e cálculos das vendas das lojas.
 - `components/dashboard/` — uma secção por ficheiro (`overview`, `sales`, `marketing`, `audience`, `quality`), mais `trend`, `ui` e `format`.
 - `lib/bi/` — `model` (cálculos e regras de estado das encomendas), `periods`, `store` (leitura), `live` + `windsor` (modo direto), `ingest` + `shopify` + `supabase-write` (recolha).
 

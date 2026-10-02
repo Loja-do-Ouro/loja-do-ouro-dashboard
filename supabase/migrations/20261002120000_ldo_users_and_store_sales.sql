@@ -1,4 +1,5 @@
--- Utilizadores por convite, lojas físicas e vendas diárias das lojas.
+-- Utilizadores, lojas físicas e vendas diárias das lojas (primeira versão, com login
+-- Supabase Auth). A migração seguinte troca o login por utilizador e palavra-passe.
 --
 -- Este projeto Supabase é partilhado com outra aplicação: nada aqui altera as
 -- tabelas dela (profiles, stores, ...). Tudo o que é do dashboard usa o prefixo
@@ -231,130 +232,7 @@ begin
 end;
 $$;
 
--- ---------------------------------------------------------------- gestão de utilizadores
-
--- p_stores: [{"store_id": "...", "level": "manager"|"store"}]
--- Super Admin: tudo. Gestor: apenas utilizadores de nível Loja, só nas lojas que gere.
-create function public.ldo_save_user(
-  p_user_id uuid,
-  p_email text,
-  p_full_name text,
-  p_is_super_admin boolean,
-  p_online_access boolean,
-  p_active boolean,
-  p_stores jsonb
-) returns uuid
-language plpgsql security definer set search_path = '' as $$
-declare
-  v_me uuid := ldo_private.current_user_id();
-  v_super boolean := ldo_private.is_super();
-  v_email text := lower(btrim(coalesce(p_email, '')));
-  v_name text := nullif(btrim(coalesce(p_full_name, '')), '');
-  v_target public.ldo_app_users;
-  v_managed uuid[];
-  v_id uuid;
-  v_item jsonb;
-begin
-  if v_me is null then
-    raise exception 'Sessão inválida.' using errcode = '42501';
-  end if;
-  if v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
-    raise exception 'Email inválido.' using errcode = '22023';
-  end if;
-  p_stores := coalesce(p_stores, '[]'::jsonb);
-  if jsonb_typeof(p_stores) <> 'array' then
-    raise exception 'Lista de lojas inválida.' using errcode = '22023';
-  end if;
-  for v_item in select * from jsonb_array_elements(p_stores) loop
-    if coalesce(v_item ->> 'level', '') not in ('manager', 'store')
-      or not exists (select 1 from public.ldo_app_stores where id = (v_item ->> 'store_id')::uuid) then
-      raise exception 'Loja ou nível inválido.' using errcode = '22023';
-    end if;
-  end loop;
-
-  if p_user_id is not null then
-    select * into v_target from public.ldo_app_users where id = p_user_id;
-    if v_target.id is null then
-      raise exception 'Utilizador não encontrado.' using errcode = 'P0002';
-    end if;
-  elsif exists (select 1 from public.ldo_app_users where email = v_email) then
-    raise exception 'Já existe um utilizador com este email.' using errcode = '23505';
-  end if;
-
-  if not v_super then
-    select array_agg(us.store_id) into v_managed
-    from public.ldo_app_user_stores us join public.ldo_app_stores s on s.id = us.store_id
-    where us.user_id = v_me and us.level = 'manager' and s.active;
-    if v_managed is null then
-      raise exception 'Sem permissão para gerir utilizadores.' using errcode = '42501';
-    end if;
-    if coalesce(p_is_super_admin, false) or coalesce(p_online_access, false) then
-      raise exception 'Só o Super Admin pode dar acesso Super Admin ou Loja Online.' using errcode = '42501';
-    end if;
-    if jsonb_array_length(p_stores) = 0 then
-      raise exception 'Escolha pelo menos uma loja.' using errcode = '22023';
-    end if;
-    if exists (
-      select 1 from jsonb_array_elements(p_stores) e
-      where e ->> 'level' <> 'store' or not ((e ->> 'store_id')::uuid = any (v_managed))
-    ) then
-      raise exception 'Um Gestor só pode dar o nível Loja nas lojas que gere.' using errcode = '42501';
-    end if;
-    if p_user_id is not null then
-      if p_user_id = v_me then
-        raise exception 'Não pode alterar as suas próprias permissões.' using errcode = '42501';
-      end if;
-      if v_target.is_super_admin or v_target.online_access or exists (
-        select 1 from public.ldo_app_user_stores us
-        where us.user_id = p_user_id and (us.level <> 'store' or not (us.store_id = any (v_managed)))
-      ) then
-        raise exception 'Este utilizador tem acessos fora das suas lojas. Peça ao Super Admin.' using errcode = '42501';
-      end if;
-    end if;
-  elsif p_user_id is not null and v_target.is_super_admin and v_target.active
-    and not (coalesce(p_is_super_admin, false) and coalesce(p_active, true))
-    and not exists (
-      select 1 from public.ldo_app_users
-      where is_super_admin and active and id <> p_user_id
-    ) then
-    raise exception 'Tem de existir sempre pelo menos um Super Admin ativo.' using errcode = '42501';
-  end if;
-
-  if p_user_id is null then
-    insert into public.ldo_app_users (email, full_name, is_super_admin, online_access, active, invited_by, updated_by)
-    values (v_email, v_name, coalesce(p_is_super_admin, false), coalesce(p_online_access, false),
-      coalesce(p_active, true), v_me, v_me)
-    returning id into v_id;
-  else
-    v_id := p_user_id;
-    if v_email <> v_target.email and exists (select 1 from public.ldo_app_users where email = v_email and id <> v_id) then
-      raise exception 'Já existe um utilizador com este email.' using errcode = '23505';
-    end if;
-    update public.ldo_app_users set
-      email = v_email,
-      full_name = v_name,
-      is_super_admin = coalesce(p_is_super_admin, false),
-      online_access = coalesce(p_online_access, false),
-      active = coalesce(p_active, true),
-      -- Um email novo tem de voltar a entrar com a conta Google desse email.
-      auth_user_id = case when v_email = v_target.email then auth_user_id else null end,
-      updated_by = v_me,
-      updated_at = now()
-    where id = v_id;
-  end if;
-
-  delete from public.ldo_app_user_stores where user_id = v_id;
-  insert into public.ldo_app_user_stores (user_id, store_id, level, granted_by)
-  select distinct on ((e ->> 'store_id')::uuid) v_id, (e ->> 'store_id')::uuid, e ->> 'level', v_me
-  from jsonb_array_elements(p_stores) e;
-
-  insert into public.ldo_app_audit (actor, action, target, details)
-  values (v_me, case when p_user_id is null then 'user.create' else 'user.update' end, v_id,
-    jsonb_build_object('email', v_email, 'super', coalesce(p_is_super_admin, false),
-      'online', coalesce(p_online_access, false), 'active', coalesce(p_active, true), 'stores', p_stores));
-  return v_id;
-end;
-$$;
+-- ---------------------------------------------------------------- gestão de lojas
 
 create function public.ldo_save_store(
   p_store_id uuid,
@@ -461,22 +339,6 @@ begin
 end;
 $$;
 
-create function public.ldo_delete_store_sale(p_sale_id uuid) returns void
-language plpgsql security definer set search_path = '' as $$
-declare
-  v_me uuid := ldo_private.current_user_id();
-  v_old public.ldo_store_sales;
-begin
-  select * into v_old from public.ldo_store_sales where id = p_sale_id for update;
-  if v_me is null or v_old.id is null or ldo_private.store_level(v_old.store_id) is distinct from 'manager' then
-    raise exception 'Só o Gestor da loja pode apagar registos.' using errcode = '42501';
-  end if;
-  delete from public.ldo_store_sales where id = p_sale_id;
-  insert into public.ldo_store_sales_history (sale_id, store_id, sale_date, action, changed_by, before, after)
-  values (v_old.id, v_old.store_id, v_old.sale_date, 'delete', v_me, to_jsonb(v_old), null);
-end;
-$$;
-
 -- Lançamentos de uma loja com o nome de quem lançou/corrigiu (a Loja não lê a tabela de utilizadores).
 create function public.ldo_store_sales_list(p_store_id uuid, p_from date, p_to date)
 returns table (
@@ -497,15 +359,13 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 revoke all on function public.ldo_me(), public.ldo_claim_login(),
-  public.ldo_save_user(uuid, text, text, boolean, boolean, boolean, jsonb),
   public.ldo_save_store(uuid, text, text, text, boolean, integer),
   public.ldo_save_store_sale(uuid, date, numeric, integer, integer, numeric, numeric, numeric, text),
-  public.ldo_delete_store_sale(uuid), public.ldo_store_sales_list(uuid, date, date) from public, anon;
+  public.ldo_store_sales_list(uuid, date, date) from public, anon;
 grant execute on function public.ldo_me(), public.ldo_claim_login(),
-  public.ldo_save_user(uuid, text, text, boolean, boolean, boolean, jsonb),
   public.ldo_save_store(uuid, text, text, text, boolean, integer),
   public.ldo_save_store_sale(uuid, date, numeric, integer, integer, numeric, numeric, numeric, text),
-  public.ldo_delete_store_sale(uuid), public.ldo_store_sales_list(uuid, date, date) to authenticated;
+  public.ldo_store_sales_list(uuid, date, date) to authenticated;
 
 -- ---------------------------------------------------------------- dados iniciais
 
