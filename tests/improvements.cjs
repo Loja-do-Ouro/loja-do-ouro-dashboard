@@ -2,7 +2,6 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const m = require("../.test-build/bi/model.js");
 const p = require("../.test-build/bi/periods.js");
-const limit = require("../.test-build/rate-limit.js");
 
 const store = (mode) => ({ daily: [], datasets: [], quality: [], reports: [], runs: [], errors: [], mode });
 
@@ -48,17 +47,4 @@ test("Ingestion window defaults to the last three closed Lisbon days and bounds 
   assert.throws(() => p.ingestRange({ from: "2026-09-30", to: "2026-09-29" }, now));
   assert.throws(() => p.ingestRange({ from: "2026-07-01", to: "2026-09-30" }, now));
   assert.throws(() => p.ingestRange({ from: "2026-09-31", to: "2026-09-30" }, now));
-});
-
-test("Login limiter locks a client after five failures within fifteen minutes", () => {
-  const t = Date.parse("2026-10-01T12:00:00Z");
-  for (let i = 0; i < 4; i++) limit.recordFailure("1.2.3.4", t + i);
-  assert.equal(limit.isLocked("1.2.3.4", t + 10), false);
-  limit.recordFailure("1.2.3.4", t + 5);
-  assert.equal(limit.isLocked("1.2.3.4", t + 10), true);
-  assert.equal(limit.isLocked("5.6.7.8", t + 10), false);
-  assert.equal(limit.isLocked("1.2.3.4", t + 16 * 60 * 1000), false);
-  limit.recordFailure("9.9.9.9", t);
-  limit.clearFailures("9.9.9.9");
-  assert.equal(limit.isLocked("9.9.9.9", t), false);
 });

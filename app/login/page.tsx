@@ -1,14 +1,21 @@
+import { safeRedirect } from "@/lib/session";
+
 export const dynamic = "force-dynamic";
 
-function safeRedirect(value?: string | string[]) {
-  const v = typeof value === "string" ? value : "/";
-  return v.startsWith("/") && !v.startsWith("//") ? v : "/";
-}
+const ERRORS: Record<string, string> = {
+  config: "O login ainda não está configurado no servidor.",
+  noaccess: "Esta conta Google não tem acesso ao dashboard. Peça um convite ao administrador, usando exatamente este email.",
+  oauth: "Não foi possível concluir o login com o Google. Tente novamente.",
+  cancelled: "O login com o Google foi cancelado.",
+  session: "A sessão terminou. Entre novamente.",
+  expired: "A sessão expirou. Entre novamente.",
+};
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const q = await searchParams;
   const redirect = safeRedirect(q.redirect);
   const error = typeof q.error === "string" ? q.error : "";
+  const loggedOut = q.ok === "logout";
 
   return (
     <main className="login-shell">
@@ -17,30 +24,20 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <div className="login-copy">
           <span>LOJA DO OURO</span>
           <h1>Área de administração</h1>
-          <p>Acesso reservado à gestão. Os dados comerciais e de marketing permanecem protegidos por sessão segura.</p>
+          <p>Acesso por convite. Entre com a conta Google associada ao seu email de trabalho.</p>
         </div>
-        {error && (
-          <div className="login-error">
-            {error === "config"
-              ? "A autenticação ainda não está configurada no servidor."
-              : error === "locked"
-                ? "Demasiadas tentativas falhadas. Aguarde 15 minutos antes de tentar novamente."
-                : "Utilizador ou palavra-passe inválidos."}
-          </div>
-        )}
-        <form className="login-form" method="post" action="/api/auth/login">
-          <input type="hidden" name="redirect" value={redirect} />
-          <label>
-            Utilizador
-            <input name="username" autoComplete="username" required />
-          </label>
-          <label>
-            Palavra-passe
-            <input name="password" type="password" autoComplete="current-password" required />
-          </label>
-          <button type="submit">Entrar no dashboard</button>
-        </form>
-        <small>Loja do Ouro · área privada</small>
+        {error && <div className="login-error">{ERRORS[error] || ERRORS.oauth}</div>}
+        {loggedOut && !error && <div className="login-info">Sessão terminada.</div>}
+        <a className="google-button" href={`/api/auth/google?${new URLSearchParams({ redirect })}`}>
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.78.43 3.45 1.18 4.94l3.66-2.84z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A10.96 10.96 0 0 0 12 1 11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z" />
+          </svg>
+          Entrar com Google
+        </a>
+        <small>Loja do Ouro · área privada · computadores partilhados: termine sempre a sessão no fim.</small>
       </section>
     </main>
   );

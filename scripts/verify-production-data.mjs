@@ -1,14 +1,17 @@
 // Read-only release gate. Log counts/configuration only, never URLs or secrets.
+// Login is Google through Supabase Auth: it needs the project URL and its publishable key.
+const loginConfigured = Boolean(
+  (process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL) &&
+  (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY),
+);
 if (process.env.VERCEL_ENV !== "production") {
   console.info("[release-check] Production data gate only runs on production builds.");
 } else if (process.env.RELEASE_SKIP_DATA_CHECK === "1") {
   // Emergency override for a code fix while a source is down. Login is still required.
-  if (!process.env.DASHBOARD_USER || !process.env.DASHBOARD_PASSWORD || !process.env.DASHBOARD_SESSION_SECRET)
-    throw new Error("Release blocked: dashboard login is not configured.");
+  if (!loginConfigured) throw new Error("Release blocked: dashboard login is not configured.");
   console.warn("[release-check] Data source check skipped by RELEASE_SKIP_DATA_CHECK=1.");
 } else {
-  if (!process.env.DASHBOARD_USER || !process.env.DASHBOARD_PASSWORD || !process.env.DASHBOARD_SESSION_SECRET)
-    throw new Error("Release blocked: dashboard login is not configured.");
+  if (!loginConfigured) throw new Error("Release blocked: dashboard login is not configured.");
   const key=process.env.WINDSOR_API_KEY || process.env.WINDSORAI_API_KEY;
   const biUrl=process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL;
   const biToken=process.env.BI_SUPABASE_ACCESS_TOKEN || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,7 +43,7 @@ if (process.env.VERCEL_ENV !== "production") {
   } else {
     try {
       const url=new URL("/rest/v1/ldo_bi_daily?select=metric_date&limit=1",biUrl);
-      const r=await fetch(url,{signal:AbortSignal.timeout(20000),headers:{apikey:process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || biToken,Authorization:`Bearer ${biToken}`}});
+      const r=await fetch(url,{signal:AbortSignal.timeout(20000),headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY || process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || biToken,Authorization:`Bearer ${biToken}`}});
       if(!r.ok || !(await r.json()).length) throw new Error("No readable data");
       console.info("[release-check]",JSON.stringify({login:true,mode:"stored",readable:true}));
     } catch { throw new Error("Release blocked: private BI data could not be read."); }
