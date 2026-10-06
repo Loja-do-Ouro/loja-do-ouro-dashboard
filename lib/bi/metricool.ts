@@ -52,34 +52,28 @@ async function timeline(network: string, metric: string, subject: string | null,
   return out;
 }
 
-// Followers count per day (the classic stats endpoint returns [[date, value], ...]).
-async function followers(metric: string, p: Period) {
-  const rows = await api<unknown[][]>(`/stats/timeline/${metric}`, { start: p.from.replaceAll("-", ""), end: p.to.replaceAll("-", "") });
-  const out = new Map<string, number>();
-  for (const [d, v] of Array.isArray(rows) ? rows : []) {
-    const day = metricoolDay(d), value = number(v);
-    if (day && value !== null) out.set(day, value);
-  }
-  return out;
-}
-
 type Series = [field: string, load: (p: Period) => Promise<Map<string, number>>];
+// Metric names checked against the API on 6 Oct 2026 (invalid names answer HTTP 400 with the valid list).
 const INSTAGRAM: Series[] = [
-  ["followers", (p) => followers("igFollowers", p)],
+  ["followers", (p) => timeline("instagram", "followers", "account", p)],
+  ["net_followers", (p) => timeline("instagram", "delta_followers", "account", p)],
   ["followers_gained", (p) => timeline("instagram", "followers_gained", "account", p)],
   ["followers_lost", (p) => timeline("instagram", "followers_lost", "account", p)],
+  ["reach", (p) => timeline("instagram", "reach", "account", p)],
+  ["views", (p) => timeline("instagram", "views", "account", p)],
+  ["accounts_engaged", (p) => timeline("instagram", "accounts_engaged", "account", p)],
   ["posts", (p) => timeline("instagram", "count", "posts", p)],
   ["posts_reach", (p) => timeline("instagram", "reach", "posts", p)],
   ["posts_interactions", (p) => timeline("instagram", "interactions", "posts", p)],
   ["reels", (p) => timeline("instagram", "count", "reels", p)],
-  ["reels_views", (p) => timeline("instagram", "videoviews", "reels", p)],
+  ["reels_views", (p) => timeline("instagram", "views", "reels", p)],
   ["reels_interactions", (p) => timeline("instagram", "interactions", "reels", p)],
 ];
 const FACEBOOK: Series[] = [
-  ["followers", (p) => timeline("facebook", "pageFollows", null, p)],
-  ["impressions", (p) => timeline("facebook", "pageImpressions", null, p)],
-  ["posts", (p) => timeline("facebook", "postsCount", null, p)],
-  ["interactions", (p) => timeline("facebook", "postsInteractions", null, p)],
+  ["followers", (p) => timeline("facebook", "pageFollows", "account", p)],
+  ["views", (p) => timeline("facebook", "page_media_view", "account", p)],
+  ["posts", (p) => timeline("facebook", "postsCount", "account", p)],
+  ["interactions", (p) => timeline("facebook", "postsInteractions", "account", p)],
 ];
 
 // Daily rows for one network: { date, field: value, ... }. A series that fails is
@@ -107,13 +101,15 @@ const text = (v: unknown, max = 140) => {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 };
 const n = (v: unknown) => number(v) ?? 0;
+// Publication dates come as { dateTime, timezone } or as a plain string.
+const dateTime = (v: unknown) => (v && typeof v === "object" && "dateTime" in v ? String((v as { dateTime: unknown }).dateTime) : v ?? null);
 
 // Publications of the period, best first by interactions.
 export async function metricoolPosts(network: "instagram" | "facebook", p: Period): Promise<Row[]> {
   if (network === "facebook") {
     const r = await api<{ data?: Row[] }>("/v2/analytics/posts/facebook", window(p));
     return (r.data || []).map((x) => ({
-      type: x.type, published_at: x.created ?? x.timestamp, url: x.link, text: text(x.text),
+      type: x.type, published_at: dateTime(x.created ?? x.timestamp), url: x.link, text: text(x.text),
       reactions: n(x.reactions), comments: n(x.comments), shares: n(x.shares), clicks: n(x.clicks),
       interactions: n(x.reactions) + n(x.comments) + n(x.shares), impressions: n(x.impressionsUnique ?? x.impressions), engagement: number(x.engagement),
     })).sort((a, b) => b.interactions - a.interactions).slice(0, 30);
@@ -123,7 +119,7 @@ export async function metricoolPosts(network: "instagram" | "facebook", p: Perio
     api<{ data?: Row[] }>("/v2/analytics/reels/instagram", window(p)),
   ]);
   const map = (x: Row, kind: string) => ({
-    type: kind === "reel" ? "Reel" : String(x.type || "Post"), published_at: x.publishedAt, url: x.url, text: text(x.content),
+    type: kind === "reel" ? "Reel" : String(x.type || "Post"), published_at: dateTime(x.publishedAt), url: x.url, text: text(x.content),
     likes: n(x.likes), comments: n(x.comments), shares: n(x.shares), saved: n(x.saved),
     interactions: n(x.interactions), reach: n(x.reach), views: n(x.views ?? x.videoViews ?? x.impressions), engagement: number(x.engagement),
   });

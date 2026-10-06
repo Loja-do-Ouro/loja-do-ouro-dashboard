@@ -58,10 +58,7 @@ export function Social({ store, range, previous }: { store: Store; range: Period
         </Empty>
       </Panel>
     );
-  const net = (s: Series) => {
-    const g = total(s, "followers_gained"), l = total(s, "followers_lost");
-    return g === null && l === null ? null : (g || 0) - (l || 0);
-  };
+  const net = (s: Series) => total(s, "net_followers");
   const interactions = (s: Series) => {
     const a = total(s, "posts_interactions"), b = total(s, "reels_interactions");
     return a === null && b === null ? null : (a || 0) + (b || 0);
@@ -71,17 +68,17 @@ export function Social({ store, range, previous }: { store: Store; range: Period
     <>
       <div className="three-col">
         <Stat label="Seguidores Instagram" value={last(ig, "followers")} prev={last(igPrev, "followers")} note={`No fim do período · ${coverage(ig)}`} />
-        <Stat label="Novos seguidores (saldo)" value={net(ig)} prev={net(igPrev)} note="Ganhos menos perdidos no Instagram." />
+        <Stat label="Novos seguidores (saldo)" value={net(ig)} prev={net(igPrev)} note={`Variação de seguidores no Instagram · ${integer(total(ig, "followers_gained"))} ganhos, ${integer(total(ig, "followers_lost"))} perdidos.`} />
         <Stat label="Interações Instagram" value={interactions(ig)} prev={interactions(igPrev)} note="Gostos, comentários, guardados e partilhas de posts e reels publicados no período." />
       </div>
       <div className="three-col">
-        <Stat label="Alcance dos posts" value={total(ig, "posts_reach")} prev={total(igPrev, "posts_reach")} note="Soma do alcance dos posts publicados no período (orgânico)." />
+        <Stat label="Alcance da conta" value={total(ig, "reach")} prev={total(igPrev, "reach")} note="Soma do alcance diário da conta Instagram (inclui pago). A mesma pessoa pode contar em vários dias." />
         <Stat label="Visualizações de reels" value={total(ig, "reels_views")} prev={total(igPrev, "reels_views")} note="Reels publicados no período." />
-        <Stat label="Publicações" value={(total(ig, "posts") || 0) + (total(ig, "reels") || 0) || null} prev={(total(igPrev, "posts") || 0) + (total(igPrev, "reels") || 0) || null} note="Posts e reels no Instagram." />
+        <Stat label="Contas que interagiram" value={total(ig, "accounts_engaged")} prev={total(igPrev, "accounts_engaged")} note={`Soma diária · ${integer((total(ig, "posts") || 0) + (total(ig, "reels") || 0))} posts e reels publicados.`} />
       </div>
       <div className="three-col">
         <Stat label="Seguidores página Facebook" value={last(fb, "followers")} prev={last(fbPrev, "followers")} note={`No fim do período · ${coverage(fb)}`} />
-        <Stat label="Impressões Facebook" value={total(fb, "impressions")} prev={total(fbPrev, "impressions")} note="Impressões da página no período." />
+        <Stat label="Visualizações Facebook" value={total(fb, "views")} prev={total(fbPrev, "views")} note="Visualizações de conteúdo da página no período." />
         <Stat label="Interações Facebook" value={total(fb, "interactions")} prev={total(fbPrev, "interactions")} note="Interações das publicações da página." />
       </div>
       <div className="two-col">
