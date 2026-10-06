@@ -1,4 +1,5 @@
 import "server-only";
+import { onlineInvestment } from "./bi/channels";
 import { overview } from "./bi/model";
 import { liveCommerce } from "./bi/live-model";
 import { closedPeriods, localDate, previous, shortDate, type Period } from "./bi/periods";
@@ -59,6 +60,9 @@ async function onlineSummary(range: Period, prev: Period) {
     const live = store.mode === "live";
     const c = liveCommerce(store, range);
     const cp = liveCommerce(store, prev);
+    // Physical-store campaigns are not part of the online budget.
+    const inv = onlineInvestment(store, range, s.spend, s.sales.value);
+    const invBefore = onlineInvestment(store, prev, p.spend, p.sales.value);
     return {
       available: store.mode !== "unavailable",
       live,
@@ -66,8 +70,10 @@ async function onlineSummary(range: Period, prev: Period) {
       salesBefore: live ? cp.paidValue : p.sales.value,
       orders: live ? c.paidCount : s.orders.value,
       ordersBefore: live ? cp.paidCount : p.orders.value,
-      spend: s.spend,
-      spendBefore: p.spend,
+      spend: inv.online ?? s.spend,
+      spendBefore: invBefore.online ?? p.spend,
+      onlineOnly: inv.online !== null,
+      physicalSpend: inv.physical,
       meta: s.meta.value,
       google: s.google.value,
       sessions: s.sessions.value,
@@ -75,7 +81,7 @@ async function onlineSummary(range: Period, prev: Period) {
       errors: store.errors,
     };
   } catch (e) {
-    return { available: false, live: false, sales: null, salesBefore: null, orders: null, ordersBefore: null, spend: null, spendBefore: null, meta: null, google: null, sessions: null, conversion: null, errors: [e instanceof Error ? e.message : "Fonte indisponível"] };
+    return { available: false, live: false, sales: null, salesBefore: null, orders: null, ordersBefore: null, spend: null, spendBefore: null, onlineOnly: false, physicalSpend: null, meta: null, google: null, sessions: null, conversion: null, errors: [e instanceof Error ? e.message : "Fonte indisponível"] };
   }
 }
 
@@ -185,7 +191,7 @@ ${r.rows
         ? tiles([
             [o.live ? "Encomendas pagas (valor)" : "Vendas Shopify", eur(o.sales), change(o.sales, o.salesBefore)],
             ["Encomendas", int(o.orders), change(o.orders, o.ordersBefore)],
-            ["Investimento em anúncios", eur(o.spend), `Meta ${eur(o.meta)} · Google ${eur(o.google)}`],
+            [o.onlineOnly ? "Investimento em anúncios (online)" : "Investimento em anúncios", eur(o.spend), o.onlineOnly ? `Lojas físicas à parte: ${eur(o.physicalSpend)}` : `Meta ${eur(o.meta)} · Google ${eur(o.google)}`],
             ["Sessões", int(o.sessions), `conversão ${pct(o.conversion === null ? null : o.conversion * 100)}`],
           ])
         : `<div style="color:#9a917f;font-size:13px">Dados da loja online indisponíveis neste momento.</div>`,

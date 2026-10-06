@@ -66,6 +66,10 @@ Substituem os dois Excel das lojas (importados em outubro de 2026 com `scripts/i
 - **Ranking das lojas** (`/lojas/ranking`, Gestores): todas as lojas ordenadas por valor vendido ou por compra de ouro (ontem, semana, mês ou datas à escolha), com pódio, comparação com o período anterior e, para um só dia, as lojas que não registaram dados.
 - **Listas de opções** (`/admin/opcoes`, Super Admin): as escolhas dos formulários.
 
+### Investimento online e lojas físicas
+
+O investimento Meta e Google separa-se em **Online**, **Loja física** (por loja) e **Partilhado** (`lib/bi/channels.ts`). Uma campanha com a palavra-chave de uma loja no nome (Administração → Lojas) é dessa loja; as restantes são do online. O Super Admin define exceções em Administração → Campanhas (tabela `ldo_campaign_channels`; vale para todo o histórico). O MER e o investimento do e-mail diário passam a contar só o online. A recolha guarda o detalhe das campanhas por dia, para separar qualquer período. Esta separação prepara a comparação com os orçamentos de 2027 (online e negócio físico).
+
 ### Relatórios por email
 
 Tarefas agendadas no Vercel (`vercel.json`, horas UTC) chamam `/api/cron/reports` com `CRON_SECRET`:

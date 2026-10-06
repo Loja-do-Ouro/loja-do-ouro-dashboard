@@ -78,18 +78,25 @@ const FACEBOOK: Series[] = [
 
 // Daily rows for one network: { date, field: value, ... }. A series that fails is
 // reported, the others are kept.
+// Long ranges come back with days missing, so the API is asked in short blocks.
+const CHUNK_DAYS = 10;
+
 export async function metricoolDaily(network: "instagram" | "facebook", p: Period) {
   const series = network === "instagram" ? INSTAGRAM : FACEBOOK;
   const errors: string[] = [];
-  const byDay = new Map<string, Row>(dates(p).map((d) => [d, { date: d }]));
-  for (const [field, load] of series) {
-    try {
-      for (const [day, value] of await load(p)) {
-        const row = byDay.get(day);
-        if (row) row[field] = value;
+  const days = dates(p);
+  const byDay = new Map<string, Row>(days.map((d) => [d, { date: d }]));
+  for (let i = 0; i < days.length; i += CHUNK_DAYS) {
+    const block = { from: days[i], to: days[Math.min(i + CHUNK_DAYS, days.length) - 1] };
+    for (const [field, load] of series) {
+      try {
+        for (const [day, value] of await load(block)) {
+          const row = byDay.get(day);
+          if (row) row[field] = value;
+        }
+      } catch (e) {
+        errors.push(`${network} ${field} ${block.from}–${block.to}: ${e instanceof Error ? e.message : "indisponível"}`);
       }
-    } catch (e) {
-      errors.push(`${network} ${field}: ${e instanceof Error ? e.message : "indisponível"}`);
     }
   }
   const rows = [...byDay.values()].filter((r) => Object.keys(r).length > 1);

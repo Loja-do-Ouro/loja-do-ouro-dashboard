@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Period } from "@/lib/bi/periods";
 import type { liveCommerce } from "@/lib/bi/live-model";
 import type { overview, Quality, Report, Store } from "@/lib/bi/model";
+import { onlineInvestment } from "@/lib/bi/channels";
 import { currency, integer, timestamp } from "./format";
 import { Funnel, GaActivity } from "./sales";
 import { Trend } from "./trend";
@@ -18,6 +19,7 @@ export function Overview({ store, range, s, p, live, cohort, critical, report, h
   report?: Report;
   href: (section: string) => string;
 }) {
+  const inv = onlineInvestment(store, range, s.spend, s.sales.value);
   return (
   <>
     <div className="four-col">
@@ -44,9 +46,13 @@ export function Overview({ store, range, s, p, live, cohort, critical, report, h
           Meta {currency(s.meta.value)} · Google{" "}
           {currency(s.google.value)}
         </p>
+        <p>
+          Online {currency(inv.online)} · Lojas físicas {currency(inv.physical)}
+          {inv.shared ? ` · Partilhado ${currency(inv.shared)}` : ""}
+        </p>
         <div className="mer-line">
-          <span>Eficiência global · MER</span>
-          <b>{s.mer === null ? "—" : `${integer(s.mer)}×`}</b>
+          <span>{inv.mer !== null ? "MER online" : "MER global"}</span>
+          <b>{(inv.mer ?? s.mer) === null ? "—" : `${integer(inv.mer ?? s.mer)}×`}</b>
         </div>
       </article>
     </div>

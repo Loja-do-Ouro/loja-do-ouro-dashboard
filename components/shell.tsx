@@ -61,7 +61,12 @@ export function AppShell({
           ? [
               { key: "admin-lojas", label: "Lojas", href: "/admin/lojas", icon: "bag" },
               { key: "opcoes", label: "Listas de opções", href: "/admin/opcoes", icon: "check" },
-              ...(viewer.isSuper ? [{ key: "relatorios", label: "Relatórios por email", href: "/admin/relatorios", icon: "mail" }] : []),
+              ...(viewer.isSuper
+                ? [
+                    { key: "campanhas", label: "Campanhas", href: "/admin/campanhas", icon: "ads" },
+                    { key: "relatorios", label: "Relatórios por email", href: "/admin/relatorios", icon: "mail" },
+                  ]
+                : []),
             ]
           : []),
       ],

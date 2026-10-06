@@ -1,4 +1,5 @@
 import { dates, type Period } from "./periods";
+import type { ChannelRules } from "./channels";
 export type Row = Record<string, unknown>;
 export type Daily = {
   source: string;
@@ -55,6 +56,8 @@ export type Store = {
   runs: Row[];
   errors: string[];
   mode: "stored" | "live" | "unavailable";
+  // Rules that send each ad campaign to online, a physical store or shared.
+  channels?: ChannelRules;
 };
 export type Metric = {
   value: number | null;
