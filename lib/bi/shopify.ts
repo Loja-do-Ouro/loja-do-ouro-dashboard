@@ -2,17 +2,43 @@ import "server-only";
 import { localDate, shift, type Period } from "./periods";
 import { number, type Row } from "./model";
 
-// Shopify Admin API, read-only. Requires a custom app token with
-// read_reports (ShopifyQL) and read_orders.
+// Shopify Admin API, read-only, through an app created in the Shopify Dev Dashboard
+// (scopes read_orders, read_all_orders, read_products, read_reports). The app's
+// Client ID and secret are exchanged for a 24-hour token (client credentials grant).
+// A fixed SHOPIFY_ADMIN_TOKEN from an older admin-created app is still accepted.
 const API_VERSION = process.env.SHOPIFY_API_VERSION || "2026-07";
 
 export function shopifyConfigured() {
-  return Boolean(process.env.SHOPIFY_STORE_DOMAIN && process.env.SHOPIFY_ADMIN_TOKEN);
+  return Boolean(process.env.SHOPIFY_STORE_DOMAIN && (process.env.SHOPIFY_ADMIN_TOKEN || (process.env.SHOPIFY_CLIENT_ID && process.env.SHOPIFY_CLIENT_SECRET)));
+}
+
+let cached: { token: string; until: number } | null = null;
+
+async function accessToken(domain: string): Promise<string> {
+  if (process.env.SHOPIFY_ADMIN_TOKEN) return process.env.SHOPIFY_ADMIN_TOKEN;
+  if (cached && cached.until > Date.now()) return cached.token;
+  const id = process.env.SHOPIFY_CLIENT_ID, secret = process.env.SHOPIFY_CLIENT_SECRET;
+  if (!id || !secret) throw new Error("Ligação Shopify por configurar.");
+  let r: Response;
+  try {
+    r = await fetch(`https://${domain}/admin/oauth/access_token`, {
+      method: "POST", cache: "no-store", signal: AbortSignal.timeout(20000),
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams({ client_id: id, client_secret: secret, grant_type: "client_credentials" }),
+    });
+  } catch { throw new Error("Pedido de acesso à Shopify interrompido."); }
+  const body = await r.json().catch(() => ({})) as { access_token?: string; expires_in?: number; error?: string; error_description?: string };
+  if (!r.ok || !body.access_token)
+    throw new Error(`Shopify recusou o acesso da app (${body.error_description || body.error || `HTTP ${r.status}`}).`);
+  // Renew ten minutes before the 24-hour expiry.
+  cached = { token: body.access_token, until: Date.now() + Math.max(60, (body.expires_in || 86399) - 600) * 1000 };
+  return cached.token;
 }
 
 async function graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  const domain = process.env.SHOPIFY_STORE_DOMAIN, token = process.env.SHOPIFY_ADMIN_TOKEN;
-  if (!domain || !token) throw new Error("Ligação Shopify por configurar.");
+  const domain = process.env.SHOPIFY_STORE_DOMAIN;
+  if (!domain || !shopifyConfigured()) throw new Error("Ligação Shopify por configurar.");
+  const token = await accessToken(domain);
   let response: Response;
   try {
     response = await fetch(`https://${domain}/admin/api/${API_VERSION}/graphql.json`, {
@@ -21,6 +47,7 @@ async function graphql<T>(query: string, variables: Record<string, unknown> = {}
       body: JSON.stringify({ query, variables }),
     });
   } catch { throw new Error("Consulta Shopify interrompida ou excedeu o tempo disponível."); }
+  if (response.status === 401) cached = null;
   if (!response.ok) throw new Error(`Shopify indisponível (HTTP ${response.status}).`);
   const json = await response.json() as { data?: T; errors?: { message: string }[] };
   if (json.errors?.length || !json.data) throw new Error(`Shopify recusou a consulta: ${json.errors?.[0]?.message || "sem dados"}.`);
@@ -65,6 +92,11 @@ const ORDERS = `query Orders($after: String, $filter: String!) {
       shippingAddress { city countryCodeV2 } }
     pageInfo { hasNextPage endCursor } } }`;
 
+// Without approved access to protected customer data, Shopify refuses the address;
+// orders are then read without city and country.
+const ORDERS_NO_ADDRESS = ORDERS.replace("\n      shippingAddress { city countryCodeV2 } }", " }");
+let addressDenied = false;
+
 type Money = { shopMoney: { amount: string; currencyCode: string } } | null;
 type OrderNode = {
   id: string; name: string; createdAt: string; updatedAt: string; cancelledAt: string | null; test: boolean; sourceName: string | null;
@@ -80,8 +112,15 @@ export async function ordersByDay(p: Period): Promise<Map<string, Row[]>> {
   const byDay = new Map<string, Row[]>();
   let after: string | null = null;
   for (let page = 0; page < 50; page++) {
-    const d: { orders: { nodes: OrderNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } =
-      await graphql(ORDERS, { after, filter });
+    type Page = { orders: { nodes: OrderNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } };
+    let d: Page;
+    try {
+      d = await graphql<Page>(addressDenied ? ORDERS_NO_ADDRESS : ORDERS, { after, filter });
+    } catch (e) {
+      if (addressDenied || !/shippingAddress|access|protected|permission/i.test(e instanceof Error ? e.message : "")) throw e;
+      addressDenied = true;
+      d = await graphql<Page>(ORDERS_NO_ADDRESS, { after, filter });
+    }
     for (const o of d.orders.nodes) {
       const date = localDate(new Date(o.createdAt));
       if (o.test || date < p.from || date > p.to) continue;

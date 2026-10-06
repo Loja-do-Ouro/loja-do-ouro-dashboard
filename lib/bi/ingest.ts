@@ -90,7 +90,7 @@ export async function ingest(range: Period, trigger: string) {
 
   // Shopify Admin API: official sales report, sessions, fulfillments and the order cohort.
   const shopMeta = { account_id: process.env.SHOPIFY_STORE_DOMAIN, currency: "EUR", timezone: "Europe/Lisbon", transport: "Shopify Admin API" };
-  if (!shopifyConfigured()) errors.push("Shopify: SHOPIFY_ADMIN_TOKEN por configurar.");
+  if (!shopifyConfigured()) errors.push("Shopify: SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET por configurar.");
   else tasks.push(job("Shopify", async () => {
     const shop = await shopSettings();
     if (shop.currencyCode !== "EUR" || shop.ianaTimezone !== "Europe/Lisbon") throw new Error("Moeda ou fuso da loja sem confirmação EUR / Europe/Lisbon.");

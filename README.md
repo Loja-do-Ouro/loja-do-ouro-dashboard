@@ -21,7 +21,7 @@ O servidor lê e grava os fechos (`public.ldo_bi_*`) através das funções `ldo
 
 `/api/cron/ingest` (Vercel Cron, 01:15 UTC, protegido por `CRON_SECRET`) grava nas tabelas `ldo_bi_*`:
 
-- Shopify Admin API (`SHOPIFY_ADMIN_TOKEN`, app personalizada com `read_reports`, `read_orders`, `read_all_orders` e `read_products`): relatório de vendas, sessões e expedições por dia via ShopifyQL; totais oficiais e ticket médio dos períodos fechados; coorte de encomendas por dia com paginação completa; produtos.
+- Shopify Admin API (app criada no Dev Dashboard da Shopify, com `read_reports`, `read_orders`, `read_all_orders` e `read_products`; `SHOPIFY_CLIENT_ID` e `SHOPIFY_CLIENT_SECRET` trocados por um token de 24 h; um `SHOPIFY_ADMIN_TOKEN` antigo continua aceite): relatório de vendas, sessões e expedições por dia via ShopifyQL; totais oficiais e ticket médio dos períodos fechados; coorte de encomendas por dia com paginação completa; produtos.
 - Windsor: Meta, Google Ads e GA4 por dia; totais GA4 do período; campanhas, ações, canais, públicos, pesquisa e Merchant dos três períodos fechados.
 - Klaviyo API (`KLAVIYO_API_KEY`, chave privada só de leitura): campanhas e fluxos de email dos três períodos fechados, com destinatários, conversões e valor (métrica "Placed Order" da Shopify).
 - Metricool API (`METRICOOL_USER_TOKEN`; `METRICOOL_USER_ID` e `METRICOOL_BLOG_ID` têm por omissão a marca Loja do Ouro): Instagram e página de Facebook por dia (seguidores, alcance, interações, publicações) e melhores publicações dos três períodos fechados — secção "Redes sociais".
