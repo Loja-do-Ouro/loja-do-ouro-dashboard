@@ -81,7 +81,9 @@ export async function ingest(range: Period, trigger: string) {
       tasks.push(job(`${source} diário`, async () => {
         const r = await metricoolDaily(network, range);
         errors.push(...r.errors);
-        pushDaily(source, r.rows, "date");
+        // A network with nothing at all is reported once, not day by day.
+        if (r.rows.length) pushDaily(source, r.rows, "date");
+        else errors.push(`${source}: o Metricool não devolveu dados no período (verificar a ligação da rede no Metricool).`);
       }));
       for (const w of windows)
         tasks.push(job(`${source} publicações ${w.key}`, async () => { pushDataset(source, "posts", w.range, await metricoolPosts(network, w.range), meta); }));
