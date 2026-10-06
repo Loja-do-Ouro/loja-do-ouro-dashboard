@@ -5,7 +5,9 @@ import { calculatedChecks, type Daily, type Dataset, type Row } from "./model";
 import { DAILY_SOURCES, DETAILS, sourceMetadata } from "./live";
 import { gaFields } from "./accounts";
 import { BI_CACHE_TAG, readWindsor } from "./windsor";
-import { FULFILLMENT_FIELDS, SALES_FIELDS, SESSION_FIELDS, dailyQuery, ordersByDay, productsQuery, shopSettings, shopifyql, totalsQuery } from "./shopify";
+import { FULFILLMENT_FIELDS, SALES_FIELDS, SESSION_FIELDS, dailyQuery, ordersByDay, productsQuery, shopSettings, shopifyConfigured, shopifyql, totalsQuery } from "./shopify";
+import { klaviyoCampaigns, klaviyoConfigured, klaviyoFlows } from "./klaviyo";
+import { metricoolAccount, metricoolConfigured, metricoolDaily, metricoolPosts } from "./metricool";
 import { closeStaleRuns, finishRun, startRun, upsert } from "./supabase-write";
 import { readStore } from "./store";
 
@@ -54,15 +56,42 @@ export async function ingest(range: Period, trigger: string) {
       if (r.rows.length !== 1) throw new Error("Total de período ausente ou com granularidade inesperada.");
       pushDataset("ga4", "period_totals", p, r.rows, sourceMetadata("googleanalytics4", r.fields));
     }));
-  for (const w of windows) for (const d of DETAILS)
+  // Klaviyo is read directly (below), not through Windsor.
+  for (const w of windows) for (const d of DETAILS.filter(x => x.source !== "klaviyo"))
     tasks.push(job(`${d.source} · ${d.dataset} ${w.key}`, async () => {
       const r = await readWindsor(d.connector, w.range, d.fields, { fresh: true });
       pushDataset(d.source, d.dataset, w.range, r.rows, sourceMetadata(d.connector, r.fields));
     }));
 
+  // Klaviyo API: email campaigns and flows, one window at a time (rate limited).
+  const direct = { timezone: "Europe/Lisbon", currency: "EUR" };
+  if (klaviyoConfigured())
+    tasks.push(job("Klaviyo", async () => {
+      for (const w of windows) {
+        await job(`Klaviyo campanhas ${w.key}`, async () => { pushDataset("klaviyo", "campaigns", w.range, await klaviyoCampaigns(w.range), { ...direct, transport: "Klaviyo API" }); })();
+        await job(`Klaviyo fluxos ${w.key}`, async () => { pushDataset("klaviyo", "flows", w.range, await klaviyoFlows(w.range), { ...direct, transport: "Klaviyo API" }); })();
+      }
+    }));
+  else errors.push("Klaviyo: KLAVIYO_API_KEY por configurar.");
+
+  // Metricool API: Instagram and Facebook page, per day and publications per window.
+  if (metricoolConfigured())
+    for (const [network, source] of [["instagram", "instagram"], ["facebook", "facebook_page"]] as const) {
+      const meta = { ...direct, transport: "Metricool API", account_id: metricoolAccount().blogId };
+      tasks.push(job(`${source} diário`, async () => {
+        const r = await metricoolDaily(network, range);
+        errors.push(...r.errors);
+        pushDaily(source, r.rows, "date");
+      }));
+      for (const w of windows)
+        tasks.push(job(`${source} publicações ${w.key}`, async () => { pushDataset(source, "posts", w.range, await metricoolPosts(network, w.range), meta); }));
+    }
+  else errors.push("Metricool: METRICOOL_USER_TOKEN por configurar.");
+
   // Shopify Admin API: official sales report, sessions, fulfillments and the order cohort.
   const shopMeta = { account_id: process.env.SHOPIFY_STORE_DOMAIN, currency: "EUR", timezone: "Europe/Lisbon", transport: "Shopify Admin API" };
-  tasks.push(job("Shopify", async () => {
+  if (!shopifyConfigured()) errors.push("Shopify: SHOPIFY_ADMIN_TOKEN por configurar.");
+  else tasks.push(job("Shopify", async () => {
     const shop = await shopSettings();
     if (shop.currencyCode !== "EUR" || shop.ianaTimezone !== "Europe/Lisbon") throw new Error("Moeda ou fuso da loja sem confirmação EUR / Europe/Lisbon.");
     const shopTasks = [

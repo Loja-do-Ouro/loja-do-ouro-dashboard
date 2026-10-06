@@ -7,6 +7,7 @@ export const ONLINE_SECTIONS = [
   ["overview", "Visão geral", "grid"],
   ["sales", "Vendas e operação", "bag"],
   ["marketing", "Marketing e canais", "ads"],
+  ["social", "Redes sociais", "heart"],
   ["audience", "Públicos e regiões", "people"],
   ["quality", "Relatórios e qualidade", "check"],
 ] as const;
