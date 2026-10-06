@@ -31,8 +31,8 @@ export async function readStore(from: string, to: string): Promise<Store> {
         ],
       };
     try {
-      const d = await biRpc<Pick<Store, "daily" | "datasets" | "quality" | "reports" | "runs">>("ldo_bi_read", { p_from: from, p_to: to });
-      Object.assign(empty, { daily: d.daily, datasets: d.datasets, quality: d.quality, reports: d.reports, runs: d.runs });
+      const d = await biRpc<Pick<Store, "daily" | "datasets" | "quality" | "reports" | "runs" | "channels">>("ldo_bi_read", { p_from: from, p_to: to });
+      Object.assign(empty, { daily: d.daily, datasets: d.datasets, quality: d.quality, reports: d.reports, runs: d.runs, channels: d.channels });
     } catch (e) {
       empty.errors.push(`daily: ${e instanceof Error ? e.message : "Leitura indisponível"}`);
     }

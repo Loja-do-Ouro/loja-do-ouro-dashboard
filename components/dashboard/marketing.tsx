@@ -2,6 +2,7 @@ import type { Period } from "@/lib/bi/periods";
 import { byCampaign, detail, number, overview, type Row, type Store } from "@/lib/bi/model";
 import { currency, integer, text } from "./format";
 import { DetailNote, Empty, Icon, Kpi, Panel, Table } from "./ui";
+import { DESTINATION_LABEL, onlineInvestment } from "@/lib/bi/channels";
 
 const CAMPAIGN_LIMIT = 50;
 const META_VALUES = ["spend", "actions_offsite_conversion_fb_pixel_purchase", "action_values_offsite_conversion_fb_pixel_purchase"];
@@ -17,6 +18,7 @@ export function Marketing({ store, range }: { store: Store; range: Period }) {
     flows = detail(store,range,"klaviyo","flows"),
     seo = detail(store,range,"searchconsole","period_totals"),
     merchant = detail(store,range,"google_merchant","status");
+  const inv = onlineInvestment(store, range, s.spend, s.sales.value);
   // Detail rows are per ad and day; the tables show one line per campaign.
   const metaCampaigns = byCampaign(meta.rows, META_VALUES),
     googleCampaigns = byCampaign(google.rows, GOOGLE_VALUES);
@@ -41,15 +43,46 @@ export function Marketing({ store, range }: { store: Store; range: Period }) {
         <Kpi label="Investimento Meta" m={s.meta} />
         <Kpi label="Investimento Google" m={s.google} />
         <article className="kpi dark-kpi">
-          <span className="eyebrow">Eficiência global · MER</span>
+          <span className="eyebrow">{inv.mer !== null ? "Eficiência online · MER" : "Eficiência global · MER"}</span>
           <strong className="kpi-value">
-            {s.mer === null ? "—" : `${integer(s.mer)}×`}
+            {(inv.mer ?? s.mer) === null ? "—" : `${integer(inv.mer ?? s.mer)}×`}
           </strong>
           <p>
-            Vendas totais Shopify ÷ investimento Meta + Google. Não mede lucro
-            nem ROAS atribuído.
+            {inv.mer !== null
+              ? `Vendas totais Shopify ÷ investimento online (${currency(inv.online)}). Exclui as campanhas das lojas físicas. Não mede lucro nem ROAS atribuído.`
+              : "Vendas totais Shopify ÷ investimento Meta + Google, sem separar lojas físicas (detalhe de campanhas incompleto). Não mede lucro nem ROAS atribuído."}
           </p>
         </article>
+      </div>
+      <div className="two-col">
+        <Panel title="Investimento por destino" eyebrow="Online · lojas físicas" note={`Classificação: a campanha com o nome de uma loja (palavra-chave em Administração → Lojas) é dessa loja; as restantes são do online; exceções em Administração → Campanhas.${inv.split.note ? ` ${inv.split.note}` : ""}`}>
+          <Table
+            headers={["", "Online", "Lojas físicas", "Partilhado"]}
+            rows={[
+              ["Meta", currency(inv.split.bySource.meta?.online ?? null), currency(inv.split.bySource.meta?.store ?? null), currency(inv.split.bySource.meta?.shared ?? null)],
+              ["Google Ads", currency(inv.split.bySource.google_ads?.online ?? null), currency(inv.split.bySource.google_ads?.store ?? null), currency(inv.split.bySource.google_ads?.shared ?? null)],
+              [<strong key="t">Total (campanhas)</strong>, <strong key="o">{currency(inv.split.online)}</strong>, <strong key="s">{currency(inv.split.store)}</strong>, <strong key="h">{currency(inv.split.shared)}</strong>],
+            ]}
+          />
+          <h3>Por loja física</h3>
+          <Table
+            headers={["Loja", "Meta", "Google", "Total"]}
+            rows={inv.split.byStore.map((r) => [r.name, currency(r.meta), currency(r.google), currency(r.total)])}
+            empty="Sem campanhas de lojas físicas neste período."
+          />
+        </Panel>
+        <Panel title="Campanhas e destino" eyebrow="Classificação">
+          <Table
+            headers={["Campanha", "Origem", "Destino", "Investimento"]}
+            rows={inv.split.campaigns.filter((c) => c.spend > 0).slice(0, 60).map((c) => [
+              text(c.campaign),
+              c.source === "meta" ? "Meta" : "Google",
+              <span key="d">{c.destination === "store" ? c.storeName || "Loja física" : DESTINATION_LABEL[c.destination]}{c.rule === "manual" ? <small className="table-subtitle">definido manualmente</small> : null}</span>,
+              currency(c.spend),
+            ])}
+            empty="Sem detalhe de campanhas para este período."
+          />
+        </Panel>
       </div>
       <div className="notice">
         <Icon name="check" />

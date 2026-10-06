@@ -179,3 +179,45 @@ test("Missing-data alert skips closed weekdays and stores that recorded sales or
   // 2026-10-04 is a Sunday: only the store open on Sundays is missing.
   assert.deepEqual(rec.missingStores(stores, sales, entries, "2026-10-04").map((s) => s.id), ["c"]);
 });
+
+test("Ad campaigns go to a physical store by keyword, otherwise online; manual choices win", () => {
+  const ch = require("../.test-build/bi/channels.js");
+  const rules = {
+    stores: [{ id: "lei", name: "Leiria Jericó", keyword: "JERICO" }, { id: "lc", name: "Leiria City", keyword: "LEIRIA CITY" }, { id: "fat", name: "Fátima", keyword: "FATIMA" }, { id: "x", name: "Sem", keyword: null }],
+    overrides: [{ source: "google_ads", campaign: "Branded", channel: "shared", store_id: null }, { source: "meta", campaign: "Promo Natal", channel: "store", store_id: "lc" }],
+  };
+  assert.deepEqual(ch.classify("meta", "[MSG] COMPRA E VENDA - FÁTIMA - 17KM", rules), { destination: "store", storeId: "fat", storeName: "Fátima", rule: "keyword" });
+  assert.equal(ch.classify("google_ads", "Leiria City - 5km", rules).storeId, "lc");
+  assert.equal(ch.classify("google_ads", "NEW PMAX", rules).destination, "online");
+  assert.equal(ch.classify("google_ads", "Branded", rules).destination, "shared");
+  assert.equal(ch.classify("meta", "Branded", rules).destination, "online", "a manual choice is per source");
+  assert.equal(ch.classify("meta", "Promo Natal", rules).storeName, "Leiria City");
+  const split = ch.splitRows("meta", [
+    { campaign: "CBO - REELS", spend: "100.5" }, { campaign: "CBO - REELS", spend: 20 },
+    { campaign: "[MSG] COMPRA E VENDA - FATIMA", spend: 30.25 }, { campaign: "Sem gasto", spend: null },
+  ], rules);
+  const by = Object.fromEntries(split.map((c) => [c.campaign, c]));
+  assert.equal(by["CBO - REELS"].spend, 120.5);
+  assert.equal(by["[MSG] COMPRA E VENDA - FATIMA"].destination, "store");
+  assert.equal(by["Sem gasto"].spend, 0);
+});
+
+test("Online investment excludes physical-store and shared campaigns, and stays unknown without detail", () => {
+  const ch = require("../.test-build/bi/channels.js");
+  const ds = (source, dataset, day, rows) => ({ source, dataset, period_start: day, period_end: day, rows, metadata: { complete: true, daily: true, timezone: "Europe/Lisbon", currency: "EUR" }, fetched_at: "2026-10-06T00:00:00Z", status: "provisional", run_id: "r" });
+  const channels = { stores: [{ id: "lou", name: "Loures", keyword: "LOURES" }], overrides: [{ source: "google_ads", campaign: "Branded", channel: "shared", store_id: null }] };
+  const store = { daily: [], quality: [], reports: [], runs: [], errors: [], mode: "stored", channels, datasets: [
+    ds("meta", "ads", "2026-10-01", [{ campaign: "CBO", spend: 300 }, { campaign: "[MSG] LOURES", spend: 50 }]),
+    ds("google_ads", "campaigns", "2026-10-01", [{ campaign: "PMAX", spend: 100 }, { campaign: "Loures - 5km", spend: 20 }, { campaign: "Branded", spend: 30 }]),
+  ] };
+  const p = { from: "2026-10-01", to: "2026-10-01" };
+  const inv = ch.onlineInvestment(store, p, 500, 4000);
+  assert.equal(inv.physical, 70);
+  assert.equal(inv.shared, 30);
+  assert.equal(inv.online, 400);
+  assert.equal(inv.mer, 10);
+  assert.deepEqual(inv.split.byStore.map((s) => [s.name, s.meta, s.google, s.total]), [["Loures", 50, 20, 70]]);
+  const missing = ch.onlineInvestment(store, { from: "2026-10-01", to: "2026-10-02" }, 900, 4000);
+  assert.equal(missing.online, null, "a day without campaign detail leaves the split unknown");
+  assert.equal(ch.onlineInvestment({ ...store, channels: undefined }, p, 500, 4000).online, null);
+});

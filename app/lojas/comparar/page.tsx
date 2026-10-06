@@ -4,7 +4,9 @@ import { dates, localDate, periodLabel, shift, validDate } from "@/lib/bi/period
 import { readWindsor, windsorConfigured } from "@/lib/bi/windsor";
 import { canCompareStores, homePath, managedStores } from "@/lib/permissions";
 import { loadOptions } from "@/lib/records";
-import { campaignStore, goldTotals, summarizeShop, type GoldEntry, type GoldMonthly, type ShopSale } from "@/lib/store-records";
+import { goldTotals, summarizeShop, type GoldEntry, type GoldMonthly, type ShopSale } from "@/lib/store-records";
+import { classify, type ChannelRules } from "@/lib/bi/channels";
+import { rpc } from "@/lib/supabase";
 import { rpcAll } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 import { currency, integer, percent } from "@/components/dashboard/format";
@@ -18,13 +20,17 @@ export const metadata = { title: "Comparar lojas · Loja do Ouro" };
 
 const MAX_DAYS = 366;
 
-async function googleAds(from: string, to: string) {
-  if (!windsorConfigured()) return { rows: [] as { campaign: string; spend: number; clicks: number }[], error: "Google Ads por configurar." };
+type AdRow = { source: "meta" | "google_ads"; campaign: string; spend: number; clicks: number };
+
+// Campaign spend for any period, read from Windsor (Meta and Google Ads).
+async function adRows(source: AdRow["source"], from: string, to: string): Promise<{ rows: AdRow[]; error: string }> {
+  const label = source === "meta" ? "Meta" : "Google Ads";
+  if (!windsorConfigured()) return { rows: [], error: `${label} por configurar.` };
   try {
-    const r = await readWindsor("google_ads", { from, to }, ["date", "campaign", "spend", "clicks"]);
-    return { rows: r.rows.map((x) => ({ campaign: String(x.campaign || ""), spend: Number(x.spend) || 0, clicks: Number(x.clicks) || 0 })), error: "" };
+    const r = await readWindsor(source === "meta" ? "facebook" : "google_ads", { from, to }, ["date", "campaign", "spend", "clicks"]);
+    return { rows: r.rows.map((x) => ({ source, campaign: String(x.campaign || ""), spend: Number(x.spend) || 0, clicks: Number(x.clicks) || 0 })), error: "" };
   } catch (e) {
-    return { rows: [], error: e instanceof Error ? e.message : "Google Ads indisponível." };
+    return { rows: [], error: `${label}: ${e instanceof Error ? e.message : "indisponível."}` };
   }
 }
 
@@ -45,26 +51,34 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
   const prev = { from: shift(from, -length), to: shift(from, -1) };
   const stores = managedStores(viewer);
   const args = { p_session: viewer.session, p_store_id: null, p_from: prev.from, p_to: to };
-  const [options, sales, entries, monthly, ads] = await Promise.all([
+  const [options, sales, entries, monthly, google, meta, rules] = await Promise.all([
     loadOptions(viewer.session),
     rpcAll<ShopSale>("ldo_list_shop_sales", args),
     rpcAll<GoldEntry>("ldo_list_gold_entries", args),
     rpcAll<GoldMonthly>("ldo_list_gold_monthly", args),
-    googleAds(from, to),
+    adRows("google_ads", from, to),
+    adRows("meta", from, to),
+    rpc<ChannelRules>("ldo_list_campaign_channels", { p_session: viewer.session }).catch(
+      (): ChannelRules => ({ stores: stores.map((s) => ({ id: s.id, name: s.name, keyword: s.ads_keyword || null })), overrides: [] }),
+    ),
   ]);
+  const adErrors = [google.error, meta.error].filter(Boolean).join(" · ");
   const inRange = (d: string, p: { from: string; to: string }) => d >= p.from && d <= p.to;
-  const spend = new Map<string, { spend: number; clicks: number }>();
+  // Only campaigns that belong to a physical store count here; online and shared
+  // campaigns are the online budget.
+  const spend = new Map<string, { spend: number; meta: number; google: number; clicks: number }>();
   let unassigned = 0;
-  for (const r of ads.rows) {
-    const id = campaignStore(r.campaign, stores);
-    if (!id) {
+  for (const r of [...google.rows, ...meta.rows]) {
+    const c = classify(r.source, r.campaign, rules);
+    if (c.destination !== "store" || !c.storeId) {
       unassigned += r.spend;
       continue;
     }
-    const s = spend.get(id) || { spend: 0, clicks: 0 };
+    const s = spend.get(c.storeId) || { spend: 0, meta: 0, google: 0, clicks: 0 };
     s.spend += r.spend;
+    if (r.source === "meta") s.meta += r.spend; else s.google += r.spend;
     s.clicks += r.clicks;
-    spend.set(id, s);
+    spend.set(c.storeId, s);
   }
   const table = stores.map((s) => {
     const mine = sales.filter((r) => r.store_id === s.id);
@@ -85,7 +99,7 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
 
   return (
     <AppShell viewer={viewer} current="comparar" title="Comparar lojas">
-      <PageHeading eyebrow="LOJAS FÍSICAS" title="Comparar lojas" text="Vendas, compra de ouro e investimento em Google Ads das lojas que gere, face ao período anterior com o mesmo número de dias." />
+      <PageHeading eyebrow="LOJAS FÍSICAS" title="Comparar lojas" text="Vendas, compra de ouro e investimento em anúncios (Meta e Google) das lojas que gere, face ao período anterior com o mesmo número de dias." />
       <details className="calendar-panel" open={!!error || typeof q.from === "string"}>
         <summary>
           {periodLabel({ from, to })}
@@ -152,21 +166,23 @@ export default async function CompareStoresPage({ searchParams }: { searchParams
         </div>
       </Panel>
       <Panel
-        title="Google Ads por loja"
+        title="Anúncios por loja"
         eyebrow={periodLabel({ from, to })}
-        note={`Gasto das campanhas cujo nome contém a palavra da loja (definida em Administração → Lojas). Clientes da internet = compra de ouro vinda da internet + vendas em que o cliente viu o produto online. Não prova que o anúncio trouxe o cliente.${unassigned && viewer.isSuper ? ` Campanhas sem loja (marca, Shopping, PMax, etc.): ${currency(unassigned)}.` : ""}`}
+        note={`Campanhas Meta e Google das lojas físicas: o nome contém a palavra da loja (Administração → Lojas) ou foram atribuídas em Administração → Campanhas. Clientes da internet = compra de ouro vinda da internet + vendas em que o cliente viu o produto online. Não prova que o anúncio trouxe o cliente.${unassigned && viewer.isSuper ? ` Investimento do online e partilhado, fora desta tabela: ${currency(unassigned)}.` : ""}`}
       >
-        {ads.error && <p className="form-error">{ads.error}</p>}
-        <div className="table-scroll" tabIndex={0} aria-label="Google Ads por loja">
+        {adErrors && <p className="form-error">{adErrors}</p>}
+        <div className="table-scroll" tabIndex={0} aria-label="Anúncios por loja">
           <table className="nums">
             <thead>
-              <tr>{["Loja", "Gasto Google Ads", "% do gasto", "Cliques", "Clientes da internet", "Custo por cliente da internet", "Ouro comprado (€) por € de anúncio"].map((h) => <th key={h}>{h}</th>)}</tr>
+              <tr>{["Loja", "Investimento", "Meta", "Google", "% do investimento", "Cliques", "Clientes da internet", "Custo por cliente da internet", "Ouro comprado (€) por € de anúncio"].map((h) => <th key={h}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {table.map(({ store, ad, online, gold }) => (
                 <tr key={store.id}>
                   <td>{store.name}{!store.ads_keyword && <small className="muted block">sem campanha associada</small>}</td>
                   <td>{ad ? <BarValue value={ad.spend} max={maxSpend}>{currency(ad.spend)}</BarValue> : "—"}</td>
+                  <td>{ad ? currency(ad.meta) : "—"}</td>
+                  <td>{ad ? currency(ad.google) : "—"}</td>
                   <td>{ad && totalSpend ? percent((ad.spend / totalSpend) * 100) : "—"}</td>
                   <td>{ad ? integer(ad.clicks) : "—"}</td>
                   <td>{integer(online)}</td>

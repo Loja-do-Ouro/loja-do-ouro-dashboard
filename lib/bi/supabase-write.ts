@@ -21,9 +21,23 @@ export async function biRpc<T>(fn: string, args: Record<string, unknown>): Promi
   return (text ? JSON.parse(text) : null) as T;
 }
 
+const KEYS: Record<Table, string[]> = {
+  ldo_bi_daily: ["source", "metric_date"],
+  ldo_bi_datasets: ["source", "dataset", "period_start", "period_end"],
+  ldo_bi_quality: ["run_id", "metric_date", "code"],
+};
+
+// One row per key (the last one wins): a batch may not update the same row twice.
+export function dedupe(table: Table, rows: Record<string, unknown>[]) {
+  const byKey = new Map<string, Record<string, unknown>>();
+  for (const r of rows) byKey.set(KEYS[table].map((k) => String(r[k])).join("|"), r);
+  return [...byKey.values()];
+}
+
 export async function upsert(table: Table, rows: Record<string, unknown>[]) {
-  for (let i = 0; i < rows.length; i += 200)
-    await biRpc("ldo_bi_write", { p_table: table, p_rows: rows.slice(i, i + 200) });
+  const unique = dedupe(table, rows);
+  for (let i = 0; i < unique.length; i += 200)
+    await biRpc("ldo_bi_write", { p_table: table, p_rows: unique.slice(i, i + 200) });
 }
 
 export async function startRun(trigger: string, notes: string): Promise<string> {

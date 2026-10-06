@@ -63,6 +63,15 @@ export async function ingest(range: Period, trigger: string) {
       pushDataset(d.source, d.dataset, w.range, r.rows, sourceMetadata(d.connector, r.fields));
     }));
 
+  // Campaign spend per day, so any period (not only the closed windows) can be split
+  // into online and physical-store investment.
+  for (const d of DETAILS.filter(x => (x.source === "meta" && x.dataset === "ads") || (x.source === "google_ads" && x.dataset === "campaigns")))
+    tasks.push(job(`${d.source} · ${d.dataset} por dia`, async () => {
+      const r = await readWindsor(d.connector, range, d.fields, { fresh: true });
+      const meta = { ...sourceMetadata(d.connector, r.fields), daily: true, complete: true };
+      for (const day of days) pushDataset(d.source, d.dataset, { from: day, to: day }, r.rows.filter(x => String(x.date) === day), meta);
+    }));
+
   // Klaviyo API: email campaigns and flows, one window at a time (rate limited).
   const direct = { timezone: "Europe/Lisbon", currency: "EUR" };
   if (klaviyoConfigured())
