@@ -1,5 +1,5 @@
 // Read-only release gate. Log counts/configuration only, never URLs or secrets.
-// Login is Google through Supabase Auth: it needs the project URL and its publishable key.
+// Login uses the Supabase project URL and its publishable key.
 const loginConfigured = Boolean(
   (process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL) &&
   (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY),
@@ -14,7 +14,7 @@ if (process.env.VERCEL_ENV !== "production") {
   if (!loginConfigured) throw new Error("Release blocked: dashboard login is not configured.");
   const key=process.env.WINDSOR_API_KEY || process.env.WINDSORAI_API_KEY;
   const biUrl=process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL;
-  const biToken=process.env.BI_SUPABASE_ACCESS_TOKEN || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const biToken=process.env.BI_INGEST_TOKEN;
   if (!key && !(biUrl && biToken)) throw new Error("Release blocked: no private data source is configured.");
   if (key && !(biUrl && biToken)) {
     const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Lisbon",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
@@ -42,9 +42,11 @@ if (process.env.VERCEL_ENV !== "production") {
     if(results.some(r=>!r.ok)) throw new Error("Release blocked: data source check failed; previous production remains active.");
   } else {
     try {
-      const url=new URL("/rest/v1/ldo_bi_daily?select=metric_date&limit=1",biUrl);
-      const r=await fetch(url,{signal:AbortSignal.timeout(20000),headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY || process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || biToken,Authorization:`Bearer ${biToken}`}});
-      if(!r.ok || !(await r.json()).length) throw new Error("No readable data");
+      const to=new Date().toISOString().slice(0,10), from=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
+      const r=await fetch(new URL("/rest/v1/rpc/ldo_bi_read",biUrl),{method:"POST",signal:AbortSignal.timeout(20000),
+        headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY || process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({p_token:biToken,p_from:from,p_to:to})});
+      if(!r.ok || !(await r.json()).daily?.length) throw new Error("No readable data");
       console.info("[release-check]",JSON.stringify({login:true,mode:"stored",readable:true}));
     } catch { throw new Error("Release blocked: private BI data could not be read."); }
   }

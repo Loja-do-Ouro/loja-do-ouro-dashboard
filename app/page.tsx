@@ -11,6 +11,7 @@ import { Overview } from "@/components/dashboard/overview";
 import { Sales } from "@/components/dashboard/sales";
 import { Marketing } from "@/components/dashboard/marketing";
 import { Audience } from "@/components/dashboard/audience";
+import { Social } from "@/components/dashboard/social";
 import { QualityView } from "@/components/dashboard/quality";
 import { AppShell, ONLINE_SECTIONS } from "@/components/shell";
 import { canSeeOnline, homePath } from "@/lib/permissions";
@@ -28,7 +29,7 @@ export default async function Page({
     sel = selection(q),
     section =
       typeof q.section === "string" &&
-      ["overview", "sales", "marketing", "audience", "quality"].includes(
+      ["overview", "sales", "marketing", "social", "audience", "quality"].includes(
         q.section,
       )
         ? q.section
@@ -198,6 +199,8 @@ export default async function Page({
             <Sales store={store} range={sel.range} />
           ) : section === "marketing" ? (
             <Marketing store={store} range={sel.range} />
+          ) : section === "social" ? (
+            <Social store={store} range={sel.range} previous={sel.previous} />
           ) : section === "audience" ? (
             <Audience store={store} range={sel.range} />
           ) : (

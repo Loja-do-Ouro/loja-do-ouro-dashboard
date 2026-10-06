@@ -15,6 +15,7 @@ export function Icon({ name = "grid" }: { name?: string }) {
     exit: "M10 3H4v18h6 M10 12h11 M17 8l4 4-4 4",
     trophy: "M8 4h8v5a4 4 0 0 1-8 0V4 M8 6H4a3 3 0 0 0 4 4 M16 6h4a3 3 0 0 1-4 4 M12 13v4 M8 21h8 M9 17h6v4H9z",
     mail: "M3 5h18v14H3z M3 6l9 7 9-7",
+    heart: "M12 20s-7-4.4-9-9a4.5 4.5 0 0 1 9-3 4.5 4.5 0 0 1 9 3c-2 4.6-9 9-9 9",
   };
   return (
     <svg

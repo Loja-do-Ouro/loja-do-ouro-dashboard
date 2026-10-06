@@ -15,16 +15,17 @@ Copiar `.env.example` para um ficheiro de ambiente local e preencher apenas as c
 
 ## Dados
 
-O servidor lê as tabelas `public.ldo_bi_*` quando a ligação privada está configurada. Na sua ausência, mantém a leitura direta através da chave Windsor já existente em produção. Não altera dados, acesso anónimo ou RLS. O login privado existente continua a proteger a aplicação.
-
-São necessários `BI_SUPABASE_URL`, `BI_SUPABASE_PUBLISHABLE_KEY` e uma credencial válida em `BI_SUPABASE_ACCESS_TOKEN` pertencente a um membro BI. Tokens de sessão exigem renovação. Uma chave de servidor existente em `SUPABASE_SERVICE_ROLE_KEY` é também suportada; deve permanecer num segredo do ambiente Vercel, nunca no cliente ou no repositório.
+O servidor lê e grava os fechos (`public.ldo_bi_*`) através das funções `ldo_bi_read`, `ldo_bi_write`, `ldo_bi_start_run`, `ldo_bi_finish_run` e `ldo_bi_close_stale_runs`, que exigem o token `BI_INGEST_TOKEN` (o hash está em `ldo_private.bi_token`). Não é precisa a chave `service_role`. Variáveis: `BI_SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `BI_INGEST_TOKEN`. Sem elas, o dashboard lê diretamente do Windsor.
 
 ### Recolha noturna
 
 `/api/cron/ingest` (Vercel Cron, 01:15 UTC, protegido por `CRON_SECRET`) grava nas tabelas `ldo_bi_*`:
 
-- Shopify Admin API (`SHOPIFY_ADMIN_TOKEN`, scopes `read_reports` e `read_orders`): relatório de vendas, sessões e expedições por dia via ShopifyQL; totais oficiais e ticket médio dos períodos fechados; coorte de encomendas por dia com paginação completa; produtos.
-- Windsor: Meta, Google Ads e GA4 por dia; totais GA4 do período; campanhas, ações, canais, públicos, CRM, pesquisa e Merchant dos três períodos fechados.
+- Shopify Admin API (app criada no Dev Dashboard da Shopify, com `read_reports`, `read_orders`, `read_all_orders` e `read_products`; `SHOPIFY_CLIENT_ID` e `SHOPIFY_CLIENT_SECRET` trocados por um token de 24 h; um `SHOPIFY_ADMIN_TOKEN` antigo continua aceite): relatório de vendas, sessões e expedições por dia via ShopifyQL; totais oficiais e ticket médio dos períodos fechados; coorte de encomendas por dia com paginação completa; produtos.
+- Windsor: Meta, Google Ads e GA4 por dia; totais GA4 do período; campanhas, ações, canais, públicos, pesquisa e Merchant dos três períodos fechados.
+- Klaviyo API (`KLAVIYO_API_KEY`, chave privada só de leitura): campanhas e fluxos de email dos três períodos fechados, com destinatários, conversões e valor (métrica "Placed Order" da Shopify).
+- Metricool API (`METRICOOL_USER_TOKEN`; `METRICOOL_USER_ID` e `METRICOOL_BLOG_ID` têm por omissão a marca Loja do Ouro): Instagram e página de Facebook por dia (seguidores, alcance, interações, publicações) e melhores publicações dos três períodos fechados — secção "Redes sociais".
+- Uma fonte sem chave fica registada como falha parcial; as restantes são gravadas na mesma.
 - Controlos calculados sobre o que ficou guardado, e um registo em `ldo_bi_runs` com o resultado (`completed` ou `partial`).
 
 Por omissão recolhe os três últimos dias fechados, para apanhar revisões tardias. Um backfill aceita `?from=AAAA-MM-DD&to=AAAA-MM-DD` (até 62 dias):
@@ -33,7 +34,7 @@ Por omissão recolhe os três últimos dias fechados, para apanhar revisões tar
 curl -H "Authorization: Bearer $CRON_SECRET" "https://<domínio>/api/cron/ingest?from=2026-09-15&to=2026-09-30"
 ```
 
-Escreve com `SUPABASE_SERVICE_ROLE_KEY`, só no servidor. `/api/cron/refresh` continua disponível como monitor de cobertura, a pedido.
+Escreve com `BI_INGEST_TOKEN`, só no servidor. `/api/cron/refresh` continua disponível como monitor de cobertura, a pedido.
 
 ### Cache
 

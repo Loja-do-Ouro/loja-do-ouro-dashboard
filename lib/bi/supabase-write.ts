@@ -1,50 +1,40 @@
 import "server-only";
 
-// Writes are limited to the BI tables and require the server-only service role key.
-// RLS grants BI members read access only; nothing here runs in the browser.
-const WRITABLE = new Set(["ldo_bi_daily", "ldo_bi_datasets", "ldo_bi_quality", "ldo_bi_runs"]);
-const CONFLICT: Record<string, string> = {
-  ldo_bi_daily: "source,metric_date",
-  ldo_bi_datasets: "source,dataset,period_start,period_end",
-  ldo_bi_quality: "run_id,metric_date,code",
-};
+// The nightly collection writes through token-checked database functions (ldo_bi_*),
+// so the server never holds a Supabase key with access beyond the BI tables.
+type Table = "ldo_bi_daily" | "ldo_bi_datasets" | "ldo_bi_quality";
 
 export function writerConfigured() {
-  return Boolean((process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL) && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean((process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL) && process.env.SUPABASE_PUBLISHABLE_KEY && process.env.BI_INGEST_TOKEN);
 }
 
-async function call(method: string, table: string, query: Record<string, string>, body?: unknown, prefer?: string) {
-  if (!WRITABLE.has(table)) throw new Error("Tabela não autorizada");
-  const base = process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!base || !key) throw new Error("Escrita BI por configurar.");
-  const url = new URL(`/rest/v1/${table}`, base);
-  url.search = new URLSearchParams(query).toString();
-  const r = await fetch(url, {
-    method, cache: "no-store", signal: AbortSignal.timeout(20000),
-    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json", ...(prefer ? { Prefer: prefer } : {}) },
-    body: body === undefined ? undefined : JSON.stringify(body),
+export async function biRpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const base = process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL, key = process.env.SUPABASE_PUBLISHABLE_KEY, token = process.env.BI_INGEST_TOKEN;
+  if (!base || !key || !token) throw new Error("Ligação aos fechos por configurar.");
+  const r = await fetch(new URL(`/rest/v1/rpc/${fn}`, base), {
+    method: "POST", cache: "no-store", signal: AbortSignal.timeout(30000),
+    headers: { apikey: key, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_token: token, ...args }),
   });
-  if (!r.ok) throw new Error(`Escrita em ${table.replace("ldo_bi_", "")} recusada (${r.status}).`);
-  return r.status === 204 ? null : r.json();
+  if (!r.ok) throw new Error(`Fechos BI recusaram o pedido (${r.status}).`);
+  const text = await r.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
-export async function upsert(table: keyof typeof CONFLICT, rows: Record<string, unknown>[]) {
+export async function upsert(table: Table, rows: Record<string, unknown>[]) {
   for (let i = 0; i < rows.length; i += 200)
-    await call("POST", table, { on_conflict: CONFLICT[table] }, rows.slice(i, i + 200), "resolution=merge-duplicates,return=minimal");
+    await biRpc("ldo_bi_write", { p_table: table, p_rows: rows.slice(i, i + 200) });
 }
 
 export async function startRun(trigger: string, notes: string): Promise<string> {
-  const rows = await call("POST", "ldo_bi_runs", {}, [{ trigger_type: trigger, status: "running", notes }], "return=representation") as { id: string }[];
-  return rows[0].id;
+  return biRpc<string>("ldo_bi_start_run", { p_trigger: trigger, p_notes: notes });
 }
 
 export async function finishRun(id: string, status: "completed" | "partial" | "failed", notes: string) {
-  await call("PATCH", "ldo_bi_runs", { id: `eq.${id}` }, { status, notes, completed_at: new Date().toISOString() }, "return=minimal");
+  await biRpc("ldo_bi_finish_run", { p_id: id, p_status: status, p_notes: notes });
 }
 
 // A run left "running" for hours was interrupted; mark it so it no longer looks active.
 export async function closeStaleRuns(olderThanHours = 6) {
-  const before = new Date(Date.now() - olderThanHours * 3600_000).toISOString();
-  await call("PATCH", "ldo_bi_runs", { status: "eq.running", started_at: `lt.${before}` },
-    { status: "failed", completed_at: new Date().toISOString() }, "return=minimal");
+  await biRpc("ldo_bi_close_stale_runs", { p_hours: olderThanHours });
 }

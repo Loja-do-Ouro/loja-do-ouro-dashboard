@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { ingest, ingestRange } from "@/lib/bi/ingest";
-import { shopifyConfigured } from "@/lib/bi/shopify";
 import { writerConfigured } from "@/lib/bi/supabase-write";
 import { windsorConfigured } from "@/lib/bi/windsor";
 import { canSeeOnline } from "@/lib/permissions";
@@ -20,7 +19,7 @@ export async function POST(request: Request) {
     url.searchParams.set("ingest", status);
     return NextResponse.redirect(url, 303);
   };
-  if (!writerConfigured() || !windsorConfigured() || !shopifyConfigured()) return back("config");
+  if (!writerConfigured() || !windsorConfigured()) return back("config");
   let range;
   try {
     range = ingestRange({ from: String(form.get("from") || "") || null, to: String(form.get("to") || "") || null });
