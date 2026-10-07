@@ -9,7 +9,7 @@
     "test": "tsc lib/bi/model.ts lib/bi/periods.ts lib/bi/live-model.ts lib/bi/channels.ts lib/permissions.ts lib/store-records.ts lib/rate-limit.ts --module commonjs --target ES2022 --skipLibCheck --rootDir lib --outDir .test-build && node --test tests/*.cjs"
   },
   "dependencies": {
-    "next": "16.3.3",
+    "next": "16.3.8",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },
