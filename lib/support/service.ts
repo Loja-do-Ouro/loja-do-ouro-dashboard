@@ -4,13 +4,15 @@ import { metricoolSend } from "./metricool";
 import { REFUSAL, runSync } from "./sync";
 import { isStatus, zendeskReplyWarning, type Status } from "./rules";
 import { whatsappSend } from "./whatsapp";
-import { readTicket, zendeskComment, zendeskUpdate, ZendeskError } from "./zendesk";
+import { getUpload, publishUpload } from "./uploads";
+import { readTicket, zendeskComment, zendeskUpdate, ZendeskError, type OutgoingFile } from "./zendesk";
 import type { Viewer } from "@/lib/viewer";
 
 type Begin = {
   existing: boolean;
   platform: "zendesk" | "metricool" | "whatsapp";
   message: { id: string; kind: "outbound" | "note"; delivery: string | null; body: string };
+  uploads: string[];
   conversation: { id: string; source_id: string; channel: string; external_id: string; via: string | null; contact_external_id: string | null };
 };
 type Result = { outcome: "accepted" | "failed" | "uncertain"; externalId: string | null; detail: string | null };
@@ -20,19 +22,39 @@ const PROVIDER: Record<string, string> = { "metricool-facebook": "FACEBOOK", "me
 // Resposta pública ou nota interna. O servidor escolhe o adaptador pela conversa, nunca pelo pedido.
 // Uma nota interna nunca segue por um caminho de envio ao cliente: no Zendesk é um comentário
 // privado (public:false); nos outros canais fica só no dashboard.
-export async function sendMessage(viewer: Viewer, conversationId: string, kind: "outbound" | "note", body: string, clientKey: string) {
+// Anexos: imagens (e PDF no Zendesk) carregados antes pela mesma pessoa nesta conversa; a BD confirma.
+export async function sendMessage(viewer: Viewer, conversationId: string, kind: "outbound" | "note", body: string, clientKey: string,
+  uploads: string[], requestUrl: string) {
   const begin = await sessionRpc<Begin>(viewer.session, "ldo_support_begin_send", {
-    p_id: conversationId, p_kind: kind, p_body: body, p_client_key: clientKey,
+    p_id: conversationId, p_kind: kind, p_body: body, p_client_key: clientKey, p_uploads: uploads,
   });
   // Pedido repetido (duplo clique, nova tentativa do browser): devolve o que já existe, sem reenviar.
   if (begin.existing) return { messageId: begin.message.id, delivery: begin.message.delivery, repeated: true };
   if (kind === "note" && begin.platform !== "zendesk") return { messageId: begin.message.id, delivery: null, repeated: false };
 
+  // Preparar os anexos ainda não envia nada: se falhar, o resultado é "Falhou", nunca "incerto".
+  const files: OutgoingFile[] = [];
+  let image: string | null = null;
+  let prepared: Result | null = null;
+  try {
+    if (begin.platform === "zendesk")
+      for (const id of begin.uploads || []) {
+        const u = await getUpload(id);
+        if (!u) throw new Error("Anexo já não disponível.");
+        files.push({ name: u.name, type: u.type, data: Buffer.from(u.data, "base64") });
+      }
+    // Facebook/Instagram: um URL público temporário (1 hora) para a Meta ir buscar a imagem.
+    else if (begin.platform === "metricool" && begin.uploads?.[0]) image = await publishUpload(begin.uploads[0], requestUrl);
+  } catch (e) {
+    prepared = { outcome: "failed", externalId: null, detail: e instanceof Error ? e.message : "Anexo indisponível." };
+  }
+
   let r: Result;
   try {
-    if (begin.platform === "zendesk") r = await zendeskComment(viewer.id, begin.conversation.external_id, begin.message.body, kind === "outbound");
+    if (prepared) r = prepared;
+    else if (begin.platform === "zendesk") r = await zendeskComment(viewer.id, begin.conversation.external_id, begin.message.body, kind === "outbound", files);
     else if (begin.platform === "metricool")
-      r = await metricoolSend(PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.body);
+      r = await metricoolSend(PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.body, image);
     else r = await whatsappSend();
   } catch (e) {
     // Erro inesperado depois de o pedido poder ter saído: incerto, nunca repetido automaticamente.

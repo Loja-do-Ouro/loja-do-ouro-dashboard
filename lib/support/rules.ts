@@ -118,3 +118,32 @@ export function keyProblem(value: string | undefined): string | null {
   if (!/^[A-Za-z0-9+/]{43}=$/.test(raw)) return "SUPPORT_ENCRYPTION_KEY inválida: tem de ser 32 bytes aleatórios em base64 (44 caracteres, termina em =).";
   return null;
 }
+
+// Tipo real de um ficheiro pelos primeiros bytes (assinaturas WHATWG mimesniff). O tipo declarado pelo
+// remetente nunca chega para mostrar um ficheiro em linha: se não coincidir, é tratado como "outro".
+export function sniffType(b: Uint8Array): string | null {
+  const at = (offset: number, ...bytes: number[]) => bytes.every((x, i) => b[offset + i] === x);
+  const ascii = (offset: number, text: string) => [...text].every((ch, i) => b[offset + i] === ch.charCodeAt(0));
+  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
+  if (at(0, 0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (ascii(0, "GIF87a") || ascii(0, "GIF89a")) return "image/gif";
+  if (ascii(0, "RIFF") && ascii(8, "WEBP")) return "image/webp";
+  if (ascii(0, "RIFF") && ascii(8, "WAVE")) return "audio/wav";
+  for (let i = 0; i <= Math.min(b.length - 5, 1019); i++) if (ascii(i, "%PDF-")) return "application/pdf";
+  if (ascii(4, "ftyp")) return ascii(8, "M4A ") ? "audio/mp4" : ascii(8, "qt  ") ? "video/quicktime" : "video/mp4";
+  if (at(0, 0x1a, 0x45, 0xdf, 0xa3)) return "video/webm";
+  if (ascii(0, "OggS")) return "audio/ogg";
+  if (ascii(0, "ID3") || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0 && (b[1] & 0x06) !== 0)) return "audio/mpeg";
+  return null;
+}
+
+// Como o dashboard mostra cada tipo: imagens, PDF, vídeo e áudio em pré-visualização; o resto descarrega.
+export type PreviewKind = "image" | "pdf" | "video" | "audio" | "file";
+export function previewKind(type: string | null | undefined): PreviewKind {
+  const t = (type || "").split(";")[0].trim().toLowerCase();
+  if (INLINE_TYPES.has(t)) return "image";
+  if (t === "application/pdf") return "pdf";
+  if (["video/mp4", "video/webm", "video/quicktime"].includes(t)) return "video";
+  if (["audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/aac", "audio/webm"].includes(t)) return "audio";
+  return "file";
+}

@@ -148,12 +148,25 @@ export async function syncMetricool(source: { id: string; config: Record<string,
   return { cursor: { ...source.cursor, ...(brand ? { brand } : {}) }, totals, detail, more: !complete };
 }
 
-// Envio numa conversa existente, ao participante cliente. Só texto nesta fase. A resposta da API é
-// um texto livre: não é usada como id; a sincronização seguinte reconhece a mensagem pelo texto.
-export async function metricoolSend(provider: string, conversationId: string, recipient: string | null, text: string) {
+// Imagem para a Meta: a Metricool envia anexos a partir de um URL que ela própria aloja (é o que a sua
+// aplicação faz). /actions/normalize/image/url copia para lá uma imagem pública; se não estiver
+// disponível com o token da API, usa-se o nosso URL público temporário diretamente.
+async function hostedImage(publicUrl: string) {
+  const r = await metricoolRequest("GET", "/actions/normalize/image/url", { url: publicUrl, folder: "temp" }, undefined, 20000);
+  if (r.status !== 200) return { url: publicUrl, normalized: false };
+  const raw = typeof r.json === "string" ? r.json : (r.json as { data?: unknown; url?: unknown } | null)?.data ?? (r.json as { url?: unknown } | null)?.url;
+  return typeof raw === "string" && /^https:\/\//.test(raw) ? { url: raw, normalized: true } : { url: publicUrl, normalized: false };
+}
+
+// Envio numa conversa existente, ao participante cliente: texto e, no máximo, uma imagem (JPEG/PNG,
+// limite da Metricool) no mesmo pedido. A resposta da API é um texto livre: não é usada como id; a
+// sincronização seguinte reconhece a mensagem pelo texto.
+export async function metricoolSend(provider: string, conversationId: string, recipient: string | null, text: string, imageUrl?: string | null) {
   if (!recipient || recipient.startsWith("conversa:"))
     return { outcome: "failed" as const, externalId: null, detail: "Destinatário por identificar nesta conversa: nada foi enviado." };
-  const r = await metricoolRequest("POST", "/v2/inbox/conversations", {}, { provider, conversationId, recipient, text });
+  let attachment: string | undefined;
+  if (imageUrl) attachment = (await hostedImage(imageUrl)).url;
+  const r = await metricoolRequest("POST", "/v2/inbox/conversations", {}, { provider, conversationId, recipient, text, ...(attachment ? { attachment } : {}) });
   const outcome = sendOutcome(r.status);
   return {
     outcome,

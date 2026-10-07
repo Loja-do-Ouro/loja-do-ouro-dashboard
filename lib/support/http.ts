@@ -25,8 +25,9 @@ function sameOrigin(request: Request) {
 }
 
 // Sessão válida com acesso ao Apoio ao Cliente; as funções na BD voltam a verificar tudo.
-export async function supportViewer(request: Request, { write = false } = {}): Promise<Viewer> {
-  if (write && (!sameOrigin(request) || !(request.headers.get("content-type") || "").includes("application/json")))
+// json: false só nos carregamentos de ficheiros (corpo em bruto); a mesma origem é sempre exigida.
+export async function supportViewer(request: Request, { write = false, json = true } = {}): Promise<Viewer> {
+  if (write && (!sameOrigin(request) || (json && !(request.headers.get("content-type") || "").includes("application/json"))))
     throw new HttpError(403, "Pedido recusado.");
   const viewer = await loadViewer();
   if (!viewer) throw new HttpError(401, "Sessão terminada. Entre novamente.");

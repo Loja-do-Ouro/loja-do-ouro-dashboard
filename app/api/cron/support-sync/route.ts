@@ -1,4 +1,5 @@
 import { constantTimeTextEqual } from "@/lib/session";
+import { serverRpc } from "@/lib/support/db";
 import { runSync } from "@/lib/support/sync";
 
 export const dynamic = "force-dynamic";
@@ -12,5 +13,7 @@ export async function GET(request: Request) {
   if (!secret || !constantTimeTextEqual(request.headers.get("authorization") || "", `Bearer ${secret}`))
     return new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } });
   const results = await runSync({ force: true, budgetMs: 100_000 });
-  return Response.json({ ok: results.every((r) => r.ok !== false), results }, { headers: { "Cache-Control": "no-store" } });
+  // Anexos enviados: os bytes apagam-se ao fim de 30 dias (e os nunca enviados ao fim de 1 dia).
+  const purged = await serverRpc<number>("ldo_support_uploads_purge").catch(() => null);
+  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -31,6 +31,7 @@ type Action = {
   composing: boolean;
   body: string;
   clientKey: string;
+  uploads: string[];
   status: string;
   assigneeId: string | null;
   messageId: string;
@@ -56,8 +57,9 @@ export async function POST(request: Request, ctx: Ctx) {
         return json({ presence: await sessionRpc(viewer.session, "ldo_support_presence_ping", { p_id: id, p_composing: Boolean(b.composing) }) });
       case "reply":
       case "note": {
+        const uploads = Array.isArray(b.uploads) ? b.uploads.filter(isUuid).slice(0, 5) : [];
         if (typeof b.body !== "string" || !isUuid(b.clientKey)) throw new HttpError(400, "Pedido inválido.");
-        return json(await sendMessage(viewer, id, b.action === "reply" ? "outbound" : "note", b.body, b.clientKey));
+        return json(await sendMessage(viewer, id, b.action === "reply" ? "outbound" : "note", b.body, b.clientKey, uploads, request.url));
       }
       case "update":
         await updateConversation(viewer, id, {

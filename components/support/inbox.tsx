@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AttachmentViewer, sizeLabel, type ViewerItem } from "./attachment-viewer";
+import { CatalogPicker } from "./catalog-picker";
 import {
   CHANNEL_LABEL,
   DELIVERY_LABEL,
+  previewKind,
   STATUSES,
   STATUS_LABEL,
   type Channel,
@@ -84,6 +87,43 @@ async function api<T>(path: string, init?: { method?: string; body?: unknown }):
   return data as T;
 }
 
+type Pending = { id: string; name: string; type: string; size: number; preview: string | null };
+
+// As fotografias do telemóvel têm muitas vezes 5–10 MB; o servidor aceita até 4 MB por pedido. As imagens
+// são reduzidas aqui (máx. 2048 px, JPEG), o que também retira os dados de localização (EXIF).
+async function prepareFile(file: File): Promise<Blob> {
+  if (file.type === "application/pdf") return file;
+  if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type) && !/\.(jpe?g|png|webp|heic)$/i.test(file.name)) throw new Error("Só imagens (JPEG, PNG, WebP) ou PDF.");
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) throw new Error("Não foi possível ler esta imagem. Experimente JPEG ou PNG.");
+  const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  for (const quality of [0.85, 0.75, 0.6, 0.45]) {
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", quality));
+    if (blob && blob.size <= 3.5 * 1024 * 1024) return blob;
+  }
+  throw new Error("Imagem demasiado grande mesmo depois de reduzida.");
+}
+
+async function uploadBlob(conversation: string, name: string, blob: Blob | null, product?: string) {
+  const q = new URLSearchParams({ conversa: conversation, ...(product ? { produto: product, nome: name } : {}) });
+  const r = await fetch(`/api/support/uploads?${q}`, {
+    method: "POST",
+    headers: { "x-support-upload": "1", ...(blob ? { "Content-Type": blob.type || "application/octet-stream", "x-file-name": encodeURIComponent(name) } : {}) },
+    body: blob ?? undefined,
+  });
+  const isJson = (r.headers.get("content-type") || "").includes("application/json");
+  const data = isJson ? await r.json() : null;
+  if (!r.ok || !data) throw new Error(data?.error || `Carregamento recusado (HTTP ${r.status}).`);
+  return data as { id: string; name: string; type: string; size: number };
+}
+
 const visible = () => typeof document === "undefined" || document.visibilityState === "visible";
 
 function loadStored<T>(key: string): T | Record<string, never> {
@@ -133,6 +173,12 @@ export function SupportInbox({
   const [actionNote, setActionNote] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState("");
+  const [viewer, setViewer] = useState<{ items: ViewerItem[]; index: number } | null>(null);
+  const [pending, setPending] = useState<Record<string, Pending[]>>({});
+  const [uploading, setUploading] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const viewerOpener = useRef<HTMLElement | null>(null);
   // Chave de cada envio pendente, ligada ao texto exato: um pedido perdido repete-se com a mesma chave
   // (sem duplicar); um texto diferente leva sempre uma chave nova.
   const pendingKey = useRef<Record<string, { key: string; body: string }>>({});
@@ -269,6 +315,7 @@ export function SupportInbox({
       setActionError("");
       setActionNote("");
       setMode("reply");
+      setShowCatalog(false);
     }
     keepUnread.current.delete(id);
     setSelected(id);
@@ -293,6 +340,59 @@ export function SupportInbox({
     setText(v);
   };
   const sending = sendingId === selected;
+  const pendingHere = (selected && pending[selected]) || [];
+  // Zendesk: até 5 anexos (imagens ou PDF). Facebook/Instagram: uma imagem por mensagem, só em respostas.
+  const maxAttachments = !c ? 0 : isZendesk ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
+  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
+
+  async function addFiles(files: FileList | File[]) {
+    if (!selected) return;
+    const id = selected;
+    const room = maxAttachments - ((pending[id] || []).length);
+    const list = [...files].slice(0, Math.max(0, room));
+    if (!list.length) {
+      setSendError(maxAttachments ? `No máximo ${maxAttachments} anexo(s) nesta mensagem.` : attachHint);
+      return;
+    }
+    setUploading(true);
+    setSendError("");
+    try {
+      for (const f of list) {
+        if (f.type === "application/pdf" && !isZendesk) throw new Error("PDF só nos tickets Zendesk.");
+        const blob = await prepareFile(f);
+        const up = await uploadBlob(id, f.name, blob);
+        const preview = up.type.startsWith("image/") ? URL.createObjectURL(blob) : null;
+        setPending((p) => ({ ...p, [id]: [...(p[id] || []), { ...up, preview }] }));
+      }
+    } catch (e) {
+      if (selectedRef.current === id) setSendError(e instanceof Error ? e.message : "Não foi possível anexar.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function insertCatalog(item: { title: string; url: string; image: string | null; price: string | null }, withImage: boolean) {
+    if (!selected) return;
+    const id = selected;
+    const line = `${item.title}${item.price ? ` — ${item.price}` : ""}\n${item.url}`;
+    const current = drafts[id]?.[mode] || "";
+    setDraft(id, mode, current ? `${current.replace(/\s+$/, "")}\n\n${line}` : line);
+    setShowCatalog(false);
+    if (withImage && item.image && maxAttachments > (pending[id] || []).length) {
+      setUploading(true);
+      try {
+        // A foto em tamanho maior (sem o recorte de miniatura da pesquisa).
+        const full = new URL(item.image);
+        ["width", "height", "crop"].forEach((k) => full.searchParams.delete(k));
+        const up = await uploadBlob(id, item.title.slice(0, 80), null, full.toString());
+        setPending((p) => ({ ...p, [id]: [...(p[id] || []), { ...up, preview: item.image }] }));
+      } catch (e) {
+        if (selectedRef.current === id) setSendError(e instanceof Error ? e.message : "Não foi possível anexar a foto do produto.");
+      } finally {
+        setUploading(false);
+      }
+    }
+  }
 
   const replyBlocked = !c
     ? "A carregar…"
@@ -306,22 +406,23 @@ export function SupportInbox({
   const noteBlocked = !c ? "A carregar…" : isZendesk && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
 
   async function send() {
-    if (!selected || !c || !text.trim() || sendingId) return;
+    if (!selected || !c || (!text.trim() && !pendingHere.length) || sendingId || uploading) return;
     const blocked = mode === "reply" ? replyBlocked : noteBlocked;
     if (blocked) return;
     const id = selected, which = mode, body = text.trim();
+    const uploads = (pending[id] || []).map((u) => u.id);
     const slot = `${id}:${which}`;
     // A mesma chave só se reutiliza para o mesmo texto (pedido perdido): o servidor nunca envia duas vezes.
     const prev = pendingKey.current[slot];
-    const key = prev && prev.body === body ? prev.key : crypto.randomUUID();
-    pendingKey.current[slot] = { key, body };
+    const key = prev && prev.body === body + "|" + uploads.join(",") ? prev.key : crypto.randomUUID();
+    pendingKey.current[slot] = { key, body: body + "|" + uploads.join(",") };
     store("ldo-support-pending", pendingKey.current);
     const here = () => selectedRef.current === id;
     setSendingId(id);
     setSendError("");
     try {
       const r = await api<{ delivery: Delivery | null; detail?: string | null; repeated: boolean }>(`/api/support/conversations/${id}`, {
-        method: "POST", body: { action: which === "reply" ? "reply" : "note", body, clientKey: key },
+        method: "POST", body: { action: which === "reply" ? "reply" : "note", body, clientKey: key, uploads },
       });
       delete pendingKey.current[slot];
       store("ldo-support-pending", pendingKey.current);
@@ -330,6 +431,7 @@ export function SupportInbox({
         if (here()) setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
       } else {
         setDraft(id, which, "");
+        setPending((p) => ({ ...p, [id]: [] }));
         if (r.delivery === "uncertain" && here()) setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
       }
       if (here()) await loadDetail(id);
@@ -362,6 +464,20 @@ export function SupportInbox({
     }
   }
 
+  const viewerItems = useMemo(
+    () =>
+      (c?.messages || []).flatMap((m) =>
+        m.attachments.map((a, i) => ({
+          key: `${m.id}:${i}`,
+          href: `/api/support/attachments?${new URLSearchParams({ c: c!.conversation.id, m: m.id, i: String(i) })}`,
+          name: a.name,
+          size: a.size,
+          // Facebook/Instagram não indicam o tipo: tenta-se como imagem (se falhar, fica para descarregar).
+          kind: a.type ? previewKind(a.type) : ("image" as const),
+        })),
+      ),
+    [c],
+  );
   const sources = list?.sources || [];
   // Só fontes ativas contam: uma fonte por ligar não faz parecer que tudo está atualizado.
   const lastSync = sources.filter((s) => s.status === "active").map((s) => s.last_success_at).filter(Boolean).sort().at(-1) || null;
@@ -491,11 +607,24 @@ export function SupportInbox({
                     {m.attachments.length > 0 && (
                       <div className="msg-attachments">
                         {m.attachments.map((a, i) => {
-                          const href = `/api/support/attachments?${new URLSearchParams({ c: c.conversation.id, m: m.id, i: String(i) })}`;
-                          return a.type?.startsWith("image/") ? (
-                            <a key={i} href={href} target="_blank" rel="noopener noreferrer"><img src={href} alt={a.name} loading="lazy" /></a>
+                          const item = viewerItems.find((v) => v.key === `${m.id}:${i}`)!;
+                          const openIt = (e: React.MouseEvent<HTMLElement>) => {
+                            viewerOpener.current = e.currentTarget;
+                            setViewer({ items: viewerItems, index: viewerItems.indexOf(item) });
+                          };
+                          // Imagens pequenas aparecem logo; as grandes (vindas do Zendesk) só ao abrir.
+                          return item.kind === "image" && (a.size ?? 0) <= 4 * 1024 * 1024 ? (
+                            <button key={i} type="button" className="attachment-thumb" onClick={openIt} title={`Ver ${a.name}`}>
+                              <img src={item.href} alt={a.name} loading="lazy" decoding="async" onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
+                            </button>
+                          ) : item.kind === "audio" ? (
+                            <audio key={i} src={item.href} controls preload="none" />
                           ) : (
-                            <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="attachment-link">📎 {a.name}</a>
+                            <button key={i} type="button" className="attachment-chip" onClick={openIt}>
+                              <span aria-hidden="true">{item.kind === "pdf" ? "📄" : item.kind === "video" ? "🎬" : item.kind === "image" ? "🖼" : "📎"}</span>
+                              {a.name}
+                              {a.size ? <small> · {sizeLabel(a.size)}</small> : null}
+                            </button>
                           );
                         })}
                       </div>
@@ -549,7 +678,17 @@ export function SupportInbox({
                   </div>
                 ) : (
                   <>
+                    {showCatalog && (
+                      <CatalogPicker canAttach={maxAttachments > pendingHere.length} onClose={() => setShowCatalog(false)} onInsert={insertCatalog} />
+                    )}
                     <textarea
+                      onPaste={(e) => {
+                        const files = [...e.clipboardData.files];
+                        if (files.length && maxAttachments) {
+                          e.preventDefault();
+                          addFiles(files);
+                        }
+                      }}
                       value={text}
                       onChange={(e) => typed(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(); }}
@@ -558,10 +697,38 @@ export function SupportInbox({
                       placeholder={mode === "reply" ? "Escreva a resposta ao cliente…" : "Nota para a equipa (o cliente não a vê)…"}
                       aria-label={mode === "reply" ? "Resposta ao cliente" : "Nota interna"}
                     />
+                    {pendingHere.length > 0 && (
+                      <ul className="pending-uploads" aria-label="Anexos por enviar">
+                        {pendingHere.map((u) => (
+                          <li key={u.id}>
+                            {u.preview ? <img src={u.preview} alt="" /> : <span aria-hidden="true">📄</span>}
+                            <span>{u.name}<small> · {sizeLabel(u.size)}</small></span>
+                            <button type="button" aria-label={`Retirar ${u.name}`} onClick={() => setPending((p) => ({ ...p, [selected!]: (p[selected!] || []).filter((x) => x.id !== u.id) }))}>✕</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     <div className="composer-actions">
                       {sendError && <span className="support-error" role="alert">{sendError}</span>}
+                      <input
+                        ref={fileInput}
+                        type="file"
+                        hidden
+                        multiple={maxAttachments > 1}
+                        accept={isZendesk ? "image/jpeg,image/png,image/webp,image/heic,application/pdf" : "image/jpeg,image/png,image/webp,image/heic"}
+                        onChange={(e) => {
+                          if (e.target.files) addFiles(e.target.files);
+                          e.target.value = "";
+                        }}
+                      />
+                      <button type="button" className="secondary-button" disabled={!maxAttachments || uploading || pendingHere.length >= maxAttachments} title={attachHint} onClick={() => fileInput.current?.click()}>
+                        {uploading ? "A anexar…" : "📎 Anexar"}
+                      </button>
+                      {mode === "reply" && (
+                        <button type="button" className="secondary-button" onClick={() => setShowCatalog((v) => !v)} aria-expanded={showCatalog}>🛍 Produto</button>
+                      )}
                       <small>Ctrl+Enter para enviar</small>
-                      <button type="button" onClick={send} disabled={sending || !text.trim()}>
+                      <button type="button" onClick={send} disabled={sending || uploading || (!text.trim() && !pendingHere.length)}>
                         {sending ? "A enviar…" : mode === "reply" ? "Enviar ao cliente" : "Guardar nota"}
                       </button>
                     </div>
@@ -572,6 +739,17 @@ export function SupportInbox({
           )}
         </section>
 
+        {viewer && (
+          <AttachmentViewer
+            items={viewer.items}
+            index={viewer.index}
+            onIndex={(index) => setViewer((v) => (v ? { ...v, index } : v))}
+            onClose={() => {
+              setViewer(null);
+              viewerOpener.current?.focus();
+            }}
+          />
+        )}
         <aside className="support-info" aria-label="Informação do cliente">
           {c ? (
             <CustomerPanel

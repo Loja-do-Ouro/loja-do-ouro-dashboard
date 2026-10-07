@@ -75,3 +75,22 @@ test("The encryption key must be the 44-character result, never the command or a
   assert.match(r.keyProblem("uma frase longa qualquer com mais de trinta e dois"), /comando|inválida/);
   assert.match(r.keyProblem("abc"), /inválida/);
 });
+
+test("Attachments are previewed only when the bytes match a safe type", () => {
+  const b = (...x) => new Uint8Array(x);
+  const ascii = (s, pad = 0) => new Uint8Array([...Array(pad).fill(0x20), ...[...s].map((c) => c.charCodeAt(0))]);
+  assert.equal(r.sniffType(b(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)), "image/png");
+  assert.equal(r.sniffType(b(0xff, 0xd8, 0xff, 0xe0)), "image/jpeg");
+  assert.equal(r.sniffType(ascii("%PDF-1.7")), "application/pdf");
+  assert.equal(r.sniffType(ascii("%PDF-1.4", 10)), "application/pdf");
+  assert.equal(r.sniffType(new Uint8Array([0, 0, 0, 0x18, ...[..."ftypmp42"].map((c) => c.charCodeAt(0))])), "video/mp4");
+  assert.equal(r.sniffType(ascii("OggS")), "audio/ogg");
+  // HTML ou SVG disfarçados nunca são mostrados em linha.
+  assert.equal(r.sniffType(ascii("<svg onload=alert(1)>")), null);
+  assert.equal(r.sniffType(ascii("<html><script>")), null);
+  assert.equal(r.previewKind("image/svg+xml"), "file");
+  assert.equal(r.previewKind("application/pdf"), "pdf");
+  assert.equal(r.previewKind("video/mp4"), "video");
+  assert.equal(r.previewKind("audio/ogg; codecs=opus"), "audio");
+  assert.equal(r.previewKind(null), "file");
+});

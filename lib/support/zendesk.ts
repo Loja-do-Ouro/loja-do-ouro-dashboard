@@ -5,9 +5,10 @@ import { fromZendeskStatus, plainText, sendOutcome, toZendeskStatus, type Status
 
 // Zendesk Support (goldstorepremium.zendesk.com), OAuth por colaborador: cada pessoa liga a sua
 // própria conta de agente e as respostas saem com essa autoria. Scopes do cliente OAuth
-// "lojadoouro_apoio_cliente": tickets:read (tickets, comentários, anexos), tickets:write
-// (respostas, notas internas, estado, responsável) e users:read (perfil do agente e nomes dos autores).
-export const ZENDESK_SCOPES = "tickets:read tickets:write users:read";
+// "lojadoouro_apoio_cliente": tickets:read (tickets e comentários), tickets:write (respostas, notas
+// internas, estado, responsável), users:read (perfil do agente e nomes dos autores) e, desde os scopes
+// granulares de agosto de 2026, ticket_attachments:read/write (ver e anexar ficheiros).
+export const ZENDESK_SCOPES = "tickets:read tickets:write users:read ticket_attachments:read ticket_attachments:write";
 export const OAUTH_COOKIE = "ldo_zd_oauth";
 // Tokens de acesso duram 30 minutos (omissão Zendesk); o de renovação pede-se com 90 dias (máximo).
 const REFRESH_TOKEN_SECONDS = 90 * 24 * 3600;
@@ -259,7 +260,7 @@ function toConversation(t: ZTicket, users: Map<number, ZUser>, comments: ZCommen
 async function ticketComments(userId: string, id: string) {
   const comments: ZComment[] = [];
   const users = new Map<number, ZUser>();
-  let path: string | null = `/api/v2/tickets/${encodeURIComponent(id)}/comments.json?include=users&sort_order=asc&per_page=100`;
+  let path: string | null = `/api/v2/tickets/${encodeURIComponent(id)}/comments.json?include=users&include_inline_images=true&sort_order=asc&per_page=100`;
   for (let page = 0; path && page < 20; page++) {
     const r: { comments: ZComment[]; users?: ZUser[]; next_page: string | null } = await asUser(userId, "GET", path);
     comments.push(...r.comments);
@@ -354,10 +355,36 @@ export async function syncZendesk(raw: Record<string, unknown>, deadline: number
 
 type UpdateResult = { ticket: ZTicket; audit?: { events?: { id: number; type: string; public?: boolean }[] } };
 
+export type OutgoingFile = { name: string; type: string; data: Buffer };
+
+const ATTACHMENT_SCOPE_HINT = "A ligação Zendesk não tem permissão para anexos (ticket_attachments). Confirme os scopes do cliente OAuth e volte a ligar o Zendesk.";
+
+// Carrega um ficheiro no Zendesk (bytes em bruto, não multipart) e devolve o token de uso único.
+// Vários ficheiros juntam-se no mesmo carregamento passando o token anterior.
+async function uploadFile(token: string, file: OutgoingFile, previous?: string) {
+  const q = new URLSearchParams({ filename: file.name, ...(previous ? { token: previous } : {}) });
+  let r: Response;
+  try {
+    r = await fetch(`${base()}/api/v2/uploads.json?${q}`, {
+      method: "POST", cache: "no-store", signal: AbortSignal.timeout(30000),
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": file.type, Accept: "application/json" },
+      body: new Uint8Array(file.data),
+    });
+  } catch {
+    throw new ZendeskError("Carregamento do anexo no Zendesk interrompido.", null);
+  }
+  if (r.status === 401) throw new ZendeskError("Token Zendesk recusado.", 401);
+  if (r.status === 403) throw new ZendeskError(ATTACHMENT_SCOPE_HINT, 403);
+  if (!r.ok) throw new ZendeskError(`O Zendesk recusou o anexo “${file.name}” (HTTP ${r.status}).`, r.status);
+  const j = (await r.json().catch(() => ({}))) as { upload?: { token?: string } };
+  if (!j.upload?.token) throw new ZendeskError("O Zendesk não devolveu o anexo carregado.", r.status);
+  return j.upload.token;
+}
+
 // Resposta pública ou nota interna, com o token de quem escreve. Uma nota é sempre public:false.
-export async function zendeskComment(userId: string, ticketId: string, body: string, isPublic: boolean) {
+// Os anexos são carregados primeiro: se algum falhar, nada é publicado no ticket ("Falhou").
+export async function zendeskComment(userId: string, ticketId: string, body: string, isPublic: boolean, files: OutgoingFile[] = []) {
   const path = `/api/v2/tickets/${encodeURIComponent(ticketId)}.json`;
-  const payload = { ticket: { comment: { body, public: isPublic } } };
   const failed = (e: unknown) => ({ outcome: "failed" as const, externalId: null, detail: e instanceof Error ? e.message : "Ligação Zendesk indisponível." });
   // Sem token válido o pedido nem chega a sair: é uma falha, não um resultado incerto.
   let token: string;
@@ -366,6 +393,21 @@ export async function zendeskComment(userId: string, ticketId: string, body: str
   } catch (e) {
     return failed(e);
   }
+  let uploadToken: string | undefined;
+  try {
+    for (const f of files) {
+      try {
+        uploadToken = await uploadFile(token, f, uploadToken);
+      } catch (e) {
+        if (!(e instanceof ZendeskError) || e.status !== 401) throw e;
+        token = await accessToken(userId, token);
+        uploadToken = await uploadFile(token, f, uploadToken);
+      }
+    }
+  } catch (e) {
+    return failed(e);
+  }
+  const payload = { ticket: { comment: { body: body || (files.length ? "Segue em anexo." : ""), public: isPublic, ...(uploadToken ? { uploads: [uploadToken] } : {}) } } };
   let r: UpdateResult;
   try {
     r = await call<UpdateResult>(token, "PUT", path, payload);
@@ -402,16 +444,44 @@ export async function zendeskUpdate(userId: string, ticketId: string, change: { 
   return readTicket(userId, ticketId);
 }
 
+const ZENDESK_FILE_HOST = /(^|\.)zendesk\.com$|(^|\.)zdusercontent\.com$/;
+
 // Anexo de um comentário: o servidor procura-o no próprio ticket (nunca segue um URL vindo do browser).
-export async function zendeskAttachment(userId: string, ticketId: string, attachmentId: string) {
+// O Zendesk responde com um redirecionamento para um endereço temporário; ficheiros pequenos são
+// lidos pelo servidor (cabeçalhos seguros), os grandes abrem diretamente desse endereço temporário.
+export async function zendeskAttachment(userId: string, ticketId: string, attachmentId: string, maxBytes: number) {
   const { comments } = await ticketComments(userId, ticketId);
   const a = comments.flatMap((c) => c.attachments || []).find((x) => String(x.id) === attachmentId);
   if (!a || a.malware_scan_result === "malware_found") throw new ZendeskError("Anexo indisponível.", 404);
-  const host = new URL(a.content_url).hostname;
-  if (!/(^|\.)zendesk\.com$|(^|\.)zdusercontent\.com$/.test(host)) throw new ZendeskError("Anexo fora do Zendesk recusado.", 400);
-  const r = await fetch(a.content_url, { cache: "no-store", redirect: "follow", signal: AbortSignal.timeout(25000), headers: { Authorization: `Bearer ${await accessToken(userId)}` } });
+  if (!ZENDESK_FILE_HOST.test(new URL(a.content_url).hostname)) throw new ZendeskError("Anexo fora do Zendesk recusado.", 400);
+  const meta = { name: a.file_name, type: a.content_type, size: a.size };
+  const first = await fetch(a.content_url, {
+    cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(25000),
+    headers: { Authorization: `Bearer ${await accessToken(userId)}` },
+  });
+  if (first.status === 403 || first.status === 401) {
+    await first.body?.cancel();
+    throw new ZendeskError(`Sem permissão para abrir anexos do Zendesk. ${ATTACHMENT_SCOPE_HINT}`, 403);
+  }
+  let location: string | null = null;
+  if (first.status >= 300 && first.status < 400) {
+    location = new URL(first.headers.get("location") || "", a.content_url).toString();
+    await first.body?.cancel();
+    if (!ZENDESK_FILE_HOST.test(new URL(location).hostname)) throw new ZendeskError("Anexo fora do Zendesk recusado.", 400);
+  } else if (!first.ok) {
+    await first.body?.cancel();
+    throw new ZendeskError(`Anexo indisponível (HTTP ${first.status}).`, first.status);
+  }
+  // Grande: o browser vai buscá-lo diretamente ao Zendesk (o nosso servidor não o transporta).
+  if ((a.size || 0) > maxBytes) {
+    if (!location) await first.body?.cancel();
+    return { ...meta, redirect: location || a.content_url };
+  }
+  if (!location) return { ...meta, response: first };
+  // O endereço temporário já traz a autorização: nunca se envia o token do agente para lá.
+  const r = await fetch(location, { cache: "no-store", redirect: "follow", signal: AbortSignal.timeout(25000) });
   if (!r.ok) throw new ZendeskError(`Anexo indisponível (HTTP ${r.status}).`, r.status);
-  return { response: r, name: a.file_name, type: a.content_type, size: a.size };
+  return { ...meta, response: r };
 }
 
 // Revoga no Zendesk o token atual (melhor esforço) antes de o apagar no dashboard.
