@@ -13,6 +13,8 @@ export const maxDuration = 60;
 // cabeçalhos seguros; acima disso, os anexos do Zendesk abrem diretamente do endereço temporário do Zendesk.
 const MAX_BYTES = 4 * 1024 * 1024;
 const PROVIDER: Record<string, string> = { "metricool-facebook": "FACEBOOK", "metricool-instagram": "INSTAGRAM" };
+// Servidores de ficheiros da Meta (Instagram/Messenger) que podem ser lidos diretamente.
+const META_CDN = /^(lookaside\.fbsbx\.com|lookaside\.facebook\.com|[a-z0-9.-]+\.fbcdn\.net|[a-z0-9.-]+\.cdninstagram\.com)$/;
 
 type Detail = {
   conversation: { id: string; source_id: string; external_id: string };
@@ -96,8 +98,25 @@ export async function GET(request: Request) {
     if (a.ref.startsWith("metricool:") && PROVIDER[d.conversation.source_id]) {
       const target = a.ref.slice(10);
       if (!/^https:\/\//.test(target)) throw new HttpError(400, "Anexo inválido.");
-      const upstream = await metricoolImage(PROVIDER[d.conversation.source_id], target);
-      const bytes = new Uint8Array(await upstream.arrayBuffer());
+      // Imagens do Instagram/Messenger: endereço assinado e temporário do CDN da Meta, lido diretamente
+      // (só destes servidores). O fetch-image da Metricool fica como alternativa.
+      let bytes = new Uint8Array(0);
+      // Redirecionamentos seguidos um a um, sempre dentro dos servidores da Meta.
+      let next: string | null = target;
+      for (let hop = 0; next && hop < 4 && META_CDN.test(new URL(next).hostname); hop++) {
+        const r: Response | null = await fetch(next, { cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(20000) }).catch(() => null);
+        if (!r) break;
+        if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
+          next = new URL(r.headers.get("location")!, next).toString();
+          await r.body?.cancel();
+          continue;
+        }
+        if (r.ok && Number(r.headers.get("content-length") || 0) <= MAX_BYTES) bytes = new Uint8Array(await r.arrayBuffer());
+        else await r.body?.cancel();
+        break;
+      }
+      if (!bytes.byteLength) bytes = new Uint8Array(await (await metricoolImage(PROVIDER[d.conversation.source_id], target)).arrayBuffer());
+      if (!bytes.byteLength) throw new HttpError(410, "Imagem indisponível (o endereço da Meta pode ter expirado).");
       if (bytes.byteLength > MAX_BYTES) throw new HttpError(413, "Anexo demasiado grande para abrir aqui; abra-o na Metricool.");
       return respond(request, bytes, a.name, download);
     }

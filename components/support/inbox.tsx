@@ -177,6 +177,8 @@ export function SupportInbox({
   const [pending, setPending] = useState<Record<string, Pending[]>>({});
   const [uploading, setUploading] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false);
+  // Miniaturas que não carregaram (ex.: endereço da Meta expirado): mostram-se como aviso, nunca vazias.
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
   const viewerOpener = useRef<HTMLElement | null>(null);
   // Chave de cada envio pendente, ligada ao texto exato: um pedido perdido repete-se com a mesma chave
@@ -613,16 +615,16 @@ export function SupportInbox({
                             setViewer({ items: viewerItems, index: viewerItems.indexOf(item) });
                           };
                           // Imagens pequenas aparecem logo; as grandes (vindas do Zendesk) só ao abrir.
-                          return item.kind === "image" && (a.size ?? 0) <= 4 * 1024 * 1024 ? (
+                          return item.kind === "image" && (a.size ?? 0) <= 4 * 1024 * 1024 && !brokenThumbs.has(item.href) ? (
                             <button key={i} type="button" className="attachment-thumb" onClick={openIt} title={`Ver ${a.name}`}>
-                              <img src={item.href} alt={a.name} loading="lazy" decoding="async" onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
+                              <img src={item.href} alt={a.name} loading="lazy" decoding="async" onError={() => setBrokenThumbs((b) => new Set(b).add(item.href))} />
                             </button>
                           ) : item.kind === "audio" ? (
                             <audio key={i} src={item.href} controls preload="none" />
                           ) : (
                             <button key={i} type="button" className="attachment-chip" onClick={openIt}>
                               <span aria-hidden="true">{item.kind === "pdf" ? "📄" : item.kind === "video" ? "🎬" : item.kind === "image" ? "🖼" : "📎"}</span>
-                              {a.name}
+                              {brokenThumbs.has(item.href) ? "Imagem indisponível" : a.name}
                               {a.size ? <small> · {sizeLabel(a.size)}</small> : null}
                             </button>
                           );
