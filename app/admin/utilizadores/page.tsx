@@ -17,6 +17,7 @@ type User = {
   full_name: string | null;
   is_super_admin: boolean;
   online_access: boolean;
+  support_access?: boolean;
   active: boolean;
   store_access: Record<string, Level>;
   editable: boolean;
@@ -99,12 +100,13 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     <td>
                       {u.is_super_admin && <span className="tag gold">Super Admin</span>}
                       {u.online_access && !u.is_super_admin && <span className="tag">Loja Online</span>}
+                      {u.support_access && !u.is_super_admin && <span className="tag">Apoio ao Cliente</span>}
                       {Object.entries(u.store_access).map(([storeId, level]) => (
                         <span key={storeId} className={level === "manager" ? "tag green" : "tag"}>
                           {LEVEL[level]} · {storeName.get(storeId) || "Loja"}
                         </span>
                       ))}
-                      {!u.is_super_admin && !u.online_access && !Object.keys(u.store_access).length && <span className="muted">Sem acessos</span>}
+                      {!u.is_super_admin && !u.online_access && !u.support_access && !Object.keys(u.store_access).length && <span className="muted">Sem acessos</span>}
                     </td>
                     <td>
                       {!u.active ? (
@@ -171,6 +173,10 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                 <label className="check">
                   <input type="checkbox" name="online_access" defaultChecked={editing?.online_access} />
                   <span><strong>Loja Online</strong> — Shopify, campanhas, redes sociais, públicos e qualidade dos dados.</span>
+                </label>
+                <label className="check">
+                  <input type="checkbox" name="support_access" defaultChecked={editing?.support_access} />
+                  <span><strong>Apoio ao Cliente</strong> — conversas Zendesk, Facebook e Instagram: responder, notas internas, atribuir e mudar o estado.</span>
                 </label>
               </fieldset>
             )}

@@ -38,6 +38,8 @@ export async function saveUser(form: FormData) {
         p_email: String(form.get("email") || "").trim().toLowerCase().slice(0, 160),
         p_receive_reports: form.get("receive_reports") === "on",
       });
+    if (viewer.isSuper)
+      await rpc("ldo_support_set_user_access", { p_session: viewer.session, p_user_id: saved || id, p_access: form.get("support_access") === "on" });
   } catch (e) {
     error = userMessage(e);
   }

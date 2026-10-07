@@ -18,6 +18,8 @@ export function proxy(request: NextRequest) {
 
   if (PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`))) return NextResponse.next();
   if (path.startsWith("/api/cron/")) return NextResponse.next();
+  // Webhooks das plataformas: validam a própria assinatura (WhatsApp ainda por configurar).
+  if (path.startsWith("/api/support/webhooks/")) return NextResponse.next();
   if (request.cookies.get(SESSION_COOKIE)?.value) return NextResponse.next();
 
   const login = new URL("/login", request.url);

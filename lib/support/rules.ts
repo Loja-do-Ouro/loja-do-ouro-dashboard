@@ -1,0 +1,108 @@
+// Apoio ao Cliente: tipos e regras partilhados entre servidor e browser (sem segredos nem I/O).
+
+export type Status = "novo" | "em_atendimento" | "aguarda_cliente" | "resolvido";
+export type Channel = "zendesk" | "facebook" | "instagram" | "whatsapp";
+export type Kind = "inbound" | "outbound" | "note";
+export type Delivery = "sending" | "accepted" | "delivered" | "read" | "failed" | "uncertain";
+
+export const STATUSES: Status[] = ["novo", "em_atendimento", "aguarda_cliente", "resolvido"];
+export const STATUS_LABEL: Record<Status, string> = {
+  novo: "Novo",
+  em_atendimento: "Em atendimento",
+  aguarda_cliente: "A aguardar cliente",
+  resolvido: "Resolvido",
+};
+export const CHANNEL_LABEL: Record<Channel, string> = {
+  zendesk: "Zendesk",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+};
+export const DELIVERY_LABEL: Record<Delivery, string> = {
+  sending: "A enviar",
+  accepted: "Aceite pela plataforma",
+  delivered: "Entregue",
+  read: "Lida",
+  failed: "Falhou",
+  uncertain: "Resultado incerto",
+};
+
+// Zendesk é a fonte de verdade do estado dos seus tickets. "hold" (em espera) continua em atendimento.
+export function fromZendeskStatus(s: string | null | undefined): Status {
+  switch (s) {
+    case "new":
+      return "novo";
+    case "pending":
+      return "aguarda_cliente";
+    case "solved":
+    case "closed":
+      return "resolvido";
+    default:
+      return "em_atendimento";
+  }
+}
+
+// O Zendesk não aceita voltar a "new"; "Novo" no dashboard equivale a reabrir (open).
+export function toZendeskStatus(s: Status): "open" | "pending" | "solved" {
+  return s === "aguarda_cliente" ? "pending" : s === "resolvido" ? "solved" : "open";
+}
+
+// Regra explícita de reabertura (conversas cujo estado pertence ao dashboard; espelha ldo_support_ingest):
+// mensagem nova do cliente em "Resolvido" → "Novo" sem responsável, "Em atendimento" com responsável;
+// em "A aguardar cliente" → "Em atendimento"; nos restantes estados nada muda.
+export function statusAfterCustomerMessage(status: Status, hasAssignee: boolean): Status {
+  if (status === "resolvido") return hasAssignee ? "em_atendimento" : "novo";
+  if (status === "aguarda_cliente") return "em_atendimento";
+  return status;
+}
+
+// Espera depois de erros (espelha ldo_support_sync_finish): dobra a cada falha, até 30 minutos,
+// e nunca antes do Retry-After indicado pela plataforma.
+export function backoffSeconds(pollSeconds: number, failures: number, retryAfter = 0) {
+  return Math.max(Math.min(pollSeconds * 2 ** Math.min(failures, 6), 1800), retryAfter);
+}
+
+// Resultado de um envio a partir da resposta HTTP. Sem resposta (tempo esgotado, rede) ou erro do
+// servidor da plataforma, o pedido pode ter sido aceite: fica "incerto" e nunca é repetido sozinho.
+export function sendOutcome(status: number | null): Extract<Delivery, "accepted" | "failed" | "uncertain"> {
+  if (status === null || status >= 500 || status === 408) return "uncertain";
+  if (status >= 200 && status < 300) return "accepted";
+  return "failed";
+}
+
+// Canais do Zendesk em que uma resposta pública pela API segue por email (notificações do Zendesk).
+// Nos outros (mensagens, redes sociais, WhatsApp no Zendesk) a entrega tem de ser validada.
+const ZENDESK_EMAIL_LIKE = new Set(["email", "web", "api", "mobile", "web_service", "web_form", "sample_ticket"]);
+export function zendeskReplyWarning(via: string | null | undefined): string {
+  const base = "Aceite pelo Zendesk não significa entregue: o cliente só recebe se as notificações do Zendesk estiverem ativas para este canal.";
+  if (!via || ZENDESK_EMAIL_LIKE.has(via)) return base;
+  return `${base} Este ticket veio do canal “${via}”, em que respostas pela API podem não chegar ao cliente — validar com um ticket de teste.`;
+}
+
+export function isStatus(v: unknown): v is Status {
+  return typeof v === "string" && (STATUSES as string[]).includes(v);
+}
+
+export function isUuid(v: unknown): v is string {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+// Texto simples a partir de HTML recebido: nunca se apresenta HTML de terceiros no dashboard.
+export function plainText(html: string) {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|tr|h\d)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Anexos que o browser pode mostrar em linha; os restantes são sempre descarregados.
+export const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);

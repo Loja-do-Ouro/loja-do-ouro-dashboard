@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/dashboard/ui";
-import { canCompareStores, canManageStores, canManageUsers, canSeeOnline, initials } from "@/lib/permissions";
+import { canCompareStores, canManageStores, canManageUsers, canSeeOnline, canSupport, initials } from "@/lib/permissions";
 import type { Viewer } from "@/lib/viewer";
 
 export const ONLINE_SECTIONS = [
@@ -37,6 +37,14 @@ export function AppShell({
     groups.push({
       label: "LOJA ONLINE",
       items: ONLINE_SECTIONS.map(([key, label, icon]) => ({ key, label, icon, href: onlineHref(key), badge: badges[key] })),
+    });
+  if (!locked && canSupport(viewer))
+    groups.push({
+      label: "APOIO AO CLIENTE",
+      items: [
+        { key: "apoio", label: "Conversas", href: "/apoio", icon: "chat" },
+        ...(viewer.isSuper ? [{ key: "apoio-config", label: "Configuração do apoio", href: "/apoio/configuracao", icon: "plug" }] : []),
+      ],
     });
   if (!locked && viewer.stores.length)
     groups.push({

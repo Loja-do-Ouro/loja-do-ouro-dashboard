@@ -1,0 +1,57 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { userMessage } from "@/lib/supabase";
+import { sessionRpc } from "@/lib/support/db";
+import { runSync } from "@/lib/support/sync";
+import { revokeConnection } from "@/lib/support/zendesk";
+import { requireViewer } from "@/lib/viewer";
+
+// Configuração do Apoio ao Cliente: só o Super Admin (verificado aqui e nas funções da BD).
+async function superViewer() {
+  const viewer = await requireViewer();
+  if (!viewer.isSuper) redirect("/apoio");
+  return viewer;
+}
+
+const back = (params: Record<string, string>): never => redirect(`/apoio/configuracao?${new URLSearchParams(params)}`);
+
+export async function savePolling(form: FormData) {
+  const viewer = await superViewer();
+  const seconds = Number(form.get("poll_seconds"));
+  try {
+    await sessionRpc(viewer.session, "ldo_support_save_settings", { p_poll_seconds: Math.round(seconds) });
+  } catch (e) {
+    back({ erro: userMessage(e) });
+  }
+  back({ ok: "Frequência guardada." });
+}
+
+export async function setSupportAccess(form: FormData) {
+  const viewer = await superViewer();
+  try {
+    await sessionRpc(viewer.session, "ldo_support_set_user_access", { p_user_id: String(form.get("user_id") || ""), p_access: form.get("access") === "1" });
+  } catch (e) {
+    back({ erro: userMessage(e) });
+  }
+  back({ ok: "Acesso atualizado." });
+}
+
+export async function disconnectZendesk(form: FormData) {
+  const viewer = await superViewer();
+  const userId = String(form.get("user_id") || "");
+  try {
+    await revokeConnection(userId);
+    await sessionRpc(viewer.session, "ldo_support_zendesk_disconnect", { p_user_id: userId });
+  } catch (e) {
+    back({ erro: userMessage(e) });
+  }
+  back({ ok: "Ligação Zendesk removida." });
+}
+
+export async function syncNow() {
+  await superViewer();
+  const results = await runSync({ force: true });
+  const failed = results.filter((r) => r.ran && r.ok === false);
+  back(failed.length ? { erro: failed.map((r) => `${r.source}: ${r.detail}`).join(" · ").slice(0, 600) } : { ok: "Sincronização concluída." });
+}

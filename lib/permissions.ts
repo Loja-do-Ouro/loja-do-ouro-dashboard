@@ -3,9 +3,11 @@
 
 export type Level = "manager" | "store";
 export type StoreAccess = { id: string; code: string; name: string; level: Level; ads_keyword?: string | null };
-export type Access = { id: string; isSuper: boolean; online: boolean; stores: StoreAccess[] };
+export type Access = { id: string; isSuper: boolean; online: boolean; support?: boolean; stores: StoreAccess[] };
 
 export const canSeeOnline = (a: Access) => a.isSuper || a.online;
+// Apoio ao Cliente: conversas e respostas. Só o Super Admin configura as integrações.
+export const canSupport = (a: Access) => a.isSuper || Boolean(a.support);
 export const managedStores = (a: Access) => a.stores.filter((s) => s.level === "manager");
 export const canManageUsers = (a: Access) => a.isSuper || managedStores(a).length > 0;
 export const canManageStores = (a: Access) => a.isSuper;
@@ -15,6 +17,7 @@ export const canCompareStores = (a: Access) => managedStores(a).length > 0;
 export function homePath(a: Access): string | null {
   if (canSeeOnline(a)) return "/";
   if (a.stores.length) return "/lojas";
+  if (canSupport(a)) return "/apoio";
   return null;
 }
 

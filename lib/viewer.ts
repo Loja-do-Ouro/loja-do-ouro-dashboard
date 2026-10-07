@@ -18,6 +18,7 @@ type Me = {
   full_name: string | null;
   is_super_admin: boolean;
   online_access: boolean;
+  support_access?: boolean;
   must_change_password: boolean;
   stores: StoreAccess[];
 };
@@ -35,6 +36,7 @@ export const loadViewer = cache(async (): Promise<Viewer | null> => {
     fullName: me.full_name,
     isSuper: me.is_super_admin,
     online: me.online_access,
+    support: Boolean(me.support_access),
     mustChangePassword: me.must_change_password,
     stores: me.stores || [],
     session,

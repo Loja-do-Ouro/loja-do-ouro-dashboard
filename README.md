@@ -70,6 +70,21 @@ Substituem os dois Excel das lojas (importados em outubro de 2026 com `scripts/i
 
 O investimento Meta e Google separa-se em **Online**, **Loja física** (por loja) e **Partilhado** (`lib/bi/channels.ts`). Uma campanha com a palavra-chave de uma loja no nome (Administração → Lojas) é dessa loja; as restantes são do online. O Super Admin define exceções em Administração → Campanhas (tabela `ldo_campaign_channels`; vale para todo o histórico). O MER e o investimento do e-mail diário passam a contar só o online. A recolha guarda o detalhe das campanhas por dia, para separar qualquer período. Esta separação prepara a comparação com os orçamentos de 2027 (online e negócio físico).
 
+### Apoio ao Cliente
+
+`/apoio` centraliza as conversas do **Zendesk** (tickets) e das mensagens privadas do **Facebook Messenger** e **Instagram** (Inbox Metricool, marca Loja do Ouro Jericó, blogId 2912472). **WhatsApp** está por configurar (fase seguinte, WhatsApp Cloud API, independente do Zendesk). Comentários de publicações e de anúncios e respostas automáticas ficam fora desta fase.
+
+- **Acesso**: Super Admin ou utilizadores com "Apoio ao Cliente" (Administração → Utilizadores). Só o Super Admin vê `/apoio/configuracao` (ligações, frequência, acessos, diagnóstico).
+- **Zendesk** (`goldstorepremium.zendesk.com`): OAuth por colaborador, para que cada resposta e nota saia com a autoria de quem a escreve. Scopes `tickets:read tickets:write users:read`. Redirect URL: `https://loja-do-ouro-dashboard.vercel.app/api/support/zendesk/callback`. O `state` é aleatório, de uso único (10 min), ligado à pessoa na BD e a um cookie httpOnly com PKCE. Tokens cifrados com AES-256-GCM (`SUPPORT_ENCRYPTION_KEY`); a renovação é feita por um só pedido de cada vez (lease em `ldo_support_zendesk_connections`), porque cada renovação invalida o par anterior. O Zendesk é a fonte de verdade de mensagens, estado e responsável: o dashboard escreve primeiro no Zendesk e guarda o que o Zendesk devolve; a sincronização nunca escreve no Zendesk. Uma resposta aceite pelo Zendesk só chega ao cliente se as notificações do canal estiverem ativas.
+- **Facebook/Instagram** (Metricool, `METRICOOL_USER_TOKEN`): a Inbox não tem webhooks, por isso a sincronização é por consulta. Mensagens vêm da Metricool; estado interno, responsável e notas são do dashboard. Respostas só em texto nesta fase.
+- **Sincronização**: sem processos permanentes. Corre quando alguém tem `/apoio` aberto (frequência definida na configuração, 60 s por omissão), no botão Atualizar e às 06:00 UTC (`/api/cron/support-sync`, `CRON_SECRET`). Uma fonte de cada vez (lease); depois de erros a espera dobra até 30 minutos e respeita `Retry-After`. Uma falha numa plataforma não bloqueia as outras.
+- **Modelo** (`ldo_support_*`): canal e conta de origem, ids externos com chaves únicas (canal, conta, id) e (conversa, id da mensagem), contactos por canal, estado interno e estado da plataforma, mensagens, notas, leituras por colaborador, presença, registo de ações e estado de sincronização. Conversas de canais diferentes ficam separadas; a associação ao cliente da loja online é manual por email (nunca pelo nome), com sugestões só por email ou telefone. As encomendas vêm da app Shopify existente.
+- **Regras**: não lidas = mensagens do cliente posteriores à última leitura de cada colaborador no dashboard (não marca nada na plataforma). Uma mensagem nova do cliente reabre "Resolvido" como "Novo" (sem responsável) ou "Em atendimento" (com responsável), e passa "A aguardar cliente" a "Em atendimento"; no Zendesk é o Zendesk que reabre.
+- **Envios**: A enviar → Aceite pela plataforma / Falhou / Resultado incerto; Entregue/Lida só com confirmação do canal. Cada envio tem uma chave única: repetir o pedido nunca envia duas vezes. Um resultado incerto não é repetido automaticamente: "Verificar" volta a ler a plataforma e a sincronização reconhece a mensagem; "Não foi enviada" devolve o texto ao rascunho. Notas internas nunca seguem por um caminho de envio ao cliente (no Zendesk são comentários privados).
+- **Segurança**: credenciais e chamadas autenticadas só no servidor; o servidor identifica-se no Supabase com `BI_INGEST_TOKEN`; pedidos que alteram dados exigem a mesma origem e JSON; HTML recebido é convertido em texto; anexos passam pelo servidor, só imagens comuns abrem em linha. Webhook WhatsApp reservado em `/api/support/webhooks/whatsapp` (recusa tudo até estar configurado).
+
+Variáveis novas: `SUPPORT_ENCRYPTION_KEY` (obrigatória para o Zendesk), opcionais `ZENDESK_SUBDOMAIN` e `SUPPORT_PUBLIC_URL`. Reutiliza `ZENDESK_CLIENT_ID`, `ZENDESK_CLIENT_SECRET`, `METRICOOL_USER_TOKEN`, `BI_INGEST_TOKEN` e `CRON_SECRET`. Ver `supabase/migrations/20261007120000_ldo_support.sql`.
+
 ### Relatórios por email
 
 Tarefas agendadas no Vercel (`vercel.json`, horas UTC) chamam `/api/cron/reports` com `CRON_SECRET`:
@@ -92,6 +107,7 @@ O build de produção verifica a configuração do login e o acesso às quatro f
 - `app/page.tsx` — loja online: enquadramento, períodos e secções.
 - `app/lojas/` — vendas e atendimentos, compra de ouro e comparação entre lojas.
 - `app/admin/` — utilizadores e lojas; `app/conta/` — mudar a própria palavra-passe.
+- `app/apoio/`, `app/api/support/`, `components/support/`, `lib/support/` — Apoio ao Cliente (adaptadores `zendesk`, `metricool`, `whatsapp`; `sync`, `service`, `rules`).
 - `components/shell.tsx` — menu e barra superior, conforme as permissões.
 - `lib/session.ts`, `lib/viewer.ts`, `lib/permissions.ts`, `lib/rate-limit.ts` — login, sessão e permissões; `lib/store-records.ts` — leitura dos formulários e totais das lojas físicas.
 - `components/dashboard/` — uma secção por ficheiro (`overview`, `sales`, `marketing`, `audience`, `quality`), mais `trend`, `ui` e `format`.

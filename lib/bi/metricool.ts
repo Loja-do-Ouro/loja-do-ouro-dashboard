@@ -28,6 +28,29 @@ async function api<T>(path: string, params: Record<string, string>): Promise<T> 
   return r.json() as Promise<T>;
 }
 
+// Same token and brand for other Metricool areas (Apoio ao Cliente: Inbox). Returns the HTTP
+// status instead of throwing, so the caller can tell a refusal from a lost answer.
+export async function metricoolRequest(method: "GET" | "POST" | "PUT", path: string, params: Record<string, string> = {}, body?: unknown) {
+  const token = process.env.METRICOOL_USER_TOKEN;
+  if (!token) throw new Error("Ligação Metricool por configurar.");
+  const url = new URL(`${BASE}${path}`);
+  url.search = new URLSearchParams({ ...params, ...metricoolAccount() }).toString();
+  let r: Response;
+  try {
+    r = await fetch(url, {
+      method, cache: "no-store", signal: AbortSignal.timeout(30000),
+      headers: { "X-Mc-Auth": token, Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    return { status: null, json: null, headers: null };
+  }
+  const text = await r.text().catch(() => "");
+  let json: unknown = null;
+  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+  return { status: r.status, json, headers: r.headers, text: r.ok ? "" : text.slice(0, 300) };
+}
+
 // Dates come as "2026-09-01T00:00:00+02:00", "20260901" or epoch milliseconds.
 export function metricoolDay(v: unknown): string | null {
   const s = String(v ?? "");

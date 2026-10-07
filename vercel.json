@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/reports?run=evening",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/support-sync",
+      "schedule": "0 6 * * *"
     }
   ]
 }

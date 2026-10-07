@@ -140,3 +140,19 @@ export async function ordersByDay(p: Period): Promise<Map<string, Row[]>> {
   }
   throw new Error("Cobertura incompleta: limite de paginação Shopify atingido.");
 }
+
+// Apoio ao Cliente: encomendas de um email associado manualmente a uma conversa (até 20, mais recentes).
+// Só número, data, total e estados; não lê moradas nem outros dados pessoais. Shopify pode recusar
+// o filtro por email sem acesso aprovado a dados protegidos de clientes: o erro é devolvido tal como vem.
+export async function ordersByEmail(email: string) {
+  type Node = { id: string; name: string; createdAt: string; cancelledAt: string | null; displayFinancialStatus: string | null; displayFulfillmentStatus: string | null; currentTotalPriceSet: Money };
+  const d = await graphql<{ orders: { nodes: Node[] } }>(
+    `query SupportOrders($q: String!) { orders(first: 20, sortKey: CREATED_AT, reverse: true, query: $q) {
+      nodes { id name createdAt cancelledAt displayFinancialStatus displayFulfillmentStatus currentTotalPriceSet { shopMoney { amount currencyCode } } } } }`,
+    { q: `email:"${email.replace(/["\\]/g, "")}"` });
+  return d.orders.nodes.map((o) => ({
+    name: o.name, created_at: o.createdAt, cancelled: Boolean(o.cancelledAt), financial: o.displayFinancialStatus, fulfillment: o.displayFulfillmentStatus,
+    total: number(o.currentTotalPriceSet?.shopMoney.amount), currency: o.currentTotalPriceSet?.shopMoney.currencyCode ?? null,
+    admin_url: `https://admin.shopify.com/store/${(process.env.SHOPIFY_STORE_DOMAIN || "").replace(".myshopify.com", "")}/orders/${o.id.split("/").pop()}`,
+  }));
+}

@@ -16,6 +16,8 @@ export function Icon({ name = "grid" }: { name?: string }) {
     trophy: "M8 4h8v5a4 4 0 0 1-8 0V4 M8 6H4a3 3 0 0 0 4 4 M16 6h4a3 3 0 0 1-4 4 M12 13v4 M8 21h8 M9 17h6v4H9z",
     mail: "M3 5h18v14H3z M3 6l9 7 9-7",
     heart: "M12 20s-7-4.4-9-9a4.5 4.5 0 0 1 9-3 4.5 4.5 0 0 1 9 3c-2 4.6-9 9-9 9",
+    chat: "M4 5h16v11H9l-5 4V5 M8 9h8 M8 12h5",
+    plug: "M9 3v5 M15 3v5 M6 8h12v3a6 6 0 0 1-12 0V8 M12 17v4",
   };
   return (
     <svg
