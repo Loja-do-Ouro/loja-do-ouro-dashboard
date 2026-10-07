@@ -23,7 +23,8 @@ export async function POST(request: Request) {
     if (product) {
       const bytes = await catalogImage(product);
       const name = (q.get("nome") || "produto").slice(0, 100);
-      return json(await saveUpload(viewer.id, conversation, name, bytes));
+      // A foto já é pública na Shopify: no Facebook/Instagram a Meta vai buscá-la lá diretamente.
+      return json(await saveUpload(viewer.id, conversation, name, bytes, product));
     }
     const declared = Number(request.headers.get("content-length") || 0);
     if (declared > MAX_UPLOAD_BYTES) throw new HttpError(413, "Ficheiro demasiado grande (máximo 4 MB depois de reduzido).");

@@ -43,8 +43,13 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
         if (!u) throw new Error("Anexo já não disponível.");
         files.push({ name: u.name, type: u.type, data: Buffer.from(u.data, "base64") });
       }
-    // Facebook/Instagram: um URL público temporário (1 hora) para a Meta ir buscar a imagem.
-    else if (begin.platform === "metricool" && begin.uploads?.[0]) image = await publishUpload(begin.uploads[0], requestUrl);
+    // Facebook/Instagram: foto de produto pelo endereço público da Shopify; outras imagens por um URL
+    // público temporário (1 hora) do dashboard para a Meta ir buscar.
+    else if (begin.platform === "metricool" && begin.uploads?.[0]) {
+      const u = await getUpload(begin.uploads[0]);
+      if (!u) throw new Error("Anexo já não disponível.");
+      image = u.source_url || (await publishUpload(u.id, requestUrl));
+    }
   } catch (e) {
     prepared = { outcome: "failed", externalId: null, detail: e instanceof Error ? e.message : "Anexo indisponível." };
   }

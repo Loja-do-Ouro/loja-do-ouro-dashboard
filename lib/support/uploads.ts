@@ -8,9 +8,10 @@ import { publicOrigin } from "./zendesk";
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
-export type Upload = { id: string; conversation_id: string; user_id: string; name: string; type: string; size: number; message_id: string | null; data: string };
+// source_url: endereço público de origem (foto de produto no CDN da Shopify).
+export type Upload = { id: string; conversation_id: string; user_id: string; name: string; type: string; size: number; message_id: string | null; data: string; source_url: string | null };
 
-export async function saveUpload(userId: string, conversationId: string, name: string, bytes: Uint8Array) {
+export async function saveUpload(userId: string, conversationId: string, name: string, bytes: Uint8Array, sourceUrl: string | null = null) {
   if (!bytes.byteLength) throw new Error("Ficheiro vazio.");
   if (bytes.byteLength > MAX_UPLOAD_BYTES) throw new Error("Ficheiro demasiado grande (máximo 4 MB depois de reduzido).");
   const type = sniffType(bytes);
@@ -21,7 +22,7 @@ export async function saveUpload(userId: string, conversationId: string, name: s
   const finalName = clean.toLowerCase().endsWith(`.${ext}`) ? clean : `${clean.replace(/\.(jpe?g|png|webp|gif|heic|heif|pdf)$/i, "") || "anexo"}.${ext}`;
   return serverRpc<{ id: string; name: string; type: string; size: number }>("ldo_support_upload_save", {
     p_user_id: userId, p_conversation: conversationId, p_name: finalName, p_content_type: type,
-    p_data_b64: Buffer.from(bytes).toString("base64"),
+    p_data_b64: Buffer.from(bytes).toString("base64"), p_source_url: sourceUrl,
   });
 }
 

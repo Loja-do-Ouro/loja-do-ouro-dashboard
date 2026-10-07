@@ -165,13 +165,18 @@ export async function metricoolSend(provider: string, conversationId: string, re
   if (!recipient || recipient.startsWith("conversa:"))
     return { outcome: "failed" as const, externalId: null, detail: "Destinatário por identificar nesta conversa: nada foi enviado." };
   let attachment: string | undefined;
-  if (imageUrl) attachment = (await hostedImage(imageUrl)).url;
+  // Fotos da Shopify já são públicas e estáveis; só o URL temporário do dashboard é copiado para a Metricool.
+  if (imageUrl) attachment = new URL(imageUrl).hostname === "cdn.shopify.com" ? imageUrl : (await hostedImage(imageUrl)).url;
   const r = await metricoolRequest("POST", "/v2/inbox/conversations", {}, { provider, conversationId, recipient, text, ...(attachment ? { attachment } : {}) });
   const outcome = sendOutcome(r.status);
+  // A Meta recusa imagens que não consegue ir buscar (endereço protegido, expirado) ou em formato não suportado.
+  const imageRefused = outcome === "failed" && attachment && /attachment format|attachment.*not supported|#100/i.test(r.text || "");
   return {
     outcome,
     externalId: null,
-    detail: outcome === "accepted" ? null : outcome === "uncertain" ? "Sem confirmação da Metricool; verificar antes de reenviar." : failure(r.status, r.text, "Envio").message,
+    detail: outcome === "accepted" ? null : outcome === "uncertain" ? "Sem confirmação da Metricool; verificar antes de reenviar."
+      : imageRefused ? "A Meta recusou a imagem (não a conseguiu obter ou o formato não é suportado). Nada foi enviado ao cliente; pode enviar só o texto ou outra imagem JPEG/PNG."
+      : failure(r.status, r.text, "Envio").message,
   };
 }
 
