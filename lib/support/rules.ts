@@ -106,3 +106,15 @@ export function plainText(html: string) {
 
 // Anexos que o browser pode mostrar em linha; os restantes são sempre descarregados.
 export const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+
+// Chave de cifra dos tokens: só 32 bytes aleatórios em base64 (44 caracteres, o resultado do comando
+// do README). Frases, o próprio comando ou valores mal copiados são recusados: uma chave previsível
+// tornaria a cifra inútil.
+export function keyProblem(value: string | undefined): string | null {
+  const raw = (value || "").trim();
+  if (!raw) return "SUPPORT_ENCRYPTION_KEY em falta.";
+  if (/\s|require\(|console\.|randomBytes/.test(raw))
+    return "SUPPORT_ENCRYPTION_KEY contém o comando em vez do resultado: corra o comando e cole só a linha que ele mostra (44 caracteres).";
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(raw)) return "SUPPORT_ENCRYPTION_KEY inválida: tem de ser 32 bytes aleatórios em base64 (44 caracteres, termina em =).";
+  return null;
+}

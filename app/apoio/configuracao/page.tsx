@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { metricoolConfigured } from "@/lib/bi/metricool";
 import { homePath } from "@/lib/permissions";
-import { encryptionConfigured } from "@/lib/support/crypto";
+import { encryptionProblem } from "@/lib/support/crypto";
 import { serverConfigured, sessionRpc } from "@/lib/support/db";
 import { metricoolDiagnostics } from "@/lib/support/metricool";
 import { WHATSAPP_STATUS } from "@/lib/support/whatsapp";
@@ -62,7 +62,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           <dl className="config-list">
             <dt>Conta</dt><dd>{state.settings.zendesk_subdomain}.zendesk.com</dd>
             <dt>Cliente OAuth</dt><dd>{yes(z.client)} <small className="muted">ZENDESK_CLIENT_ID, ZENDESK_CLIENT_SECRET</small></dd>
-            <dt>Cifra dos tokens</dt><dd>{yes(encryptionConfigured())} <small className="muted">SUPPORT_ENCRYPTION_KEY</small></dd>
+            <dt>Cifra dos tokens</dt><dd>{yes(!encryptionProblem())} <small className="muted">{encryptionProblem() || "SUPPORT_ENCRYPTION_KEY"}</small></dd>
             <dt>Scopes pedidos</dt><dd><code>{ZENDESK_SCOPES}</code></dd>
             <dt>Redirect URL (produção)</dt><dd><code>{productionCallback}</code></dd>
             {process.env.VERCEL_ENV === "preview" && (<><dt>Redirect URL (esta preview)</dt><dd><code>{thisCallback}</code></dd></>)}

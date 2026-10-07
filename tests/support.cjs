@@ -66,3 +66,12 @@ test("Only the Super Admin and people with support access open Apoio ao Cliente"
   assert.equal(r.isUuid("6c5a81c8-3878-468a-8fbc-858876231fc4"), true);
   assert.equal(r.isUuid("1; drop table"), false);
 });
+
+test("The encryption key must be the 44-character result, never the command or a phrase", () => {
+  const good = require("node:crypto").randomBytes(32).toString("base64");
+  assert.equal(r.keyProblem(good), null);
+  assert.match(r.keyProblem(`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`), /comando em vez do resultado/);
+  assert.match(r.keyProblem(""), /em falta/);
+  assert.match(r.keyProblem("uma frase longa qualquer com mais de trinta e dois"), /comando|inválida/);
+  assert.match(r.keyProblem("abc"), /inválida/);
+});

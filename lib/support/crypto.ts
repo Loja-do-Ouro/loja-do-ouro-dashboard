@@ -1,27 +1,25 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { keyProblem } from "./rules";
 
 // Tokens Zendesk cifrados com AES-256-GCM antes de irem para o Supabase. A chave
 // (SUPPORT_ENCRYPTION_KEY, 32 bytes em base64) só existe no ambiente Vercel. O id do
 // colaborador entra como dados autenticados: um token não pode ser trocado para outra pessoa.
 const PREFIX = "v1.";
 
+export function encryptionProblem(): string | null {
+  return keyProblem(process.env.SUPPORT_ENCRYPTION_KEY);
+}
+
 function key(): Buffer {
-  const raw = process.env.SUPPORT_ENCRYPTION_KEY || "";
-  const b64 = Buffer.from(raw, "base64");
-  if (b64.length === 32) return b64;
-  // Aceita também uma frase longa, reduzida a 32 bytes.
-  if (raw.length >= 32) return createHash("sha256").update(raw).digest();
-  throw new Error("SUPPORT_ENCRYPTION_KEY em falta ou demasiado curta.");
+  const problem = encryptionProblem();
+  if (problem) throw new Error(problem);
+  const raw = process.env.SUPPORT_ENCRYPTION_KEY!.trim();
+  return Buffer.from(raw, "base64");
 }
 
 export function encryptionConfigured() {
-  try {
-    key();
-    return true;
-  } catch {
-    return false;
-  }
+  return encryptionProblem() === null;
 }
 
 export function seal(plain: string, owner: string): string {
