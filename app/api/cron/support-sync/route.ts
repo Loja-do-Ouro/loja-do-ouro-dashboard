@@ -11,6 +11,6 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || !constantTimeTextEqual(request.headers.get("authorization") || "", `Bearer ${secret}`))
     return new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } });
-  const results = await runSync({ force: true });
+  const results = await runSync({ force: true, budgetMs: 100_000 });
   return Response.json({ ok: results.every((r) => r.ok !== false), results }, { headers: { "Cache-Control": "no-store" } });
 }

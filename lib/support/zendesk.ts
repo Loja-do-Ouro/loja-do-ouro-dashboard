@@ -14,9 +14,11 @@ const REFRESH_TOKEN_SECONDS = 90 * 24 * 3600;
 const RENEW_MARGIN_MS = 2 * 60 * 1000;
 const FIRST_SYNC_DAYS = 30;
 const MAX_TICKETS_PER_RUN = 60;
+const LIST_PAGES = 10;
 
+// code: motivo curto para a página (o callback nunca põe texto livre no URL).
 export class ZendeskError extends Error {
-  constructor(message: string, public status: number | null = null, public retryAfter = 0, public reconnect = false) {
+  constructor(message: string, public status: number | null = null, public retryAfter = 0, public reconnect = false, public code = "erro") {
     super(message);
   }
 }
@@ -90,16 +92,19 @@ function sealedTokens(t: TokenResponse, owner: string) {
 }
 
 // Callback: troca o código pelo par de tokens, confirma o agente e guarda tudo cifrado.
+// Uma conta de agente só pode estar ligada a um colaborador (verificado também na BD).
 export async function completeConnection(userId: string, code: string, verifier: string, requestUrl: string) {
   const { status, json } = await tokenRequest({
     grant_type: "authorization_code", code, redirect_uri: redirectUri(requestUrl), scope: ZENDESK_SCOPES,
     code_verifier: verifier, refresh_token_expires_in: REFRESH_TOKEN_SECONDS,
   });
   if (status !== 200 || !json.access_token)
-    throw new ZendeskError(`O Zendesk recusou a ligação (${json.error_description || json.error || `HTTP ${status}`}).`, status);
+    throw new ZendeskError(`O Zendesk recusou a ligação (${json.error || `HTTP ${status}`}).`, status, 0, false, "token");
   const me = await call<{ user: ZUser }>(json.access_token, "GET", "/api/v2/users/me.json");
   if (!me.user || !["agent", "admin"].includes(me.user.role))
-    throw new ZendeskError("Esta conta Zendesk não é de agente. Entre com a sua conta de agente.");
+    throw new ZendeskError("Esta conta Zendesk não é de agente.", null, 0, false, "agente");
+  // Light agents só escrevem notas privadas: as respostas ao cliente nunca chegariam.
+  if (me.user.role_type === 1) throw new ZendeskError("Conta Zendesk light agent: não pode responder a clientes.", null, 0, false, "light");
   await serverRpc("ldo_support_zendesk_save", {
     p_user_id: userId,
     p_data: {
@@ -117,20 +122,32 @@ type Connection = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Reaproveita o token durante a mesma passagem (só memória da instância, nunca persistido aqui).
+const tokenCache = new Map<string, { token: string; until: number }>();
+
 // Token de acesso válido de um colaborador. Só um pedido de cada vez renova (lease na BD);
 // os outros esperam pela versão nova, porque cada renovação invalida o par anterior.
-export async function accessToken(userId: string, forceRenew = false): Promise<string> {
+// failedToken: o token que acabou de receber 401; só se renova se for ainda o guardado.
+export async function accessToken(userId: string, failedToken?: string): Promise<string> {
+  const cached = tokenCache.get(userId);
+  if (!failedToken && cached && cached.until > Date.now()) return cached.token;
+  tokenCache.delete(userId);
   for (let attempt = 0; attempt < 30; attempt++) {
     const c = await serverRpc<Connection | null>("ldo_support_zendesk_get", { p_user_id: userId });
     if (!c || c.status !== "active" || !c.access_ct)
       throw new ZendeskError("A sua conta Zendesk não está ligada. Use “Ligar Zendesk”.", null, 0, true);
-    const fresh = !c.access_expires_at || Date.parse(c.access_expires_at) - Date.now() > RENEW_MARGIN_MS;
-    if (fresh && !forceRenew) {
-      try {
-        return open(c.access_ct, userId);
-      } catch {
-        throw new ZendeskError("Não foi possível ler o token guardado (chave de cifra alterada?). Volte a ligar o Zendesk.", null, 0, true);
-      }
+    let stored: string;
+    try {
+      stored = open(c.access_ct, userId);
+    } catch {
+      throw new ZendeskError("Não foi possível ler o token guardado (chave de cifra alterada?). Volte a ligar o Zendesk.", null, 0, true);
+    }
+    const expiresAt = c.access_expires_at ? Date.parse(c.access_expires_at) : Infinity;
+    const fresh = expiresAt - Date.now() > RENEW_MARGIN_MS;
+    // Outro pedido já renovou depois do 401: usa o token novo sem voltar a renovar.
+    if (fresh && (!failedToken || stored !== failedToken)) {
+      tokenCache.set(userId, { token: stored, until: Math.min(expiresAt - RENEW_MARGIN_MS, Date.now() + 5 * 60 * 1000) });
+      return stored;
     }
     if (!c.refresh_ct) throw new ZendeskError("Ligação Zendesk sem renovação. Volte a ligar o Zendesk.", null, 0, true);
     if (await serverRpc<boolean>("ldo_support_zendesk_claim", { p_user_id: userId, p_version: c.version })) {
@@ -149,13 +166,16 @@ export async function accessToken(userId: string, forceRenew = false): Promise<s
         }
         return json.access_token;
       }
-      if (status === 400 || status === 401) {
-        await serverRpc("ldo_support_zendesk_fail", { p_user_id: userId, p_version: c.version, p_detail: `Renovação recusada pelo Zendesk (${json.error || status}).` });
+      // Só um token de renovação inválido obriga a voltar a ligar; credenciais da app erradas
+      // (invalid_client) são configuração e não apagam os tokens de ninguém.
+      if (json.error === "invalid_grant" || json.error === "invalid_token") {
+        await serverRpc("ldo_support_zendesk_fail", { p_user_id: userId, p_version: c.version, p_detail: `Renovação recusada pelo Zendesk (${json.error}).` });
         throw new ZendeskError("A ligação ao Zendesk expirou. Volte a ligar o Zendesk.", status, 0, true);
       }
-      throw new ZendeskError(`Renovação do token Zendesk indisponível (HTTP ${status}).`, status);
+      if (json.error === "invalid_client" || json.error === "unauthorized_client")
+        throw new ZendeskError(`O Zendesk recusou as credenciais da app (${json.error}). Verificar ZENDESK_CLIENT_ID/ZENDESK_CLIENT_SECRET.`, status);
+      throw new ZendeskError(`Renovação do token Zendesk indisponível (${json.error || `HTTP ${status}`}).`, status >= 500 ? status : null);
     }
-    forceRenew = false;
     await sleep(500);
   }
   throw new ZendeskError("Renovação do token Zendesk demorou demasiado.");
@@ -172,7 +192,7 @@ async function call<T>(token: string, method: string, path: string, body?: unkno
   } catch {
     throw new ZendeskError("Pedido ao Zendesk interrompido ou sem resposta.", null);
   }
-  if (r.ok) return (await r.json()) as T;
+  if (r.ok) return (r.status === 204 ? null : await r.json()) as T;
   const retry = Number(r.headers.get("retry-after")) || 0;
   const detail = (await r.json().catch(() => ({}))) as { error?: string | { title?: string; message?: string }; description?: string; details?: Record<string, { description?: string }[]> };
   const msg = typeof detail.error === "object" ? detail.error.message || detail.error.title : detail.description || detail.error;
@@ -182,17 +202,18 @@ async function call<T>(token: string, method: string, path: string, body?: unkno
   throw new ZendeskError(`Zendesk recusou o pedido (HTTP ${r.status}${msg ? `: ${msg}` : ""}${fields ? ` — ${fields}` : ""}).`, r.status, retry);
 }
 
-// Pedido com o token do colaborador; um 401 força uma renovação e repete uma vez.
+// Pedido com o token do colaborador; um 401 renova (se ainda for preciso) e repete uma vez.
 async function asUser<T>(userId: string, method: string, path: string, body?: unknown): Promise<T> {
+  const token = await accessToken(userId);
   try {
-    return await call<T>(await accessToken(userId), method, path, body);
+    return await call<T>(token, method, path, body);
   } catch (e) {
     if (!(e instanceof ZendeskError) || e.status !== 401) throw e;
-    return call<T>(await accessToken(userId, true), method, path, body);
+    return call<T>(await accessToken(userId, token), method, path, body);
   }
 }
 
-type ZUser = { id: number; name: string; email: string | null; phone: string | null; role: string; photo?: { content_url?: string } | null };
+type ZUser = { id: number; name: string; email: string | null; phone: string | null; role: string; role_type?: number | null; photo?: { content_url?: string } | null };
 type ZAttachment = { id: number; file_name: string; content_url: string; content_type: string | null; size: number | null; malware_scan_result?: string };
 type ZComment = { id: number; public: boolean; author_id: number; body: string; html_body?: string; plain_body?: string; attachments: ZAttachment[]; created_at: string };
 type ZTicket = { id: number; subject: string | null; status: string; requester_id: number; assignee_id: number | null; via?: { channel?: string }; updated_at: string; created_at: string };
@@ -258,36 +279,57 @@ export async function readTicket(userId: string, id: string): Promise<IngestConv
   return toConversation(ticket, users, comments);
 }
 
-// Sincronização: tickets alterados desde a última passagem (mais recentes primeiro), com os comentários.
-// O Zendesk é a fonte de verdade; nada é escrito no Zendesk aqui.
-export async function syncZendesk(cursor: Record<string, unknown>) {
+// Ticket pedido pelo número na pesquisa (fora da janela já sincronizada): lido e guardado a pedido.
+export async function importTicket(userId: string | null, id: string) {
+  const reader = userId || (await serverRpc<string | null>("ldo_support_zendesk_sync_user"));
+  if (!reader) return false;
+  try {
+    await ingest("zendesk", [await readTicket(reader, id)]);
+    return true;
+  } catch (e) {
+    if (e instanceof ZendeskError && e.status === 404) return false;
+    throw e;
+  }
+}
+
+type Cursor = { since: string; seen: number[] };
+
+// Sincronização: tickets alterados desde a última passagem, do mais antigo para o mais recente, com
+// os comentários. O Zendesk é a fonte de verdade; nada é escrito no Zendesk aqui.
+// Cursor (updated_at, ids já lidos nesse mesmo segundo): nenhum ticket fica para trás nem se repete
+// para sempre. O progresso é gravado a cada lote e a passagem para antes do limite de tempo.
+export async function syncZendesk(raw: Record<string, unknown>, deadline: number, progress: (cursor: Cursor) => Promise<unknown>) {
   if (!zendeskConfigured()) return { skipped: "Zendesk por configurar (credenciais OAuth ou SUPPORT_ENCRYPTION_KEY em falta)." };
   const userId = await serverRpc<string | null>("ldo_support_zendesk_sync_user");
   if (!userId) return { skipped: "Nenhum colaborador ligou ainda a sua conta Zendesk." };
-  const since = typeof cursor.since === "string" ? cursor.since : new Date(Date.now() - FIRST_SYNC_DAYS * 86400000).toISOString();
+  const cursor: Cursor = {
+    since: typeof raw.since === "string" ? raw.since : new Date(Date.now() - FIRST_SYNC_DAYS * 86400000).toISOString(),
+    seen: Array.isArray(raw.seen) ? raw.seen.map(Number) : [],
+  };
+  const pending = (t: ZTicket) => t.updated_at > cursor.since || (t.updated_at === cursor.since && !cursor.seen.includes(t.id));
   const all: ZTicket[] = [];
   const users = new Map<number, ZUser>();
-  let done = false;
-  for (let page = 1; !done && page <= 10; page++) {
+  let reachedCursor = false;
+  for (let page = 1; !reachedCursor && page <= LIST_PAGES && Date.now() < deadline; page++) {
     const r = await asUser<{ tickets: ZTicket[]; users?: ZUser[]; next_page: string | null }>(userId, "GET",
       `/api/v2/tickets.json?sort_by=updated_at&sort_order=desc&per_page=100&page=${page}&include=users`);
     for (const u of r.users || []) users.set(u.id, u);
     for (const t of r.tickets) {
-      // O ticket no limite do cursor volta a ser lido: gravar é idempotente, saltá-lo não seria.
-      if (t.updated_at < since) {
-        done = true;
+      if (t.updated_at < cursor.since) {
+        reachedCursor = true;
         break;
       }
-      all.push(t);
+      if (pending(t)) all.push(t);
     }
-    if (!r.next_page) done = true;
+    if (!r.next_page) reachedCursor = true;
   }
-  // Do mais antigo para o mais recente, no máximo MAX_TICKETS_PER_RUN por passagem: o cursor só
-  // avança até ao último ticket gravado, por isso nenhum fica para trás.
-  const changed = all.sort((a, b) => a.updated_at.localeCompare(b.updated_at)).slice(0, MAX_TICKETS_PER_RUN);
-  let next = since;
+  // Mais de LIST_PAGES×100 tickets alterados (primeira importação grande): ficam os mais recentes e o
+  // aviso fica visível; os anteriores abrem-se pelo número (#N) na pesquisa.
+  const detail = reachedCursor ? null : `Mais de ${LIST_PAGES * 100} tickets alterados desde a última passagem: só os mais recentes foram considerados. Os anteriores abrem-se pesquisando o número (#N).`;
+  const changed = all.sort((a, b) => a.updated_at.localeCompare(b.updated_at) || a.id - b.id).slice(0, MAX_TICKETS_PER_RUN);
   let totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
-  for (let i = 0; i < changed.length; i += 10) {
+  let processed = 0;
+  for (let i = 0; i < changed.length && Date.now() < deadline; i += 10) {
     const batch = changed.slice(i, i + 10);
     const convs: IngestConversation[] = [];
     for (const t of batch) {
@@ -298,9 +340,16 @@ export async function syncZendesk(cursor: Record<string, unknown>) {
     const r = await ingest("zendesk", convs);
     totals = { conversations: totals.conversations + r.conversations, new_conversations: totals.new_conversations + r.new_conversations,
       new_messages: totals.new_messages + r.new_messages, reopened: totals.reopened + r.reopened };
-    next = batch.at(-1)!.updated_at;
+    for (const t of batch) {
+      if (t.updated_at > cursor.since) {
+        cursor.since = t.updated_at;
+        cursor.seen = [t.id];
+      } else cursor.seen.push(t.id);
+    }
+    processed += batch.length;
+    await progress(cursor);
   }
-  return { cursor: { since: next }, totals, more: all.length > changed.length };
+  return { cursor, totals, detail, more: all.length > processed };
 }
 
 type UpdateResult = { ticket: ZTicket; audit?: { events?: { id: number; type: string; public?: boolean }[] } };
@@ -309,28 +358,39 @@ type UpdateResult = { ticket: ZTicket; audit?: { events?: { id: number; type: st
 export async function zendeskComment(userId: string, ticketId: string, body: string, isPublic: boolean) {
   const path = `/api/v2/tickets/${encodeURIComponent(ticketId)}.json`;
   const payload = { ticket: { comment: { body, public: isPublic } } };
+  const failed = (e: unknown) => ({ outcome: "failed" as const, externalId: null, detail: e instanceof Error ? e.message : "Ligação Zendesk indisponível." });
   // Sem token válido o pedido nem chega a sair: é uma falha, não um resultado incerto.
   let token: string;
   try {
     token = await accessToken(userId);
   } catch (e) {
-    return { outcome: "failed" as const, externalId: null, detail: e instanceof Error ? e.message : "Ligação Zendesk indisponível." };
+    return failed(e);
   }
+  let r: UpdateResult;
   try {
-    let r: UpdateResult;
-    try {
-      r = await call<UpdateResult>(token, "PUT", path, payload);
-    } catch (e) {
-      // 401: o Zendesk recusou o token, nada foi criado; repete uma vez com um token renovado.
-      if (!(e instanceof ZendeskError) || e.status !== 401) throw e;
-      r = await call<UpdateResult>(await accessToken(userId, true), "PUT", path, payload);
-    }
-    const event = r.audit?.events?.find((e) => e.type === "Comment");
-    return { outcome: "accepted" as const, externalId: event ? String(event.id) : null, detail: null as string | null };
+    r = await call<UpdateResult>(token, "PUT", path, payload);
   } catch (e) {
-    if (!(e instanceof ZendeskError)) throw e;
-    return { outcome: e.reconnect ? ("failed" as const) : sendOutcome(e.status), externalId: null, detail: e.message };
+    if (!(e instanceof ZendeskError)) return { outcome: "uncertain" as const, externalId: null, detail: "Resposta do Zendesk ilegível; verificar antes de reenviar." };
+    if (e.status !== 401) return { outcome: sendOutcome(e.status), externalId: null, detail: e.message };
+    // 401: o Zendesk recusou o token e nada foi criado. Renovar (se falhar, continua a não ter saído).
+    let renewed: string;
+    try {
+      renewed = await accessToken(userId, token);
+    } catch (err) {
+      return failed(err);
+    }
+    try {
+      r = await call<UpdateResult>(renewed, "PUT", path, payload);
+    } catch (err) {
+      if (!(err instanceof ZendeskError)) return { outcome: "uncertain" as const, externalId: null, detail: "Resposta do Zendesk ilegível; verificar antes de reenviar." };
+      return { outcome: err.reconnect ? ("failed" as const) : sendOutcome(err.status), externalId: null, detail: err.message };
+    }
   }
+  const event = r.audit?.events?.find((e) => e.type === "Comment");
+  // O Zendesk pode gravar como privada uma resposta pública (permissões da conta): o cliente não a recebe.
+  if (isPublic && event && event.public === false)
+    return { outcome: "failed" as const, externalId: String(event.id), detail: "O Zendesk gravou esta resposta como nota interna (a sua conta não pode responder publicamente): o cliente não a recebeu." };
+  return { outcome: "accepted" as const, externalId: event ? String(event.id) : null, detail: null as string | null };
 }
 
 // Estado e responsável: escritos primeiro no Zendesk; o dashboard guarda o que o Zendesk devolver.
@@ -361,6 +421,7 @@ export async function revokeConnection(userId: string) {
   } catch {
     // A ligação é apagada na mesma; o token expira sozinho.
   }
+  tokenCache.delete(userId);
 }
 
 // Diagnóstico para a configuração (Super Admin): confirma o subdomínio e a ligação, sem dados de clientes.

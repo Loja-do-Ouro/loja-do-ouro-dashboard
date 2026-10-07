@@ -3559,3 +3559,5 @@ textarea:focus-visible,
 @media (max-width: 680px) {
   .support-grid { height: calc(100vh - 250px); min-height: 440px; }
 }
+.support-note { color: #4d6b4a; font-size: 12px; margin: 6px 12px; }
+.msg-deleted { font-style: italic; color: var(--muted); }

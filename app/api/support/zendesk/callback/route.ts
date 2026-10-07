@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { canSupport } from "@/lib/permissions";
 import { constantTimeTextEqual } from "@/lib/session";
 import { sha256Hex } from "@/lib/support/crypto";
+import { SupabaseError } from "@/lib/supabase";
 import { sessionRpc } from "@/lib/support/db";
 import { completeConnection, OAUTH_COOKIE, ZendeskError } from "@/lib/support/zendesk";
 import { loadViewer } from "@/lib/viewer";
@@ -11,10 +12,10 @@ export const dynamic = "force-dynamic";
 // Redirect URL registado no cliente OAuth do Zendesk: <domínio>/api/support/zendesk/callback.
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const done = (status: string, detail?: string) => {
+  // Só códigos no URL: as mensagens são fixas na página (nunca texto vindo de fora).
+  const done = (status: string) => {
     const to = new URL("/apoio", request.url);
     to.searchParams.set("zendesk", status);
-    if (detail) to.searchParams.set("detalhe", detail.slice(0, 200));
     const r = NextResponse.redirect(to, 303);
     r.cookies.set(OAUTH_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/support/zendesk", maxAge: 0 });
     r.headers.set("Cache-Control", "no-store");
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
   };
   const viewer = await loadViewer();
   if (!viewer || !canSupport(viewer)) return done("sem-acesso");
-  if (url.searchParams.get("error")) return done("recusado", url.searchParams.get("error_description") || undefined);
+  if (url.searchParams.get("error")) return done("recusado");
 
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code") || "";
@@ -34,7 +35,9 @@ export async function GET(request: NextRequest) {
   try {
     await completeConnection(viewer.id, code, verifier, request.url);
   } catch (e) {
-    return done("erro", e instanceof ZendeskError ? e.message : "Ligação ao Zendesk indisponível.");
+    if (e instanceof ZendeskError) return done(`erro-${e.code}`);
+    if (e instanceof SupabaseError && e.code === "23505") return done("erro-ocupada");
+    return done("erro");
   }
   return done("ligado");
 }

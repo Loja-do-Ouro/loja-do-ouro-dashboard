@@ -22,7 +22,7 @@ type List = { items: Item[]; counts: { all: number; mine: number; unassigned: nu
 type Message = {
   id: string; kind: Kind; author_name: string | null; author_user_id: string | null; body: string;
   attachments: { name: string; type: string | null; size: number | null; ref: string }[];
-  created_at: string; delivery: Delivery | null; delivery_detail: string | null; external: boolean;
+  created_at: string; inserted_at: string; deleted: boolean; delivery: Delivery | null; delivery_detail: string | null; external: boolean;
 };
 type User = { id: string; name: string; me: boolean; zendesk: boolean; zendesk_name: string | null; zendesk_status: string | null };
 type Detail = {
@@ -30,6 +30,7 @@ type Detail = {
     id: string; source_id: string; channel: Channel; external_id: string; subject: string | null; status: Status; platform_status: string | null;
     assignee_id: string | null; assignee_name: string | null; external_assignee_id: string | null; external_assignee_name: string | null;
     via: string | null; platform: string; source_label: string; source_status: string; read_at: string | null; last_inbound_at: string | null;
+    last_inbound_inserted_at: string | null;
   };
   contact: { id: string; name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; linked_by_name: string | null; linked_at: string | null } | null;
   related: { contact_id: string; channel: Channel; name: string | null; email: string | null; phone: string | null; conversation_id: string | null }[];
@@ -57,6 +58,10 @@ const time = (iso: string | null | undefined, withDate = true) => {
   return !withDate || day === today ? hm : `${day} ${hm}`;
 };
 
+const REASON: Record<string, string> = {
+  running: "já está a sincronizar", recent: "sincronizou há instantes", backoff: "em espera depois de erros", not_due: "ainda não é a hora",
+};
+
 const AUDIT: Record<string, string> = {
   status: "mudou o estado", assign: "atribuiu", reply: "respondeu", note: "acrescentou uma nota", reopen: "reabriu (nova mensagem do cliente)",
   link_customer: "associou o cliente", "zendesk.connect": "ligou o Zendesk", "zendesk.disconnect": "desligou o Zendesk",
@@ -71,7 +76,9 @@ async function api<T>(path: string, init?: { method?: string; body?: unknown }):
     cache: "no-store",
   });
   const isJson = (r.headers.get("content-type") || "").includes("application/json");
-  if (!isJson) throw new Error("Sessão terminada. Atualize a página e entre novamente.");
+  if (r.status === 401 || (r.redirected && new URL(r.url).pathname === "/login"))
+    throw new Error("Sessão terminada. Atualize a página e entre novamente.");
+  if (!isJson) throw new Error(`Sem resposta do servidor (HTTP ${r.status}). Tente de novo dentro de momentos.`);
   const data = await r.json();
   if (!r.ok) throw new Error(data?.error || `Pedido recusado (${r.status}).`);
   return data as T;
@@ -79,13 +86,22 @@ async function api<T>(path: string, init?: { method?: string; body?: unknown }):
 
 const visible = () => typeof document === "undefined" || document.visibilityState === "visible";
 
-function loadDrafts(): Record<string, { reply: string; note: string }> {
+function loadStored<T>(key: string): T | Record<string, never> {
   try {
-    return JSON.parse(sessionStorage.getItem("ldo-support-drafts") || "{}");
+    return JSON.parse(sessionStorage.getItem(key) || "{}");
   } catch {
     return {};
   }
 }
+function store(key: string, value: unknown) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Sem armazenamento da sessão o valor continua só em memória.
+  }
+}
+// No telemóvel só uma área está visível; a conversa só conta como aberta quando é a que se vê.
+const narrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 
 export function SupportInbox({
   zendeskSubdomain,
@@ -111,25 +127,35 @@ export function SupportInbox({
   const [pane, setPane] = useState<"list" | "conversation" | "info">("list");
   const [mode, setMode] = useState<"reply" | "note">("reply");
   const [drafts, setDrafts] = useState<Record<string, { reply: string; note: string }>>({});
-  const [sending, setSending] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendError, setSendError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionNote, setActionNote] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState("");
-  const pendingKey = useRef<Record<string, string>>({});
-  const lastTyped = useRef(0);
-  const messagesEnd = useRef<HTMLDivElement>(null);
+  // Chave de cada envio pendente, ligada ao texto exato: um pedido perdido repete-se com a mesma chave
+  // (sem duplicar); um texto diferente leva sempre uma chave nova.
+  const pendingKey = useRef<Record<string, { key: string; body: string }>>({});
+  const lastTyped = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
+  const messagesBox = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<string | null>(null);
   selectedRef.current = selected;
+  const paneRef = useRef(pane);
+  paneRef.current = pane;
+  // Conversas marcadas como não lidas: não voltam a ficar lidas sozinhas enquanto não forem reabertas.
+  const keepUnread = useRef(new Set<string>());
+  const listSeq = useRef(0);
+  const continuation = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => setDrafts(loadDrafts()), []);
   useEffect(() => {
-    try {
-      sessionStorage.setItem("ldo-support-drafts", JSON.stringify(drafts));
-    } catch {
-      // Sem armazenamento da sessão o rascunho continua em memória.
-    }
-  }, [drafts]);
+    setDrafts(loadStored("ldo-support-drafts") as Record<string, { reply: string; note: string }>);
+    pendingKey.current = loadStored("ldo-support-pending") as Record<string, { key: string; body: string }>;
+    return () => {
+      if (continuation.current) clearTimeout(continuation.current);
+    };
+  }, []);
+  useEffect(() => store("ldo-support-drafts", drafts), [drafts]);
+  const conversationShown = (id: string) => selectedRef.current === id && (!narrow() || paneRef.current === "conversation");
   useEffect(() => {
     const t = setTimeout(() => setQuery(q.trim()), 350);
     return () => clearTimeout(t);
@@ -137,11 +163,15 @@ export function SupportInbox({
 
   const loadList = useCallback(async () => {
     const p = new URLSearchParams({ filtro: filter, ...(channel ? { canal: channel } : {}), ...(status ? { estado: status } : {}), ...(query ? { q: query } : {}) });
+    // Só a resposta do pedido mais recente atualiza a lista.
+    const seq = ++listSeq.current;
     try {
-      setList(await api<List>(`/api/support/conversations?${p}`));
+      const data = await api<List>(`/api/support/conversations?${p}`);
+      if (seq !== listSeq.current) return;
+      setList(data);
       setListError("");
     } catch (e) {
-      setListError(e instanceof Error ? e.message : "Lista indisponível.");
+      if (seq === listSeq.current) setListError(e instanceof Error ? e.message : "Lista indisponível.");
     }
   }, [filter, channel, status, query]);
 
@@ -152,10 +182,10 @@ export function SupportInbox({
       if (selectedRef.current !== id) return;
       setDetail(d);
       setDetailError("");
-      // Abrir (ou ter aberta) a conversa marca-a como lida para mim, só no dashboard.
-      const lastIn = d.messages.filter((m) => m.kind === "inbound").at(-1)?.created_at;
-      if (visible() && lastIn && (!d.conversation.read_at || lastIn > d.conversation.read_at))
-        await api(`/api/support/conversations/${id}`, { method: "POST", body: { action: "read" } }).catch(() => undefined);
+      // Ter a conversa aberta e visível marca-a como lida para mim, só no dashboard (pela hora de chegada).
+      const lastIn = d.conversation.last_inbound_inserted_at;
+      if (visible() && conversationShown(id) && !keepUnread.current.has(id) && lastIn && (!d.conversation.read_at || lastIn > d.conversation.read_at))
+        await api(`/api/support/conversations/${id}`, { method: "POST", body: { action: "read", seen: lastIn } }).catch(() => undefined);
     } catch (e) {
       setDetailError(e instanceof Error ? e.message : "Conversa indisponível.");
     }
@@ -164,13 +194,21 @@ export function SupportInbox({
   const sync = useCallback(async (force: boolean) => {
     if (force) setSyncing(true);
     try {
-      const r = await api<{ results: { source: string; ran: boolean; ok?: boolean; detail?: string; more?: boolean }[] }>("/api/support/sync", { method: "POST", body: { force } });
+      const r = await api<{ results: { source: string; ran: boolean; ok?: boolean; detail?: string; reason?: string; more?: boolean }[] }>("/api/support/sync", { method: "POST", body: { force } });
       if (force) {
+        const name = (x: { source: string }) => x.source.replace("metricool-", "");
         const failed = r.results.filter((x) => x.ran && x.ok === false);
-        setSyncNote(failed.length ? `Falha em ${failed.map((x) => x.source.replace("metricool-", "")).join(", ")}; as restantes fontes foram atualizadas.` : "Atualizado.");
+        const waiting = r.results.filter((x) => !x.ran && x.reason && x.reason !== "not_due");
+        setSyncNote([
+          failed.length ? `Falha em ${failed.map(name).join(", ")}; as restantes fontes foram atualizadas.` : "Atualizado.",
+          waiting.length ? `Não correu: ${waiting.map((x) => `${name(x)} (${REASON[x.reason!] || x.reason})`).join(", ")}.` : "",
+        ].filter(Boolean).join(" "));
       }
-      // Primeira importação longa: continua em passagens seguintes sem bloquear a página.
-      if (r.results.some((x) => x.more)) setTimeout(() => sync(false), 5000);
+      // Importação longa: a passagem seguinte pode correr logo (o servidor só aceita após 15 s).
+      if (r.results.some((x) => x.more)) {
+        if (continuation.current) clearTimeout(continuation.current);
+        continuation.current = setTimeout(() => sync(false), 16000);
+      }
     } catch (e) {
       if (force) setSyncNote(e instanceof Error ? e.message : "Atualização indisponível.");
     } finally {
@@ -207,16 +245,21 @@ export function SupportInbox({
     if (!selected) return;
     const ping = () =>
       visible() &&
-      api<{ presence: Detail["presence"] }>(`/api/support/conversations/${selected}`, { method: "POST", body: { action: "presence", composing: Date.now() - lastTyped.current < 30000 } })
+      conversationShown(selected) &&
+      api<{ presence: Detail["presence"] }>(`/api/support/conversations/${selected}`, {
+        method: "POST", body: { action: "presence", composing: lastTyped.current.id === selected && Date.now() - lastTyped.current.at < 30000 },
+      })
         .then((r) => setDetail((d) => (d && d.conversation.id === selected ? { ...d, presence: r.presence } : d)))
         .catch(() => undefined);
     ping();
     const t = setInterval(ping, 20000);
     return () => clearInterval(t);
-  }, [selected]);
+  }, [selected, pane]);
 
+  // Só a lista de mensagens desce até ao fim (a página não se mexe, o campo de resposta fica à vista).
   useEffect(() => {
-    messagesEnd.current?.scrollIntoView({ block: "end" });
+    const box = messagesBox.current;
+    if (box) box.scrollTop = box.scrollHeight;
   }, [detail?.conversation.id, detail?.messages.length]);
 
   const open = (id: string) => {
@@ -224,8 +267,10 @@ export function SupportInbox({
       setDetail(null);
       setSendError("");
       setActionError("");
+      setActionNote("");
       setMode("reply");
     }
+    keepUnread.current.delete(id);
     setSelected(id);
     setPane("conversation");
   };
@@ -236,11 +281,18 @@ export function SupportInbox({
   const me = c?.users.find((u) => u.me);
   const draft = (selected && drafts[selected]) || { reply: "", note: "" };
   const text = mode === "reply" ? draft.reply : draft.note;
+  const setDraft = (id: string, which: "reply" | "note", v: string) =>
+    setDrafts((d) => ({ ...d, [id]: { ...(d[id] || { reply: "", note: "" }), [which]: v } }));
   const setText = (v: string) => {
-    if (!selected) return;
-    lastTyped.current = Date.now();
-    setDrafts((d) => ({ ...d, [selected]: { ...(d[selected] || { reply: "", note: "" }), [mode]: v } }));
+    if (selected) setDraft(selected, mode, v);
   };
+  // Só a escrita da própria pessoa conta como "a escrever" (e só nesta conversa).
+  const typed = (v: string) => {
+    if (!selected) return;
+    lastTyped.current = { id: selected, at: Date.now() };
+    setText(v);
+  };
+  const sending = sendingId === selected;
 
   const replyBlocked = !c
     ? "A carregar…"
@@ -254,51 +306,65 @@ export function SupportInbox({
   const noteBlocked = !c ? "A carregar…" : isZendesk && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
 
   async function send() {
-    if (!selected || !c || !text.trim() || sending) return;
+    if (!selected || !c || !text.trim() || sendingId) return;
     const blocked = mode === "reply" ? replyBlocked : noteBlocked;
     if (blocked) return;
-    const slot = `${selected}:${mode}`;
-    // A mesma chave é reutilizada se o pedido se perder: o servidor nunca envia duas vezes.
-    const key = pendingKey.current[slot] || (pendingKey.current[slot] = crypto.randomUUID());
-    setSending(true);
+    const id = selected, which = mode, body = text.trim();
+    const slot = `${id}:${which}`;
+    // A mesma chave só se reutiliza para o mesmo texto (pedido perdido): o servidor nunca envia duas vezes.
+    const prev = pendingKey.current[slot];
+    const key = prev && prev.body === body ? prev.key : crypto.randomUUID();
+    pendingKey.current[slot] = { key, body };
+    store("ldo-support-pending", pendingKey.current);
+    const here = () => selectedRef.current === id;
+    setSendingId(id);
     setSendError("");
     try {
-      const r = await api<{ delivery: Delivery | null; detail?: string | null; repeated: boolean }>(`/api/support/conversations/${selected}`, {
-        method: "POST", body: { action: mode === "reply" ? "reply" : "note", body: text, clientKey: key },
+      const r = await api<{ delivery: Delivery | null; detail?: string | null; repeated: boolean }>(`/api/support/conversations/${id}`, {
+        method: "POST", body: { action: which === "reply" ? "reply" : "note", body, clientKey: key },
       });
       delete pendingKey.current[slot];
+      store("ldo-support-pending", pendingKey.current);
       if (r.delivery === "failed") {
         // Falhou com certeza: o texto fica no rascunho para corrigir e voltar a enviar.
-        setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
+        if (here()) setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
       } else {
-        setText("");
-        if (r.delivery === "uncertain") setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
+        setDraft(id, which, "");
+        if (r.delivery === "uncertain" && here()) setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
       }
-      await loadDetail(selected);
+      if (here()) await loadDetail(id);
       loadList();
     } catch (e) {
-      // Sem resposta do dashboard: rascunho e chave mantêm-se; voltar a carregar em Enviar não duplica.
-      setSendError(`${e instanceof Error ? e.message : "Sem resposta."} O texto ficou no rascunho; pode tentar de novo sem risco de duplicar.`);
+      // Sem resposta: rascunho e chave mantêm-se; voltar a carregar em Enviar com o mesmo texto não duplica.
+      if (here()) setSendError(`${e instanceof Error ? e.message : "Sem resposta."} O texto ficou no rascunho; pode tentar de novo sem risco de duplicar.`);
     } finally {
-      setSending(false);
+      setSendingId(null);
     }
   }
 
   async function act(body: Record<string, unknown>, after?: () => void) {
     if (!selected) return;
+    const id = selected;
     setActionError("");
+    setActionNote("");
     try {
-      await api(`/api/support/conversations/${selected}`, { method: "POST", body });
+      const r = await api<{ note?: string | null }>(`/api/support/conversations/${id}`, { method: "POST", body });
+      if (body.action === "unread") {
+        keepUnread.current.add(id);
+        if (narrow()) setPane("list");
+      }
+      if (r?.note && selectedRef.current === id) setActionNote(r.note);
       after?.();
-      await loadDetail(selected);
+      if (selectedRef.current === id) await loadDetail(id);
       loadList();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Ação indisponível.");
+      if (selectedRef.current === id) setActionError(e instanceof Error ? e.message : "Ação indisponível.");
     }
   }
 
   const sources = list?.sources || [];
-  const lastSync = sources.map((s) => s.last_success_at).filter(Boolean).sort().at(-1) || null;
+  // Só fontes ativas contam: uma fonte por ligar não faz parecer que tudo está atualizado.
+  const lastSync = sources.filter((s) => s.status === "active").map((s) => s.last_success_at).filter(Boolean).sort().at(-1) || null;
   const destination = useMemo(() => {
     if (!c) return "";
     const who = c.contact?.handle || c.contact?.name || c.contact?.email || "cliente";
@@ -412,14 +478,16 @@ export function SupportInbox({
                 </div>
               )}
               {detailError && <p className="support-error" role="alert">{detailError}</p>}
-              <div className="support-messages">
+              {actionError && <p className="support-error" role="alert">{actionError}</p>}
+              {actionNote && <p className="support-note" role="status">{actionNote}</p>}
+              <div className="support-messages" ref={messagesBox}>
                 {c.messages.map((m) => (
                   <article key={m.id} className={`msg ${m.kind}`}>
                     <header>
                       <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.author_name || (m.kind === "inbound" ? "Cliente" : "Loja do Ouro")}</strong>
                       <time dateTime={m.created_at}>{time(m.created_at)}</time>
                     </header>
-                    {m.body && <p>{m.body}</p>}
+                    {m.deleted ? <p className="msg-deleted">Mensagem apagada pelo cliente.</p> : m.body && <p>{m.body}</p>}
                     {m.attachments.length > 0 && (
                       <div className="msg-attachments">
                         {m.attachments.map((a, i) => {
@@ -446,7 +514,7 @@ export function SupportInbox({
                                 if (confirm("Confirma que verificou na plataforma e a mensagem NÃO foi enviada? O texto volta ao rascunho."))
                                   act({ action: "not_sent", messageId: m.id }, () => {
                                     setMode(m.kind === "note" ? "note" : "reply");
-                                    setDrafts((d) => ({ ...d, [selected]: { ...(d[selected] || { reply: "", note: "" }), [m.kind === "note" ? "note" : "reply"]: m.body } }));
+                                    setDraft(selected, m.kind === "note" ? "note" : "reply", m.body);
                                   });
                               }}
                             >
@@ -462,7 +530,6 @@ export function SupportInbox({
                   </article>
                 ))}
                 {!c.messages.length && <p className="support-empty">Sem mensagens sincronizadas.</p>}
-                <div ref={messagesEnd} />
               </div>
 
               <div className={`support-composer ${mode}`}>
@@ -484,7 +551,7 @@ export function SupportInbox({
                   <>
                     <textarea
                       value={text}
-                      onChange={(e) => setText(e.target.value)}
+                      onChange={(e) => typed(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(); }}
                       rows={4}
                       maxLength={20000}
@@ -543,12 +610,14 @@ function CustomerPanel({
   const [email, setEmail] = useState(contact?.linked_email || "");
   const [linkError, setLinkError] = useState("");
   const isZendesk = conv.platform === "zendesk";
+  const contactId = contact?.id, linkedEmail = contact?.linked_email, contactEmail = contact?.email;
   const loadOrders = useCallback(() => {
-    if (!contact) return;
-    api<Orders>(`/api/support/contacts/${contact.id}?conversa=${conv.id}`)
+    if (!contactId) return;
+    api<Orders>(`/api/support/contacts/${contactId}?conversa=${conv.id}`)
       .then(setOrders)
       .catch((e) => setOrders({ email: null, orders: [], error: e instanceof Error ? e.message : "Indisponível." }));
-  }, [contact, conv.id]);
+    // linkedEmail/contactEmail: procurar de novo quando a associação muda.
+  }, [contactId, linkedEmail, contactEmail, conv.id]);
   useEffect(loadOrders, [loadOrders]);
 
   async function link(value: string) {
@@ -565,7 +634,8 @@ function CustomerPanel({
   }
 
   // No Zendesk só se atribui a quem ligou a conta Zendesk (o responsável é o agente Zendesk).
-  const assignable = d.users.filter((u) => !isZendesk || u.zendesk);
+  const assignable = d.users.filter((u) => !isZendesk || u.zendesk || u.id === conv.assignee_id);
+  const current = conv.assignee_id && !assignable.some((u) => u.id === conv.assignee_id) ? conv.assignee_id : null;
   return (
     <div className="customer-panel">
       <button type="button" className="support-back" onClick={onBack}>← Conversa</button>
@@ -581,7 +651,10 @@ function CustomerPanel({
           Responsável
           <select value={conv.assignee_id || ""} onChange={(e) => onAct({ action: "update", assigneeId: e.target.value || null })}>
             <option value="">{conv.external_assignee_name && !conv.assignee_id ? `${conv.external_assignee_name} (Zendesk)` : "Sem responsável"}</option>
-            {assignable.map((u) => <option key={u.id} value={u.id}>{u.name}{u.me ? " (eu)" : ""}</option>)}
+            {current && <option value={current}>{conv.assignee_name || "Responsável atual"}</option>}
+            {assignable.map((u) => (
+              <option key={u.id} value={u.id}>{u.name}{u.me ? " (eu)" : ""}{isZendesk && !u.zendesk ? " (Zendesk por religar)" : ""}</option>
+            ))}
           </select>
         </label>
         {isZendesk && <small className="muted">Estado e responsável são gravados no Zendesk (fonte de verdade) com a sua conta. Estado no Zendesk: {conv.platform_status || "—"}.</small>}

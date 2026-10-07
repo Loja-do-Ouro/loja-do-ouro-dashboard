@@ -30,7 +30,7 @@ async function api<T>(path: string, params: Record<string, string>): Promise<T> 
 
 // Same token and brand for other Metricool areas (Apoio ao Cliente: Inbox). Returns the HTTP
 // status instead of throwing, so the caller can tell a refusal from a lost answer.
-export async function metricoolRequest(method: "GET" | "POST" | "PUT", path: string, params: Record<string, string> = {}, body?: unknown) {
+export async function metricoolRequest(method: "GET" | "POST" | "PUT", path: string, params: Record<string, string> = {}, body?: unknown, timeoutMs = 30000) {
   const token = process.env.METRICOOL_USER_TOKEN;
   if (!token) throw new Error("Ligação Metricool por configurar.");
   const url = new URL(`${BASE}${path}`);
@@ -38,7 +38,7 @@ export async function metricoolRequest(method: "GET" | "POST" | "PUT", path: str
   let r: Response;
   try {
     r = await fetch(url, {
-      method, cache: "no-store", signal: AbortSignal.timeout(30000),
+      method, cache: "no-store", signal: AbortSignal.timeout(timeoutMs),
       headers: { "X-Mc-Auth": token, Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

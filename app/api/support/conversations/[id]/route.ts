@@ -4,7 +4,7 @@ import { isUuid } from "@/lib/support/rules";
 import { markNotSent, sendMessage, updateConversation, verifyMessage } from "@/lib/support/service";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -34,6 +34,7 @@ type Action = {
   status: string;
   assigneeId: string | null;
   messageId: string;
+  seen: string;
 };
 
 // Uma ação por pedido. "reply" é sempre resposta pública ao cliente pelo canal da conversa;
@@ -46,7 +47,10 @@ export async function POST(request: Request, ctx: Ctx) {
     switch (b.action) {
       case "read":
       case "unread":
-        await sessionRpc(viewer.session, "ldo_support_mark_read", { p_id: id, p_unread: b.action === "unread" });
+        // seen: hora de chegada da última mensagem do cliente mostrada no ecrã (a leitura nunca vai além).
+        await sessionRpc(viewer.session, "ldo_support_mark_read", {
+          p_id: id, p_unread: b.action === "unread", p_seen: typeof b.seen === "string" && !Number.isNaN(Date.parse(b.seen)) ? b.seen : null,
+        });
         return json({ ok: true });
       case "presence":
         return json({ presence: await sessionRpc(viewer.session, "ldo_support_presence_ping", { p_id: id, p_composing: Boolean(b.composing) }) });
@@ -63,7 +67,7 @@ export async function POST(request: Request, ctx: Ctx) {
         return json({ ok: true });
       case "verify":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
-        return json({ delivery: await verifyMessage(viewer, id, b.messageId) });
+        return json(await verifyMessage(viewer, id, b.messageId));
       case "not_sent":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         await markNotSent(viewer, id, b.messageId);

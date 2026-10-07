@@ -49,7 +49,8 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const formStores = viewer.isSuper ? allStores.filter((s) => s.active) : managedStores(viewer);
   const filter = typeof q.loja === "string" ? q.loja : "";
   const shown = users.filter((u) => !filter || u.store_access[filter]);
-  const editing = typeof q.id === "string" ? users.find((u) => u.id === q.id) || null : null;
+  // Só se abre o formulário de quem a pessoa pode editar (a BD volta a verificar ao gravar).
+  const editing = typeof q.id === "string" ? users.find((u) => u.id === q.id && (u.editable || u.id === viewer.id)) || null : null;
   const ok = typeof q.ok === "string" ? OK[q.ok] : undefined;
   const error = typeof q.erro === "string" ? q.erro.slice(0, 300) : undefined;
   const self = editing?.id === viewer.id;

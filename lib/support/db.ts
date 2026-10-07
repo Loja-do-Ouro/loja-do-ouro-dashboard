@@ -42,6 +42,7 @@ export type IngestMessage = {
   attachments?: Attachment[];
   created_at: string;
   delivery?: "accepted" | "delivered" | "read" | null;
+  deleted?: boolean;
 };
 export type Attachment = { name: string; type: string | null; size: number | null; ref: string };
 export type IngestConversation = {

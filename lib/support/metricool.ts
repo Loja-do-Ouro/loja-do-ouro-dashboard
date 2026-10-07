@@ -41,7 +41,12 @@ export async function inboxAuthorizations(provider: string) {
   return { allowAccessToMessages: Boolean(data.allowAccessToMessages), missingScopes: data.missingScopes || [] };
 }
 
-async function listConversations(provider: string, maxPages = 5) {
+// A Metricool vai buscar as conversas à Meta no momento: a listagem pode demorar mais do que as outras consultas.
+const LIST_TIMEOUT_MS = 55_000;
+
+// Páginas de conversas de uma rede; cada página é entregue logo (onPage) para ficar gravada mesmo
+// que a passagem pare pelo limite de tempo.
+async function listConversations(provider: string, { maxPages = 5, deadline = Infinity, onPage }: { maxPages?: number; deadline?: number; onPage?: (page: Conversation[]) => Promise<void> } = {}) {
   const out: Conversation[] = [];
   let next: string | null = null;
   let pages = 0;
@@ -55,51 +60,60 @@ async function listConversations(provider: string, maxPages = 5) {
       const params = Object.fromEntries(u.searchParams);
       delete params.userId;
       delete params.blogId;
-      r = await metricoolRequest("GET", u.pathname.replace(/^\/api/, ""), params);
-    } else r = await metricoolRequest("GET", "/v2/inbox/conversations", { provider });
+      r = await metricoolRequest("GET", u.pathname.replace(/^\/api/, ""), params, undefined, LIST_TIMEOUT_MS);
+    } else r = await metricoolRequest("GET", "/v2/inbox/conversations", { provider }, undefined, LIST_TIMEOUT_MS);
     if (r.status !== 200) throw failure(r.status, r.text, `Conversas ${provider}`, Number(r.headers?.get("retry-after")) || 0);
     const body = r.json as Listing;
-    out.push(...(body?.data || []));
+    const page = body?.data || [];
+    out.push(...page);
+    if (onPage) await onPage(page);
     const raw = body?.page?.next || null;
     paging = raw ? (/^https?:|^\//.test(raw) ? "url" : "token") : paging;
     next = raw && /^https?:|^\//.test(raw) ? raw : null;
     pages++;
-  } while (next && pages < maxPages);
-  return { conversations: out, pages, paging };
+  } while (next && pages < maxPages && Date.now() < deadline);
+  return { conversations: out, pages, paging, complete: !next };
 }
 
-// A conta da marca é o participante comum a todas as conversas; com uma só conversa, o participante
-// que não é autor da primeira mensagem recebida. Guardada na configuração da fonte depois de detetada.
+const BRAND_NAME = /loja\s*do\s*ouro|lojadoouro/i;
+
+// Conta da marca: a configurada (config.brand_id), a já detetada, ou a que participa em mais de metade
+// das conversas (pelo menos duas); com poucas conversas, o participante com o nome da marca.
+// Sem certeza, devolve null e as conversas ambíguas não são interpretadas (nunca se adivinha a direção).
 export function brandParticipant(conversations: Conversation[], known?: string | null): string | null {
   if (known) return known;
   const count = new Map<string, number>();
   for (const c of conversations) for (const id of new Set((c.participants || []).map((p) => p.id).filter(Boolean) as string[])) count.set(id, (count.get(id) || 0) + 1);
-  if (conversations.length >= 2) {
-    const common = [...count].filter(([, n]) => n === conversations.length).map(([id]) => id);
-    if (common.length === 1) return common[0];
-  }
-  return null;
+  const ranked = [...count].sort((a, b) => b[1] - a[1]);
+  if (conversations.length >= 2 && ranked[0] && ranked[0][1] >= 2 && ranked[0][1] > conversations.length / 2 && (!ranked[1] || ranked[1][1] < ranked[0][1]))
+    return ranked[0][0];
+  const named = new Set(conversations.flatMap((c) => (c.participants || []).filter((p) => p.id && BRAND_NAME.test(p.name || "")).map((p) => p.id!)));
+  return named.size === 1 ? [...named][0] : null;
 }
 
 function toConversation(c: Conversation, brand: string | null): IngestConversation | null {
   if (!c.id) return null;
   const others = (c.participants || []).filter((p) => p.id && p.id !== brand);
-  const customer = others.length === 1 ? others[0] : others.find((p) => (c.messages || []).some((m) => m.from === p.id)) || others[0];
+  // Com a marca conhecida, ou um só participante listado, o cliente é inequívoco. Caso contrário a
+  // conversa fica por interpretar: sem cliente identificado não há respostas nem mensagens atribuídas.
+  const customer = others.length === 1 ? others[0] : null;
+  if (!customer) return null;
   const messages: IngestMessage[] = (c.messages || [])
-    .filter((m) => m.id && m.publicationDateTime && m.status !== "DELETED")
+    .filter((m) => m.id && m.publicationDateTime)
     .map((m) => ({
       external_id: String(m.id),
-      // Sem marca detetada, só é "do cliente" o que vem do participante cliente.
-      kind: brand ? (m.from === brand ? "outbound" : "inbound") : m.from && m.from === customer?.id ? "inbound" : "outbound",
-      author_name: m.from === customer?.id ? customer?.name || null : null,
+      kind: m.from === customer.id ? "inbound" : "outbound",
+      author_name: m.from === customer.id ? customer.name || null : null,
       author_external_id: m.from || null,
-      body: m.text || "",
-      attachments: (m.attachments || []).filter((a) => /^https:\/\//.test(a)).map((a, i) => ({ name: `Anexo ${i + 1}`, type: null, size: null, ref: `metricool:${a}` })),
+      body: m.status === "DELETED" ? "" : m.text || "",
+      attachments: m.status === "DELETED" ? [] : (m.attachments || []).filter((a) => /^https:\/\//.test(a)).map((a, i) => ({ name: `Anexo ${i + 1}`, type: null, size: null, ref: `metricool:${a}` })),
       created_at: new Date(m.publicationDateTime!).toISOString(),
+      // Mensagem que o cliente anulou: fica marcada e sem conteúdo.
+      deleted: m.status === "DELETED",
     }));
   return {
     external_id: String(c.id),
-    contact: { external_id: customer?.id || null, name: customer?.name || null, email: customer?.email || null, handle: customer?.name || null, avatar_url: customer?.imageProfileUrl || null },
+    contact: { external_id: customer.id || null, name: customer.name || null, email: customer.email || null, handle: customer.name || null, avatar_url: customer.imageProfileUrl || null },
     subject: null,
     platform_status: c.status || null,
     external_updated_at: c.lastUpdateTime || null,
@@ -107,29 +121,43 @@ function toConversation(c: Conversation, brand: string | null): IngestConversati
   };
 }
 
-export async function syncMetricool(source: { id: string; config: Record<string, unknown>; cursor: Record<string, unknown> }) {
+export async function syncMetricool(source: { id: string; config: Record<string, unknown>; cursor: Record<string, unknown> }, deadline = Infinity) {
   if (!metricoolInboxConfigured()) return { skipped: "Metricool por configurar (METRICOOL_USER_TOKEN)." };
   const provider = String(source.config.provider || "");
   const auth = await inboxAuthorizations(provider);
   if (!auth.allowAccessToMessages)
     throw new MetricoolError(`Metricool não tem acesso às mensagens ${provider}${auth.missingScopes.length ? ` (em falta: ${auth.missingScopes.join(", ")})` : ""}. Voltar a ligar a rede na marca Metricool.`, 403, 0, true);
-  const { conversations } = await listConversations(provider);
-  const brand = brandParticipant(conversations, typeof source.cursor.brand === "string" ? source.cursor.brand : null);
-  const mapped = conversations.map((c) => toConversation(c, brand)).filter((c): c is IngestConversation => !!c);
-  const totals = await ingest(source.id, mapped);
-  return { cursor: { ...source.cursor, ...(brand ? { brand } : {}) }, totals, detail: brand ? null : "Conta da marca ainda não identificada: direção das mensagens deduzida pelo participante." };
+  const configured = typeof source.config.brand_id === "string" ? source.config.brand_id : typeof source.cursor.brand === "string" ? source.cursor.brand : null;
+  let totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
+  let brand = configured;
+  let skipped = 0;
+  const { complete } = await listConversations(provider, {
+    deadline,
+    onPage: async (page) => {
+      brand = brandParticipant(page, brand);
+      const mapped = page.map((c) => toConversation(c, brand));
+      skipped += mapped.filter((c) => !c).length;
+      const r = await ingest(source.id, mapped.filter((c): c is IngestConversation => !!c));
+      totals = { conversations: totals.conversations + r.conversations, new_conversations: totals.new_conversations + r.new_conversations,
+        new_messages: totals.new_messages + r.new_messages, reopened: totals.reopened + r.reopened };
+    },
+  });
+  const detail = skipped
+    ? `${skipped} conversa(s) por interpretar: conta da marca ainda não identificada. Indicar o id da conta da marca na configuração da fonte (brand_id).`
+    : complete ? null : "Nem todas as páginas foram lidas nesta passagem; continuam na seguinte.";
+  return { cursor: { ...source.cursor, ...(brand ? { brand } : {}) }, totals, detail, more: !complete };
 }
 
-// Envio numa conversa existente, ao participante cliente. Só texto nesta fase.
+// Envio numa conversa existente, ao participante cliente. Só texto nesta fase. A resposta da API é
+// um texto livre: não é usada como id; a sincronização seguinte reconhece a mensagem pelo texto.
 export async function metricoolSend(provider: string, conversationId: string, recipient: string | null, text: string) {
-  if (!recipient) return { outcome: "failed" as const, externalId: null, detail: "Destinatário desconhecido nesta conversa." };
+  if (!recipient || recipient.startsWith("conversa:"))
+    return { outcome: "failed" as const, externalId: null, detail: "Destinatário por identificar nesta conversa: nada foi enviado." };
   const r = await metricoolRequest("POST", "/v2/inbox/conversations", {}, { provider, conversationId, recipient, text });
   const outcome = sendOutcome(r.status);
-  const data = (r.json as { data?: unknown })?.data;
   return {
     outcome,
-    // A resposta da API é um texto; só é usado como id se parecer um identificador.
-    externalId: outcome === "accepted" && typeof data === "string" && /^[\w.:-]{6,200}$/.test(data) ? data : null,
+    externalId: null,
     detail: outcome === "accepted" ? null : outcome === "uncertain" ? "Sem confirmação da Metricool; verificar antes de reenviar." : failure(r.status, r.text, "Envio").message,
   };
 }
@@ -154,7 +182,10 @@ export async function metricoolDiagnostics(provider: string) {
     out.authorizations = { error: e instanceof Error ? e.message : "indisponível" };
   }
   try {
-    const { conversations, pages, paging } = await listConversations(provider, 3);
+    const started = Date.now();
+    const { conversations, pages, paging, complete } = await listConversations(provider, { maxPages: 3 });
+    out.listSeconds = Math.round((Date.now() - started) / 100) / 10;
+    out.allPagesRead = complete;
     const msgs = conversations.map((c) => (c.messages || []).length);
     const brand = brandParticipant(conversations);
     out.read = {
@@ -165,6 +196,7 @@ export async function metricoolDiagnostics(provider: string) {
       messageStatuses: [...new Set(conversations.flatMap((c) => (c.messages || []).map((m) => m.status)))],
       withAttachments: conversations.reduce((n, c) => n + (c.messages || []).filter((m) => (m.attachments || []).length).length, 0),
       brandDetected: Boolean(brand),
+      brandId: brand,
       oldestMessage: conversations.flatMap((c) => (c.messages || []).map((m) => m.publicationDateTime || "")).filter(Boolean).sort()[0] || null,
     };
   } catch (e) {

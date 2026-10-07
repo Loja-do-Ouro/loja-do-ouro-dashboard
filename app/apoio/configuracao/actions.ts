@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { userMessage } from "@/lib/supabase";
 import { sessionRpc } from "@/lib/support/db";
-import { runSync } from "@/lib/support/sync";
+import { REFUSAL, runSync } from "@/lib/support/sync";
 import { revokeConnection } from "@/lib/support/zendesk";
 import { requireViewer } from "@/lib/viewer";
 
@@ -51,7 +51,10 @@ export async function disconnectZendesk(form: FormData) {
 
 export async function syncNow() {
   await superViewer();
-  const results = await runSync({ force: true });
+  // O Super Admin pode ignorar a espera depois de erros (por exemplo depois de corrigir uma ligação).
+  const results = await runSync({ force: true, override: true });
   const failed = results.filter((r) => r.ran && r.ok === false);
-  back(failed.length ? { erro: failed.map((r) => `${r.source}: ${r.detail}`).join(" · ").slice(0, 600) } : { ok: "Sincronização concluída." });
+  const refused = results.filter((r) => !r.ran && r.reason);
+  const note = refused.map((r) => `${r.source}: ${REFUSAL[r.reason!] || r.reason}`).join(" · ");
+  back(failed.length ? { erro: failed.map((r) => `${r.source}: ${r.detail}`).join(" · ").slice(0, 600) } : { ok: `Sincronização concluída.${note ? ` Não correu: ${note}.` : ""}` });
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { ingest, serverRpc, sessionRpc } from "./db";
 import { metricoolSend } from "./metricool";
-import { runSync } from "./sync";
+import { REFUSAL, runSync } from "./sync";
 import { isStatus, zendeskReplyWarning, type Status } from "./rules";
 import { whatsappSend } from "./whatsapp";
 import { readTicket, zendeskComment, zendeskUpdate, ZendeskError } from "./zendesk";
@@ -101,10 +101,18 @@ export async function verifyMessage(viewer: Viewer, conversationId: string, mess
   await sessionRpc(viewer.session, "ldo_support_conversation", { p_id: conversationId });
   const m = await serverRpc<ServerMessage | null>("ldo_support_server_message", { p_message: messageId });
   if (!m || m.conversation.id !== conversationId) throw new Error("Mensagem não encontrada.");
+  let note: string | null = null;
   if (m.conversation.source_id === "zendesk") await ingest("zendesk", [await readTicket(viewer.id, m.conversation.external_id)]);
-  else await runSync({ force: true, only: [m.conversation.source_id] });
+  else {
+    const [r] = await runSync({ force: true, only: [m.conversation.source_id] });
+    if (!r.ran) note = `A verificação não correu agora (${REFUSAL[r.reason || ""] || "indisponível"}); tente dentro de momentos.`;
+    else if (r.ok === false) note = `A verificação falhou: ${r.detail}`;
+  }
   const after = await serverRpc<ServerMessage | null>("ldo_support_server_message", { p_message: messageId });
-  return after?.message.delivery ?? null;
+  const delivery = after?.message.delivery ?? null;
+  if (!note && (delivery === "uncertain" || delivery === "sending"))
+    note = "Ainda não encontrada na plataforma. Confirme lá antes de a marcar como não enviada.";
+  return { delivery, note };
 }
 
 // A pessoa confirma que uma mensagem incerta não chegou: fica "Falhou" e o texto pode voltar a ser enviado.
