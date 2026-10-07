@@ -88,16 +88,25 @@ export function parseAiOutput(text: string): AiOutput {
   };
 }
 
-const URL_RE = /https?:\/\/[^\s<>"'«»()[\]]+/gi;
+// Ligações com ou sem https:// ("www.loja.pt/x", "loja.pt"); não apanha emails.
+const LINK_RE = /(?<![@\w.-])(?:https?:\/\/)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:pt|com|net|org|eu|es|fr|de|it|uk|br|shop|store|online|site|io|co|info|biz|me|app|link|ly)(?::\d+)?(?![\w-])(?:\/[^\s<>"'«»()[\]]*)?/gi;
 
-export function urlsIn(text: string) {
-  return [...new Set((text.match(URL_RE) || []).map((u) => u.replace(/[.,;:!?…]+$/, "")))];
+export function linksIn(text: string) {
+  return [...new Set((text.match(LINK_RE) || []).map((u) => u.replace(/[.,;:!?…]+$/, "")))];
 }
+const norm = (u: string) => u.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+const host = (u: string) => norm(u).split(/[/?#:]/)[0];
 
-// Ligações da proposta que não vieram de nenhuma fonte (loja, base de conhecimento, ferramentas, conversa).
-export function unverifiedLinks(draft: string, known: string) {
-  const knownUrls = new Set(urlsIn(known).map((u) => u.replace(/\/+$/, "").toLowerCase()));
-  return urlsIn(draft).filter((u) => !knownUrls.has(u.replace(/\/+$/, "").toLowerCase()));
+// Ligações da proposta que não vieram de uma fonte de confiança (base de conhecimento, loja online e
+// resultados das consultas à loja). Um domínio sozinho ("lojadoouro.pt") basta que seja de uma fonte.
+export function unverifiedLinks(draft: string, trusted: string) {
+  const known = linksIn(trusted);
+  const urls = new Set(known.map(norm));
+  const hosts = new Set(known.map(host));
+  return linksIn(draft).filter((u) => {
+    const n = norm(u);
+    return !(urls.has(n) || (n === host(u) && hosts.has(n)));
+  });
 }
 
 // Handle de um produto a partir do endereço público (…/products/<handle>, com ou sem coleção ou língua).

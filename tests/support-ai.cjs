@@ -33,6 +33,11 @@ test("Links in a proposed reply that no source mentioned are flagged", () => {
   const draft = "Veja https://lojadoouro.pt/products/anel-ouro. E também https://lojadoouro.pt/policies/refund-policy e https://outro.site/x!";
   assert.deepEqual(ai.unverifiedLinks(draft, known), ["https://outro.site/x"]);
   assert.deepEqual(ai.unverifiedLinks("Sem ligações.", known), []);
+  // Sem https:// também conta; um domínio sozinho basta que venha de uma fonte; emails e medidas não são ligações.
+  assert.deepEqual(ai.unverifiedLinks("Veja www.lojadoouro.pt/products/anel-ouro ou lojadoouro.pt.", known), []);
+  assert.deepEqual(ai.unverifiedLinks("Pague em lojadoouro-pagamentos.pt/mbway e www.evil.com", known), ["lojadoouro-pagamentos.pt/mbway", "www.evil.com"]);
+  assert.deepEqual(ai.unverifiedLinks("Escreva para info@lojadoouro.pt. Fio de 19.2k com 45 cm.", known), []);
+  assert.deepEqual(ai.unverifiedLinks("https://lojadoouro.pt/pages/outra", known), ["https://lojadoouro.pt/pages/outra"]);
 });
 
 test("Product handles are read from store URLs only", () => {

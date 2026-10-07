@@ -23,9 +23,11 @@ const QUICK = [
 const usd = (v: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "USD", minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
 
 export function AiPanel({
-  conversationId, request, replyBlocked, onUseDraft, onBack,
+  conversationId, visible, request, replyBlocked, onUseDraft, onBack,
 }: {
   conversationId: string;
+  // Separador à vista (o scroll para a última resposta só funciona com o painel visível).
+  visible: boolean;
   // Pedido vindo do botão "Sugerir resposta" do campo de resposta (n muda a cada clique).
   request: { n: number } | null;
   replyBlocked: string;
@@ -73,17 +75,20 @@ export function AiPanel({
     return () => clearInterval(t);
   }, [running]);
 
+  const lastItem = history?.items.at(-1);
   useEffect(() => {
     const box = log.current;
-    if (box) box.scrollTop = box.scrollHeight;
-  }, [history?.items.length, running?.status, error]);
+    if (box && visible) box.scrollTop = box.scrollHeight;
+  }, [visible, history?.items.length, lastItem?.id, lastItem?.status, running?.status, error]);
 
-  const ask = useCallback(async (kind: "draft" | "chat", text: string) => {
+  // fromInput: pergunta escrita na caixa (só essa é limpa; os botões rápidos não apagam o que se está a escrever).
+  const ask = useCallback(async (kind: "draft" | "chat", text: string, fromInput = false) => {
     if (runningRef.current) return;
     runningRef.current = true;
     setError("");
     setRunning({ question: text || null, kind, status: "A enviar o pedido…", since: Date.now() });
     let finished = false;
+    let started = false;
     try {
       const r = await fetch("/api/support/ai", {
         method: "POST",
@@ -97,7 +102,8 @@ export function AiPanel({
         const data = type.includes("application/json") ? await r.json().catch(() => null) : null;
         throw new Error(data?.error || `Pedido à IA recusado (HTTP ${r.status}).`);
       }
-      if (kind === "chat") setQuestion("");
+      started = true;
+      if (fromInput) setQuestion("");
       const reader = r.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -107,8 +113,8 @@ export function AiPanel({
           finished = true;
           setHistory((h) => (h ? { ...h, items: [...h.items.filter((i) => i.id !== e.item.id), e.item] } : h));
         } else {
+          // O erro fica no próprio pedido (recarregado no fim); não se repete num aviso à parte.
           finished = true;
-          setError(e.error);
         }
       };
       for (;;) {
@@ -124,7 +130,13 @@ export function AiPanel({
       }
       if (!finished) setError("A ligação foi interrompida. Se a IA terminar, a resposta aparece aqui dentro de momentos.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "A IA não respondeu.");
+      setError(
+        started
+          ? "A ligação foi interrompida. Se a IA terminar, a resposta aparece aqui dentro de momentos."
+          : e instanceof TypeError
+            ? "Sem ligação ao servidor. Verifique a rede e tente outra vez."
+            : e instanceof Error ? e.message : "A IA não respondeu.",
+      );
     } finally {
       runningRef.current = false;
       setRunning(null);
@@ -156,15 +168,19 @@ export function AiPanel({
   const busy = Boolean(running) || !history || Boolean(unavailable) || limitReached;
   const send = () => {
     const q = question.trim();
-    if (q && !busy) ask("chat", q);
+    if (q && !busy) ask("chat", q, true);
   };
   void tick;
 
   return (
     <div className="ai-panel">
       <button type="button" className="support-back" onClick={onBack}>← Conversa</button>
-      <div className="ai-log" ref={log} aria-live="polite">
-        {loadError && <p className="support-error" role="alert">{loadError}</p>}
+      <div className="ai-log" ref={log}>
+        {loadError && (
+          <p className="support-error" role="alert">
+            {loadError} <button type="button" className="secondary-button" onClick={() => { setLoadError(""); load(); }}>Tentar de novo</button>
+          </p>
+        )}
         {!history && !loadError && <p className="support-empty">A carregar…</p>}
         {history && !history.items.length && !running && (
           <div className="ai-intro">
@@ -207,8 +223,8 @@ export function AiPanel({
         {running && (
           <div className="ai-exchange">
             <p className="ai-q">{running.question || (running.kind === "draft" ? "Sugerir resposta" : "")}</p>
-            <div className="ai-a pending" role="status">
-              <p className="ai-working"><span className="ai-dot" aria-hidden="true" />{running.status} <small>{Math.round((Date.now() - running.since) / 1000)} s</small></p>
+            <div className="ai-a pending">
+              <p className="ai-working"><span className="ai-dot" aria-hidden="true" /><span role="status">{running.status}</span> <small aria-hidden="true">{Math.round((Date.now() - running.since) / 1000)} s</small></p>
             </div>
           </div>
         )}

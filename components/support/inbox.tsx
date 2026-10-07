@@ -835,6 +835,7 @@ export function SupportInbox({
                 <AiPanel
                   key={c.conversation.id}
                   conversationId={c.conversation.id}
+                  visible={infoTab === "ia" && (pane === "info" || !sideOverlays())}
                   request={aiRequest}
                   replyBlocked={replyBlocked}
                   onUseDraft={useAiDraft}

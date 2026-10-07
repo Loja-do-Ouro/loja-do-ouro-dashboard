@@ -14,7 +14,9 @@ async function superViewer() {
   return viewer;
 }
 
-const back = (params: Record<string, string>, hash = ""): never => redirect(`/apoio/configuracao?${new URLSearchParams(params)}${hash}`);
+// Ações da secção da IA voltam a essa secção (secao=ia mostra lá a mensagem; #ia faz scroll até ela).
+const back = (params: Record<string, string>, hash = ""): never =>
+  redirect(`/apoio/configuracao?${new URLSearchParams(hash === "#ia" ? { ...params, secao: "ia" } : params)}${hash}`);
 
 export async function savePolling(form: FormData) {
   const viewer = await superViewer();
@@ -62,8 +64,11 @@ export async function syncNow() {
 // Assistente de IA: interruptor, limite diário por pessoa e orçamento mensal (US$).
 export async function saveAiSettings(form: FormData) {
   const viewer = await superViewer();
-  const limit = Number(form.get("ai_daily_limit"));
-  const budget = Number(String(form.get("ai_monthly_budget") || "").replace(",", "."));
+  const rawLimit = String(form.get("ai_daily_limit") ?? "").trim();
+  const rawBudget = String(form.get("ai_monthly_budget") ?? "").trim().replace(",", ".");
+  // Um campo vazio nunca vale 0 (desligaria a IA para toda a equipa sem querer).
+  const limit = rawLimit ? Number(rawLimit) : NaN;
+  const budget = rawBudget ? Number(rawBudget) : NaN;
   if (!Number.isFinite(limit) || !Number.isFinite(budget)) back({ erro: "Indique números válidos no limite e no orçamento." }, "#ia");
   try {
     await sessionRpc(viewer.session, "ldo_support_ai_save_settings", {

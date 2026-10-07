@@ -62,6 +62,10 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
       storeError = e instanceof Error ? e.message : "Shopify indisponível.";
     }
   } else storeError = "Ligação Shopify por configurar.";
+  // Mensagens das ações da IA aparecem dentro da secção da IA (o redirect leva até lá com #ia).
+  const aiFlash = q.secao === "ia";
+  const flashOk = typeof q.ok === "string" ? q.ok.slice(0, 200) : undefined;
+  const flashError = typeof q.erro === "string" ? q.erro.slice(0, 600) : undefined;
   const z = zendeskReadiness();
   const diag = q.diagnostico === "1";
   const [zd, fb, ig] = diag
@@ -76,7 +80,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
       <PageHeading eyebrow="APOIO AO CLIENTE" title="Configuração do apoio" text="Ligações às plataformas, sincronização e acessos. Só o Super Admin vê esta página.">
         <Link className="outline-button" href="/apoio/configuracao?diagnostico=1">Validar ligações</Link>
       </PageHeading>
-      <Flash ok={typeof q.ok === "string" ? q.ok.slice(0, 200) : undefined} error={typeof q.erro === "string" ? q.erro.slice(0, 600) : undefined} />
+      {!aiFlash && <Flash ok={flashOk} error={flashError} />}
       {!serverConfigured() && <div className="notice error-notice">O servidor não tem ligação ao Supabase (BI_INGEST_TOKEN): a sincronização não pode gravar.</div>}
 
       <div className="two-col">
@@ -176,6 +180,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
       </div>
 
       <Panel title="Assistente de IA" eyebrow="RESPOSTAS COM IA" id="ia">
+        {aiFlash && <Flash ok={flashOk} error={flashError} />}
         <div className="two-col">
           <div>
             <dl className="config-list">
@@ -212,11 +217,11 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
             </label>
             <label>
               Pedidos por pessoa e por dia
-              <input type="number" name="ai_daily_limit" min={0} max={1000} step={1} defaultValue={ai.settings.ai_daily_limit} />
+              <input type="number" name="ai_daily_limit" required min={0} max={1000} step={1} defaultValue={ai.settings.ai_daily_limit} />
             </label>
             <label>
               Orçamento mensal (US$)
-              <input type="number" name="ai_monthly_budget" min={0} max={10000} step={1} defaultValue={ai.settings.ai_monthly_budget} />
+              <input type="number" name="ai_monthly_budget" required min={0} max={10000} step={1} defaultValue={ai.settings.ai_monthly_budget} />
             </label>
             <button type="submit" className="secondary-button">Guardar</button>
           </form>
