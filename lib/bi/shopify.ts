@@ -275,3 +275,165 @@ export async function catalogImage(url: string, max = 4 * 1024 * 1024) {
   }
   return out;
 }
+
+// ---------------------------------------------------------------- Assistente de IA do apoio
+// Só leituras. Encomendas sempre filtradas pelo email do cliente da conversa (nunca escolhido pela IA).
+
+const money = (m: Money2 | null | undefined) =>
+  m ? new Intl.NumberFormat("pt-PT", { style: "currency", currency: m.currencyCode }).format(Number(m.amount)) : null;
+
+export type SupportOrder = {
+  numero: string; data: string; cancelada: string | null; pagamento: string | null; envio: string | null; devolucao: string | null;
+  total: string | null; portes: string | null; artigos: string[]; pagina_do_cliente: string | null;
+  expedicoes?: { estado: string | null; enviada: string; entregue: string | null; entrega_prevista: string | null; seguimento: { transportadora: string | null; numero: string | null; url: string | null }[] }[];
+};
+type AiOrderNode = {
+  name: string; createdAt: string; cancelledAt: string | null; cancelReason: string | null; displayFinancialStatus: string | null;
+  displayFulfillmentStatus: string | null; returnStatus: string | null; statusPageUrl: string | null;
+  currentTotalPriceSet: { shopMoney: Money2 } | null; shippingLine: { title: string } | null;
+  lineItems: { nodes: { name: string; quantity: number }[] };
+  fulfillments?: { displayStatus: string | null; createdAt: string; deliveredAt: string | null; estimatedDeliveryAt: string | null;
+    trackingInfo: { company: string | null; number: string | null; url: string | null }[] }[];
+};
+const ORDER_FIELDS = `name createdAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus returnStatus statusPageUrl
+  currentTotalPriceSet { shopMoney { amount currencyCode } } shippingLine { title } lineItems(first: 15) { nodes { name quantity } }`;
+const FULFILLMENT_FIELDS_AI = "fulfillments(first: 5) { displayStatus createdAt deliveredAt estimatedDeliveryAt trackingInfo(first: 3) { company number url } }";
+// Sem autorização para as expedições, as encomendas são lidas sem elas (não falha a consulta toda).
+let fulfillmentsDenied = false;
+
+const emailFilter = (email: string) => `email:"${email.replace(/["\\]/g, "")}"`;
+
+async function aiOrders(query: string, first: number): Promise<SupportOrder[]> {
+  const run = (withFulfillments: boolean) => graphql<{ orders: { nodes: AiOrderNode[] } }>(
+    `query AiOrders($q: String!, $n: Int!) { orders(first: $n, sortKey: CREATED_AT, reverse: true, query: $q) {
+      nodes { ${ORDER_FIELDS} ${withFulfillments ? FULFILLMENT_FIELDS_AI : ""} } } }`, { q: query, n: first });
+  let d: { orders: { nodes: AiOrderNode[] } };
+  try {
+    d = await run(!fulfillmentsDenied);
+  } catch (e) {
+    if (fulfillmentsDenied || !/fulfil|access|permission|scope/i.test(e instanceof Error ? e.message : "")) throw e;
+    fulfillmentsDenied = true;
+    d = await run(false);
+  }
+  return d.orders.nodes.map((o) => ({
+    numero: o.name, data: o.createdAt, cancelada: o.cancelledAt ? `${o.cancelledAt}${o.cancelReason ? ` (${o.cancelReason})` : ""}` : null,
+    pagamento: o.displayFinancialStatus, envio: o.displayFulfillmentStatus, devolucao: o.returnStatus === "NO_RETURN" ? null : o.returnStatus,
+    total: money(o.currentTotalPriceSet?.shopMoney), portes: o.shippingLine?.title ?? null,
+    artigos: o.lineItems.nodes.map((l) => `${l.quantity} × ${l.name}`),
+    pagina_do_cliente: o.statusPageUrl,
+    ...(o.fulfillments ? {
+      expedicoes: o.fulfillments.map((f) => ({
+        estado: f.displayStatus, enviada: f.createdAt, entregue: f.deliveredAt, entrega_prevista: f.estimatedDeliveryAt,
+        seguimento: f.trackingInfo.map((t) => ({ transportadora: t.company, numero: t.number, url: t.url })),
+      })),
+    } : {}),
+  }));
+}
+
+// Encomendas recentes (até 10) dos emails do cliente da conversa.
+export async function supportCustomerOrders(emails: string[]) {
+  const out: SupportOrder[] = [];
+  for (const email of emails.slice(0, 2)) out.push(...(await aiOrders(emailFilter(email), 10)));
+  const seen = new Set<string>();
+  return out.filter((o) => !seen.has(o.numero) && seen.add(o.numero)).sort((a, b) => b.data.localeCompare(a.data)).slice(0, 10);
+}
+
+// Uma encomenda pelo número. Os detalhes só saem se a encomenda for de um dos emails do cliente;
+// caso contrário diz-se apenas se existe (sem dados de outra pessoa).
+export async function supportOrderByNumber(number: string, emails: string[]) {
+  const digits = number.replace(/\D/g, "").slice(0, 12);
+  if (!digits) return { encontrada: false, nota: "Número de encomenda inválido." };
+  const name = `name:"#${digits}"`;
+  for (const email of emails.slice(0, 2)) {
+    const [o] = await aiOrders(`${name} ${emailFilter(email)}`, 1);
+    if (o) return { encontrada: true, deste_cliente: true, encomenda: o };
+  }
+  const exists = await graphql<{ orders: { nodes: { name: string }[] } }>(
+    "query AiOrderExists($q: String!) { orders(first: 1, query: $q) { nodes { name } } }", { q: name });
+  if (!exists.orders.nodes.length) return { encontrada: false, nota: `Não existe a encomenda #${digits}.` };
+  return {
+    encontrada: true, deste_cliente: false,
+    nota: emails.length
+      ? `A encomenda #${digits} existe mas não está no email deste cliente. Não divulgar dados da encomenda sem confirmar a identidade (por exemplo, pedir o email usado na compra e associá-lo no painel Cliente).`
+      : `A encomenda #${digits} existe, mas este contacto não tem email associado. Peça o email usado na compra e associe-o no painel Cliente para confirmar.`,
+  };
+}
+
+// Detalhe de um produto publicado na loja online (pelo handle do URL /products/<handle>).
+export async function supportProduct(handle: string) {
+  type Variant = { title: string; price: string; compareAtPrice: string | null; availableForSale: boolean };
+  const d = await graphql<{ product: {
+    title: string; handle: string; status: string; onlineStoreUrl: string | null; productType: string; vendor: string; tags: string[];
+    description: string; priceRangeV2: { minVariantPrice: Money2; maxVariantPrice: Money2 }; options: { name: string; values: string[] }[];
+    variants: { pageInfo: { hasNextPage: boolean }; nodes: Variant[] };
+  } | null; shop: { currencyCode: string } }>(
+    `query AiProduct($identifier: ProductIdentifierInput!) {
+      product: productByIdentifier(identifier: $identifier) {
+        title handle status onlineStoreUrl productType vendor tags description(truncateAt: 2500)
+        priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+        options { name values }
+        variants(first: 60) { pageInfo { hasNextPage } nodes { title price compareAtPrice availableForSale } }
+      }
+      shop { currencyCode } }`, { identifier: { handle } });
+  const p = d.product;
+  // Só o que um cliente consegue ver na loja.
+  if (!p || !p.onlineStoreUrl || !["ACTIVE", "UNLISTED"].includes(p.status)) return null;
+  const cur = d.shop.currencyCode;
+  return {
+    titulo: p.title, url: p.onlineStoreUrl, tipo: p.productType || null, marca: p.vendor || null, etiquetas: p.tags.slice(0, 20),
+    descricao: p.description, preco: formatPrice(p.priceRangeV2.minVariantPrice, p.priceRangeV2.maxVariantPrice),
+    opcoes: p.options.map((o) => ({ nome: o.name, valores: o.values.slice(0, 40) })),
+    variantes: p.variants.nodes.map((v) => ({
+      variante: v.title, preco: money({ amount: v.price, currencyCode: cur }),
+      preco_antes: v.compareAtPrice ? money({ amount: v.compareAtPrice, currencyCode: cur }) : null, disponivel: v.availableForSale,
+    })),
+    mais_variantes: p.variants.pageInfo.hasNextPage,
+  };
+}
+
+// Informação pública da loja para o assistente: nome, domínio, contacto, políticas e páginas publicadas.
+// Cada parte falha sozinha (as políticas pedem read_legal_policies; as páginas read_online_store_pages).
+export type StoreInfo = {
+  name: string; url: string; email: string | null;
+  policies: { title: string; url: string; text: string }[];
+  pages: { title: string; url: string; text: string }[];
+  missing: string[];
+};
+let storeInfo: { value: StoreInfo; until: number } | null = null;
+
+export async function supportStoreInfo(toText: (html: string) => string): Promise<StoreInfo> {
+  if (storeInfo && storeInfo.until > Date.now()) return storeInfo.value;
+  const info = await storefrontInfo();
+  const shop = await graphql<{ shop: { name: string; contactEmail: string | null } }>("query { shop { name contactEmail } }");
+  const missing: string[] = [];
+  let policies: StoreInfo["policies"] = [];
+  try {
+    const p = await graphql<{ shop: { shopPolicies: { title: string; body: string; url: string }[] } }>(
+      "query { shop { shopPolicies { title body url } } }");
+    policies = p.shop.shopPolicies.map((x) => ({ title: x.title, url: x.url, text: toText(x.body).slice(0, 12000) })).filter((x) => x.text)
+      .sort((a, b) => a.title.localeCompare(b.title));
+  } catch {
+    missing.push("políticas da loja (autorização read_legal_policies)");
+  }
+  const pages: StoreInfo["pages"] = [];
+  if (info.pages) {
+    try {
+      const p = await graphql<{ pages: { nodes: { title: string; handle: string; body: string; isPublished: boolean }[] } }>(
+        `query { pages(first: 60, query: "published_status:published", sortKey: TITLE) { nodes { title handle body isPublished } } }`);
+      let total = 0;
+      for (const g of p.pages.nodes) {
+        if (!g.isPublished) continue;
+        const text = toText(g.body).slice(0, 6000);
+        if (!text || total + text.length > 60000) continue;
+        total += text.length;
+        pages.push({ title: g.title, url: `${info.url}/pages/${g.handle}`, text });
+      }
+    } catch {
+      missing.push("páginas da loja");
+    }
+  } else missing.push("páginas da loja (autorização read_online_store_pages)");
+  const value = { name: shop.shop.name, url: info.url, email: shop.shop.contactEmail, policies, pages, missing };
+  // 30 minutos; com partes em falta, volta a tentar em 5 (uma autorização pode ter acabado de ser aprovada).
+  storeInfo = { value, until: Date.now() + (missing.length ? 5 : 30) * 60 * 1000 };
+  return value;
+}

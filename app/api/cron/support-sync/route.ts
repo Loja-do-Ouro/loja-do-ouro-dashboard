@@ -15,5 +15,7 @@ export async function GET(request: Request) {
   const results = await runSync({ force: true, budgetMs: 100_000 });
   // Anexos enviados: os bytes apagam-se ao fim de 30 dias (e os nunca enviados ao fim de 1 dia).
   const purged = await serverRpc<number>("ldo_support_uploads_purge").catch(() => null);
-  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged }, { headers: { "Cache-Control": "no-store" } });
+  // Pedidos à IA: o registo apaga-se ao fim de 180 dias.
+  const aiPurged = await serverRpc<number>("ldo_support_ai_purge").catch(() => null);
+  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged, aiPurged }, { headers: { "Cache-Control": "no-store" } });
 }

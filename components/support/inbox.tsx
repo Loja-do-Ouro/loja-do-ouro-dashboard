@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AiPanel } from "./ai-panel";
 import { AttachmentViewer, sizeLabel, type ViewerItem } from "./attachment-viewer";
 import { CatalogPicker } from "./catalog-picker";
 import {
@@ -148,6 +149,8 @@ function store(key: string, value: unknown) {
 }
 // No telemóvel só uma área está visível; a conversa só conta como aberta quando é a que se vê.
 const narrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
+// Até 1190 px a coluna do cliente/IA ocupa o lugar da conversa (não aparecem lado a lado).
+const sideOverlays = () => typeof window !== "undefined" && window.matchMedia("(max-width: 1190px)").matches;
 
 export function SupportInbox({
   zendeskSubdomain,
@@ -184,6 +187,8 @@ export function SupportInbox({
   const [uploading, setUploading] = useState(false);
   const uploadingRef = useRef(false);
   const [showCatalog, setShowCatalog] = useState(false);
+  const [infoTab, setInfoTab] = useState<"cliente" | "ia">("cliente");
+  const [aiRequest, setAiRequest] = useState<{ n: number } | null>(null);
   // Miniaturas que não carregaram (ex.: endereço da Meta expirado): mostram-se como aviso, nunca vazias.
   const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -330,6 +335,7 @@ export function SupportInbox({
       setActionNote("");
       setMode("reply");
       setShowCatalog(false);
+      setAiRequest(null);
     }
     keepUnread.current.delete(id);
     setSelected(id);
@@ -427,6 +433,22 @@ export function SupportInbox({
           ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
           : "";
   const noteBlocked = !c ? "A carregar…" : isZendesk && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
+
+  // Assistente de IA: pede uma proposta (abre o separador da IA) e passa-a para o campo de resposta.
+  // A proposta nunca é enviada sozinha: fica no rascunho para rever e enviar.
+  const suggestReply = () => {
+    setInfoTab("ia");
+    if (sideOverlays()) setPane("info");
+    setAiRequest({ n: Date.now() });
+  };
+  const useAiDraft = (value: string, how: "replace" | "append") => {
+    if (!selected) return;
+    const current = drafts[selected]?.reply || "";
+    if (how === "replace" && current.trim() && current.trim() !== value.trim() && !confirm("Substituir o texto que já está no campo de resposta pela proposta da IA?")) return;
+    setDraft(selected, "reply", how === "append" && current.trim() ? `${current.replace(/\s+$/, "")}\n\n${value}` : value);
+    setMode("reply");
+    if (sideOverlays()) setPane("conversation");
+  };
 
   async function send() {
     if (!selected || !c || (!text.trim() && !pendingHere.length) || sendingId || uploading) return;
@@ -610,7 +632,8 @@ export function SupportInbox({
                   </small>
                 </div>
                 <span className={`status-badge ${c.conversation.status}`}>{STATUS_LABEL[c.conversation.status]}</span>
-                <button type="button" className="secondary-button support-info-toggle" onClick={() => setPane("info")}>Cliente</button>
+                <button type="button" className="secondary-button support-info-toggle" onClick={() => { setInfoTab("cliente"); setPane("info"); }}>Cliente</button>
+                <button type="button" className="secondary-button support-info-toggle" onClick={() => { setInfoTab("ia"); setPane("info"); }}>✨ IA</button>
               </header>
               {c.presence.length > 0 && (
                 <div className="notice support-presence" role="status">
@@ -762,6 +785,9 @@ export function SupportInbox({
                       {mode === "reply" && (
                         <button type="button" className="secondary-button" onClick={() => setShowCatalog((v) => !v)} aria-expanded={showCatalog}>🛍 Produto</button>
                       )}
+                      {mode === "reply" && (
+                        <button type="button" className="secondary-button" onClick={suggestReply} title="A IA propõe uma resposta (não envia nada).">✨ Sugerir resposta</button>
+                      )}
                       <small>Ctrl+Enter para enviar</small>
                       <button type="button" onClick={send} disabled={sending || uploading || (!text.trim() && !pendingHere.length)}>
                         {sending ? "A enviar…" : mode === "reply" ? "Enviar ao cliente" : "Guardar nota"}
@@ -785,18 +811,37 @@ export function SupportInbox({
             }}
           />
         )}
-        <aside className="support-info" aria-label="Informação do cliente">
+        <aside className="support-info" aria-label="Cliente e assistente de IA">
           {c ? (
-            <CustomerPanel
-              key={c.conversation.id}
-              d={c}
-              zendeskSubdomain={zendeskSubdomain}
-              actionError={actionError}
-              onBack={() => setPane("conversation")}
-              onAct={act}
-              onReload={() => loadDetail(c.conversation.id)}
-              onOpen={(id) => open(id)}
-            />
+            <>
+              <div className="info-tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={infoTab === "cliente"} className={infoTab === "cliente" ? "active" : ""} onClick={() => setInfoTab("cliente")}>Cliente</button>
+                <button type="button" role="tab" aria-selected={infoTab === "ia"} className={infoTab === "ia" ? "active" : ""} onClick={() => setInfoTab("ia")}>✨ Assistente IA</button>
+              </div>
+              {/* Os dois ficam montados: mudar de separador não perde um pedido à IA em curso. */}
+              <div className="info-pane" hidden={infoTab !== "cliente"}>
+                <CustomerPanel
+                  key={c.conversation.id}
+                  d={c}
+                  zendeskSubdomain={zendeskSubdomain}
+                  actionError={actionError}
+                  onBack={() => setPane("conversation")}
+                  onAct={act}
+                  onReload={() => loadDetail(c.conversation.id)}
+                  onOpen={(id) => open(id)}
+                />
+              </div>
+              <div className="info-pane" hidden={infoTab !== "ia"}>
+                <AiPanel
+                  key={c.conversation.id}
+                  conversationId={c.conversation.id}
+                  request={aiRequest}
+                  replyBlocked={replyBlocked}
+                  onUseDraft={useAiDraft}
+                  onBack={() => setPane("conversation")}
+                />
+              </div>
+            </>
           ) : (
             <p className="support-empty">Informação do cliente.</p>
           )}

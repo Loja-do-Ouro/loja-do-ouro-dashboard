@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { metricoolConfigured } from "@/lib/bi/metricool";
+import { shopifyConfigured, supportStoreInfo, type StoreInfo } from "@/lib/bi/shopify";
 import { homePath } from "@/lib/permissions";
+import { aiConfigured } from "@/lib/support/ai";
+import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { serverConfigured, sessionRpc } from "@/lib/support/db";
 import { metricoolDiagnostics } from "@/lib/support/metricool";
@@ -11,7 +14,7 @@ import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { disconnectZendesk, savePolling, setSupportAccess, syncNow } from "./actions";
+import { deleteKnowledge, disconnectZendesk, saveAiSettings, saveKnowledge, savePolling, setSupportAccess, syncNow } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,6 +28,12 @@ type State = {
   counts: { conversations: number; open: number };
   audit: { action: string; details: Record<string, unknown>; created_at: string; actor: string }[];
 };
+type AiAdmin = {
+  settings: { ai_enabled: boolean; ai_daily_limit: number; ai_monthly_budget: number };
+  knowledge: { id: string; title: string; body: string; position: number; updated_at: string; updated_by_name: string | null }[];
+  usage: { month_cost: number; month_requests: number; month_errors: number; by_user: { name: string; requests: number; cost: number }[] };
+};
+const usd = (v: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "USD" }).format(Number(v) || 0);
 
 const STATUS: Record<string, [string, string]> = {
   active: ["Ativo", "ok"],
@@ -39,7 +48,20 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const viewer = await requireViewer();
   if (!viewer.isSuper) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const state = await sessionRpc<State>(viewer.session, "ldo_support_admin_state");
+  const [state, ai] = await Promise.all([
+    sessionRpc<State>(viewer.session, "ldo_support_admin_state"),
+    sessionRpc<AiAdmin>(viewer.session, "ldo_support_ai_admin"),
+  ]);
+  // O que a IA consegue ler da loja online (políticas e páginas dependem de autorizações da app Shopify).
+  let store: StoreInfo | null = null;
+  let storeError = "";
+  if (shopifyConfigured()) {
+    try {
+      store = await supportStoreInfo(htmlToText);
+    } catch (e) {
+      storeError = e instanceof Error ? e.message : "Shopify indisponível.";
+    }
+  } else storeError = "Ligação Shopify por configurar.";
   const z = zendeskReadiness();
   const diag = q.diagnostico === "1";
   const [zd, fb, ig] = diag
@@ -152,6 +174,95 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           <p className="panel-note">WhatsApp Cloud API, independente do Zendesk. Nada foi ligado: o número e o WhatsApp atual nos telemóveis não foram alterados.</p>
         </Panel>
       </div>
+
+      <Panel title="Assistente de IA" eyebrow="RESPOSTAS COM IA" id="ia">
+        <div className="two-col">
+          <div>
+            <dl className="config-list">
+              <dt>Chave da Anthropic</dt><dd>{yes(aiConfigured())} <small className="muted">ANTHROPIC_API_KEY (variável sensível na Vercel; nunca no GitHub)</small></dd>
+              <dt>Modelo</dt><dd>Claude Opus 5.5 <code>{AI_MODEL}</code> · esforço médio</dd>
+              <dt>O que a IA lê</dt><dd>A conversa aberta e o cliente, a base de conhecimento abaixo, as lojas físicas do dashboard e a loja online. Consulta, quando precisa, produtos, encomendas do cliente da conversa, respostas anteriores da equipa e outras conversas do mesmo cliente. Só leituras.</dd>
+              <dt>Loja online</dt>
+              <dd>
+                {store ? (
+                  <>
+                    {store.policies.length} política(s) · {store.pages.length} página(s) publicadas
+                    {store.missing.length > 0 && <small className="muted block">Em falta: {store.missing.join("; ")}.</small>}
+                  </>
+                ) : (
+                  <span className="error-text">{storeError}</span>
+                )}
+              </dd>
+              <dt>Este mês</dt><dd>{usd(ai.usage.month_cost)} estimados · {ai.usage.month_requests} pedidos{ai.usage.month_errors ? ` (${ai.usage.month_errors} com erro)` : ""}</dd>
+            </dl>
+            {ai.usage.by_user.length > 0 && (
+              <div className="table-scroll">
+                <table className="left-table">
+                  <thead><tr><th>Pessoa</th><th>Pedidos</th><th>Custo estimado</th></tr></thead>
+                  <tbody>
+                    {ai.usage.by_user.map((u) => <tr key={u.name}><td>{u.name}</td><td>{u.requests}</td><td>{usd(u.cost)}</td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <form action={saveAiSettings} className="inline-form">
+            <label className="checkbox-label">
+              <input type="checkbox" name="ai_enabled" defaultChecked={ai.settings.ai_enabled} /> Assistente ligado
+            </label>
+            <label>
+              Pedidos por pessoa e por dia
+              <input type="number" name="ai_daily_limit" min={0} max={1000} step={1} defaultValue={ai.settings.ai_daily_limit} />
+            </label>
+            <label>
+              Orçamento mensal (US$)
+              <input type="number" name="ai_monthly_budget" min={0} max={10000} step={1} defaultValue={ai.settings.ai_monthly_budget} />
+            </label>
+            <button type="submit" className="secondary-button">Guardar</button>
+          </form>
+        </div>
+        <p className="panel-note">
+          A IA propõe respostas e responde a perguntas da equipa; nunca envia nada ao cliente. Cada pedido custa normalmente alguns cêntimos (estimativa no histórico de cada pessoa e acima; a fatura da Anthropic é a referência). Ao atingir o orçamento do mês, os pedidos param até ao mês seguinte ou até o aumentar. A conversa e os dados consultados são enviados à Anthropic para gerar a resposta: a Anthropic não usa os dados da API para treinar modelos e guarda-os por um período limitado. Para criar a chave: console.anthropic.com → API Keys → Create Key; depois, na Vercel, Settings → Environment Variables → ANTHROPIC_API_KEY (Sensitive, Production e Preview) e um novo deploy.
+        </p>
+
+        <h3 className="panel-subtitle">Base de conhecimento</h3>
+        <p className="panel-note">O que a IA deve saber sobre a empresa e que não está na loja online: moradas e horários das lojas, prazos e custos de envio, trocas e garantias, reparações, gravações, compra de ouro, tom de voz e assinatura. Secções sem texto são ignoradas. A IA trata isto como verdade: escreva só o que está em vigor.</p>
+        <div className="knowledge-list">
+          {ai.knowledge.map((k) => (
+            <details key={k.id} className={`knowledge-item${k.body.trim() ? "" : " empty"}`}>
+              <summary>
+                {k.title}
+                <small>{k.body.trim() ? `${k.body.length} caracteres · ${k.updated_by_name ? `${k.updated_by_name}, ` : ""}${timestamp(k.updated_at)}` : "por preencher"}</small>
+              </summary>
+              <form action={saveKnowledge}>
+                <input type="hidden" name="id" value={k.id} />
+                <div className="knowledge-row">
+                  <input name="title" defaultValue={k.title} maxLength={120} required aria-label="Título" />
+                  <input type="number" name="position" defaultValue={k.position} min={0} max={10000} aria-label="Ordem" title="Ordem" />
+                </div>
+                <textarea name="body" defaultValue={k.body} maxLength={20000} aria-label={`Texto de ${k.title}`} />
+                <div className="knowledge-row">
+                  <button type="submit" className="secondary-button">Guardar secção</button>
+                </div>
+              </form>
+              <form action={deleteKnowledge} className="knowledge-row">
+                <input type="hidden" name="id" value={k.id} />
+                <label className="checkbox-label"><input type="checkbox" required /> Confirmo</label>
+                <button type="submit" className="secondary-button">Apagar secção</button>
+              </form>
+            </details>
+          ))}
+        </div>
+        <form action={saveKnowledge} className="knowledge-new">
+          <strong>Nova secção</strong>
+          <div className="knowledge-row">
+            <input name="title" placeholder="Título (ex.: Envios para as ilhas)" maxLength={120} required aria-label="Título da nova secção" />
+            <input type="number" name="position" defaultValue={(ai.knowledge.at(-1)?.position ?? 0) + 10} min={0} max={10000} aria-label="Ordem" title="Ordem" />
+          </div>
+          <textarea name="body" maxLength={20000} placeholder="Texto que a IA deve conhecer…" aria-label="Texto da nova secção" />
+          <div className="knowledge-row"><button type="submit" className="secondary-button">Criar secção</button></div>
+        </form>
+      </Panel>
 
       <Panel title="Quem usa o Apoio ao Cliente" eyebrow="ACESSOS">
         <div className="table-scroll">
