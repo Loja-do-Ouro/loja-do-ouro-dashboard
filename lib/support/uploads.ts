@@ -15,9 +15,10 @@ export async function saveUpload(userId: string, conversationId: string, name: s
   if (bytes.byteLength > MAX_UPLOAD_BYTES) throw new Error("Ficheiro demasiado grande (máximo 4 MB depois de reduzido).");
   const type = sniffType(bytes);
   if (!type || !ALLOWED.has(type)) throw new Error("Só se podem anexar imagens JPEG, PNG ou WebP e PDF.");
-  const clean = name.replace(/[\/:*?"<>|\u0000-\u001f]+/g, "_").trim().slice(0, 120) || "anexo";
+  const clean = name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim().slice(0, 120) || "anexo";
   const ext = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[type]!;
-  const finalName = clean.toLowerCase().endsWith(`.${ext}`) ? clean : `${clean.replace(/\.[^.]*$/, "")}.${ext}`;
+  // Só se tira uma extensão de ficheiro conhecida (um nome como "Fio 19.2K" fica inteiro).
+  const finalName = clean.toLowerCase().endsWith(`.${ext}`) ? clean : `${clean.replace(/\.(jpe?g|png|webp|gif|heic|heif|pdf)$/i, "") || "anexo"}.${ext}`;
   return serverRpc<{ id: string; name: string; type: string; size: number }>("ldo_support_upload_save", {
     p_user_id: userId, p_conversation: conversationId, p_name: finalName, p_content_type: type,
     p_data_b64: Buffer.from(bytes).toString("base64"),

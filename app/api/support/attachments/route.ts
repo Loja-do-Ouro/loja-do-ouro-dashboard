@@ -50,7 +50,7 @@ function respond(request: Request, bytes: Uint8Array, name: string, download: bo
   const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range") || "");
   if ((kind === "video" || kind === "audio") && range) {
     const total = bytes.byteLength;
-    let start = range[1] ? Number(range[1]) : total - Number(range[2] || 0);
+    let start = range[1] ? Number(range[1]) : Math.max(0, total - Number(range[2] || 0));
     let end = range[1] ? (range[2] ? Number(range[2]) : total - 1) : total - 1;
     if (!range[1] && !range[2]) start = 0;
     end = Math.min(end, total - 1);

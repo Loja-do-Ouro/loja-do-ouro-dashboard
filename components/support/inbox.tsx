@@ -24,7 +24,7 @@ type Item = {
 type List = { items: Item[]; counts: { all: number; mine: number; unassigned: number; unread: number }; sources: Source[]; poll_seconds: number };
 type Message = {
   id: string; kind: Kind; author_name: string | null; author_user_id: string | null; body: string;
-  attachments: { name: string; type: string | null; size: number | null; ref: string }[];
+  attachments: { name: string; type: string | null; size: number | null; ref: string; inline?: boolean }[];
   created_at: string; inserted_at: string; deleted: boolean; delivery: Delivery | null; delivery_detail: string | null; external: boolean;
 };
 type User = { id: string; name: string; me: boolean; zendesk: boolean; zendesk_name: string | null; zendesk_status: string | null };
@@ -88,11 +88,17 @@ async function api<T>(path: string, init?: { method?: string; body?: unknown }):
 }
 
 type Pending = { id: string; name: string; type: string; size: number; preview: string | null };
+const dropPreview = (u: Pending) => {
+  if (u.preview?.startsWith("blob:")) URL.revokeObjectURL(u.preview);
+};
 
 // As fotografias do telemóvel têm muitas vezes 5–10 MB; o servidor aceita até 4 MB por pedido. As imagens
 // são reduzidas aqui (máx. 2048 px, JPEG), o que também retira os dados de localização (EXIF).
 async function prepareFile(file: File): Promise<Blob> {
-  if (file.type === "application/pdf") return file;
+  if (file.type === "application/pdf") {
+    if (file.size > 4 * 1024 * 1024) throw new Error("PDF demasiado grande (máximo 4 MB).");
+    return file;
+  }
   if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type) && !/\.(jpe?g|png|webp|heic)$/i.test(file.name)) throw new Error("Só imagens (JPEG, PNG, WebP) ou PDF.");
   const bitmap = await createImageBitmap(file).catch(() => null);
   if (!bitmap) throw new Error("Não foi possível ler esta imagem. Experimente JPEG ou PNG.");
@@ -176,6 +182,7 @@ export function SupportInbox({
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; index: number } | null>(null);
   const [pending, setPending] = useState<Record<string, Pending[]>>({});
   const [uploading, setUploading] = useState(false);
+  const uploadingRef = useRef(false);
   const [showCatalog, setShowCatalog] = useState(false);
   // Miniaturas que não carregaram (ex.: endereço da Meta expirado): mostram-se como aviso, nunca vazias.
   const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set());
@@ -203,6 +210,11 @@ export function SupportInbox({
     };
   }, []);
   useEffect(() => store("ldo-support-drafts", drafts), [drafts]);
+  useEffect(() => {
+    const saved = loadStored("ldo-support-uploads") as Record<string, Pending[]>;
+    setPending(Object.fromEntries(Object.entries(saved).map(([k, list]) => [k, (list || []).map((u) => ({ ...u, preview: null }))])));
+  }, []);
+  useEffect(() => store("ldo-support-uploads", Object.fromEntries(Object.entries(pending).map(([k, list]) => [k, list.map((u) => ({ ...u, preview: null }))]))), [pending]);
   const conversationShown = (id: string) => selectedRef.current === id && (!narrow() || paneRef.current === "conversation");
   useEffect(() => {
     const t = setTimeout(() => setQuery(q.trim()), 350);
@@ -342,20 +354,27 @@ export function SupportInbox({
     setText(v);
   };
   const sending = sendingId === selected;
-  const pendingHere = (selected && pending[selected]) || [];
+  const slotOf = (id: string, m: "reply" | "note") => `${id}:${m}`;
+  const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
   // Zendesk: até 5 anexos (imagens ou PDF). Facebook/Instagram: uma imagem por mensagem, só em respostas.
   const maxAttachments = !c ? 0 : isZendesk ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
   const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
     if (!selected) return;
+    if (uploadingRef.current) {
+      setSendError("Aguarde que o anexo anterior termine de carregar.");
+      return;
+    }
     const id = selected;
-    const room = maxAttachments - ((pending[id] || []).length);
+    const slot = slotOf(id, mode);
+    const room = maxAttachments - ((pending[slot] || []).length);
     const list = [...files].slice(0, Math.max(0, room));
     if (!list.length) {
       setSendError(maxAttachments ? `No máximo ${maxAttachments} anexo(s) nesta mensagem.` : attachHint);
       return;
     }
+    uploadingRef.current = true;
     setUploading(true);
     setSendError("");
     try {
@@ -364,33 +383,35 @@ export function SupportInbox({
         const blob = await prepareFile(f);
         const up = await uploadBlob(id, f.name, blob);
         const preview = up.type.startsWith("image/") ? URL.createObjectURL(blob) : null;
-        setPending((p) => ({ ...p, [id]: [...(p[id] || []), { ...up, preview }] }));
+        setPending((p) => ({ ...p, [slot]: [...(p[slot] || []), { ...up, preview }] }));
       }
     } catch (e) {
       if (selectedRef.current === id) setSendError(e instanceof Error ? e.message : "Não foi possível anexar.");
     } finally {
+      uploadingRef.current = false;
       setUploading(false);
     }
   }
 
-  async function insertCatalog(item: { title: string; url: string; image: string | null; price: string | null }, withImage: boolean) {
+  async function insertCatalog(item: { title: string; url: string; image: string | null; photo: string | null; price: string | null }, withImage: boolean) {
     if (!selected) return;
     const id = selected;
+    const slot = slotOf(id, mode);
     const line = `${item.title}${item.price ? ` — ${item.price}` : ""}\n${item.url}`;
     const current = drafts[id]?.[mode] || "";
     setDraft(id, mode, current ? `${current.replace(/\s+$/, "")}\n\n${line}` : line);
     setShowCatalog(false);
-    if (withImage && item.image && maxAttachments > (pending[id] || []).length) {
+    if (withImage && item.photo && maxAttachments > (pending[slot] || []).length && !uploadingRef.current) {
+      uploadingRef.current = true;
       setUploading(true);
       try {
-        // A foto em tamanho maior (sem o recorte de miniatura da pesquisa).
-        const full = new URL(item.image);
-        ["width", "height", "crop"].forEach((k) => full.searchParams.delete(k));
-        const up = await uploadBlob(id, item.title.slice(0, 80), null, full.toString());
-        setPending((p) => ({ ...p, [id]: [...(p[id] || []), { ...up, preview: item.image }] }));
+        // Fotografia já reduzida pela Shopify (JPEG até 1600 px).
+        const up = await uploadBlob(id, item.title.slice(0, 80), null, item.photo);
+        setPending((p) => ({ ...p, [slot]: [...(p[slot] || []), { ...up, preview: item.image }] }));
       } catch (e) {
         if (selectedRef.current === id) setSendError(e instanceof Error ? e.message : "Não foi possível anexar a foto do produto.");
       } finally {
+        uploadingRef.current = false;
         setUploading(false);
       }
     }
@@ -412,8 +433,8 @@ export function SupportInbox({
     const blocked = mode === "reply" ? replyBlocked : noteBlocked;
     if (blocked) return;
     const id = selected, which = mode, body = text.trim();
-    const uploads = (pending[id] || []).map((u) => u.id);
-    const slot = `${id}:${which}`;
+    const slot = slotOf(id, which);
+    const uploads = (pending[slot] || []).map((u) => u.id);
     // A mesma chave só se reutiliza para o mesmo texto (pedido perdido): o servidor nunca envia duas vezes.
     const prev = pendingKey.current[slot];
     const key = prev && prev.body === body + "|" + uploads.join(",") ? prev.key : crypto.randomUUID();
@@ -433,7 +454,8 @@ export function SupportInbox({
         if (here()) setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
       } else {
         setDraft(id, which, "");
-        setPending((p) => ({ ...p, [id]: [] }));
+        (pending[slot] || []).forEach(dropPreview);
+        setPending((p) => ({ ...p, [slot]: [] }));
         if (r.delivery === "uncertain" && here()) setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
       }
       if (here()) await loadDetail(id);
@@ -615,12 +637,18 @@ export function SupportInbox({
                             setViewer({ items: viewerItems, index: viewerItems.indexOf(item) });
                           };
                           // Imagens pequenas aparecem logo; as grandes (vindas do Zendesk) só ao abrir.
-                          return item.kind === "image" && (a.size ?? 0) <= 4 * 1024 * 1024 && !brokenThumbs.has(item.href) ? (
+                          return item.kind === "image" && (a.size ?? 0) <= 4 * 1024 * 1024 && !brokenThumbs.has(item.href) && !(a.inline && (a.size ?? 0) < 20 * 1024) ? (
                             <button key={i} type="button" className="attachment-thumb" onClick={openIt} title={`Ver ${a.name}`}>
                               <img src={item.href} alt={a.name} loading="lazy" decoding="async" onError={() => setBrokenThumbs((b) => new Set(b).add(item.href))} />
                             </button>
-                          ) : item.kind === "audio" ? (
-                            <audio key={i} src={item.href} controls preload="none" />
+                          ) : item.kind === "audio" && !brokenThumbs.has(item.href) ? (
+                            <span key={i} className="attachment-audio">
+                              <button type="button" className="attachment-chip" onClick={openIt} title={`Abrir ${a.name}`}>
+                                <span aria-hidden="true">🎵</span>
+                                {a.name}
+                              </button>
+                              <audio src={item.href} controls preload="none" onError={() => setBrokenThumbs((b) => new Set(b).add(item.href))} />
+                            </span>
                           ) : (
                             <button key={i} type="button" className="attachment-chip" onClick={openIt}>
                               <span aria-hidden="true">{item.kind === "pdf" ? "📄" : item.kind === "video" ? "🎬" : item.kind === "image" ? "🖼" : "📎"}</span>
@@ -686,10 +714,11 @@ export function SupportInbox({
                     <textarea
                       onPaste={(e) => {
                         const files = [...e.clipboardData.files];
-                        if (files.length && maxAttachments) {
-                          e.preventDefault();
-                          addFiles(files);
-                        }
+                        if (!files.length || !maxAttachments) return;
+                        // Excel/Word põem texto e uma imagem da seleção: fica o texto.
+                        if (e.clipboardData.getData("text/plain").trim()) return;
+                        e.preventDefault();
+                        addFiles(files);
                       }}
                       value={text}
                       onChange={(e) => typed(e.target.value)}
@@ -705,7 +734,11 @@ export function SupportInbox({
                           <li key={u.id}>
                             {u.preview ? <img src={u.preview} alt="" /> : <span aria-hidden="true">📄</span>}
                             <span>{u.name}<small> · {sizeLabel(u.size)}</small></span>
-                            <button type="button" aria-label={`Retirar ${u.name}`} onClick={() => setPending((p) => ({ ...p, [selected!]: (p[selected!] || []).filter((x) => x.id !== u.id) }))}>✕</button>
+                            <button type="button" aria-label={`Retirar ${u.name}`} onClick={() => {
+                              const slot = slotOf(selected!, mode);
+                              dropPreview(u);
+                              setPending((p) => ({ ...p, [slot]: (p[slot] || []).filter((x) => x.id !== u.id) }));
+                            }}>✕</button>
                           </li>
                         ))}
                       </ul>

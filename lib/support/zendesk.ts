@@ -215,7 +215,7 @@ async function asUser<T>(userId: string, method: string, path: string, body?: un
 }
 
 type ZUser = { id: number; name: string; email: string | null; phone: string | null; role: string; role_type?: number | null; photo?: { content_url?: string } | null };
-type ZAttachment = { id: number; file_name: string; content_url: string; content_type: string | null; size: number | null; malware_scan_result?: string };
+type ZAttachment = { id: number; file_name: string; content_url: string; content_type: string | null; size: number | null; inline?: boolean; malware_scan_result?: string };
 type ZComment = { id: number; public: boolean; author_id: number; body: string; html_body?: string; plain_body?: string; attachments: ZAttachment[]; created_at: string };
 type ZTicket = { id: number; subject: string | null; status: string; requester_id: number; assignee_id: number | null; via?: { channel?: string }; updated_at: string; created_at: string };
 
@@ -223,7 +223,8 @@ const attachmentsOf = (c: ZComment): Attachment[] =>
   (c.attachments || [])
     // Ficheiros que o Zendesk marcou como maliciosos nunca são disponibilizados.
     .filter((a) => a.malware_scan_result !== "malware_found")
-    .map((a) => ({ name: a.file_name, type: a.content_type, size: a.size, ref: `zendesk:${a.id}` }));
+    // inline: imagem embutida no corpo do email (muitas vezes logótipos de assinatura).
+    .map((a) => ({ name: a.file_name, type: a.content_type, size: a.size, ref: `zendesk:${a.id}`, ...(a.inline ? { inline: true } : {}) }));
 
 function toConversation(t: ZTicket, users: Map<number, ZUser>, comments: ZComment[] | null): IngestConversation {
   const requester = users.get(t.requester_id);
@@ -449,8 +450,21 @@ const ZENDESK_FILE_HOST = /(^|\.)zendesk\.com$|(^|\.)zdusercontent\.com$/;
 // Anexo de um comentário: o servidor procura-o no próprio ticket (nunca segue um URL vindo do browser).
 // O Zendesk responde com um redirecionamento para um endereço temporário; ficheiros pequenos são
 // lidos pelo servidor (cabeçalhos seguros), os grandes abrem diretamente desse endereço temporário.
+// Vários anexos do mesmo ticket abertos ao mesmo tempo (miniaturas) reutilizam a mesma lista de comentários.
+const commentsCache = new Map<string, { at: number; list: ReturnType<typeof ticketComments> }>();
+function cachedComments(userId: string, ticketId: string) {
+  const key = `${userId}:${ticketId}`;
+  const hit = commentsCache.get(key);
+  if (hit && Date.now() - hit.at < 60_000) return hit.list;
+  const list = ticketComments(userId, ticketId);
+  list.catch(() => commentsCache.delete(key));
+  commentsCache.set(key, { at: Date.now(), list });
+  if (commentsCache.size > 200) commentsCache.delete(commentsCache.keys().next().value!);
+  return list;
+}
+
 export async function zendeskAttachment(userId: string, ticketId: string, attachmentId: string, maxBytes: number) {
-  const { comments } = await ticketComments(userId, ticketId);
+  const { comments } = await cachedComments(userId, ticketId);
   const a = comments.flatMap((c) => c.attachments || []).find((x) => String(x.id) === attachmentId);
   if (!a || a.malware_scan_result === "malware_found") throw new ZendeskError("Anexo indisponível.", 404);
   if (!ZENDESK_FILE_HOST.test(new URL(a.content_url).hostname)) throw new ZendeskError("Anexo fora do Zendesk recusado.", 400);

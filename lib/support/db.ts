@@ -44,7 +44,7 @@ export type IngestMessage = {
   delivery?: "accepted" | "delivered" | "read" | null;
   deleted?: boolean;
 };
-export type Attachment = { name: string; type: string | null; size: number | null; ref: string };
+export type Attachment = { name: string; type: string | null; size: number | null; ref: string; inline?: boolean };
 export type IngestConversation = {
   external_id: string;
   contact: { external_id: string | null; name?: string | null; email?: string | null; phone?: string | null; handle?: string | null; avatar_url?: string | null };

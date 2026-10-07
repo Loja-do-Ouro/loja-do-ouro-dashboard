@@ -164,26 +164,27 @@ export async function ordersByEmail(email: string) {
 type Money2 = { amount: string; currencyCode: string };
 type CatalogProduct = {
   title: string; handle: string; status: string; onlineStoreUrl: string | null;
-  featuredMedia: { preview: { image: { url: string; altText: string | null } | null } | null } | null;
+  featuredMedia: { preview: { image: { url: string; photo: string; altText: string | null } | null } | null } | null;
   priceRangeV2: { minVariantPrice: Money2; maxVariantPrice: Money2 };
   totalInventory: number | null; tracksInventory: boolean;
-  variants: { nodes: { availableForSale: boolean }[] };
+  variants: { pageInfo: { hasNextPage: boolean }; nodes: { availableForSale: boolean }[] };
 };
 type CatalogCollection = { title: string; handle: string; image: { url: string } | null };
 type CatalogPage = { title: string; handle: string; isPublished: boolean };
-export type CatalogItem = { kind: "product" | "collection" | "page"; title: string; url: string; image: string | null; price: string | null; available: boolean | null };
+// image: miniatura; photo: fotografia para anexar (JPEG até 1600 px, gerada pela Shopify).
+export type CatalogItem = { kind: "product" | "collection" | "page"; title: string; url: string; image: string | null; photo: string | null; price: string | null; available: boolean | null };
 
-let storefront: { url: string; scopes: Set<string>; until: number } | null = null;
+let storefront: { url: string; pages: boolean; until: number } | null = null;
+const PAGE_SCOPES = ["read_online_store_pages", "write_online_store_pages", "read_content", "write_content"];
 
 async function storefrontInfo() {
   if (storefront && storefront.until > Date.now()) return storefront;
   const d = await graphql<{ shop: { primaryDomain: { url: string } | null; url: string }; currentAppInstallation: { accessScopes: { handle: string }[] } }>(
     "query { shop { url primaryDomain { url } } currentAppInstallation { accessScopes { handle } } }");
-  storefront = {
-    url: (d.shop.primaryDomain?.url || d.shop.url).replace(/\/+$/, ""),
-    scopes: new Set(d.currentAppInstallation.accessScopes.map((s) => s.handle)),
-    until: Date.now() + 30 * 60 * 1000,
-  };
+  const scopes = new Set(d.currentAppInstallation.accessScopes.map((s) => s.handle));
+  const pages = PAGE_SCOPES.some((h) => scopes.has(h));
+  // Sem a autorização das páginas volta a verificar-se em 2 minutos (pode ter acabado de ser aprovada).
+  storefront = { url: (d.shop.primaryDomain?.url || d.shop.url).replace(/\/+$/, ""), pages, until: Date.now() + (pages ? 30 : 2) * 60 * 1000 };
   return storefront;
 }
 
@@ -201,13 +202,12 @@ export async function searchCatalog(text: string): Promise<{ items: CatalogItem[
   const terms = catalogTerms(text);
   if (!terms) return { items: [], pages: false };
   const info = await storefrontInfo();
-  const pages = info.scopes.has("read_online_store_pages") || info.scopes.has("read_content");
-  const d = await graphql<{ products: { nodes: CatalogProduct[] }; collections: { nodes: CatalogCollection[] }; pages?: { nodes: CatalogPage[] } }>(
+  const run = (pages: boolean) => graphql<{ products: { nodes: CatalogProduct[] }; collections: { nodes: CatalogCollection[] }; pages?: { nodes: CatalogPage[] } }>(
     `query Catalog($p: String!, $c: String!${pages ? ", $g: String!" : ""}) {
       products(first: 8, query: $p, sortKey: RELEVANCE) { nodes { title handle status onlineStoreUrl tracksInventory totalInventory
-        featuredMedia { preview { image { url(transform: { maxWidth: 320, maxHeight: 320 }) altText } } }
+        featuredMedia { preview { image { url(transform: { maxWidth: 320, maxHeight: 320 }) photo: url(transform: { maxWidth: 1600, maxHeight: 1600, preferredContentType: JPG }) altText } } }
         priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
-        variants(first: 20) { nodes { availableForSale } } } }
+        variants(first: 20) { pageInfo { hasNextPage } nodes { availableForSale } } } }
       collections(first: 4, query: $c, sortKey: RELEVANCE) { nodes { title handle image { url(transform: { maxWidth: 320, maxHeight: 320 }) } } }
       ${pages ? "pages(first: 4, query: $g, sortKey: TITLE) { nodes { title handle isPublished } }" : ""}
     }`,
@@ -216,23 +216,62 @@ export async function searchCatalog(text: string): Promise<{ items: CatalogItem[
       c: `published_status:published ${terms}`,
       ...(pages ? { g: `published_status:published ${terms}` } : {}),
     });
+  let pages = info.pages;
+  let d: Awaited<ReturnType<typeof run>>;
+  try {
+    d = await run(pages);
+  } catch (e) {
+    // Uma recusa das páginas não pode impedir a pesquisa de produtos.
+    if (!pages) throw e;
+    pages = false;
+    storefront = { ...info, pages: false, until: Date.now() + 2 * 60 * 1000 };
+    d = await run(false);
+  }
   const items: CatalogItem[] = [
     ...d.products.nodes.filter((p) => p.onlineStoreUrl).map((p) => ({
       kind: "product" as const, title: p.title, url: p.onlineStoreUrl!, image: p.featuredMedia?.preview?.image?.url || null,
+      photo: p.featuredMedia?.preview?.image?.photo || null,
       price: formatPrice(p.priceRangeV2.minVariantPrice, p.priceRangeV2.maxVariantPrice),
-      available: p.variants.nodes.length ? p.variants.nodes.some((v) => v.availableForSale) : null,
+      // "Esgotado" só quando todas as variantes foram vistas; lista incompleta = desconhecido.
+      available: p.variants.nodes.some((v) => v.availableForSale) ? true : p.variants.nodes.length && !p.variants.pageInfo.hasNextPage ? false : null,
     })),
-    ...d.collections.nodes.map((c) => ({ kind: "collection" as const, title: c.title, url: `${info.url}/collections/${c.handle}`, image: c.image?.url || null, price: null, available: null })),
-    ...(d.pages?.nodes || []).filter((g) => g.isPublished).map((g) => ({ kind: "page" as const, title: g.title, url: `${info.url}/pages/${g.handle}`, image: null, price: null, available: null })),
+    ...d.collections.nodes.map((c) => ({ kind: "collection" as const, title: c.title, url: `${info.url}/collections/${c.handle}`, image: c.image?.url || null, photo: null, price: null, available: null })),
+    ...(d.pages?.nodes || []).filter((g) => g.isPublished).map((g) => ({ kind: "page" as const, title: g.title, url: `${info.url}/pages/${g.handle}`, image: null, photo: null, price: null, available: null })),
   ];
   return { items, pages };
 }
 
-// Foto de um produto para anexar (só do CDN da Shopify).
-export async function catalogImage(url: string) {
+// Foto de um produto para anexar: só ficheiros de lojas no CDN da Shopify, já reduzida pela Shopify,
+// sem seguir redirecionamentos e com o tamanho limitado enquanto é lida.
+export async function catalogImage(url: string, max = 4 * 1024 * 1024) {
   const u = new URL(url);
-  if (u.protocol !== "https:" || u.hostname !== "cdn.shopify.com") throw new Error("Imagem fora do CDN da Shopify recusada.");
-  const r = await fetch(u, { cache: "no-store", signal: AbortSignal.timeout(20000) });
-  if (!r.ok) throw new Error(`Imagem do produto indisponível (HTTP ${r.status}).`);
-  return new Uint8Array(await r.arrayBuffer());
+  if (u.protocol !== "https:" || u.hostname !== "cdn.shopify.com" || !u.pathname.startsWith("/s/files/"))
+    throw new Error("Imagem fora do CDN da Shopify recusada.");
+  if (!u.searchParams.has("width")) u.searchParams.set("width", "1600");
+  const r = await fetch(u, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20000) });
+  if (!r.ok || !r.body) throw new Error(`Imagem do produto indisponível (HTTP ${r.status}).`);
+  if (Number(r.headers.get("content-length") || 0) > max) {
+    await r.body.cancel();
+    throw new Error("Imagem do produto demasiado grande.");
+  }
+  const reader = r.body.getReader();
+  const parts: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.byteLength;
+    if (n > max) {
+      await reader.cancel();
+      throw new Error("Imagem do produto demasiado grande.");
+    }
+    parts.push(value);
+  }
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const part of parts) {
+    out.set(part, o);
+    o += part.byteLength;
+  }
+  return out;
 }

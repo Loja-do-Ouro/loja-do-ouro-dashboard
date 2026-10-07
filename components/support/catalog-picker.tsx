@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Item = { kind: "product" | "collection" | "page"; title: string; url: string; image: string | null; price: string | null; available: boolean | null };
+type Item = { kind: "product" | "collection" | "page"; title: string; url: string; image: string | null; photo: string | null; price: string | null; available: boolean | null };
 const KIND = { product: "Produto", collection: "Coleção", page: "Página" } as const;
 
 // Pesquisa na loja online (só produtos, coleções e páginas publicados) para inserir o link na resposta.
@@ -14,12 +14,13 @@ export function CatalogPicker({ onInsert, onClose, canAttach }: {
 }) {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Item[]>([]);
-  const [state, setState] = useState<{ loading: boolean; error: string; pages: boolean }>({ loading: false, error: "", pages: false });
+  const [state, setState] = useState<{ loading: boolean; error: string; pages: boolean | null }>({ loading: false, error: "", pages: null });
 
   useEffect(() => {
     const term = q.trim();
     if (term.length < 2) {
       setItems([]);
+      setState((s) => ({ ...s, loading: false, error: "" }));
       return;
     }
     let cancelled = false;
@@ -30,7 +31,7 @@ export function CatalogPicker({ onInsert, onClose, canAttach }: {
         const j = (await r.json()) as { items?: Item[]; pages?: boolean; error?: string };
         if (cancelled) return;
         setItems(j.items || []);
-        setState({ loading: false, error: j.error || (!r.ok ? "Pesquisa indisponível." : ""), pages: Boolean(j.pages) });
+        setState((s) => ({ loading: false, error: j.error || (!r.ok ? "Pesquisa indisponível." : ""), pages: typeof j.pages === "boolean" && !j.error ? j.pages : s.pages }));
       } catch {
         if (!cancelled) setState((s) => ({ ...s, loading: false, error: "Pesquisa indisponível." }));
       }
@@ -63,7 +64,7 @@ export function CatalogPicker({ onInsert, onClose, canAttach }: {
             </span>
             <span className="catalog-actions">
               <button type="button" className="secondary-button" onClick={() => onInsert(it, false)}>Inserir link</button>
-              {canAttach && it.kind === "product" && it.image && (
+              {canAttach && it.kind === "product" && it.photo && (
                 <button type="button" className="secondary-button" onClick={() => onInsert(it, true)}>Link + foto</button>
               )}
             </span>
@@ -71,7 +72,7 @@ export function CatalogPicker({ onInsert, onClose, canAttach }: {
         ))}
       </ul>
       {q.trim().length >= 2 && !state.loading && !items.length && !state.error && <small className="muted">Sem resultados publicados na loja online.</small>}
-      {!state.pages && <small className="muted block">Páginas da loja: disponíveis quando a app Shopify tiver a autorização read_online_store_pages.</small>}
+      {state.pages === false && <small className="muted block">Páginas da loja: disponíveis quando a app Shopify tiver a autorização read_online_store_pages.</small>}
     </div>
   );
 }

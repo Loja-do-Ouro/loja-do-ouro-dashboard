@@ -3578,7 +3578,7 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .viewer-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 .viewer-actions a, .viewer-actions button { color: #fff; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 500; text-decoration: none; }
 .viewer-actions a:hover, .viewer-actions button:hover { background: rgba(255, 255, 255, 0.2); }
-.viewer-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: auto; background: #151d1a; }
+.viewer-body { flex: 1; min-height: 0; display: flex; align-items: safe center; justify-content: safe center; overflow: auto; background: #151d1a; }
 .viewer-body img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; }
 .viewer-body img.zoomed { max-width: none; max-height: none; cursor: zoom-out; align-self: flex-start; }
 .viewer-body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
@@ -3609,4 +3609,9 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 @media (max-width: 760px) {
   dialog.viewer { width: 100vw; height: 100dvh; border-radius: 0; }
   .catalog-picker li { flex-wrap: wrap; }
+}
+.attachment-audio { display: inline-flex; flex-direction: column; gap: 4px; max-width: 100%; }
+@media (max-width: 760px) {
+  .support-composer { min-height: 0; max-height: 70%; overflow-y: auto; }
+  .catalog-picker { max-height: min(300px, 32dvh); }
 }

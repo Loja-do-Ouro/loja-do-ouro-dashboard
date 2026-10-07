@@ -13,13 +13,17 @@ export { sizeLabel };
 // <dialog> nativo: Esc fecha, o resto da página fica inativo; setas mudam de anexo.
 export function AttachmentViewer({ items, index, onIndex, onClose }: { items: ViewerItem[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(false);
   const item = items[index];
 
   useEffect(() => {
     const d = dialog.current;
-    if (d && !d.open) d.showModal();
+    if (d && !d.open) {
+      d.showModal();
+      closeBtn.current?.focus();
+    }
   }, []);
   useEffect(() => {
     setFailed(false);
@@ -65,7 +69,7 @@ export function AttachmentViewer({ items, index, onIndex, onClose }: { items: Vi
             <a href={item.href} target="_blank" rel="noopener noreferrer">Abrir noutro separador</a>
           )}
           <a href={download}>Descarregar</a>
-          <button type="button" autoFocus onClick={() => dialog.current?.close()} aria-label="Fechar">✕</button>
+          <button ref={closeBtn} type="button" onClick={() => dialog.current?.close()} aria-label="Fechar">✕</button>
         </span>
       </div>
       <div className={`viewer-body ${item.kind}`} key={item.href}>
