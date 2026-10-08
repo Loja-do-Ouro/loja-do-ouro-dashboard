@@ -643,7 +643,7 @@
       "* { box-sizing: border-box; font-family: inherit; }",
       "[hidden] { display: none !important; }",
       ".launcher, .panel { --c: " + cfg.color + "; --ct: " + cfg.textColor + "; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }",
-      ".launcher { position: fixed; " + side + ": " + cfg.offsetSide + "px; bottom: " + cfg.offset + "px; z-index: 2147483000; display: inline-flex; align-items: center; gap: 8px; min-width: 56px; height: 56px; padding: 0 16px; border: 0; border-radius: 28px; background: var(--c); color: var(--ct); box-shadow: 0 6px 20px rgba(0,0,0,.22); cursor: pointer; font-size: 15px; font-weight: 600; justify-content: center; transition: transform .15s ease; }",
+      ".launcher { position: fixed; " + side + ": " + cfg.offsetSide + "px; bottom: " + cfg.offset + "px; z-index: 9998; display: inline-flex; align-items: center; gap: 8px; min-width: 56px; height: 56px; padding: 0 16px; border: 0; border-radius: 28px; background: var(--c); color: var(--ct); box-shadow: 0 6px 20px rgba(0,0,0,.22); cursor: pointer; font-size: 15px; font-weight: 600; justify-content: center; transition: transform .15s ease; }",
       ".launcher:hover { transform: translateY(-2px); }",
       ".launcher:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(0,0,0,.35); outline-offset: 2px; }",
       ".launcher.is-open .launcher-label { display: none; }",
