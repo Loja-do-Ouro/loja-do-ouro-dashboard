@@ -21,7 +21,8 @@ export async function GET(request: Request, ctx: Ctx) {
     if (!email) return json({ email: null, orders: [], note: "Sem email associado. Associe o cliente pelo email para ver as encomendas." });
     if (!shopifyConfigured()) return json({ email, orders: [], error: "Ligação Shopify por configurar." });
     try {
-      return json({ email, orders: await ordersByEmail(email), linked: Boolean(detail.contact.linked_email) });
+      const r = await ordersByEmail(email);
+      return json({ email, orders: r.orders, phone_note: r.phoneNote, linked: Boolean(detail.contact.linked_email) });
     } catch (e) {
       return json({ email, orders: [], error: e instanceof Error ? e.message : "Shopify indisponível." });
     }

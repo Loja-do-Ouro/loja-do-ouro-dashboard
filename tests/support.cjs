@@ -128,3 +128,9 @@ test("Customers only ever see the colleague's first name", () => {
   assert.equal(r.firstName(""), null);
   assert.equal(r.firstName(null), null);
 });
+
+test("Order numbers the customer typed are found for a quick lookup", () => {
+  assert.deepEqual(r.orderNumbersIn(["Olá, a minha encomenda #12345 ainda não chegou", "A encomenda nº 12346 e a #12345"]), ["12345", "12346"]);
+  assert.deepEqual(r.orderNumbersIn(["Encomenda 54321 por favor", "encomenda número 1234"]), ["54321", "1234"]);
+  assert.deepEqual(r.orderNumbersIn(["Ligue-me para 912345678", "Custa 1999 euros", "#12"]), []);
+});

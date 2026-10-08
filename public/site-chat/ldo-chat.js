@@ -38,6 +38,7 @@
     lastInserted: null,
     typing: false,
     agent: null,            // primeiro nome de quem está a atender
+    ended: null,            // conversa terminada agora: { wanted, emailed, email } para o agradecimento
     open: false,
     busy: false,
     error: "",
@@ -472,11 +473,56 @@
     input.value = "";
     send(text);
   }
+  // Terminar a conversa: confirmação dentro do chat (não a janela do browser) e, no fim, um agradecimento.
+  var sheet = el("div", { class: "sheet", hidden: "", role: "dialog", "aria-modal": "true", "aria-label": "Terminar a conversa" });
+  var sheetBox = el("div", { class: "sheet-box" });
+  sheetBox.appendChild(el("strong", { class: "sheet-title" }, "Terminar a conversa?"));
+  sheetBox.appendChild(el("p", {}, "A conversa fica guardada. Se lhe respondermos depois, enviamos a resposta para o seu email."));
+  var copyLabel = el("label", { class: "sheet-check" });
+  var copyBox = el("input", { type: "checkbox" });
+  copyLabel.appendChild(copyBox);
+  copyLabel.appendChild(el("span", {}, "Enviar-me uma cópia desta conversa por email"));
+  sheetBox.appendChild(copyLabel);
+  var endConfirm = el("button", { type: "button", class: "primary" }, "Terminar conversa");
+  var endCancel = el("button", { type: "button", class: "secondary" }, "Continuar a conversar");
+  sheetBox.appendChild(endConfirm);
+  sheetBox.appendChild(endCancel);
+  sheet.appendChild(sheetBox);
+  panel.appendChild(sheet);
+
+  var endedView = el("div", { class: "ended" });
+  endedView.appendChild(el("strong", { class: "ended-title" }, "Obrigado por falar connosco!"));
+  var endedText = el("p", {});
+  endedView.appendChild(endedText);
+  var newChatBtn = el("button", { type: "button", class: "primary" }, "Iniciar nova conversa");
+  endedView.appendChild(newChatBtn);
+  newChatBtn.addEventListener("click", function () { state.ended = null; showMode(); focusInput(); });
+
+  function closeSheet() { sheet.hidden = true; }
   endBtn.addEventListener("click", function () {
-    if (!confirm("Terminar esta conversa neste dispositivo? Para voltar a falar connosco terá de iniciar uma nova.")) return;
+    copyBox.checked = false;
+    endConfirm.removeAttribute("disabled");
+    endConfirm.textContent = "Terminar conversa";
+    sheet.hidden = false;
+    endCancel.focus();
+  });
+  endCancel.addEventListener("click", function () { closeSheet(); focusInput(); });
+  endConfirm.addEventListener("click", function () {
+    var wanted = copyBox.checked;
+    endConfirm.setAttribute("disabled", "");
+    endConfirm.textContent = "A terminar…";
     clearTimeout(state.timer);
-    restart("");
-    focusInput();
+    // Mesmo sem resposta do servidor a conversa termina neste dispositivo.
+    request("POST", "/api/chat/end", { transcript: wanted }).catch(function () { return null; }).then(function (r) {
+      restart("");
+      state.ended = { wanted: wanted, emailed: Boolean(r && r.emailed), email: r && typeof r.email === "string" ? r.email : "" };
+      endedText.textContent = state.ended.emailed
+        ? "Enviámos uma cópia da conversa para " + state.ended.email + "."
+        : wanted ? "Não foi possível enviar a cópia por email neste momento." : "Se precisar de mais alguma coisa, estamos aqui.";
+      closeSheet();
+      showMode();
+      newChatBtn.focus();
+    });
   });
 
   // ------------------------------------------------------------ atualizações
@@ -704,7 +750,7 @@
     errorBox.hidden = !state.error;
   }
   function showMode() {
-    var want = state.session ? chat : form;
+    var want = state.session ? chat : state.ended ? endedView : form;
     if (bodyBox.firstChild !== want) {
       bodyBox.textContent = "";
       bodyBox.appendChild(want);
@@ -747,7 +793,9 @@
   function onKey(e) {
     if (e.key !== "Escape" || !state.open || e.isComposing) return;
     var inside = e.composedPath ? e.composedPath().indexOf(host) >= 0 : true;
-    if (inside) close();
+    if (!inside) return;
+    if (!sheet.hidden) { closeSheet(); focusInput(); return; }
+    close();
   }
   function onVisibility() {
     if (!document.hidden && state.session) fetchMessages().catch(function () {}).then(schedule);
@@ -838,6 +886,17 @@
       ".compose { display: flex; gap: 8px; padding: 10px 10px 4px; border-top: 1px solid #e6e9e3; background: #fff; align-items: flex-end; }",
       ".compose textarea { resize: none; max-height: 120px; min-height: 40px; }",
       ".send { flex-shrink: 0; width: 42px; height: 42px; border: 0; border-radius: 50%; background: var(--c); color: var(--ct); cursor: pointer; display: grid; place-items: center; }",
+      ".panel { isolation: isolate; }",
+      ".sheet { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-end; background: rgba(20,30,28,.45); }",
+      ".sheet-box { width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 18px 16px 16px; background: #fff; border-radius: 14px 14px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.15); }",
+      ".sheet-title { font-size: 16px; }",
+      ".sheet-box p { margin: 0; font-size: 13.5px; color: #4f5c55; }",
+      ".sheet-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; cursor: pointer; }",
+      ".sheet-check input { margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--c); flex-shrink: 0; }",
+      ".secondary { border: 1px solid #d7dcd4; border-radius: 8px; padding: 10px; background: #fff; color: #253531; font-size: 14px; cursor: pointer; }",
+      ".ended { padding: 28px 18px; display: flex; flex-direction: column; gap: 12px; text-align: center; }",
+      ".ended-title { font-size: 17px; }",
+      ".ended p { margin: 0; color: #4f5c55; }",
       ".end { align-self: center; margin: 0 0 6px; background: none; border: 0; color: #78807c; font-size: 11.5px; text-decoration: underline; cursor: pointer; }",
       ".error { margin: 0; padding: 8px 14px; color: #a44b40; background: #fdf1ef; font-size: 13px; flex-shrink: 0; }",
       // Telemóvel (e telemóvel na horizontal): ecrã inteiro; letra de 16 px para o iPhone não ampliar a página.

@@ -3536,6 +3536,17 @@ textarea:focus-visible,
 .link-form input { flex: 1 1 160px; width: auto; }
 .customer-panel .small, .customer-panel small { font-size: 12px; }
 .orders ul, .audit { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.orders.mentioned { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.order-phone { margin: 6px 0 2px; font-size: 13px; }
+.order-phone a { font-weight: 600; }
+.order-list details { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; }
+.order-list summary { cursor: pointer; }
+.order-items { margin: 8px 0 4px !important; gap: 6px !important; }
+.order-items li { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: center; }
+.order-items img, .order-noimg { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #f2f4ef; border: 1px solid var(--line); }
+.order-items b { font-weight: 600; white-space: nowrap; }
+.order-links { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; margin-top: 4px; }
+.support-warning { margin: 4px 0; padding: 6px 8px; border-radius: 6px; background: #fff8e6; color: #7a5f33; font-size: 12px; }
 .audit small { color: var(--muted); }
 .config-list { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 8px 14px; font-size: 13px; margin: 0 0 12px; }
 .config-list dt { color: var(--muted); }

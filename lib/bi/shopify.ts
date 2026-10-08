@@ -141,20 +141,83 @@ export async function ordersByDay(p: Period): Promise<Map<string, Row[]>> {
   throw new Error("Cobertura incompleta: limite de paginação Shopify atingido.");
 }
 
-// Apoio ao Cliente: encomendas de um email associado manualmente a uma conversa (até 20, mais recentes).
-// Só número, data, total e estados; não lê moradas nem outros dados pessoais. Shopify pode recusar
-// o filtro por email sem acesso aprovado a dados protegidos de clientes: o erro é devolvido tal como vem.
+// Apoio ao Cliente: encomendas de um cliente (até 20, mais recentes) com os produtos comprados e o
+// telemóvel registado na loja. O telemóvel é um dado protegido de clientes: sem essa autorização na app
+// Shopify (e read_customers para o telemóvel da ficha do cliente) as encomendas vêm na mesma, sem ele,
+// e phoneNote explica o que falta. Não lê moradas.
+type StaffOrderNode = {
+  id: string; name: string; createdAt: string; cancelledAt: string | null; displayFinancialStatus: string | null;
+  displayFulfillmentStatus: string | null; statusPageUrl: string | null; currentTotalPriceSet: Money;
+  lineItems: { nodes: { name: string; title: string; variantTitle: string | null; quantity: number; sku: string | null;
+    originalUnitPriceSet: Money; image: { url: string } | null }[] };
+  phone?: string | null; shippingAddress?: { phone: string | null } | null;
+  customer?: { defaultPhoneNumber: { phoneNumber: string } | null } | null;
+};
+export type StaffOrder = {
+  name: string; created_at: string; cancelled: boolean; financial: string | null; fulfillment: string | null;
+  total: number | null; currency: string | null; admin_url: string; status_url: string | null; phone: string | null;
+  items: { name: string; variant: string | null; quantity: number; sku: string | null; price: number | null; currency: string | null; image: string | null }[];
+};
+const STAFF_ORDER_BASE = `id name createdAt cancelledAt displayFinancialStatus displayFulfillmentStatus statusPageUrl
+  currentTotalPriceSet { shopMoney { amount currencyCode } }
+  lineItems(first: 30) { nodes { name title variantTitle quantity sku originalUnitPriceSet { shopMoney { amount currencyCode } }
+    image { url(transform: { maxWidth: 96, maxHeight: 96 }) } } }`;
+// Do mais completo ao mais simples; fica em memória o nível que a Shopify aceitou (revisto a cada 10 min).
+const CONTACT_LEVELS = [
+  { fields: "phone shippingAddress { phone } customer { defaultPhoneNumber { phoneNumber } }", note: null },
+  { fields: "phone shippingAddress { phone }", note: "Telemóvel da ficha de cliente indisponível: a app Shopify do dashboard não tem a autorização read_customers." },
+  { fields: "", note: "Telemóvel indisponível: a app Shopify do dashboard ainda não tem acesso aos dados protegidos de clientes (telefone)." },
+];
+let contactLevel = { index: 0, until: 0 };
+
+async function staffOrders(query: string, first: number): Promise<{ orders: StaffOrder[]; phoneNote: string | null }> {
+  let index = contactLevel.until > Date.now() ? contactLevel.index : 0;
+  for (;;) {
+    const level = CONTACT_LEVELS[index];
+    try {
+      const d = await graphql<{ orders: { nodes: StaffOrderNode[] } }>(
+        `query SupportOrders($q: String!, $n: Int!) { orders(first: $n, sortKey: CREATED_AT, reverse: true, query: $q) { nodes { ${STAFF_ORDER_BASE} ${level.fields} } } }`,
+        { q: query, n: first });
+      if (index > 0) contactLevel = { index, until: Date.now() + 10 * 60 * 1000 };
+      const store = (process.env.SHOPIFY_STORE_DOMAIN || "").replace(".myshopify.com", "");
+      return {
+        phoneNote: level.note,
+        orders: d.orders.nodes.map((o) => ({
+          name: o.name, created_at: o.createdAt, cancelled: Boolean(o.cancelledAt), financial: o.displayFinancialStatus, fulfillment: o.displayFulfillmentStatus,
+          total: number(o.currentTotalPriceSet?.shopMoney.amount), currency: o.currentTotalPriceSet?.shopMoney.currencyCode ?? null,
+          admin_url: `https://admin.shopify.com/store/${store}/orders/${o.id.split("/").pop()}`, status_url: o.statusPageUrl,
+          phone: o.phone || o.shippingAddress?.phone || o.customer?.defaultPhoneNumber?.phoneNumber || null,
+          items: o.lineItems.nodes.map((l) => ({
+            name: l.title || l.name, variant: l.variantTitle && l.variantTitle !== "Default Title" ? l.variantTitle : null, quantity: l.quantity,
+            sku: l.sku || null, price: number(l.originalUnitPriceSet?.shopMoney.amount), currency: l.originalUnitPriceSet?.shopMoney.currencyCode ?? null,
+            image: l.image?.url || null,
+          })),
+        })),
+      };
+    } catch (e) {
+      const denied = /access|protected|permission|scope|customer|phone|shippingAddress/i.test(e instanceof Error ? e.message : "");
+      if (!denied || index >= CONTACT_LEVELS.length - 1) throw e;
+      index++;
+    }
+  }
+}
+
 export async function ordersByEmail(email: string) {
-  type Node = { id: string; name: string; createdAt: string; cancelledAt: string | null; displayFinancialStatus: string | null; displayFulfillmentStatus: string | null; currentTotalPriceSet: Money };
-  const d = await graphql<{ orders: { nodes: Node[] } }>(
-    `query SupportOrders($q: String!) { orders(first: 20, sortKey: CREATED_AT, reverse: true, query: $q) {
-      nodes { id name createdAt cancelledAt displayFinancialStatus displayFulfillmentStatus currentTotalPriceSet { shopMoney { amount currencyCode } } } } }`,
-    { q: `email:"${email.replace(/["\\]/g, "")}"` });
-  return d.orders.nodes.map((o) => ({
-    name: o.name, created_at: o.createdAt, cancelled: Boolean(o.cancelledAt), financial: o.displayFinancialStatus, fulfillment: o.displayFulfillmentStatus,
-    total: number(o.currentTotalPriceSet?.shopMoney.amount), currency: o.currentTotalPriceSet?.shopMoney.currencyCode ?? null,
-    admin_url: `https://admin.shopify.com/store/${(process.env.SHOPIFY_STORE_DOMAIN || "").replace(".myshopify.com", "")}/orders/${o.id.split("/").pop()}`,
-  }));
+  return staffOrders(`email:"${email.replace(/["\\]/g, "")}"`, 20);
+}
+
+// Uma encomenda pelo número (ex.: mencionada pelo cliente na conversa), para a equipa. belongs diz se é do
+// email do contacto; se não for, a equipa confirma a identidade antes de partilhar dados.
+export async function staffOrderByNumber(number: string, email: string | null) {
+  const digits = number.replace(/\D/g, "").slice(0, 12);
+  if (!digits) return { order: null, belongs: false, phoneNote: null };
+  const name = `name:"#${digits}"`;
+  if (email) {
+    const own = await staffOrders(`${name} email:"${email.replace(/["\\]/g, "")}"`, 1);
+    if (own.orders[0]) return { order: own.orders[0], belongs: true, phoneNote: own.phoneNote };
+  }
+  const any = await staffOrders(name, 1);
+  return { order: any.orders[0] || null, belongs: false, phoneNote: any.phoneNote };
 }
 
 // Apoio ao Cliente: produtos, coleções e páginas da loja online para inserir numa resposta.

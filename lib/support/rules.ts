@@ -173,3 +173,11 @@ export function firstName(fullName: string | null | undefined): string | null {
   const first = (fullName || "").trim().split(/\s+/)[0];
   return first || null;
 }
+
+// Números de encomenda que o cliente escreveu ("#12345", "encomenda nº 12345", "encomenda 12345"), sem repetir.
+export function orderNumbersIn(texts: string[]) {
+  const found = new Set<string>();
+  const re = /(?:#\s?|\bencomenda\s*(?:n\.?\s*º|nº|n\.|número|numero|nr\.?)?\s*#?\s*)(\d{4,7})\b/gi;
+  for (const t of texts) for (let m = re.exec(t); m; m = re.exec(t)) found.add(m[1]);
+  return [...found].slice(0, 6);
+}

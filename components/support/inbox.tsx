@@ -10,6 +10,7 @@ import {
   canTransfer,
   CHANNEL_LABEL,
   DELIVERY_LABEL,
+  orderNumbersIn,
   previewKind,
   STATUSES,
   STATUS_LABEL,
@@ -50,7 +51,47 @@ type Detail = {
   super: boolean;
 };
 type AuditEntry = Detail["audit"][number];
-type Orders = { email: string | null; orders: { name: string; created_at: string; cancelled: boolean; financial: string | null; fulfillment: string | null; total: number | null; currency: string | null; admin_url: string }[]; error?: string; note?: string; linked?: boolean };
+type ShopOrder = {
+  name: string; created_at: string; cancelled: boolean; financial: string | null; fulfillment: string | null; total: number | null; currency: string | null;
+  admin_url: string; status_url?: string | null; phone?: string | null;
+  items?: { name: string; variant: string | null; quantity: number; sku: string | null; price: number | null; currency: string | null; image: string | null }[];
+};
+type Orders = { email: string | null; orders: ShopOrder[]; error?: string; note?: string; linked?: boolean; phone_note?: string | null };
+type OrderLookup = { number: string; loading: boolean; order?: ShopOrder | null; belongs?: boolean; phoneNote?: string | null; error?: string };
+
+const money = (v: number | null | undefined, currency: string | null | undefined) =>
+  v === null || v === undefined ? "—" : new Intl.NumberFormat("pt-PT", { style: "currency", currency: currency || "EUR" }).format(v);
+
+function OrderRow({ o, open }: { o: ShopOrder; open?: boolean }) {
+  return (
+    <li>
+      <details open={open}>
+        <summary>
+          <strong>{o.name}</strong> · {time(o.created_at)} · {money(o.total, o.currency)}
+          <small className="muted block">{[o.cancelled ? "Cancelada" : null, o.financial, o.fulfillment].filter(Boolean).join(" · ")}</small>
+        </summary>
+        {o.items && o.items.length > 0 && (
+          <ul className="order-items">
+            {o.items.map((it, i) => (
+              <li key={i}>
+                {it.image ? <img src={it.image} alt="" loading="lazy" /> : <span className="order-noimg" aria-hidden="true" />}
+                <span>
+                  {it.quantity} × {it.name}{it.variant ? ` — ${it.variant}` : ""}
+                  {it.sku && <small className="muted block">Ref. {it.sku}</small>}
+                </span>
+                <b>{money(it.price, it.currency)}</b>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="order-links">
+          <a href={o.admin_url} target="_blank" rel="noopener noreferrer">Abrir na Shopify</a>
+          {o.status_url && <a href={o.status_url} target="_blank" rel="noopener noreferrer">Página da encomenda (cliente)</a>}
+        </div>
+      </details>
+    </li>
+  );
+}
 
 const FILTERS = [
   ["all", "Todas"],
@@ -77,8 +118,13 @@ const AUDIT: Record<string, string> = {
   link_customer: "associou o cliente", "zendesk.connect": "ligou o Zendesk", "zendesk.disconnect": "desligou o Zendesk",
 };
 
-// Mudança de responsável, por extenso (na conversa e no registo).
+// Acontecimentos mostrados na própria conversa: mudanças de responsável e o fim da conversa pelo cliente.
+const THREAD_EVENTS = new Set(["assign", "visitor_end"]);
+
+// Acontecimento por extenso (na conversa e no registo).
 function assignText(a: AuditEntry) {
+  if (a.action === "visitor_end")
+    return `O cliente terminou a conversa no site${a.details.transcript ? " e pediu uma cópia por email" : ""}`;
   const to = typeof a.details.to_name === "string" ? a.details.to_name : "outra pessoa";
   switch (a.details.kind) {
     case "claim":
@@ -559,7 +605,7 @@ export function SupportInbox({
   const timeline = useMemo(() => {
     type Row = { key: string; at: string; message?: Message; event?: AuditEntry };
     if (!c) return [] as Row[];
-    const events: Row[] = c.audit.filter((a) => a.action === "assign").map((a, i) => ({ key: `ev-${i}-${a.created_at}`, at: a.created_at, event: a }));
+    const events: Row[] = c.audit.filter((a) => THREAD_EVENTS.has(a.action)).map((a, i) => ({ key: `ev-${i}-${a.created_at}`, at: a.created_at, event: a }));
     const messages: Row[] = c.messages.map((m) => ({ key: m.id, at: m.created_at, message: m }));
     return [...messages, ...events].sort((x, y) => x.at.localeCompare(y.at));
   }, [c]);
@@ -923,6 +969,24 @@ function CustomerPanel({
     // linkedEmail/contactEmail: procurar de novo quando a associação muda.
   }, [contactId, linkedEmail, contactEmail, conv.id]);
   useEffect(loadOrders, [loadOrders]);
+  // Telemóvel registado na loja (da encomenda mais recente que o tenha).
+  const shopPhone = orders?.orders.find((o) => o.phone)?.phone || null;
+  // Encomendas que o cliente mencionou e que não estão já na lista acima.
+  const mentioned = useMemo(() => {
+    const known = new Set((orders?.orders || []).map((o) => o.name.replace(/\D/g, "")));
+    return orderNumbersIn(d.messages.filter((m) => m.kind === "inbound").map((m) => m.body || "")).filter((n) => !known.has(n));
+  }, [d.messages, orders]);
+  const [lookup, setLookup] = useState<OrderLookup | null>(null);
+  async function findOrder(number: string) {
+    setLookup({ number, loading: true });
+    try {
+      const r = await api<{ order: ShopOrder | null; belongs?: boolean; phoneNote?: string | null; error?: string }>(
+        `/api/support/orders?${new URLSearchParams({ conversa: conv.id, numero: number })}`);
+      setLookup({ number, loading: false, order: r.order, belongs: r.belongs, phoneNote: r.phoneNote, error: r.error });
+    } catch (e) {
+      setLookup({ number, loading: false, error: e instanceof Error ? e.message : "Indisponível." });
+    }
+  }
 
   async function link(value: string) {
     if (!contact) return;
@@ -1061,20 +1125,41 @@ function CustomerPanel({
           ) : orders.orders.length ? (
             <>
               <small className="muted">Encomendas Shopify de {orders.email}{orders.linked ? "" : " (email do contacto, não confirmado)"}:</small>
-              <ul>
-                {orders.orders.map((o) => (
-                  <li key={o.name}>
-                    <a href={o.admin_url} target="_blank" rel="noopener noreferrer"><strong>{o.name}</strong></a> · {time(o.created_at)} ·{" "}
-                    {o.total !== null ? new Intl.NumberFormat("pt-PT", { style: "currency", currency: o.currency || "EUR" }).format(o.total) : "—"}
-                    <small className="muted block">{[o.cancelled ? "Cancelada" : null, o.financial, o.fulfillment].filter(Boolean).join(" · ")}</small>
-                  </li>
-                ))}
+              {shopPhone && <p className="order-phone">📞 Telemóvel na loja: <a href={`tel:${shopPhone.replace(/[^\d+]/g, "")}`}>{shopPhone}</a></p>}
+              {orders.phone_note && <small className="muted block">{orders.phone_note}</small>}
+              <ul className="order-list">
+                {orders.orders.map((o, i) => <OrderRow key={o.name} o={o} open={i === 0} />)}
               </ul>
             </>
           ) : (
             <small className="muted">Sem encomendas Shopify para {orders.email}.</small>
           )}
         </div>
+        {mentioned.length > 0 && (
+          <div className="orders mentioned">
+            <small className="muted">Encomendas mencionadas na conversa:</small>
+            <div className="related">
+              {mentioned.map((n) => (
+                <button key={n} type="button" className="secondary-button" disabled={lookup?.number === n && lookup.loading} onClick={() => findOrder(n)}>
+                  Ver encomenda #{n}
+                </button>
+              ))}
+            </div>
+            {lookup && (lookup.loading ? <small className="muted">A procurar #{lookup.number}…</small>
+              : lookup.error ? <p className="support-error">Encomenda #{lookup.number}: {lookup.error}</p>
+              : !lookup.order ? <small className="muted">Não existe a encomenda #{lookup.number} na loja online.</small>
+              : (
+                <>
+                  {!lookup.belongs && (
+                    <p className="support-warning">Esta encomenda não está no email deste contacto. Confirme a identidade do cliente (por exemplo, o email usado na compra) antes de partilhar dados.</p>
+                  )}
+                  {lookup.order.phone && <p className="order-phone">📞 Telemóvel da encomenda: <a href={`tel:${lookup.order.phone.replace(/[^\d+]/g, "")}`}>{lookup.order.phone}</a></p>}
+                  {lookup.phoneNote && <small className="muted block">{lookup.phoneNote}</small>}
+                  <ul className="order-list"><OrderRow o={lookup.order} open /></ul>
+                </>
+              ))}
+          </div>
+        )}
       </section>
 
       <section>
@@ -1082,7 +1167,7 @@ function CustomerPanel({
         <ul className="audit">
           {d.audit.map((a, i) => (
             <li key={i}>
-              <small>{time(a.created_at)}</small> {a.action === "assign" ? assignText(a) : `${a.actor} ${AUDIT[a.action] || a.action}`}
+              <small>{time(a.created_at)}</small> {THREAD_EVENTS.has(a.action) ? assignText(a) : `${a.actor} ${AUDIT[a.action] || a.action}`}
               {a.action === "status" && typeof a.details.to === "string" && ` → ${STATUS_LABEL[a.details.to as Status] || a.details.to}`}
             </li>
           ))}
