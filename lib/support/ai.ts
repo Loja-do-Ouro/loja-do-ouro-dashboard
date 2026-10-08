@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { searchCatalog, shopifyConfigured, supportCustomerOrders, supportOrderByNumber, supportProduct, supportStoreInfo, type StoreInfo } from "@/lib/bi/shopify";
 import type { Viewer } from "@/lib/viewer";
 import {
-  AI_MODEL, AI_OUTPUT_SCHEMA, clip, costUsd, htmlToText, parseAiOutput, productHandle, storesText, unverifiedLinks, untrusted,
+  AI_MODEL, AI_OUTPUT_SCHEMA, anthropicWorkspace, clip, costUsd, htmlToText, parseAiOutput, productHandle, storesText, unverifiedLinks, untrusted,
   type AiOutput, type UsagePart,
 } from "./ai-rules";
 import { serverRpc, sessionRpc } from "./db";
@@ -16,6 +16,13 @@ import { CHANNEL_LABEL, STATUS_LABEL, type Channel, type Status } from "./rules"
 
 export function aiConfigured() {
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+}
+
+// "set": indicado e válido; "invalid": indicado mas com caracteres inesperados (não é enviado); "unset".
+export function aiWorkspaceStatus(): "set" | "invalid" | "unset" {
+  const raw = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+  if (!raw) return "unset";
+  return anthropicWorkspace(raw) ? "set" : "invalid";
 }
 
 export type AiBegin = {
@@ -395,6 +402,9 @@ function aiErrorMessage(e: unknown) {
   if (e instanceof Anthropic.RateLimitError) return "Limite de pedidos da conta da Anthropic atingido. Tente dentro de um minuto.";
   if (e instanceof Anthropic.BadRequestError) {
     const detail = (e.error as { error?: { message?: unknown } } | undefined)?.error?.message;
+    if (typeof detail === "string" && /not scoped to a workspace|anthropic-workspace-id/i.test(detail)) {
+      return "A chave da Anthropic não pertence a um workspace. O Super Admin deve indicar o ID do workspace na variável ANTHROPIC_WORKSPACE_ID da Vercel (ou criar a chave dentro de um workspace) e publicar de novo.";
+    }
     return `A Anthropic recusou o pedido${typeof detail === "string" ? `: ${detail.slice(0, 200)}` : "."}`;
   }
   // Tempo esgotado (o pedido é cancelado para a função terminar a tempo); antes do erro genérico da API.
@@ -442,7 +452,8 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
     const emails = identity.includes("@") ? [identity] : [];
     const ctx: ToolCtx = { conversationId, emails, sources, trusted: [], deadline: deadline - 10_000, emit };
 
-    const client = new Anthropic({ maxRetries: 1 });
+    const workspace = anthropicWorkspace(process.env.ANTHROPIC_WORKSPACE_ID);
+    const client = new Anthropic({ maxRetries: 1, ...(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {}) });
     // O custo fica gravado a cada volta: um pedido interrompido conta para o orçamento pelo que gastou.
     const progress = () =>
       serverRpc("ldo_support_ai_progress", { p_id: begin.id, p_cost: costUsd(usage, model), p_usage: usageSummary(usage, requests) }).catch(() => undefined);

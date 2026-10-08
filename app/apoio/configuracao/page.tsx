@@ -4,7 +4,7 @@ import { metricoolConfigured } from "@/lib/bi/metricool";
 import { emailConfigured, emailFrom } from "@/lib/email";
 import { shopifyConfigured, supportStoreInfo, type StoreInfo } from "@/lib/bi/shopify";
 import { homePath } from "@/lib/permissions";
-import { aiConfigured } from "@/lib/support/ai";
+import { aiConfigured, aiWorkspaceStatus } from "@/lib/support/ai";
 import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { serverConfigured, sessionRpc } from "@/lib/support/db";
@@ -70,6 +70,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const siteDomainPending = /resend\.dev/i.test(siteFrom);
   // Mensagens das ações da IA aparecem dentro da secção da IA (o redirect leva até lá com #ia).
   const aiFlash = q.secao === "ia";
+  const aiWorkspace = aiWorkspaceStatus();
   const flashOk = typeof q.ok === "string" ? q.ok.slice(0, 200) : undefined;
   const flashError = typeof q.erro === "string" ? q.erro.slice(0, 600) : undefined;
   const z = zendeskReadiness();
@@ -191,6 +192,11 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           <div>
             <dl className="config-list">
               <dt>Chave da Anthropic</dt><dd>{yes(aiConfigured())} <small className="muted">ANTHROPIC_API_KEY (variável sensível na Vercel; nunca no GitHub)</small></dd>
+              <dt>Workspace da Anthropic</dt>
+              <dd>
+                {aiWorkspace === "set" ? <span className="pill ok">Indicado</span> : aiWorkspace === "invalid" ? <span className="pill warn">Inválido</span> : <span className="pill">Não indicado</span>}{" "}
+                <small className="muted">ANTHROPIC_WORKSPACE_ID: só é preciso se a chave não pertencer a um workspace (o ID começa por wrkspc_).</small>
+              </dd>
               <dt>Modelo</dt><dd>Claude Opus 5.5 <code>{AI_MODEL}</code> · esforço médio</dd>
               <dt>O que a IA lê</dt><dd>A conversa aberta e o cliente, a base de conhecimento abaixo, as lojas físicas do dashboard e a loja online. Consulta, quando precisa, produtos, encomendas do cliente da conversa, respostas anteriores da equipa e outras conversas do mesmo cliente. Só leituras.</dd>
               <dt>Loja online</dt>
@@ -233,7 +239,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           </form>
         </div>
         <p className="panel-note">
-          A IA propõe respostas e responde a perguntas da equipa; nunca envia nada ao cliente. Cada pedido custa normalmente alguns cêntimos (estimativa no histórico de cada pessoa e acima; a fatura da Anthropic é a referência). Ao atingir o orçamento do mês, os pedidos param até ao mês seguinte ou até o aumentar. A conversa e os dados consultados são enviados à Anthropic para gerar a resposta: a Anthropic não usa os dados da API para treinar modelos e guarda-os por um período limitado. Para criar a chave: console.anthropic.com → API Keys → Create Key; depois, na Vercel, Settings → Environment Variables → ANTHROPIC_API_KEY (Sensitive, Production e Preview) e um novo deploy.
+          A IA propõe respostas e responde a perguntas da equipa; nunca envia nada ao cliente. Cada pedido custa normalmente alguns cêntimos (estimativa no histórico de cada pessoa e acima; a fatura da Anthropic é a referência). Ao atingir o orçamento do mês, os pedidos param até ao mês seguinte ou até o aumentar. A conversa e os dados consultados são enviados à Anthropic para gerar a resposta: a Anthropic não usa os dados da API para treinar modelos e guarda-os por um período limitado. Para criar a chave: console.anthropic.com → API Keys → Create Key; depois, na Vercel, Settings → Environment Variables → ANTHROPIC_API_KEY (Sensitive, Production e Preview) e um novo deploy. Se a Anthropic responder que a chave &quot;is not scoped to a workspace&quot;, copie o ID do workspace (Claude Console → Settings → Workspaces; começa por wrkspc_) para ANTHROPIC_WORKSPACE_ID na Vercel (não é segredo) e publique de novo.
         </p>
 
         <h3 className="panel-subtitle">Base de conhecimento</h3>
