@@ -22,6 +22,7 @@
   <script id="ldo-chat-config" type="application/json">
     {
       "enabled": true,
+      "hideOld": {{ section.settings.replace_bluedot | json }},
       "api": {{ ldo_api | json }},
       "title": {{ section.settings.title | json }},
       "subtitle": {{ section.settings.subtitle | json }},
