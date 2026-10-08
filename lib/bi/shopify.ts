@@ -178,7 +178,8 @@ async function staffOrders(query: string, first: number): Promise<{ orders: Staf
       const d = await graphql<{ orders: { nodes: StaffOrderNode[] } }>(
         `query SupportOrders($q: String!, $n: Int!) { orders(first: $n, sortKey: CREATED_AT, reverse: true, query: $q) { nodes { ${STAFF_ORDER_BASE} ${level.fields} } } }`,
         { q: query, n: first });
-      if (index > 0) contactLevel = { index, until: Date.now() + 10 * 60 * 1000 };
+      // O prazo só começa quando o nível muda: passado ele, volta a tentar-se a consulta completa.
+      if (index > 0 && (contactLevel.index !== index || contactLevel.until <= Date.now())) contactLevel = { index, until: Date.now() + 10 * 60 * 1000 };
       const store = (process.env.SHOPIFY_STORE_DOMAIN || "").replace(".myshopify.com", "");
       return {
         phoneNote: level.note,

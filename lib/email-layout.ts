@@ -66,7 +66,9 @@ export function linkedText(raw: string) {
 }
 
 // Mensagem citada (ex.: resposta da equipa), com quem a escreveu por cima. As quebras de linha mantêm-se.
-export function emailQuote(author: string | null, text: string) {
+// links: false para texto escrito por clientes (nunca ligações clicáveis de terceiros num email da loja).
+export function emailQuote(author: string | null, text: string, opts: { links?: boolean } = {}) {
   const who = author ? `<div style="font-size:12px;color:${BRAND.muted};margin:0 0 4px">${esc(author)}</div>` : "";
-  return `<tr><td style="padding:0 24px 14px">${who}<div style="background:${BRAND.soft};border-left:3px solid ${BRAND.gold};border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.55;color:${BRAND.text};white-space:pre-wrap">${linkedText(text)}</div></td></tr>`;
+  const content = opts.links === false ? esc(text) : linkedText(text);
+  return `<tr><td style="padding:0 24px 14px">${who}<div style="background:${BRAND.soft};border-left:3px solid ${BRAND.gold};border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.55;color:${BRAND.text};white-space:pre-wrap">${content}</div></td></tr>`;
 }

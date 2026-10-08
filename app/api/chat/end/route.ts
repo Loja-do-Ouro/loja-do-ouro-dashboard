@@ -16,7 +16,8 @@ export async function POST(request: Request) {
     const b = await readJson(request);
     const copy = b.transcript === true;
     const t = await serverRpc<Transcript>("ldo_support_site_end", { p_token_hash: tokenHash, p_identity_email: identityEmail(request), p_transcript: copy });
-    const sent = copy && t.email ? await sendTranscript(t).catch(() => ({ ok: false })) : null;
+    // A BD decide se a cópia pode seguir (email confirmado ou já respondido pela equipa; limite diário).
+    const sent = t.transcript && t.email ? await sendTranscript(t).catch(() => ({ ok: false })) : null;
     return chatJson(request, { ok: true, emailed: Boolean(sent?.ok), email: sent?.ok ? t.email : null });
   });
 }

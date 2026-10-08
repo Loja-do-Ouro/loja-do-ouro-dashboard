@@ -176,7 +176,7 @@ export async function sendTranscript(t: Transcript): Promise<{ ok: boolean; deta
     m.from === "visitor" ? `${first || "Você"} · ${when.format(new Date(m.at))}` : `${m.author ? `${m.author} · ` : ""}Loja do Ouro · ${when.format(new Date(m.at))}`;
   const rows = t.messages.map((m) => m.from === "notice"
     ? emailParagraph(`<span style="color:#9a917f;font-size:13px">${esc(m.body)}</span>`)
-    : emailQuote(label(m), m.body)).join("");
+    : emailQuote(label(m), m.body, { links: m.from !== "visitor" })).join("");
   const html = brandEmail({
     baseUrl: baseUrl(),
     eyebrow: "Chat da Loja do Ouro",

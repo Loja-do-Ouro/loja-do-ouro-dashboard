@@ -501,6 +501,8 @@
   function closeSheet() { sheet.hidden = true; }
   endBtn.addEventListener("click", function () {
     copyBox.checked = false;
+    // A cópia só existe depois de a equipa responder (o servidor confirma a mesma regra).
+    copyLabel.hidden = !state.messages.some(function (m) { return m.from === "team"; });
     endConfirm.removeAttribute("disabled");
     endConfirm.textContent = "Terminar conversa";
     sheet.hidden = false;
@@ -508,7 +510,7 @@
   });
   endCancel.addEventListener("click", function () { closeSheet(); focusInput(); });
   endConfirm.addEventListener("click", function () {
-    var wanted = copyBox.checked;
+    var wanted = copyBox.checked && !copyLabel.hidden;
     endConfirm.setAttribute("disabled", "");
     endConfirm.textContent = "A terminar…";
     clearTimeout(state.timer);

@@ -20,3 +20,10 @@ test("Only http(s) addresses become links", () => {
   assert.equal(mail.linkedText("javascript:alert(1) e ftp://x"), "javascript:alert(1) e ftp://x");
   assert.equal(mail.linkedText("a & b"), "a &amp; b");
 });
+
+test("Text written by customers never becomes clickable links in our emails", () => {
+  const row = mail.emailQuote("Ana", "Confirme em https://evil.example/pt <b>já</b>", { links: false });
+  assert.doesNotMatch(row, /<a /);
+  assert.match(row, /https:\/\/evil\.example\/pt &lt;b&gt;já&lt;\/b&gt;/);
+  assert.match(mail.emailQuote("Bárbara", "Veja https://www.lojadoouro.pt"), /<a href="https:\/\/www\.lojadoouro\.pt"/);
+});
