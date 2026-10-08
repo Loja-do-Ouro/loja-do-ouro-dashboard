@@ -4,6 +4,8 @@ import { overview } from "./bi/model";
 import { liveCommerce } from "./bi/live-model";
 import { closedPeriods, localDate, previous, shortDate, type Period } from "./bi/periods";
 import { loadPeriods } from "./bi/store";
+import { dashboardUrl } from "./email";
+import { brandEmail } from "./email-layout";
 import { rpc } from "./supabase";
 import {
   goldTotals,
@@ -127,19 +129,13 @@ function change(a: number | null | undefined, b: number | null | undefined) {
 const PETROL = "#1d3e47";
 const GOLD = "#b38a4f";
 
+// Mesmo modelo de todos os emails da Loja do Ouro (lib/email-layout.ts).
 function shell(baseUrl: string, title: string, subtitle: string, body: string) {
-  return `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
-<body style="margin:0;padding:0;background:#f5f3ee;font-family:Arial,Helvetica,sans-serif;color:#1f2f33">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f3ee;padding:24px 0"><tr><td align="center">
-<table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e7e2d8">
-<tr><td align="center" style="padding:24px 24px 12px"><img src="${baseUrl}/logo-loja-do-ouro.png" alt="Loja do Ouro" width="170" style="display:block;width:170px;height:auto;border:0"></td></tr>
-<tr><td style="padding:0 24px 20px"><table role="presentation" width="100%" style="background:${PETROL};border-radius:12px"><tr><td style="padding:20px 22px">
-<div style="font-size:11px;letter-spacing:2px;color:#c9a46a;font-weight:bold;text-transform:uppercase">${esc(subtitle)}</div>
-<div style="font-size:22px;color:#ffffff;font-weight:bold;margin-top:6px">${esc(title)}</div></td></tr></table></td></tr>
-${body}
-<tr><td align="center" style="padding:8px 24px 26px"><a href="${baseUrl}" style="display:inline-block;background:${PETROL};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:bold;font-size:14px">Abrir o dashboard</a></td></tr>
-<tr><td style="padding:14px 24px;background:#faf8f3;color:#9a917f;font-size:11px;text-align:center">Loja do Ouro · Grupo · relatório automático. Valores provisórios, sujeitos a revisão.</td></tr>
-</table></td></tr></table></body></html>`;
+  return brandEmail({
+    baseUrl, title, eyebrow: subtitle, body,
+    button: { label: "Abrir o dashboard", url: baseUrl },
+    footer: "Loja do Ouro · Grupo · relatório automático. Valores provisórios, sujeitos a revisão.",
+  });
 }
 
 function section(title: string, inner: string) {
@@ -226,7 +222,5 @@ export function renderMissingAlert(a: Awaited<ReturnType<typeof buildMissingAler
 }
 
 export function baseUrl() {
-  if (process.env.DASHBOARD_URL) return process.env.DASHBOARD_URL.replace(/\/+$/, "");
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  return "https://loja-do-ouro-dashboard.vercel.app";
+  return dashboardUrl();
 }

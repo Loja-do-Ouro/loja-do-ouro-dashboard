@@ -4,7 +4,9 @@ import { clientKey } from "@/lib/rate-limit";
 import { SupabaseError } from "@/lib/supabase";
 import { sha256Hex } from "./crypto";
 import { serverRpc } from "./db";
-import { supportEmailFrom } from "./notify";
+import { supportEmailFrom, supportReplyTo } from "./notify";
+import { brandEmail, emailParagraph, emailQuote, esc } from "@/lib/email-layout";
+import { dashboardUrl as baseUrl } from "@/lib/email";
 import { allowedOrigin, decodeIdentity, ipPrefix, parseOrigins, verifyIdentity } from "./site-rules";
 
 // Chat do site: rotas públicas (sem sessão do dashboard) usadas pelo botão do tema Shopify.
@@ -108,7 +110,6 @@ export async function readJson(request: Request): Promise<Record<string, unknown
   throw new ChatError(400, "Pedido inválido.");
 }
 
-const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 type Pending = {
   visitor: string; conversation: string; email: string; name: string; until: string; replies: string[];
@@ -135,23 +136,29 @@ export async function notifySiteVisitors(opts: { conversation: string | null; id
 
 async function sendReplies(p: Pending): Promise<{ ok: boolean; detail: string }> {
   if (!emailConfigured()) return { ok: false, detail: "RESEND_API_KEY por configurar" };
-  const from = supportEmailFrom();
   const site = (process.env.SITE_CHAT_URL || "https://www.lojadoouro.pt").replace(/\/+$/, "");
   const first = p.name.split(/\s+/)[0] || "";
   // Quem respondeu (só o primeiro nome), como no chat.
   const items = p.items?.length ? p.items : (p.replies || []).map((body) => ({ body, author: null as string | null }));
-  const blocks = items.map((r) =>
-    (r.author ? `<p style="margin:14px 0 4px;color:#78807c;font-size:13px">${escapeHtml(r.author)} · Loja do Ouro</p>` : "") +
-    `<blockquote style="margin:${r.author ? "0 0 12px" : "12px 0"};padding:10px 14px;border-left:3px solid #a47a37;background:#f7f8f5;white-space:pre-wrap">${escapeHtml(r.body)}</blockquote>`).join("");
-  const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#253531;max-width:560px">
-<p>Olá${first ? ` ${escapeHtml(first)}` : ""},</p>
-<p>${items.length > 1 ? "Deixámos-lhe estas respostas" : "Respondemos à sua mensagem"} no chat da Loja do Ouro:</p>
-${blocks}
-<p><a href="${site}/?chat=abrir" style="color:#a47a37">Continuar a conversa no site</a></p>
-<p style="color:#78807c;font-size:13px">Recebeu este email porque falou connosco no chat de lojadoouro.pt.</p>
-</div>`;
-  return sendEmail([p.email], "Resposta da Loja do Ouro à sua mensagem", html, {
-    from, replyTo: process.env.SITE_CHAT_REPLY_TO || "apoiocliente@lojadoouro.pt", timeoutMs: 8000,
+  const many = items.length > 1;
+  const hello = `Olá${first ? ` ${first}` : ""},`;
+  const intro = many ? "Deixámos-lhe estas respostas no chat da Loja do Ouro:" : "Respondemos à sua mensagem no chat da Loja do Ouro:";
+  const outro = "Pode continuar a conversa no site ou responder diretamente a este email.";
+  const html = brandEmail({
+    baseUrl: baseUrl(),
+    eyebrow: "Chat da Loja do Ouro",
+    title: many ? "Tem novas respostas nossas" : "Respondemos à sua mensagem",
+    preheader: (items[0]?.body || "").replace(/\s+/g, " ").slice(0, 120),
+    body: emailParagraph(esc(hello)) + emailParagraph(esc(intro))
+      + items.map((r) => emailQuote(r.author ? `${r.author} · Loja do Ouro` : "Loja do Ouro", r.body)).join("")
+      + emailParagraph(esc(outro)),
+    button: { label: "Continuar a conversa", url: `${site}/?chat=abrir` },
+    footer: "Recebeu este email porque falou connosco no chat de lojadoouro.pt · Loja do Ouro",
+  });
+  const text = [hello, "", intro, "", ...items.flatMap((r) => [`${r.author ? `${r.author} · ` : ""}Loja do Ouro:`, r.body, ""]), outro,
+    `Continuar a conversa: ${site}/?chat=abrir`].join("\n");
+  return sendEmail([p.email], many ? "Novas respostas da Loja do Ouro" : "Resposta da Loja do Ouro à sua mensagem", html, {
+    from: supportEmailFrom(), replyTo: supportReplyTo(), text, timeoutMs: 8000,
   });
 }
 
