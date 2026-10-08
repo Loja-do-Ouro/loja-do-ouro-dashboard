@@ -347,9 +347,12 @@
 
   // ------------------------------------------------------------ interface (construída uma vez)
 
-  var host = document.createElement("div");
+  // Elemento próprio e display forçado: o conteúdo fica no Shadow DOM, por isso para o CSS do tema o elemento
+  // está vazio, e o Dawn esconde "div:empty" (base.css).
+  var host = document.createElement("ldo-chat-root");
   host.id = "ldo-chat";
   host.setAttribute("data-nosnippet", "");
+  host.style.setProperty("display", "block", "important");
   var root = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
   document.body.appendChild(host);
 
