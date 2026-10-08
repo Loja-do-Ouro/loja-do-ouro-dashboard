@@ -658,3 +658,14 @@ test("Contact-form senders get their own contact id; replies go to the plain add
   assert.equal(g.contactAddress("conversa:123"), null);
   assert.equal(g.contactAddress(null), null);
 });
+
+test("Auto-replies never go to the shop domain, system addresses or the form relay", () => {
+  const own = ["lojadoouro.pt"];
+  assert.equal(g.recipientAllowed("ana@cliente.pt", own), true);
+  assert.equal(g.recipientAllowed("vendas@lojadoouro.pt", own), false);
+  assert.equal(g.recipientAllowed("rui@braga.lojadoouro.pt", own), false);
+  assert.equal(g.recipientAllowed("noreply@empresa.pt", own), false);
+  assert.equal(g.recipientAllowed("mailer-daemon@empresa.pt", own), false);
+  assert.equal(g.recipientAllowed("mailer@shopify.com", own), false);
+  assert.equal(g.recipientAllowed("nao-e-email", own), false);
+});

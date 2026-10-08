@@ -480,6 +480,16 @@ export function contactAddress(externalId: string | null | undefined): string | 
   return validEmail(email) ? email : null;
 }
 
+// Destinatário de uma resposta automática (no formulário de contacto é o que a pessoa escreveu): nunca o próprio
+// domínio (nem subdomínios), nem endereços de sistemas ou do próprio formulário.
+export function recipientAllowed(email: string, ownDomains: string[]): boolean {
+  const e = String(email ?? "").trim().toLowerCase();
+  if (!validEmail(e) || FORM_RELAYS.includes(e)) return false;
+  const [local, domain] = e.split("@");
+  const own = (ownDomains || []).map((d) => d.trim().toLowerCase().replace(/^@/, "")).filter(Boolean);
+  return !own.some((d) => domain === d || domain.endsWith(`.${d}`)) && !AUTO_LOCAL.test(local);
+}
+
 // Mensagem automática (RFC 3834): também a nossa resposta "recebemos o seu email".
 export function isAutoSubmitted(msg: GmailMessage): boolean {
   const v = header(msg.payload, "Auto-Submitted");
