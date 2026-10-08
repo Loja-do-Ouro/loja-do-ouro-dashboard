@@ -2,7 +2,8 @@ import "server-only";
 import { ingest, serverRpc, sessionRpc } from "./db";
 import { metricoolSend } from "./metricool";
 import { REFUSAL, runSync } from "./sync";
-import { isStatus, zendeskReplyWarning, type Status } from "./rules";
+import { HttpError } from "./http";
+import { assignmentChange, canChangeStatus, isStatus, isUuid, zendeskReplyWarning, type Channel, type Status } from "./rules";
 import { notifySiteVisitors } from "./site-chat";
 import { whatsappSend } from "./whatsapp";
 import { getUpload, publishUpload } from "./uploads";
@@ -94,33 +95,52 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
   return { messageId: begin.message.id, delivery: r.outcome === "accepted" && kind === "note" ? null : r.outcome, detail, repeated: false };
 }
 
-type Conversation = { conversation: { id: string; source_id: string; external_id: string; status: Status; assignee_id: string | null } };
+type Conversation = {
+  conversation: { id: string; source_id: string; external_id: string; channel: Channel; status: Status; assignee_id: string | null; assignee_name: string | null };
+  contact: { name: string | null; handle: string | null; email: string | null; claimed_email?: string | null } | null;
+};
 type SupportUser = { id: string; name: string; zendesk: boolean; zendesk_user_id: string | null };
+export type Handover = { conversationId: string; target: string; actor: string; contact: string; channel: Channel };
 
-// Estado e responsável. Zendesk: escrito no Zendesk com a conta de quem altera, e guardado o que o
-// Zendesk devolve. Restantes canais: o dashboard é a fonte de verdade.
-export async function updateConversation(viewer: Viewer, id: string, change: { status?: unknown; assigneeId?: unknown }) {
+// Estado e responsável, com as regras do responsável (rules.ts; a BD repete-as nos outros canais).
+// Zendesk: escrito no Zendesk com a conta de quem altera, e guardado o que o Zendesk devolve. Restantes
+// canais: o dashboard é a fonte de verdade. Devolve a passagem da conversa a outra pessoa (para o aviso
+// por email), quando houve.
+export async function updateConversation(viewer: Viewer, id: string, change: { status?: unknown; assigneeId?: unknown }): Promise<Handover | null> {
   const status = change.status === undefined ? undefined : isStatus(change.status) ? change.status : null;
-  if (status === null) throw new Error("Estado inválido.");
+  if (status === null) throw new HttpError(400, "Estado inválido.");
   const assignee = change.assigneeId === undefined ? undefined : typeof change.assigneeId === "string" && change.assigneeId ? change.assigneeId : null;
-  const { conversation: c } = await sessionRpc<Conversation>(viewer.session, "ldo_support_conversation", { p_id: id });
+  if (assignee && !isUuid(assignee)) throw new HttpError(400, "Pedido inválido.");
+  const { conversation: c, contact } = await sessionRpc<Conversation>(viewer.session, "ldo_support_conversation", { p_id: id });
+  const own = { assigneeId: c.assignee_id, me: viewer.id, isSuper: viewer.isSuper };
+  const ownerName = c.assignee_name || "outra pessoa";
+  if (status !== undefined && status !== c.status && !canChangeStatus(own))
+    throw new HttpError(403, `Esta conversa está com ${ownerName}. Só essa pessoa (ou o Super Admin) pode mudar o estado.`);
+  const change_ = assignee === undefined ? { kind: null } : assignmentChange(own, assignee, ownerName);
+  if ("error" in change_) throw new HttpError(403, change_.error);
+  const handover: Handover | null = assignee && change_.kind && change_.kind !== "claim" && assignee !== viewer.id
+    ? { conversationId: id, target: assignee, actor: viewer.fullName || viewer.username, contact: contact?.name || contact?.handle || contact?.email || contact?.claimed_email || "cliente", channel: c.channel }
+    : null;
+
   if (c.source_id !== "zendesk") {
     await sessionRpc(viewer.session, "ldo_support_set_local", {
       p_id: id, p_set_status: status !== undefined, p_status: status ?? null, p_set_assignee: assignee !== undefined, p_assignee: assignee ?? null,
     });
-    return;
+    return handover;
   }
   let zendeskAssignee: string | null | undefined;
-  if (assignee !== undefined) {
+  let target: SupportUser | undefined;
+  if (assignee !== undefined && change_.kind) {
     if (assignee === null) zendeskAssignee = null;
     else {
       const users = await sessionRpc<SupportUser[]>(viewer.session, "ldo_support_users");
-      const target = users.find((u) => u.id === assignee);
-      if (!target) throw new Error("Este colaborador não tem acesso ao Apoio ao Cliente.");
-      if (!target.zendesk || !target.zendesk_user_id) throw new Error(`${target.name} ainda não ligou a conta Zendesk; não pode receber tickets Zendesk.`);
+      target = users.find((u) => u.id === assignee);
+      if (!target) throw new HttpError(400, "Este colaborador não tem acesso ao Apoio ao Cliente.");
+      if (!target.zendesk || !target.zendesk_user_id) throw new HttpError(400, `${target.name} ainda não ligou a conta Zendesk; não pode receber tickets Zendesk.`);
       zendeskAssignee = target.zendesk_user_id;
     }
   }
+  if (status === undefined && zendeskAssignee === undefined) return null;
   try {
     const fresh = await zendeskUpdate(viewer.id, c.external_id, { status, assigneeZendeskId: zendeskAssignee });
     await ingest("zendesk", [fresh]);
@@ -128,10 +148,16 @@ export async function updateConversation(viewer: Viewer, id: string, change: { s
     if (e instanceof ZendeskError) throw new Error(e.message);
     throw e;
   }
-  await serverRpc("ldo_support_log", {
-    p_actor: viewer.id, p_conversation: id, p_action: status !== undefined ? "status" : "assign",
-    p_details: { ...(status !== undefined ? { from: c.status, to: status } : {}), ...(assignee !== undefined ? { to: assignee } : {}), platform: "zendesk" },
-  });
+  if (status !== undefined) {
+    await serverRpc("ldo_support_log", { p_actor: viewer.id, p_conversation: id, p_action: "status", p_details: { from: c.status, to: status, platform: "zendesk" } });
+  }
+  if (zendeskAssignee !== undefined) {
+    await serverRpc("ldo_support_log", {
+      p_actor: viewer.id, p_conversation: id, p_action: "assign",
+      p_details: { kind: change_.kind, from: c.assignee_id, from_name: c.assignee_name, to: assignee, to_name: target?.name ?? null, notice: false, platform: "zendesk" },
+    });
+  }
+  return handover;
 }
 
 type ServerMessage = { message: { id: string; delivery: string | null; created_at: string }; conversation: { id: string; source_id: string; external_id: string } };

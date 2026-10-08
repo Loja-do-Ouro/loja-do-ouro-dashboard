@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { canSupport, homePath } from "@/lib/permissions";
 import { sessionRpc } from "@/lib/support/db";
+import { isUuid } from "@/lib/support/rules";
 import { zendeskConfigured, zendeskSubdomain } from "@/lib/support/zendesk";
 import { requireViewer } from "@/lib/viewer";
 import { AppShell } from "@/components/shell";
@@ -45,6 +46,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         zendeskReady={zendeskConfigured()}
         myZendesk={{ connected: Boolean(mine?.zendesk), name: mine?.zendesk_name || null, status: mine?.zendesk_status || null }}
         flash={flash}
+        initialConversation={isUuid(q.conversa) ? q.conversa : null}
       />
     </AppShell>
   );

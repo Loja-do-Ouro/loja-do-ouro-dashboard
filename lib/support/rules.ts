@@ -148,3 +148,28 @@ export function previewKind(type: string | null | undefined): PreviewKind {
   if (["audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/aac", "audio/webm"].includes(t)) return "audio";
   return "file";
 }
+
+// Responsável da conversa (espelha ldo_support_set_local / ldo_support_begin_send). Só o responsável
+// responde ao cliente; sem responsável, quem responde primeiro fica com a conversa. Notas internas: todos.
+export type Ownership = { assigneeId: string | null; me: string; isSuper: boolean };
+export const canReply = (o: Ownership) => !o.assigneeId || o.assigneeId === o.me;
+export const canChangeStatus = (o: Ownership) => o.isSuper || !o.assigneeId || o.assigneeId === o.me;
+export const canTransfer = (o: Ownership) => Boolean(o.assigneeId) && (o.isSuper || o.assigneeId === o.me);
+
+export type AssignKind = "claim" | "assign" | "transfer" | "release";
+// Mudança de responsável pedida (target null = deixar sem responsável). Devolve o tipo ou o motivo da recusa.
+export function assignmentChange(o: Ownership, target: string | null, ownerName = "o responsável"): { kind: AssignKind | null } | { error: string } {
+  if (target === o.assigneeId) return { kind: null };
+  if (target === null) return o.isSuper ? { kind: "release" } : { error: "Só o Super Admin pode deixar uma conversa sem responsável. Para a passar a um colega, use Transferir." };
+  if (!o.assigneeId) {
+    if (target === o.me) return { kind: "claim" };
+    return o.isSuper ? { kind: "assign" } : { error: "Só se pode atribuir a si próprio uma conversa sem responsável. Assuma-a e depois transfira-a." };
+  }
+  return canTransfer(o) ? { kind: "transfer" } : { error: `Esta conversa está com ${ownerName}. Só essa pessoa (ou o Super Admin) a pode transferir.` };
+}
+
+// Primeiro nome (o que o cliente vê no chat do site): nunca o nome completo nem o nome de utilizador.
+export function firstName(fullName: string | null | undefined): string | null {
+  const first = (fullName || "").trim().split(/\s+/)[0];
+  return first || null;
+}

@@ -37,6 +37,7 @@
     messages: [],           // { id, from, author, key, body, created_at, inserted_at, local?, pending?, failed?, clientKey? }
     lastInserted: null,
     typing: false,
+    agent: null,            // primeiro nome de quem está a atender
     open: false,
     busy: false,
     error: "",
@@ -195,9 +196,11 @@
     state.messages = [];
     state.lastInserted = null;
     state.typing = false;
+    state.agent = null;
     save();
     setError(message || "");
     showMode();
+    renderStatus();
   }
 
   // Cursor com 5 s de margem (respostas que ficam visíveis ao mesmo tempo); as repetidas ignoram-se pelo id.
@@ -209,6 +212,9 @@
       state.failures = 0;
       var changed = false;
       (r.messages || []).forEach(function (m) { if (merge(m)) changed = true; });
+      // Quem está a atender (só o primeiro nome): aparece no topo e no "a escrever".
+      var agent = typeof r.agent === "string" && r.agent ? r.agent.slice(0, 40) : null;
+      if (agent !== state.agent) { state.agent = agent; renderStatus(); renderTyping(); }
       if (state.typing !== Boolean(r.typing)) { state.typing = Boolean(r.typing); renderTyping(); }
       if (state.open && !document.hidden) markSeen();
       if (changed) renderMessages();
@@ -492,13 +498,130 @@
     return frag;
   }
 
+  // Texto da equipa com formatação simples, sempre construída aqui (nunca HTML vindo do servidor):
+  // parágrafos (linha em branco), listas ("- ", "• ", "* " ou "1. "), **negrito**, ligações e cartões dos
+  // produtos da loja (uma linha só com a ligação do produto; a linha de cima, se houver, é o nome e o preço).
+  var LIST_RE = /^\s*(?:[-•*]|(\d{1,2})[.)])\s+(.*)$/;
+  function inline(text, into) {
+    var parts = String(text).split(/\*\*([^*\n]+)\*\*/);
+    parts.forEach(function (part, i) {
+      if (!part) return;
+      if (i % 2) into.appendChild(el("strong", {}, part));
+      else into.appendChild(richText(part));
+    });
+    return into;
+  }
+  function productHandle(url) {
+    var u;
+    try { u = new URL(url); } catch (e) { return null; }
+    var host = u.hostname.toLowerCase();
+    if (host !== location.hostname.toLowerCase() && !/(^|\.)lojadoouro\.pt$/.test(host) && !/\.myshopify\.com$/.test(host)) return null;
+    var m = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?products\/([a-z0-9][a-z0-9-]{0,200})\/?$/i.exec(u.pathname);
+    return m ? m[1].toLowerCase() : null;
+  }
+  function formatTeam(text) {
+    var box = el("div", { class: "txt" });
+    var lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+    var para = null, listEl = null;
+    function closeAll() { para = null; listEl = null; }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var trimmed = line.trim();
+      if (!trimmed) { closeAll(); continue; }
+      var handle = /^https?:\/\/\S+$/.test(trimmed) ? productHandle(trimmed.replace(/[.,;:!?)]+$/, "")) : null;
+      if (handle) {
+        // A linha anterior (nome — preço, como a insere o botão "Produto" do dashboard) passa a legenda do cartão.
+        var caption = "";
+        if (para && para.lastChild && para.getAttribute("data-last")) {
+          caption = para.getAttribute("data-last");
+          para.removeChild(para.lastChild);
+          if (para.lastChild && para.lastChild.nodeName === "BR") para.removeChild(para.lastChild);
+          if (!para.childNodes.length) box.removeChild(para);
+        }
+        box.appendChild(productCard(trimmed.replace(/[.,;:!?)]+$/, ""), handle, caption));
+        closeAll();
+        continue;
+      }
+      var li = LIST_RE.exec(line);
+      if (li) {
+        var ordered = Boolean(li[1]);
+        if (!listEl || listEl.nodeName !== (ordered ? "OL" : "UL")) {
+          listEl = el(ordered ? "ol" : "ul", {});
+          box.appendChild(listEl);
+        }
+        listEl.appendChild(inline(li[2], el("li", {})));
+        para = null;
+        continue;
+      }
+      listEl = null;
+      if (!para) { para = el("p", {}); box.appendChild(para); }
+      else para.appendChild(el("br", {}));
+      var span = inline(trimmed, el("span", {}));
+      para.appendChild(span);
+      para.setAttribute("data-last", trimmed.length <= 200 ? trimmed : "");
+    }
+    Array.prototype.forEach.call(box.querySelectorAll("p[data-last]"), function (p) { p.removeAttribute("data-last"); });
+    return box;
+  }
+
+  // Cartão do produto: foto, nome e preço lidos da própria loja (/products/<handle>.js, só na loja Shopify).
+  var products = {};
+  var priceFmt = null;
+  function money(cents) {
+    try {
+      var cur = (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) || "EUR";
+      priceFmt = priceFmt || new Intl.NumberFormat("pt-PT", { style: "currency", currency: cur });
+      return priceFmt.format(cents / 100);
+    } catch (e) { return ""; }
+  }
+  function loadProduct(handle) {
+    if (products[handle] || !window.Shopify) return;
+    var root = (window.Shopify.routes && window.Shopify.routes.root) || "/";
+    products[handle] = "loading";
+    fetch(root + "products/" + encodeURIComponent(handle) + ".js", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (p) {
+        if (!p || typeof p.title !== "string") { products[handle] = "none"; return; }
+        var img = typeof p.featured_image === "string" ? p.featured_image : "";
+        if (img.indexOf("//") === 0) img = "https:" + img;
+        products[handle] = {
+          title: p.title.slice(0, 120),
+          price: typeof p.price === "number" ? money(p.price) : "",
+          image: /^https:\/\/[^\s"'<>]+$/.test(img) ? img + (img.indexOf("?") >= 0 ? "&" : "?") + "width=200" : "",
+          available: p.available !== false,
+        };
+        renderMessages();
+      })
+      .catch(function () { products[handle] = "none"; });
+  }
+  function productCard(url, handle, caption) {
+    loadProduct(handle);
+    var p = typeof products[handle] === "object" ? products[handle] : null;
+    var card = el("a", { class: "product", href: url, target: "_blank", rel: "noopener" });
+    if (p && p.image) card.appendChild(el("img", { src: p.image, alt: "", loading: "lazy" }));
+    var info = el("span", { class: "pinfo" });
+    var fallback = caption || handle.replace(/-/g, " ");
+    info.appendChild(el("strong", {}, p ? p.title : fallback.split(" — ")[0]));
+    var price = p ? p.price : (caption.split(" — ")[1] || "");
+    if (price) info.appendChild(el("span", { class: "price" }, price));
+    if (p && !p.available) info.appendChild(el("span", { class: "soldout" }, "Esgotado"));
+    info.appendChild(el("span", { class: "cta" }, "Ver produto"));
+    card.appendChild(info);
+    return card;
+  }
+
   function messageNode(m) {
     var d = new Date(m.created_at);
+    // Aviso (ex.: a conversa foi transferida): linha centrada, sem balão.
+    if (m.from === "notice") return el("div", { class: "msg notice", "data-id": m.id, role: "note" }, String(m.body || ""));
     var bubble = el("div", { class: "msg " + (m.from === "visitor" ? "me" : "team") + (m.failed ? " failed" : ""), "data-id": m.id });
     if (m.from === "team") bubble.appendChild(el("span", { class: "who" }, "Loja do Ouro" + (m.author ? " · " + m.author : "")));
-    var p = el("p", {});
-    p.appendChild(richText(m.body));
-    bubble.appendChild(p);
+    if (m.from === "team") bubble.appendChild(formatTeam(m.body || ""));
+    else {
+      var p = el("p", {});
+      p.appendChild(richText(m.body || ""));
+      bubble.appendChild(p);
+    }
     var meta = el("span", { class: "meta" }, m.pending ? "A enviar…" : m.failed ? "Não enviada" : timeFmt.format(d));
     if (m.failed) {
       var retry = el("button", { type: "button", class: "retry" }, "Tentar de novo");
@@ -525,13 +648,16 @@
     Array.prototype.forEach.call(list.querySelectorAll(".msg"), function (n) { old[n.getAttribute("data-id")] = n; });
     Array.prototype.forEach.call(frag.querySelectorAll(".msg"), function (n) {
       var prev = old[n.getAttribute("data-id")];
-      if (prev && prev.textContent === n.textContent && prev.className === n.className) n.parentNode.replaceChild(prev, n);
+      if (prev && prev.innerHTML === n.innerHTML && prev.className === n.className) n.parentNode.replaceChild(prev, n);
     });
     list.textContent = "";
     list.appendChild(frag);
     list.scrollTop = atBottom ? list.scrollHeight : prevTop;
   }
-  function renderTyping() { typingEl.hidden = !state.typing; }
+  function renderTyping() {
+    typingEl.textContent = state.agent ? state.agent + " está a escrever…" : "A equipa está a escrever…";
+    typingEl.hidden = !state.typing;
+  }
   function renderBadge() {
     var n = state.open ? 0 : unread();
     badge.hidden = !n;
@@ -541,7 +667,7 @@
   function renderStatus() {
     var online = isOpenNow();
     statusDot.className = "dot " + (online ? "on" : "off");
-    statusText.textContent = online ? cfg.subtitle : "Fora do horário de atendimento";
+    statusText.textContent = !online ? "Fora do horário de atendimento" : state.session && state.agent ? "A falar com " + state.agent : cfg.subtitle;
     offline.hidden = online;
     if (!online) {
       offline.textContent = cfg.offlineMessage;
@@ -680,6 +806,13 @@
       ".msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }",
       ".msg a { color: inherit; text-decoration: underline; }",
       ".who { display: block; font-size: 11px; color: #8a6428; font-weight: 600; margin-bottom: 2px; }",
+      ".msg.notice { align-self: center; max-width: 92%; padding: 4px 12px; border: 0; border-radius: 999px; background: #f2f4ef; color: #4f5c55; font-size: 12px; text-align: center; }",
+      ".txt p + p, .txt p + ul, .txt p + ol, .txt ul + p, .txt ol + p { margin-top: 7px; }",
+      ".txt ul, .txt ol { margin: 4px 0; padding-left: 20px; } .txt li { margin: 2px 0; overflow-wrap: anywhere; }",
+      ".msg a.product { display: flex; gap: 10px; align-items: center; margin: 6px 0; padding: 8px; border: 1px solid #e6e9e3; border-radius: 10px; background: #fafbf8; color: #253531; text-decoration: none; }",
+      ".product img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #fff; }",
+      ".pinfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .pinfo strong { font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }",
+      ".price { font-size: 13px; color: #8a6428; font-weight: 600; } .soldout { font-size: 11px; color: #a44b40; } .cta { font-size: 12px; color: #8a6428; text-decoration: underline; }",
       ".meta { display: block; font-size: 10.5px; opacity: .75; margin-top: 3px; text-align: right; }",
       ".retry { margin-left: 6px; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; font-size: 11px; }",
       ".typing { font-size: 12px; color: #78807c; font-style: italic; padding: 4px 12px; background: #fafbf8; }",

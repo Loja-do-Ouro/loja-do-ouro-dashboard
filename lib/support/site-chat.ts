@@ -1,9 +1,10 @@
 import "server-only";
-import { emailConfigured, emailFrom, sendEmail } from "@/lib/email";
+import { emailConfigured, sendEmail } from "@/lib/email";
 import { clientKey } from "@/lib/rate-limit";
 import { SupabaseError } from "@/lib/supabase";
 import { sha256Hex } from "./crypto";
 import { serverRpc } from "./db";
+import { supportEmailFrom } from "./notify";
 import { allowedOrigin, decodeIdentity, ipPrefix, parseOrigins, verifyIdentity } from "./site-rules";
 
 // Chat do site: rotas públicas (sem sessão do dashboard) usadas pelo botão do tema Shopify.
@@ -109,7 +110,10 @@ export async function readJson(request: Request): Promise<Record<string, unknown
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-type Pending = { visitor: string; conversation: string; email: string; name: string; until: string; replies: string[] };
+type Pending = {
+  visitor: string; conversation: string; email: string; name: string; until: string; replies: string[];
+  items?: { body: string; author: string | null }[];
+};
 
 // Respostas que o cliente ainda não viu, por email: só quando está fora do site há algum tempo e reunindo
 // todas as respostas desde o último aviso. Uma falha volta a ser tentada mais tarde (30 minutos).
@@ -131,14 +135,17 @@ export async function notifySiteVisitors(opts: { conversation: string | null; id
 
 async function sendReplies(p: Pending): Promise<{ ok: boolean; detail: string }> {
   if (!emailConfigured()) return { ok: false, detail: "RESEND_API_KEY por configurar" };
-  const from = process.env.SITE_CHAT_FROM || process.env.REPORTS_FROM || emailFrom();
+  const from = supportEmailFrom();
   const site = (process.env.SITE_CHAT_URL || "https://www.lojadoouro.pt").replace(/\/+$/, "");
   const first = p.name.split(/\s+/)[0] || "";
-  const blocks = (p.replies || []).map((body) =>
-    `<blockquote style="margin:12px 0;padding:10px 14px;border-left:3px solid #a47a37;background:#f7f8f5;white-space:pre-wrap">${escapeHtml(body)}</blockquote>`).join("");
+  // Quem respondeu (só o primeiro nome), como no chat.
+  const items = p.items?.length ? p.items : (p.replies || []).map((body) => ({ body, author: null as string | null }));
+  const blocks = items.map((r) =>
+    (r.author ? `<p style="margin:14px 0 4px;color:#78807c;font-size:13px">${escapeHtml(r.author)} · Loja do Ouro</p>` : "") +
+    `<blockquote style="margin:${r.author ? "0 0 12px" : "12px 0"};padding:10px 14px;border-left:3px solid #a47a37;background:#f7f8f5;white-space:pre-wrap">${escapeHtml(r.body)}</blockquote>`).join("");
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#253531;max-width:560px">
 <p>Olá${first ? ` ${escapeHtml(first)}` : ""},</p>
-<p>${p.replies.length > 1 ? "Deixámos-lhe estas respostas" : "Respondemos à sua mensagem"} no chat da Loja do Ouro:</p>
+<p>${items.length > 1 ? "Deixámos-lhe estas respostas" : "Respondemos à sua mensagem"} no chat da Loja do Ouro:</p>
 ${blocks}
 <p><a href="${site}/?chat=abrir" style="color:#a47a37">Continuar a conversa no site</a></p>
 <p style="color:#78807c;font-size:13px">Recebeu este email porque falou connosco no chat de lojadoouro.pt.</p>

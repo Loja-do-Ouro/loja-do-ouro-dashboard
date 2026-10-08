@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { sessionRpc } from "@/lib/support/db";
+import { notifyHandover } from "@/lib/support/notify";
 import { body, handle, HttpError, json, supportViewer } from "@/lib/support/http";
 import { isUuid } from "@/lib/support/rules";
 import { markNotSent, sendMessage, updateConversation, verifyMessage } from "@/lib/support/service";
@@ -22,7 +24,7 @@ export async function GET(request: Request, ctx: Ctx) {
       sessionRpc<Record<string, unknown>>(viewer.session, "ldo_support_conversation", { p_id: id }),
       sessionRpc(viewer.session, "ldo_support_users"),
     ]);
-    return json({ ...detail, users, me: viewer.id });
+    return json({ ...detail, users, me: viewer.id, super: viewer.isSuper });
   });
 }
 
@@ -61,12 +63,15 @@ export async function POST(request: Request, ctx: Ctx) {
         if (typeof b.body !== "string" || !isUuid(b.clientKey)) throw new HttpError(400, "Pedido inválido.");
         return json(await sendMessage(viewer, id, b.action === "reply" ? "outbound" : "note", b.body, b.clientKey, uploads, request.url));
       }
-      case "update":
-        await updateConversation(viewer, id, {
+      case "update": {
+        const handover = await updateConversation(viewer, id, {
           ...("status" in b ? { status: b.status } : {}),
           ...("assigneeId" in b ? { assigneeId: b.assigneeId } : {}),
         });
+        // Aviso por email ao colega que recebe a conversa, depois de responder (não atrasa o ecrã).
+        if (handover) after(() => notifyHandover(handover).catch(() => undefined));
         return json({ ok: true });
+      }
       case "verify":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         return json(await verifyMessage(viewer, id, b.messageId));

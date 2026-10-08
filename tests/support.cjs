@@ -94,3 +94,37 @@ test("Attachments are previewed only when the bytes match a safe type", () => {
   assert.equal(r.previewKind("audio/ogg; codecs=opus"), "audio");
   assert.equal(r.previewKind(null), "file");
 });
+
+test("Only the owner replies; anyone can take an unowned conversation; owner or Super Admin transfer", () => {
+  const owner = { assigneeId: "a", me: "a", isSuper: false };
+  const colleague = { assigneeId: "a", me: "b", isSuper: false };
+  const boss = { assigneeId: "a", me: "s", isSuper: true };
+  const free = { assigneeId: null, me: "b", isSuper: false };
+  assert.equal(r.canReply(owner), true);
+  assert.equal(r.canReply(colleague), false);
+  assert.equal(r.canReply(boss), false, "the Super Admin also has to take the conversation over first");
+  assert.equal(r.canReply(free), true);
+  assert.equal(r.canChangeStatus(colleague), false);
+  assert.equal(r.canChangeStatus(boss), true);
+  assert.equal(r.canChangeStatus(free), true);
+  assert.equal(r.canTransfer(owner), true);
+  assert.equal(r.canTransfer(colleague), false);
+  assert.equal(r.canTransfer(boss), true);
+  assert.equal(r.canTransfer(free), false);
+
+  assert.deepEqual(r.assignmentChange(free, "b"), { kind: "claim" });
+  assert.match(r.assignmentChange(free, "c").error, /a si próprio/);
+  assert.deepEqual(r.assignmentChange({ ...free, isSuper: true }, "c"), { kind: "assign" });
+  assert.deepEqual(r.assignmentChange(owner, "b"), { kind: "transfer" });
+  assert.deepEqual(r.assignmentChange(boss, "s"), { kind: "transfer" });
+  assert.match(r.assignmentChange(colleague, "b", "Bárbara").error, /está com Bárbara/);
+  assert.match(r.assignmentChange(owner, null).error, /Super Admin/);
+  assert.deepEqual(r.assignmentChange(boss, null), { kind: "release" });
+  assert.deepEqual(r.assignmentChange(owner, "a"), { kind: null });
+});
+
+test("Customers only ever see the colleague's first name", () => {
+  assert.equal(r.firstName("  Bárbara   Sousa Lima "), "Bárbara");
+  assert.equal(r.firstName(""), null);
+  assert.equal(r.firstName(null), null);
+});

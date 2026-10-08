@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { metricoolConfigured } from "@/lib/bi/metricool";
-import { emailConfigured, emailFrom } from "@/lib/email";
+import { emailConfigured } from "@/lib/email";
 import { shopifyConfigured, supportStoreInfo, type StoreInfo } from "@/lib/bi/shopify";
 import { homePath } from "@/lib/permissions";
 import { aiConfigured, aiWorkspaceStatus } from "@/lib/support/ai";
 import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { serverConfigured, sessionRpc } from "@/lib/support/db";
+import { supportEmailFrom } from "@/lib/support/notify";
 import { siteOrigins } from "@/lib/support/site-chat";
 import { metricoolDiagnostics } from "@/lib/support/metricool";
 import { WHATSAPP_STATUS } from "@/lib/support/whatsapp";
@@ -66,7 +67,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   } else storeError = "Ligação Shopify por configurar.";
   // Chat do site: remetente dos avisos por email (o Resend só entrega a partir de um domínio verificado).
   const siteSource = state.sources.find((x) => x.id === "site-chat");
-  const siteFrom = process.env.SITE_CHAT_FROM || process.env.REPORTS_FROM || emailFrom();
+  const siteFrom = supportEmailFrom();
   const siteDomainPending = /resend\.dev/i.test(siteFrom);
   // Mensagens das ações da IA aparecem dentro da secção da IA (o redirect leva até lá com #ia).
   const aiFlash = q.secao === "ia";
@@ -291,7 +292,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
             {!emailConfigured() ? <span className="pill warn">Em falta</span> : siteDomainPending ? <span className="pill warn">Domínio por verificar</span> : <span className="pill ok">Configurado</span>}
             <small className="muted block">
               {siteDomainPending
-                ? "O Resend só entrega emails enviados de um domínio verificado: verificar lojadoouro.pt no Resend e indicar o remetente em SITE_CHAT_FROM (ex.: Loja do Ouro <apoio@lojadoouro.pt>). Até lá, o cliente vê a resposta só no chat."
+                ? "O Resend só entrega emails enviados de um domínio verificado: verificar lojadoouro.pt no Resend e indicar o remetente em SUPPORT_EMAIL_FROM (ex.: Loja do Ouro <apoiocliente@lojadoouro.pt>). Até lá, o cliente vê a resposta só no chat."
                 : `Remetente: ${siteFrom}`}
             </small>
           </dd>

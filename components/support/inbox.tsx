@@ -5,6 +5,9 @@ import { AiPanel } from "./ai-panel";
 import { AttachmentViewer, sizeLabel, type ViewerItem } from "./attachment-viewer";
 import { CatalogPicker } from "./catalog-picker";
 import {
+  canChangeStatus,
+  canReply,
+  canTransfer,
   CHANNEL_LABEL,
   DELIVERY_LABEL,
   previewKind,
@@ -13,6 +16,7 @@ import {
   type Channel,
   type Delivery,
   type Kind,
+  type Ownership,
   type Status,
 } from "@/lib/support/rules";
 
@@ -43,7 +47,9 @@ type Detail = {
   audit: { action: string; details: Record<string, unknown>; created_at: string; actor: string }[];
   users: User[];
   me: string;
+  super: boolean;
 };
+type AuditEntry = Detail["audit"][number];
 type Orders = { email: string | null; orders: { name: string; created_at: string; cancelled: boolean; financial: string | null; fulfillment: string | null; total: number | null; currency: string | null; admin_url: string }[]; error?: string; note?: string; linked?: boolean };
 
 const FILTERS = [
@@ -70,6 +76,21 @@ const AUDIT: Record<string, string> = {
   status: "mudou o estado", assign: "atribuiu", reply: "respondeu", note: "acrescentou uma nota", reopen: "reabriu (nova mensagem do cliente)",
   link_customer: "associou o cliente", "zendesk.connect": "ligou o Zendesk", "zendesk.disconnect": "desligou o Zendesk",
 };
+
+// Mudança de responsável, por extenso (na conversa e no registo).
+function assignText(a: AuditEntry) {
+  const to = typeof a.details.to_name === "string" ? a.details.to_name : "outra pessoa";
+  switch (a.details.kind) {
+    case "claim":
+      return `${to} ficou responsável pela conversa`;
+    case "transfer":
+      return `${a.actor} transferiu a conversa para ${to}${a.details.notice ? " (o cliente viu o aviso no chat)" : ""}`;
+    case "release":
+      return `${a.actor} deixou a conversa sem responsável`;
+    default:
+      return a.details.to ? `${a.actor} atribuiu a conversa a ${to}` : `${a.actor} retirou o responsável`;
+  }
+}
 
 // Pedidos à API do Apoio ao Cliente. Uma sessão expirada devolve a página de login (não JSON).
 async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
@@ -157,11 +178,14 @@ export function SupportInbox({
   zendeskReady,
   myZendesk,
   flash,
+  initialConversation = null,
 }: {
   zendeskSubdomain: string;
   zendeskReady: boolean;
   myZendesk: { connected: boolean; name: string | null; status: string | null };
   flash: { ok?: string; error?: string };
+  // Ligação direta (ex.: email de transferência): /apoio?conversa=<id>.
+  initialConversation?: string | null;
 }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
   const [channel, setChannel] = useState("");
@@ -170,10 +194,10 @@ export function SupportInbox({
   const [query, setQuery] = useState("");
   const [list, setList] = useState<List | null>(null);
   const [listError, setListError] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialConversation);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [detailError, setDetailError] = useState("");
-  const [pane, setPane] = useState<"list" | "conversation" | "info">("list");
+  const [pane, setPane] = useState<"list" | "conversation" | "info">(initialConversation ? "conversation" : "list");
   const [mode, setMode] = useState<"reply" | "note">("reply");
   const [drafts, setDrafts] = useState<Record<string, { reply: string; note: string }>>({});
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -365,7 +389,7 @@ export function SupportInbox({
   const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
   // Zendesk: até 5 anexos (imagens ou PDF). Facebook/Instagram: uma imagem por mensagem, só em respostas.
   const maxAttachments = !c ? 0 : isZendesk ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
-  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : c.conversation.platform === "site" ? "O chat do site ainda só aceita texto (pode inserir a ligação de um produto)." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
+  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : c.conversation.platform === "site" ? "O chat do site ainda não aceita anexos. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
     if (!selected) return;
@@ -424,15 +448,20 @@ export function SupportInbox({
     }
   }
 
+  // Responsável: só ele responde ao cliente (a BD confirma). Os colegas podem deixar notas internas.
+  const own: Ownership | null = c ? { assigneeId: c.conversation.assignee_id, me: c.me, isSuper: Boolean(c.super) } : null;
+  const ownerName = c?.conversation.assignee_name || "outra pessoa";
   const replyBlocked = !c
     ? "A carregar…"
     : isWhatsapp
       ? "WhatsApp por configurar: ainda não é possível responder por este canal."
-      : isZendesk && !me?.zendesk
-        ? "Ligue a sua conta Zendesk para responder com a sua autoria."
-        : c.conversation.source_status === "blocked" && !isZendesk
-          ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
-          : "";
+      : own && !canReply(own)
+        ? `Esta conversa está com ${ownerName}: só essa pessoa responde ao cliente. ${c.super ? "Para responder, transfira-a para si (Cliente → Atendimento)." : "Se precisar de a assumir, peça-lhe que a transfira."} Pode deixar uma nota interna.`
+        : isZendesk && !me?.zendesk
+          ? "Ligue a sua conta Zendesk para responder com a sua autoria."
+          : c.conversation.source_status === "blocked" && !isZendesk
+            ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
+            : "";
   const noteBlocked = !c ? "A carregar…" : isZendesk && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
 
   // Assistente de IA: pede uma proposta (abre o separador da IA) e passa-a para o campo de resposta.
@@ -526,6 +555,14 @@ export function SupportInbox({
       ),
     [c],
   );
+  // A conversa com as mudanças de responsável pelo meio, por ordem de hora.
+  const timeline = useMemo(() => {
+    type Row = { key: string; at: string; message?: Message; event?: AuditEntry };
+    if (!c) return [] as Row[];
+    const events: Row[] = c.audit.filter((a) => a.action === "assign").map((a, i) => ({ key: `ev-${i}-${a.created_at}`, at: a.created_at, event: a }));
+    const messages: Row[] = c.messages.map((m) => ({ key: m.id, at: m.created_at, message: m }));
+    return [...messages, ...events].sort((x, y) => x.at.localeCompare(y.at));
+  }, [c]);
   const sources = list?.sources || [];
   // Só fontes ativas contam: uma fonte por ligar não faz parecer que tudo está atualizado.
   const lastSync = sources.filter((s) => s.status === "active").map((s) => s.last_success_at).filter(Boolean).sort().at(-1) || null;
@@ -647,7 +684,10 @@ export function SupportInbox({
               {actionError && <p className="support-error" role="alert">{actionError}</p>}
               {actionNote && <p className="support-note" role="status">{actionNote}</p>}
               <div className="support-messages" ref={messagesBox}>
-                {c.messages.map((m) => (
+                {timeline.map((t) => {
+                  if (t.event) return <p key={t.key} className="msg-event" role="note">{assignText(t.event)} · <time dateTime={t.at}>{time(t.at)}</time></p>;
+                  const m = t.message!;
+                  return (
                   <article key={m.id} className={`msg ${m.kind}`}>
                     <header>
                       <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.author_name || (m.kind === "inbound" ? "Cliente" : "Loja do Ouro")}</strong>
@@ -713,7 +753,8 @@ export function SupportInbox({
                       </footer>
                     )}
                   </article>
-                ))}
+                  );
+                })}
                 {!c.messages.length && <p className="support-empty">Sem mensagens sincronizadas.</p>}
               </div>
 
@@ -724,6 +765,7 @@ export function SupportInbox({
                 </div>
                 <p className="composer-target">
                   {mode === "reply" ? <>Envia por: <strong>{destination}</strong></> : <>Nota interna — <strong>visível só para a equipa</strong>{isZendesk ? " (comentário privado no Zendesk)" : ""}.</>}
+                  {mode === "reply" && !c.conversation.assignee_id && !isZendesk && !replyBlocked && <small className="block muted">Ao responder fica responsável por esta conversa.</small>}
                 </p>
                 {(mode === "reply" ? replyBlocked : noteBlocked) ? (
                   <div className="composer-blocked">
@@ -895,9 +937,24 @@ function CustomerPanel({
     }
   }
 
-  // No Zendesk só se atribui a quem ligou a conta Zendesk (o responsável é o agente Zendesk).
-  const assignable = d.users.filter((u) => !isZendesk || u.zendesk || u.id === conv.assignee_id);
-  const current = conv.assignee_id && !assignable.some((u) => u.id === conv.assignee_id) ? conv.assignee_id : null;
+  // Responsável: assume-se uma conversa livre; o responsável (ou o Super Admin) transfere-a a um colega.
+  // No Zendesk só se transfere a quem ligou a conta Zendesk (o responsável é o agente Zendesk).
+  const own: Ownership = { assigneeId: conv.assignee_id, me: d.me, isSuper: Boolean(d.super) };
+  const transferTo = d.users.filter((u) => u.id !== conv.assignee_id && (!isZendesk || u.zendesk));
+  const [target, setTarget] = useState("");
+  const [busy, setBusy] = useState(false);
+  const run = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    try {
+      await onAct(body);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const owner = conv.assignee_id
+    ? `${conv.assignee_name || "—"}${conv.assignee_id === d.me ? " (eu)" : ""}`
+    : conv.external_assignee_name ? `${conv.external_assignee_name} (Zendesk, conta por ligar)` : "Sem responsável";
+  const targetName = transferTo.find((u) => u.id === target)?.name || "";
   return (
     <div className="customer-panel">
       <button type="button" className="support-back" onClick={onBack}>← Conversa</button>
@@ -905,20 +962,41 @@ function CustomerPanel({
         <span className="eyebrow">Atendimento</span>
         <label>
           Estado
-          <select value={conv.status} onChange={(e) => onAct({ action: "update", status: e.target.value })}>
+          <select value={conv.status} disabled={!canChangeStatus(own)} title={canChangeStatus(own) ? "" : "Só o responsável (ou o Super Admin) muda o estado."}
+            onChange={(e) => onAct({ action: "update", status: e.target.value })}>
             {STATUSES.map((s) => <option key={s} value={s} disabled={isZendesk && s === "novo" && conv.status !== "novo"}>{STATUS_LABEL[s]}</option>)}
           </select>
         </label>
-        <label>
-          Responsável
-          <select value={conv.assignee_id || ""} onChange={(e) => onAct({ action: "update", assigneeId: e.target.value || null })}>
-            <option value="">{conv.external_assignee_name && !conv.assignee_id ? `${conv.external_assignee_name} (Zendesk)` : "Sem responsável"}</option>
-            {current && <option value={current}>{conv.assignee_name || "Responsável atual"}</option>}
-            {assignable.map((u) => (
-              <option key={u.id} value={u.id}>{u.name}{u.me ? " (eu)" : ""}{isZendesk && !u.zendesk ? " (Zendesk por religar)" : ""}</option>
-            ))}
-          </select>
-        </label>
+        <div className="owner-row">
+          <span>Responsável</span>
+          <strong>{owner}</strong>
+        </div>
+        {!conv.assignee_id && (
+          <button type="button" className="secondary-button" disabled={busy || (isZendesk && !d.users.find((u) => u.me)?.zendesk)}
+            onClick={() => run({ action: "update", assigneeId: d.me })}>
+            Assumir conversa
+          </button>
+        )}
+        {canTransfer(own) && (
+          <form className="transfer-form" onSubmit={(e) => {
+            e.preventDefault();
+            if (!target) return;
+            const msg = conv.channel === "site"
+              ? `Transferir a conversa para ${targetName}? O cliente vê no chat que passou a falar com outra pessoa.`
+              : `Transferir a conversa para ${targetName}?`;
+            if (confirm(msg)) run({ action: "update", assigneeId: target }).then(() => setTarget(""));
+          }}>
+            <label>
+              Transferir para
+              <select value={target} onChange={(e) => setTarget(e.target.value)}>
+                <option value="">Escolher colega…</option>
+                {transferTo.map((u) => <option key={u.id} value={u.id}>{u.name}{u.me ? " (eu)" : ""}</option>)}
+              </select>
+            </label>
+            <button type="submit" className="secondary-button" disabled={!target || busy}>Transferir</button>
+          </form>
+        )}
+        {conv.assignee_id && !canTransfer(own) && <small className="muted">Só {conv.assignee_name || "o responsável"} (ou o Super Admin) pode responder ao cliente e transferir esta conversa. Pode deixar notas internas.</small>}
         {isZendesk && <small className="muted">Estado e responsável são gravados no Zendesk (fonte de verdade) com a sua conta. Estado no Zendesk: {conv.platform_status || "—"}.</small>}
         {!isZendesk && <small className="muted">Estado e responsável pertencem ao dashboard; uma nova mensagem do cliente reabre uma conversa resolvida.</small>}
         <div className="customer-actions">
@@ -998,9 +1076,8 @@ function CustomerPanel({
         <ul className="audit">
           {d.audit.map((a, i) => (
             <li key={i}>
-              <small>{time(a.created_at)}</small> {a.actor} {AUDIT[a.action] || a.action}
+              <small>{time(a.created_at)}</small> {a.action === "assign" ? assignText(a) : `${a.actor} ${AUDIT[a.action] || a.action}`}
               {a.action === "status" && typeof a.details.to === "string" && ` → ${STATUS_LABEL[a.details.to as Status] || a.details.to}`}
-              {a.action === "assign" && typeof a.details.to_name === "string" && ` → ${a.details.to_name}`}
             </li>
           ))}
           {!d.audit.length && <li className="muted">Sem ações registadas.</li>}
