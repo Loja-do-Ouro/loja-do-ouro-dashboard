@@ -17,6 +17,9 @@
 
   var cfg = readConfig();
   if (!cfg || cfg.enabled === false) return;
+  // Chatbot antigo (Bluedot): a secção do tema impede-o de carregar, mas se o cliente mexer na página antes de
+  // o rodapé chegar ao browser ele ainda carrega; nesse caso fica escondido.
+  if (cfg.hideOld) hideOldChatbot();
   var path = location.pathname || "/";
   if (cfg.hideOn.some(function (p) { return p && path.indexOf(p) === 0; })) return;
   if (cfg.mobile === false && window.matchMedia("(max-width: 749px)").matches) return;
@@ -82,7 +85,15 @@
       mobile: c.mobile !== false,
       identity: c.identity && c.identity.sig ? c.identity : null,
       customer: c.customer || null,
+      hideOld: c.hideOld === true,
     };
+  }
+  function hideOldChatbot() {
+    if (document.getElementById("ldo-chat-hide-old")) return;
+    var style = document.createElement("style");
+    style.id = "ldo-chat-hide-old";
+    style.textContent = "#aichatbot_ra_div_id { display: none !important; }";
+    (document.head || document.documentElement).appendChild(style);
   }
   function safeColor(v, d) { return typeof v === "string" && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : d; }
   function clampNum(v, min, max, d) { var n = Number(v); return isFinite(n) && n >= min && n <= max ? n : d; }
@@ -336,9 +347,12 @@
 
   // ------------------------------------------------------------ interface (construída uma vez)
 
-  var host = document.createElement("div");
+  // Elemento próprio e display forçado: o conteúdo fica no Shadow DOM, por isso para o CSS do tema o elemento
+  // está vazio, e o Dawn esconde "div:empty" (base.css).
+  var host = document.createElement("ldo-chat-root");
   host.id = "ldo-chat";
   host.setAttribute("data-nosnippet", "");
+  host.style.setProperty("display", "block", "important");
   var root = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
   document.body.appendChild(host);
 
