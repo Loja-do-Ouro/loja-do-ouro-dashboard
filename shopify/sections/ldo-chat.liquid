@@ -1,0 +1,151 @@
+{%- comment -%}
+  Chat da Loja do Ouro: botão flutuante ligado ao Apoio ao Cliente do dashboard.
+  Instalação: Personalizar tema → Rodapé → Adicionar secção → "Chat Loja do Ouro" (uma vez). As definições
+  ficam nesta secção. O código do widget vem do dashboard (/site-chat/ldo-chat.js): para o atualizar basta
+  publicar o dashboard. Com "Desligar o chatbot antigo" ativo, o chatbot da Bluedot deixa de carregar.
+{%- endcomment -%}
+{%- if section.settings.enabled -%}
+  {%- liquid
+    assign ldo_api = section.settings.api | default: 'https://loja-do-ouro-dashboard.vercel.app' | strip
+    assign ldo_logo = ''
+    if section.settings.logo != blank
+      assign ldo_logo = section.settings.logo | image_url: width: 96 | prepend: 'https:'
+    endif
+    assign ldo_privacy = section.settings.privacy_url
+    if ldo_privacy == blank and shop.privacy_policy
+      assign ldo_privacy = shop.privacy_policy.url
+    endif
+  -%}
+  {%- if section.settings.replace_bluedot -%}
+    <script>window.aichatbotScriptLoaded = true;</script>
+  {%- endif -%}
+  <script id="ldo-chat-config" type="application/json">
+    {
+      "enabled": true,
+      "api": {{ ldo_api | json }},
+      "title": {{ section.settings.title | json }},
+      "subtitle": {{ section.settings.subtitle | json }},
+      "welcome": {{ section.settings.welcome | json }},
+      "button": {{ section.settings.button | json }},
+      "color": {{ section.settings.color | json }},
+      "textColor": {{ section.settings.text_color | json }},
+      "logo": {{ ldo_logo | json }},
+      "position": {{ section.settings.position | json }},
+      "offset": {{ section.settings.offset | json }},
+      "offsetSide": {{ section.settings.offset_side | json }},
+      "mobile": {{ section.settings.mobile | json }},
+      "hideOn": {{ section.settings.hide_on | json }},
+      "privacyText": {{ section.settings.privacy_text | json }},
+      "privacyUrl": {{ ldo_privacy | json }},
+      "offlineMessage": {{ section.settings.offline | json }},
+      "hours": {
+        "weekdays": {{ section.settings.hours_weekdays | json }},
+        "saturday": {{ section.settings.hours_saturday | json }},
+        "sunday": {{ section.settings.hours_sunday | json }}
+      },
+      "customer": {% if customer %}{ "name": {{ customer.name | json }}, "email": {{ customer.email | json }} }{% else %}null{% endif %},
+      {%- comment -%}
+        Cliente com sessão iniciada: o email vai assinado (válido 24 h) com a chave que também está na Vercel
+        (SITE_CHAT_SECRET). O dashboard só considera o email confirmado se a assinatura bater certo.
+      {%- endcomment -%}
+      {%- if customer and section.settings.secret != blank -%}
+        {%- assign ldo_ts = 'now' | date: '%s' -%}
+        {%- assign ldo_email = customer.email | downcase -%}
+        {%- assign ldo_payload = ldo_email | append: '|' | append: ldo_ts -%}
+        "identity": { "email": {{ ldo_email | json }}, "name": {{ customer.name | json }}, "ts": {{ ldo_ts | json }}, "sig": {{ ldo_payload | hmac_sha256: section.settings.secret | json }} }
+      {%- else -%}
+        "identity": null
+      {%- endif %}
+    }
+  </script>
+  <script src="{{ ldo_api | escape }}/site-chat/ldo-chat.js" defer="defer"></script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Chat Loja do Ouro",
+  "tag": "div",
+  "class": "ldo-chat-section",
+  "enabled_on": { "groups": ["footer"] },
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Botão de chat ligado ao Apoio ao Cliente do dashboard. As conversas aparecem no canal \"Chat do site\" e as respostas da equipa aparecem aqui ao cliente."
+    },
+    { "type": "checkbox", "id": "enabled", "label": "Mostrar o chat no site", "default": true },
+    {
+      "type": "checkbox",
+      "id": "replace_bluedot",
+      "label": "Desligar o chatbot antigo (Bluedot)",
+      "info": "Com esta opção, o chatbot da Bluedot deixa de carregar enquanto este chat estiver ligado.",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "api",
+      "label": "Endereço do dashboard",
+      "default": "https://loja-do-ouro-dashboard.vercel.app",
+      "info": "Não alterar sem indicação técnica."
+    },
+    { "type": "header", "content": "Textos" },
+    { "type": "text", "id": "title", "label": "Título", "default": "Fale connosco" },
+    { "type": "text", "id": "subtitle", "label": "Subtítulo (dentro do horário)", "default": "Respondemos em poucos minutos." },
+    { "type": "textarea", "id": "welcome", "label": "Mensagem de boas-vindas", "default": "Olá! Em que podemos ajudar? Deixe o seu nome, email e a sua mensagem." },
+    { "type": "text", "id": "button", "label": "Texto ao lado do ícone", "info": "Vazio: só o ícone." },
+    {
+      "type": "textarea",
+      "id": "offline",
+      "label": "Mensagem fora do horário",
+      "default": "Neste momento estamos fora do horário de atendimento. Deixe a sua mensagem: respondemos assim que possível e enviamos também a resposta para o seu email."
+    },
+    { "type": "header", "content": "Horário de atendimento" },
+    {
+      "type": "paragraph",
+      "content": "Hora de Lisboa, no formato 09:30-19:00. Vários períodos separados por vírgula (09:30-13:00, 14:00-18:30). Vazio = fechado nesse dia; com os três vazios, o chat aparece sempre como disponível. Fora do horário o chat continua aberto e mostra a mensagem acima."
+    },
+    { "type": "text", "id": "hours_weekdays", "label": "Segunda a sexta", "default": "09:30-13:00, 14:00-18:30" },
+    { "type": "text", "id": "hours_saturday", "label": "Sábado", "default": "10:00-13:00" },
+    { "type": "text", "id": "hours_sunday", "label": "Domingo" },
+    { "type": "header", "content": "Aspeto" },
+    { "type": "color", "id": "color", "label": "Cor principal", "default": "#a47a37" },
+    { "type": "color", "id": "text_color", "label": "Cor do texto sobre a cor principal", "default": "#ffffff" },
+    { "type": "image_picker", "id": "logo", "label": "Logótipo (no topo da janela)" },
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Posição do botão",
+      "options": [
+        { "value": "right", "label": "Direita" },
+        { "value": "left", "label": "Esquerda" }
+      ],
+      "default": "right"
+    },
+    { "type": "range", "id": "offset", "label": "Distância ao fundo", "min": 8, "max": 160, "step": 4, "unit": "px", "default": 84 },
+    { "type": "range", "id": "offset_side", "label": "Distância à lateral", "min": 8, "max": 160, "step": 4, "unit": "px", "default": 20 },
+    { "type": "checkbox", "id": "mobile", "label": "Mostrar no telemóvel", "default": true },
+    {
+      "type": "textarea",
+      "id": "hide_on",
+      "label": "Esconder nestas páginas",
+      "info": "Um caminho por linha (o início do endereço), por exemplo /cart ou /pages/compramos-ouro.",
+      "default": "/cart"
+    },
+    { "type": "header", "content": "Privacidade" },
+    {
+      "type": "text",
+      "id": "privacy_text",
+      "label": "Aviso de privacidade",
+      "default": "Ao iniciar a conversa aceita a nossa Política de privacidade. Para o podermos ajudar, a equipa vê a página em que está e o seu carrinho."
+    },
+    { "type": "url", "id": "privacy_url", "label": "Página da política de privacidade", "info": "Vazio: usa a política de privacidade da loja." },
+    { "type": "header", "content": "Clientes com sessão iniciada" },
+    {
+      "type": "text",
+      "id": "secret",
+      "label": "Chave de verificação",
+      "info": "O mesmo valor da variável SITE_CHAT_SECRET na Vercel. Com ela, o email de quem tem sessão iniciada na loja fica confirmado no Apoio ao Cliente (e a equipa vê as encomendas). Vazio: o email é pedido e fica como não confirmado."
+    }
+  ],
+  "presets": [{ "name": "Chat Loja do Ouro" }]
+}
+{% endschema %}

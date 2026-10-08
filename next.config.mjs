@@ -9,6 +9,10 @@ if (process.env.VERCEL) console.info("[BI readiness]", JSON.stringify({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Widget do chat do site (carregado pelo tema Shopify): cache curta, para as atualizações chegarem depressa.
+  async headers() {
+    return [{ source: "/site-chat/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=300, stale-while-revalidate=3600" }] }];
+  },
 };
 
 export default nextConfig;

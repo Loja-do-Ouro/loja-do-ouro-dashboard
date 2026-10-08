@@ -3,8 +3,8 @@
  *
  * As conversas entram no Apoio ao Cliente do dashboard (canal "Chat do site") e as respostas da equipa
  * aparecem aqui. Sem bibliotecas; isolado do CSS do tema (Shadow DOM). A configuração vem do bloco
- * <script id="ldo-chat-config" type="application/json"> gerado por snippets/ldo-chat.liquid (ou de
- * window.LDO_CHAT_CONFIG) e muda-se em Loja online → Personalizar tema → Definições do tema → Chat.
+ * <script id="ldo-chat-config" type="application/json"> gerado pela secção sections/ldo-chat.liquid do tema
+ * (ou de window.LDO_CHAT_CONFIG) e muda-se em Loja online → Personalizar tema → Rodapé → Chat Loja do Ouro.
  *
  * Privacidade: guarda no browser só o token da conversa e a hora de início da visita (localStorage).
  * Depois de o cliente iniciar o chat, envia à equipa a página em que está e o carrinho da loja.

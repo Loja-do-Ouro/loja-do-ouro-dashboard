@@ -46,7 +46,7 @@ export default async function ChatTestPage() {
           <li>A resposta aparece aqui em poucos segundos. Se fechar este separador e esperar 1 minuto antes de responder, a resposta segue também por email (quando o envio de emails estiver configurado).</li>
         </ol>
         <ChatTestTools />
-        <p className="panel-note">No site, cores, textos, posição e horário mudam-se em Loja online → Personalizar tema → Definições do tema → Chat Loja do Ouro. Esta página usa os valores por omissão.</p>
+        <p className="panel-note">No site, cores, textos, posição e horário mudam-se em Loja online → Personalizar tema → Rodapé → secção Chat Loja do Ouro. Esta página usa os valores por omissão.</p>
       </Panel>
       <script id="ldo-chat-config" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(CONFIG).replace(/</g, "\\u003c") }} />
     </AppShell>

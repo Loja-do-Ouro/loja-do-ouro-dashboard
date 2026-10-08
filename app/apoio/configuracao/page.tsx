@@ -290,7 +290,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
             </small>
           </dd>
         </dl>
-        <p className="panel-note">O botão é instalado no tema Shopify (snippet ldo-chat, ficheiro ldo-chat.js e as definições &quot;Chat Loja do Ouro&quot;). As conversas entram no canal &quot;Chat do site&quot;: a equipa responde como nos outros canais e o cliente vê a resposta em poucos segundos; se já tiver saído do site, recebe-a também por email (no máximo um email a cada 10 minutos). O email escrito por quem não tem sessão iniciada não é confirmado, por isso não mostra encomendas até a equipa o associar.</p>
+        <p className="panel-note">O botão é instalado no tema Shopify com a secção &quot;Chat Loja do Ouro&quot; (Personalizar tema → Rodapé → Adicionar secção), onde ficam todas as definições; o código do widget vem deste dashboard. As conversas entram no canal &quot;Chat do site&quot;: a equipa responde como nos outros canais e o cliente vê a resposta em poucos segundos; se já tiver saído do site, recebe-a também por email (no máximo um email a cada 10 minutos). O email escrito por quem não tem sessão iniciada não é confirmado, por isso não mostra encomendas até a equipa o associar.</p>
         <a className="outline-button" href="/apoio/chat-teste">Testar o chat</a>
       </Panel>
 

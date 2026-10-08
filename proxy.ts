@@ -24,6 +24,8 @@ export function proxy(request: NextRequest) {
   if (path.startsWith("/api/support/media/")) return NextResponse.next();
   // Chat do site (botão no tema Shopify): token próprio de cada visitante, origens e limites na BD.
   if (path.startsWith("/api/chat/")) return NextResponse.next();
+  // Código do widget do chat, carregado pelo tema da loja (ficheiro público, sem dados).
+  if (path.startsWith("/site-chat/")) return NextResponse.next();
   if (request.cookies.get(SESSION_COOKIE)?.value) return NextResponse.next();
 
   const login = new URL("/login", request.url);
