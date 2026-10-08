@@ -250,9 +250,15 @@ const RECOVER_PAGES = 30;
 // Conversas por ler entre passagens (no cursor). Com a fila cheia o ponto de partida não avança: o que falta é
 // relido mais tarde, nunca deitado fora.
 const MAX_PENDING = 5000;
-// Uma conversa que falha sempre ao ser lida (erro do Gmail só nela) não pode travar as outras: ao fim de 5
-// passagens sai da fila e fica contada no estado da fonte (volta a ser lida se chegar outra mensagem).
+// Uma conversa que o Gmail não deixa ler passa para o fim da fila e nunca trava as outras. Só sai da fila (fica
+// contada no estado da fonte e volta a ser lida se chegar outra mensagem) depois de falhar pelo menos 5 vezes
+// durante 6 horas: uma falha passageira do Gmail nunca tira um email da fila.
 const MAX_THREAD_FAILURES = 5;
+const THREAD_FAILURE_WINDOW_S = 6 * 3600;
+// Até 3 conversas a falhar numa passagem; a partir daí pára de ler (o Gmail deve estar com problemas).
+const MAX_FAILED_PER_RUN = 3;
+// Tempo reservado no fim da passagem para enviar as respostas automáticas das conversas lidas.
+const AUTOREPLY_RESERVE_MS = 20000;
 // Uma conversa volta a contar quando entra na caixa de entrada ou sai do spam ou do lixo.
 const RETURNING = ["SPAM", "TRASH"];
 
@@ -393,9 +399,13 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
   let historyId = typeof cursor.historyId === "string" ? cursor.historyId : undefined;
   let syncedAt = typeof cursor.syncedAt === "number" ? cursor.syncedAt : null;
   const previous = strings(cursor.pending);
-  const failures: Record<string, number> = {};
+  // Falhas por conversa: quantas e desde quando (segundos Unix).
+  const failures: Record<string, { n: number; since: number }> = {};
   if (cursor.failures && typeof cursor.failures === "object")
-    for (const [k, v] of Object.entries(cursor.failures as Record<string, unknown>)) if (typeof v === "number") failures[k] = v;
+    for (const [k, v] of Object.entries(cursor.failures as Record<string, unknown>)) {
+      const x = v as { n?: unknown; since?: unknown } | null;
+      if (x && typeof x.n === "number" && typeof x.since === "number") failures[k] = { n: x.n, since: x.since };
+    }
   let broken = strings(cursor.broken).slice(-50);
   const r = cursor.recover as Partial<Recover> | undefined;
   let recover: Recover | null = r && typeof r.q === "string" && typeof r.historyId === "string" ? { q: r.q, page: typeof r.page === "string" ? r.page : null, historyId: r.historyId } : null;
@@ -489,7 +499,10 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
   const threads: Thread[] = [];
   const failed = new Set<string>();
   let read = 0;
-  while (queue.length && read < MAX_THREADS_PER_RUN && Date.now() < deadline - 10000) {
+  // Com respostas automáticas por enviar, pára de ler mais cedo para haver tempo de as enviar nesta passagem.
+  let replyPending = false;
+  const stopAt = () => deadline - (replyPending ? AUTOREPLY_RESERVE_MS : 10000);
+  while (queue.length && read < MAX_THREADS_PER_RUN && Date.now() < stopAt()) {
     const id = queue.shift()!;
     read++;
     let t: Thread | null = null;
@@ -504,20 +517,20 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
       delete failures[id];
       broken = broken.filter((b) => b !== id);
       threads.push(t);
+      if (state.settings.autoreply_enabled && autoReplyTarget(t, mailbox)) replyPending = true;
       continue;
     }
     if (error instanceof GmailError && error.status === 404) continue; // apagada entretanto
-    // Problema geral (ligação, limite de pedidos), ou duas conversas a falhar sem nenhuma lida: pára e tenta tudo
-    // mais tarde. Uma conversa que falha sozinha fica para a próxima passagem (nunca relida nesta).
+    // Problema geral (ligação, limite de pedidos): pára e tenta tudo mais tarde, com a espera habitual.
     if (!(error instanceof GmailError) || error.reconnect || error.status === 401 || error.status === 429) throw error;
+    // Erro nesta conversa: vai para o fim da fila (nunca relida nesta passagem) e as outras continuam.
     failed.add(id);
-    if (failed.size >= 2 && !threads.length) throw error;
-    if (failed.size >= 3) break;
+    if (failed.size >= MAX_FAILED_PER_RUN) break;
   }
-  // Conta a falha de cada conversa (quando outras se leram, ou é a única a falhar): ao fim de 5 sai da fila.
   for (const id of failed) {
-    if (threads.length || failed.size === 1) failures[id] = (failures[id] || 0) + 1;
-    if ((failures[id] || 0) >= MAX_THREAD_FAILURES) {
+    const f = failures[id] || { n: 0, since: now() };
+    failures[id] = { n: f.n + 1, since: f.since };
+    if (failures[id].n >= MAX_THREAD_FAILURES && now() - f.since >= THREAD_FAILURE_WINDOW_S) {
       delete failures[id];
       broken = [...broken.filter((b) => b !== id), id].slice(-50);
     } else queue.push(id);
@@ -536,7 +549,7 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
     for (const t of threads) {
       const to = autoReplyTarget(t, mailbox);
       if (!to) continue;
-      if (Date.now() > deadline - 20000) {
+      if (Date.now() > deadline - AUTOREPLY_RESERVE_MS + 5000) {
         later.push(t.id);
         continue;
       }
@@ -549,7 +562,8 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
     cursor: { historyId, syncedAt, pending: queue, ...(recover ? { recover } : {}), ...(Object.keys(failures).length ? { failures } : {}), ...(broken.length ? { broken } : {}) },
     totals: { ...totals, autoreplies, skipped },
     detail: `Gmail (${mailbox})${notes.length ? ` · ${notes.join("; ")}` : ""}`,
-    more: queue.length > 0 || Boolean(recover),
+    // Só as conversas que falharam agora não pedem outra passagem já (esperam pela sincronização seguinte).
+    more: queue.some((id) => !failed.has(id)) || Boolean(recover),
   };
 }
 

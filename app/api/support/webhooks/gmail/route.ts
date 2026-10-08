@@ -12,6 +12,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // assinado pela Google para esta subscrição (audience = este endereço, conta de serviço configurada).
 // O aviso não traz conteúdo: responde logo (o Pub/Sub espera 10 s) e sincroniza a seguir.
 export async function POST(request: Request) {
+  const start = Date.now();
   const account = process.env.GMAIL_PUSH_SERVICE_ACCOUNT;
   if (!account) return new Response("Gmail por configurar.", { status: 503 });
   const auth = await verifyPubSubPush(request.headers.get("authorization"), { audience: gmailPushAudience(), email: account });
@@ -30,14 +31,13 @@ export async function POST(request: Request) {
   // - Outra passagem a correr (ou acabada há menos de 15 s): espera e volta a tentar; essa passagem não leu este email.
   // - Mais conversas por ler: continua.
   // - A espera depois de erros não trava um aviso (override): um email novo é sinal para tentar já.
-  // Uma leitura do Gmail pode começar até 10 s antes do fim da passagem e demorar até 25 s: cada passagem acaba no
-  // máximo 15 s depois do seu orçamento. Por isso o orçamento é no máximo 37 s menos o tempo já passado (tudo
-  // abaixo dos 60 s da função) e nunca começa uma passagem com menos de 15 s.
+  // Uma leitura do Gmail pode começar até 10 s antes do fim da passagem e demorar até 25 s, e depois ainda há a
+  // gravação: o orçamento conta desde o início do pedido e fica em 30 s menos o tempo já passado (folga para os
+  // 60 s da função); nunca começa uma passagem com menos de 12 s. O que ficar por fazer passa à seguinte.
   after(async () => {
-    const start = Date.now();
     for (;;) {
-      const budgetMs = Math.min(30_000, 37_000 - (Date.now() - start));
-      if (budgetMs < 15_000) return;
+      const budgetMs = Math.min(25_000, 30_000 - (Date.now() - start));
+      if (budgetMs < 12_000) return;
       const [r] = await runSync({ only: ["gmail"], force: true, override: true, budgetMs }).catch(() => [] as SyncOutcome[]);
       if (!r) return;
       if (r.ran) {
