@@ -17,5 +17,7 @@ export async function GET(request: Request) {
   const purged = await serverRpc<number>("ldo_support_uploads_purge").catch(() => null);
   // Pedidos à IA: o registo apaga-se ao fim de 180 dias.
   const aiPurged = await serverRpc<number>("ldo_support_ai_purge").catch(() => null);
-  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged, aiPurged }, { headers: { "Cache-Control": "no-store" } });
+  // Chat do site: tokens de visitantes sem atividade há 180 dias deixam de funcionar.
+  const sitePurged = await serverRpc<number>("ldo_support_site_purge").catch(() => null);
+  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged, aiPurged, sitePurged }, { headers: { "Cache-Control": "no-store" } });
 }

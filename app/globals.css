@@ -3480,6 +3480,7 @@ textarea:focus-visible,
 .channel-badge.facebook { background: #edf1fa; color: #3b5590; }
 .channel-badge.instagram { background: #f9eef3; color: #9a3f68; }
 .channel-badge.whatsapp { background: #ecf6ef; color: #2c6e45; }
+.channel-badge.site { background: #f6efe3; color: #8a6428; }
 .status-badge.novo { background: #faf4e9; color: #957648; border-color: #eee1ca; }
 .status-badge.em_atendimento { background: #eef3ea; color: #4d6b4a; border-color: #d6e2cf; }
 .status-badge.aguarda_cliente { background: #f2f3f7; color: #5a6178; }

@@ -3,6 +3,7 @@ import { ingest, serverRpc, sessionRpc } from "./db";
 import { metricoolSend } from "./metricool";
 import { REFUSAL, runSync } from "./sync";
 import { isStatus, zendeskReplyWarning, type Status } from "./rules";
+import { notifySiteVisitor } from "./site-chat";
 import { whatsappSend } from "./whatsapp";
 import { getUpload, publishUpload } from "./uploads";
 import { readTicket, zendeskComment, zendeskUpdate, ZendeskError, type OutgoingFile } from "./zendesk";
@@ -10,7 +11,7 @@ import type { Viewer } from "@/lib/viewer";
 
 type Begin = {
   existing: boolean;
-  platform: "zendesk" | "metricool" | "whatsapp";
+  platform: "zendesk" | "metricool" | "whatsapp" | "site";
   message: { id: string; kind: "outbound" | "note"; delivery: string | null; body: string };
   uploads: string[];
   conversation: { id: string; source_id: string; channel: string; external_id: string; via: string | null; contact_external_id: string | null };
@@ -60,19 +61,26 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
     else if (begin.platform === "zendesk") r = await zendeskComment(viewer.id, begin.conversation.external_id, begin.message.body, kind === "outbound", files);
     else if (begin.platform === "metricool")
       r = await metricoolSend(PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.body, image);
+    // Chat do site: a resposta fica guardada e o widget vai buscá-la (o dashboard é a fonte de verdade).
+    else if (begin.platform === "site") r = { outcome: "accepted", externalId: null, detail: null };
     else r = await whatsappSend();
   } catch (e) {
     // Erro inesperado depois de o pedido poder ter saído: incerto, nunca repetido automaticamente.
     r = { outcome: "uncertain", externalId: null, detail: e instanceof Error ? e.message : "Erro inesperado." };
   }
-  const detail =
+  let detail =
     r.outcome === "accepted"
       ? begin.platform === "zendesk"
         ? kind === "note"
           ? "Nota interna gravada no Zendesk (privada)."
           : zendeskReplyWarning(begin.conversation.via)
-        : "Aceite pela Metricool. Entrega no Messenger/Instagram sem confirmação pela API."
+        : begin.platform === "site"
+          ? "No chat do site: passa a Entregue quando o chat do cliente a recebe e a Lida com o chat aberto."
+          : "Aceite pela Metricool. Entrega no Messenger/Instagram sem confirmação pela API."
       : r.detail;
+  // Cliente que já saiu do site: a resposta segue também por email (no máximo um a cada 10 minutos).
+  if (begin.platform === "site" && kind === "outbound" && r.outcome === "accepted")
+    detail = (await notifySiteVisitor(conversationId, begin.message.body).catch(() => null)) || detail;
   await serverRpc("ldo_support_finish_send", { p_message: begin.message.id, p_delivery: r.outcome, p_detail: detail, p_external_id: r.externalId });
   // Atualiza o ticket com o que o Zendesk tem agora (comentário, estado); falhar aqui não muda o envio.
   if (begin.platform === "zendesk" && r.outcome !== "failed")

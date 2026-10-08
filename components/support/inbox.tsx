@@ -36,7 +36,7 @@ type Detail = {
     via: string | null; platform: string; source_label: string; source_status: string; read_at: string | null; last_inbound_at: string | null;
     last_inbound_inserted_at: string | null;
   };
-  contact: { id: string; name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; linked_by_name: string | null; linked_at: string | null } | null;
+  contact: { id: string; name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; linked_by_name: string | null; linked_at: string | null; claimed_email?: string | null } | null;
   related: { contact_id: string; channel: Channel; name: string | null; email: string | null; phone: string | null; conversation_id: string | null }[];
   messages: Message[];
   presence: { user_id: string; name: string; composing: boolean }[];
@@ -364,7 +364,7 @@ export function SupportInbox({
   const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
   // Zendesk: até 5 anexos (imagens ou PDF). Facebook/Instagram: uma imagem por mensagem, só em respostas.
   const maxAttachments = !c ? 0 : isZendesk ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
-  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
+  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : c.conversation.platform === "site" ? "O chat do site ainda só aceita texto (pode inserir a ligação de um produto)." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
     if (!selected) return;
@@ -533,6 +533,7 @@ export function SupportInbox({
     if (isZendesk) return `Resposta pública no ticket ${c.conversation.subject?.split(" · ")[0] || ""} — Zendesk notifica ${c.contact?.email || who}`;
     if (c.conversation.channel === "instagram") return `Instagram Direct · para ${who}`;
     if (c.conversation.channel === "facebook") return `Facebook Messenger · para ${who}`;
+    if (c.conversation.channel === "site") return `Chat do site · para ${who} (se já tiver saído do site, recebe também por email)`;
     return `${CHANNEL_LABEL[c.conversation.channel]} · por configurar`;
   }, [c, isZendesk]);
 
@@ -544,7 +545,7 @@ export function SupportInbox({
         {sources.map((s) => (
           <span key={s.id} className={`source-chip ${s.status}`} title={s.last_error || s.status_detail || ""}>
             <b>{s.label}</b>
-            {s.status === "not_configured" ? "Por configurar" : s.status === "active" ? `Sincronizado ${time(s.last_success_at)}` : s.status === "pending" ? s.status_detail || "A aguardar ligação" : s.status === "blocked" ? "Bloqueado" : "Erro"}
+            {s.status === "not_configured" ? "Por configurar" : s.status === "active" && s.platform === "site" ? "Em direto" : s.status === "active" ? `Sincronizado ${time(s.last_success_at)}` : s.status === "pending" ? s.status_detail || "A aguardar ligação" : s.status === "blocked" ? "Bloqueado" : "Erro"}
           </span>
         ))}
         <span className="support-sync">
@@ -932,7 +933,11 @@ function CustomerPanel({
         <dl>
           <dt>Nome</dt><dd>{contact?.name || "—"}</dd>
           {contact?.handle && contact.handle !== contact.name && (<><dt>Perfil</dt><dd>{contact.handle}</dd></>)}
-          <dt>Email</dt><dd>{contact?.email || "—"}</dd>
+          <dt>Email</dt>
+          <dd>
+            {contact?.email || (contact?.claimed_email ? <>{contact.claimed_email} <small className="muted">(indicado no chat, não confirmado)</small></> : "—")}
+            {conv.channel === "site" && contact?.email && <small className="muted block">Confirmado: o cliente tinha sessão iniciada na loja.</small>}
+          </dd>
           <dt>Telefone</dt><dd>{contact?.phone || "—"}</dd>
           <dt>Canal</dt><dd>{conv.source_label}</dd>
         </dl>
@@ -942,7 +947,7 @@ function CustomerPanel({
         <span className="eyebrow">Cliente da loja online</span>
         <p className="muted small">A associação é manual, por email. Nunca se juntam clientes pelo nome.</p>
         <form className="link-form" onSubmit={(e) => { e.preventDefault(); link(email); }}>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={contact?.email || "email do cliente na loja"} aria-label="Email do cliente na loja online" />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={contact?.email || contact?.claimed_email || "email do cliente na loja"} aria-label="Email do cliente na loja online" />
           <button type="submit" className="secondary-button">Associar</button>
           {contact?.linked_email && <button type="button" className="secondary-button" onClick={() => { setEmail(""); link(""); }}>Remover</button>}
         </form>

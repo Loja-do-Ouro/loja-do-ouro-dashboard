@@ -22,6 +22,8 @@ export function proxy(request: NextRequest) {
   if (path.startsWith("/api/support/webhooks/")) return NextResponse.next();
   // Imagens de respostas Facebook/Instagram: token aleatório de 32 bytes, válido 1 hora (a Meta vai buscá-las).
   if (path.startsWith("/api/support/media/")) return NextResponse.next();
+  // Chat do site (botão no tema Shopify): token próprio de cada visitante, origens e limites na BD.
+  if (path.startsWith("/api/chat/")) return NextResponse.next();
   if (request.cookies.get(SESSION_COOKIE)?.value) return NextResponse.next();
 
   const login = new URL("/login", request.url);

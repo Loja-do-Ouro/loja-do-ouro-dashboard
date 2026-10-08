@@ -11,7 +11,10 @@ export function emailFrom() {
   return process.env.REPORTS_FROM || "Loja do Ouro <onboarding@resend.dev>";
 }
 
-export async function sendEmail(to: string[], subject: string, html: string): Promise<{ ok: boolean; detail: string }> {
+export async function sendEmail(
+  to: string[], subject: string, html: string,
+  opts: { from?: string; replyTo?: string; timeoutMs?: number } = {},
+): Promise<{ ok: boolean; detail: string }> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { ok: false, detail: "RESEND_API_KEY por configurar." };
   if (!to.length) return { ok: false, detail: "Sem destinatários (Super Admins com email e relatórios ativos)." };
@@ -19,9 +22,9 @@ export async function sendEmail(to: string[], subject: string, html: string): Pr
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       cache: "no-store",
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 20000),
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: emailFrom(), to, subject, html }),
+      body: JSON.stringify({ from: opts.from || emailFrom(), to, subject, html, ...(opts.replyTo ? { reply_to: opts.replyTo } : {}) }),
     });
     const body = (await r.json().catch(() => ({}))) as { id?: string; message?: string };
     return r.ok ? { ok: true, detail: body.id || "enviado" } : { ok: false, detail: body.message || `Resend recusou (${r.status}).` };

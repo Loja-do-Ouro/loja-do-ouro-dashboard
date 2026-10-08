@@ -33,7 +33,7 @@ export type AiEvent = { type: "status"; text: string } | { type: "done"; item: A
 
 type Detail = {
   conversation: { id: string; channel: Channel; subject: string | null; status: Status; assignee_name: string | null; source_label: string };
-  contact: { name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null } | null;
+  contact: { name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; claimed_email?: string | null } | null;
   related: { channel: Channel; name: string | null; email: string | null; phone: string | null }[];
   messages: {
     kind: "inbound" | "outbound" | "note"; author_name: string | null; body: string; attachments: { name: string; type: string | null }[] | null;
@@ -72,7 +72,7 @@ Estilo da resposta ao cliente
 - Escreve na língua da última mensagem do cliente. Em português, usa sempre o português europeu, nunca o do Brasil: evita "você" (prefere a forma verbal sem pronome, por exemplo "Pode enviar-nos…"), o gerúndio ("estamos a verificar", não "estamos verificando") e palavras como "time", "celular", "tela" ou "contato".
 - Tom cordial, profissional e caloroso, como numa joalharia de confiança. Frases curtas, sem jargão.
 - Texto simples, sem Markdown (sem asteriscos, cardinais nem tabelas): os canais mostram o texto tal como está.
-- Instagram e Facebook Messenger: curto (duas a cinco frases), sem assinatura formal.
+- Instagram, Facebook Messenger e chat do site: curto (duas a cinco frases), sem assinatura formal.
 - Email (Zendesk): saudação com o nome do cliente quando o conheces, parágrafos curtos e despedida, com a assinatura definida na base de conhecimento (se existir).
 - Responde ao que o cliente perguntou. Se faltar informação para ajudar (por exemplo o número da encomenda ou a medida do anel), pede-a com clareza.
 - Se a base de conhecimento definir outras regras de tom ou de assinatura, essas prevalecem.`;
@@ -164,6 +164,8 @@ function contextText(d: Detail) {
     k?.handle && k.handle !== k.name && `perfil ${untrusted(k.handle)}`,
     k?.email && `email ${untrusted(k.email)}`,
     k?.linked_email && `email associado pela equipa ${untrusted(k.linked_email)}`,
+    // Chat do site sem sessão iniciada na loja: o email foi escrito pelo próprio e não está confirmado.
+    !k?.email && k?.claimed_email && `email indicado no chat, NÃO confirmado (não serve para mostrar encomendas) ${untrusted(k.claimed_email)}`,
     k?.phone && `telefone ${untrusted(k.phone)}`,
   ].filter(Boolean).join("; ");
   const lines: string[] = [

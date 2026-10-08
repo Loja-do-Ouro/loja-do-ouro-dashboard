@@ -1,0 +1,58 @@
+{%- comment -%}
+  Chat da Loja do Ouro: botão flutuante ligado ao Apoio ao Cliente do dashboard.
+  Configuração: Loja online → Personalizar tema → Definições do tema → Chat Loja do Ouro.
+  Incluído no fim de layout/theme.liquid com {% render 'ldo-chat' %}. O código está em assets/ldo-chat.js
+  (cópia de public/site-chat/ldo-chat.js no repositório do dashboard).
+{%- endcomment -%}
+{%- if settings.ldo_chat_enabled -%}
+  {%- liquid
+    assign ldo_logo = ''
+    if settings.ldo_chat_logo != blank
+      assign ldo_logo = settings.ldo_chat_logo | image_url: width: 96 | prepend: 'https:'
+    endif
+    assign ldo_privacy = settings.ldo_chat_privacy_url
+    if ldo_privacy == blank and shop.privacy_policy
+      assign ldo_privacy = shop.privacy_policy.url
+    endif
+  -%}
+  <script id="ldo-chat-config" type="application/json">
+    {
+      "enabled": true,
+      "api": {{ settings.ldo_chat_api | default: 'https://loja-do-ouro-dashboard.vercel.app' | json }},
+      "title": {{ settings.ldo_chat_title | json }},
+      "subtitle": {{ settings.ldo_chat_subtitle | json }},
+      "welcome": {{ settings.ldo_chat_welcome | json }},
+      "button": {{ settings.ldo_chat_button | json }},
+      "color": {{ settings.ldo_chat_color | json }},
+      "textColor": {{ settings.ldo_chat_text_color | json }},
+      "logo": {{ ldo_logo | json }},
+      "position": {{ settings.ldo_chat_position | json }},
+      "offset": {{ settings.ldo_chat_offset | json }},
+      "offsetSide": {{ settings.ldo_chat_offset_side | json }},
+      "mobile": {{ settings.ldo_chat_mobile | json }},
+      "hideOn": {{ settings.ldo_chat_hide_on | json }},
+      "privacyText": {{ settings.ldo_chat_privacy_text | json }},
+      "privacyUrl": {{ ldo_privacy | json }},
+      "offlineMessage": {{ settings.ldo_chat_offline | json }},
+      "hours": {
+        "weekdays": {{ settings.ldo_chat_hours_weekdays | json }},
+        "saturday": {{ settings.ldo_chat_hours_saturday | json }},
+        "sunday": {{ settings.ldo_chat_hours_sunday | json }}
+      },
+      "customer": {% if customer %}{ "name": {{ customer.name | json }}, "email": {{ customer.email | json }} }{% else %}null{% endif %},
+      {%- comment -%}
+        Cliente com sessão iniciada: o email vai assinado (válido 24 h) com a chave que também está na Vercel
+        (SITE_CHAT_SECRET). O dashboard só considera o email confirmado se a assinatura bater certo.
+      {%- endcomment -%}
+      {%- if customer and settings.ldo_chat_secret != blank -%}
+        {%- assign ldo_ts = 'now' | date: '%s' -%}
+        {%- assign ldo_email = customer.email | downcase -%}
+        {%- assign ldo_payload = ldo_email | append: '|' | append: ldo_ts -%}
+        "identity": { "email": {{ ldo_email | json }}, "name": {{ customer.name | json }}, "ts": {{ ldo_ts | json }}, "sig": {{ ldo_payload | hmac_sha256: settings.ldo_chat_secret | json }} }
+      {%- else -%}
+        "identity": null
+      {%- endif %}
+    }
+  </script>
+  <script src="{{ 'ldo-chat.js' | asset_url }}" defer="defer"></script>
+{%- endif -%}

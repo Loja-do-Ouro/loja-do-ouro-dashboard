@@ -1,0 +1,47 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const site = require("../.test-build/support/site-rules.js");
+
+test("Only the store sites (and the dashboard itself) may use the chat", () => {
+  const allowed = site.parseOrigins(undefined);
+  assert.deepEqual(allowed, site.DEFAULT_ORIGINS);
+  assert.equal(site.allowedOrigin("https://www.lojadoouro.pt", allowed, "https://dash.example"), "https://www.lojadoouro.pt");
+  assert.equal(site.allowedOrigin("https://LOJADOOURO.PT", allowed, "https://dash.example"), "https://LOJADOOURO.PT");
+  assert.equal(site.allowedOrigin("https://dash.example", allowed, "https://dash.example"), "https://dash.example");
+  assert.equal(site.allowedOrigin("https://evil.example", allowed, "https://dash.example"), null);
+  assert.equal(site.allowedOrigin("https://www.lojadoouro.pt.evil.example", allowed, "https://dash.example"), null);
+  assert.equal(site.allowedOrigin(null, allowed, "https://dash.example"), null);
+  // Lista própria: só https, sem barras finais; valores inválidos são ignorados.
+  assert.deepEqual(site.parseOrigins("https://a.pt/, http://b.pt, javascript:x, https://c.pt:8443"), ["https://a.pt", "https://c.pt:8443"]);
+  assert.deepEqual(site.parseOrigins("lixo"), site.DEFAULT_ORIGINS);
+});
+
+test("A logged-in customer's email is confirmed only with a valid, recent theme signature", () => {
+  const secret = "segredo-de-teste";
+  const now = 1_791_400_000_000;
+  const ts = String(Math.floor(now / 1000) - 60);
+  const sig = site.identitySignature("cliente@exemplo.pt", ts, secret);
+  assert.equal(site.verifyIdentity({ email: "Cliente@Exemplo.pt ", ts, sig }, secret, now), "cliente@exemplo.pt");
+  // Assinatura de outro email, segredo errado, sem segredo, expirada ou do futuro: não confirma.
+  assert.equal(site.verifyIdentity({ email: "outro@exemplo.pt", ts, sig }, secret, now), null);
+  assert.equal(site.verifyIdentity({ email: "cliente@exemplo.pt", ts, sig }, "outro", now), null);
+  assert.equal(site.verifyIdentity({ email: "cliente@exemplo.pt", ts, sig }, undefined, now), null);
+  const old = String(Math.floor(now / 1000) - site.IDENTITY_MAX_AGE_S - 10);
+  assert.equal(site.verifyIdentity({ email: "cliente@exemplo.pt", ts: old, sig: site.identitySignature("cliente@exemplo.pt", old, secret) }, secret, now), null);
+  const future = String(Math.floor(now / 1000) + 3600);
+  assert.equal(site.verifyIdentity({ email: "cliente@exemplo.pt", ts: future, sig: site.identitySignature("cliente@exemplo.pt", future, secret) }, secret, now), null);
+  assert.equal(site.verifyIdentity({ email: "cliente@exemplo.pt", ts, sig: "zz" }, secret, now), null);
+  assert.equal(site.verifyIdentity(null, secret, now), null);
+  assert.equal(site.verifyIdentity("texto", secret, now), null);
+});
+
+test("Emails and pages from the widget are validated", () => {
+  assert.equal(site.isEmail("a@b.pt"), true);
+  assert.equal(site.isEmail("a@b"), false);
+  assert.equal(site.isEmail("a b@c.pt"), false);
+  assert.equal(site.isEmail(42), false);
+  const allowed = site.DEFAULT_ORIGINS;
+  assert.equal(site.cleanPage("https://www.lojadoouro.pt/products/anel?utm_source=x#y", allowed), "https://www.lojadoouro.pt/products/anel");
+  assert.equal(site.cleanPage("https://evil.example/x", allowed), null);
+  assert.equal(site.cleanPage("não é url", allowed), null);
+});

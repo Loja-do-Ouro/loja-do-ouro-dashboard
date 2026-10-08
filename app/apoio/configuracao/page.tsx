@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { metricoolConfigured } from "@/lib/bi/metricool";
+import { emailConfigured, emailFrom } from "@/lib/email";
 import { shopifyConfigured, supportStoreInfo, type StoreInfo } from "@/lib/bi/shopify";
 import { homePath } from "@/lib/permissions";
 import { aiConfigured } from "@/lib/support/ai";
 import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { serverConfigured, sessionRpc } from "@/lib/support/db";
+import { siteOrigins } from "@/lib/support/site-chat";
 import { metricoolDiagnostics } from "@/lib/support/metricool";
 import { WHATSAPP_STATUS } from "@/lib/support/whatsapp";
 import { redirectUri, ZENDESK_SCOPES, zendeskDiagnostics, zendeskReadiness } from "@/lib/support/zendesk";
@@ -62,6 +64,10 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
       storeError = e instanceof Error ? e.message : "Shopify indisponível.";
     }
   } else storeError = "Ligação Shopify por configurar.";
+  // Chat do site: remetente dos avisos por email (o Resend só entrega a partir de um domínio verificado).
+  const siteSource = state.sources.find((x) => x.id === "site-chat");
+  const siteFrom = process.env.SITE_CHAT_FROM || process.env.REPORTS_FROM || emailFrom();
+  const siteDomainPending = /resend\.dev/i.test(siteFrom);
   // Mensagens das ações da IA aparecem dentro da secção da IA (o redirect leva até lá com #ia).
   const aiFlash = q.secao === "ia";
   const flashOk = typeof q.ok === "string" ? q.ok.slice(0, 200) : undefined;
@@ -267,6 +273,25 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           <textarea name="body" maxLength={20000} placeholder="Texto que a IA deve conhecer…" aria-label="Texto da nova secção" />
           <div className="knowledge-row"><button type="submit" className="secondary-button">Criar secção</button></div>
         </form>
+      </Panel>
+
+      <Panel title="Chat do site" eyebrow="BOTÃO NO SITE" id="chat">
+        <dl className="config-list">
+          <dt>Estado</dt><dd>{siteSource?.status === "active" ? <span className="pill ok">Ativo</span> : <span className="pill warn">{siteSource?.status || "Por configurar"}</span>}</dd>
+          <dt>Sites autorizados</dt><dd><code>{siteOrigins().join(" · ")}</code> <small className="muted block">SITE_CHAT_ORIGINS (opcional)</small></dd>
+          <dt>Clientes com sessão</dt><dd>{yes(Boolean(process.env.SITE_CHAT_SECRET))} <small className="muted">SITE_CHAT_SECRET, com o mesmo valor na definição do tema. Sem ela, o email escrito no chat fica como não confirmado.</small></dd>
+          <dt>Aviso por email</dt>
+          <dd>
+            {!emailConfigured() ? <span className="pill warn">Em falta</span> : siteDomainPending ? <span className="pill warn">Domínio por verificar</span> : <span className="pill ok">Configurado</span>}
+            <small className="muted block">
+              {siteDomainPending
+                ? "O Resend só entrega emails enviados de um domínio verificado: verificar lojadoouro.pt no Resend e indicar o remetente em SITE_CHAT_FROM (ex.: Loja do Ouro <apoio@lojadoouro.pt>). Até lá, o cliente vê a resposta só no chat."
+                : `Remetente: ${siteFrom}`}
+            </small>
+          </dd>
+        </dl>
+        <p className="panel-note">O botão é instalado no tema Shopify (snippet ldo-chat, ficheiro ldo-chat.js e as definições &quot;Chat Loja do Ouro&quot;). As conversas entram no canal &quot;Chat do site&quot;: a equipa responde como nos outros canais e o cliente vê a resposta em poucos segundos; se já tiver saído do site, recebe-a também por email (no máximo um email a cada 10 minutos). O email escrito por quem não tem sessão iniciada não é confirmado, por isso não mostra encomendas até a equipa o associar.</p>
+        <a className="outline-button" href="/apoio/chat-teste">Testar o chat</a>
       </Panel>
 
       <Panel title="Quem usa o Apoio ao Cliente" eyebrow="ACESSOS">
