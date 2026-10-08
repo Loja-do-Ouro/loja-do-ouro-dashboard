@@ -384,7 +384,8 @@ async function uploadFile(token: string, file: OutgoingFile, previous?: string) 
 
 // Resposta pública ou nota interna, com o token de quem escreve. Uma nota é sempre public:false.
 // Os anexos são carregados primeiro: se algum falhar, nada é publicado no ticket ("Falhou").
-export async function zendeskComment(userId: string, ticketId: string, body: string, isPublic: boolean, files: OutgoingFile[] = []) {
+// assignTo: id Zendesk de quem responde, para ficar responsável pelo ticket no mesmo pedido.
+export async function zendeskComment(userId: string, ticketId: string, body: string, isPublic: boolean, files: OutgoingFile[] = [], assignTo: string | null = null) {
   const path = `/api/v2/tickets/${encodeURIComponent(ticketId)}.json`;
   const failed = (e: unknown) => ({ outcome: "failed" as const, externalId: null, detail: e instanceof Error ? e.message : "Ligação Zendesk indisponível." });
   // Sem token válido o pedido nem chega a sair: é uma falha, não um resultado incerto.
@@ -408,7 +409,12 @@ export async function zendeskComment(userId: string, ticketId: string, body: str
   } catch (e) {
     return failed(e);
   }
-  const payload = { ticket: { comment: { body: body || (files.length ? "Segue em anexo." : ""), public: isPublic, ...(uploadToken ? { uploads: [uploadToken] } : {}) } } };
+  const payload = {
+    ticket: {
+      comment: { body: body || (files.length ? "Segue em anexo." : ""), public: isPublic, ...(uploadToken ? { uploads: [uploadToken] } : {}) },
+      ...(assignTo && Number(assignTo) ? { assignee_id: Number(assignTo) } : {}),
+    },
+  };
   let r: UpdateResult;
   try {
     r = await call<UpdateResult>(token, "PUT", path, payload);

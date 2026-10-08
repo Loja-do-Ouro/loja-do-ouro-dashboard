@@ -765,7 +765,7 @@ export function SupportInbox({
                 </div>
                 <p className="composer-target">
                   {mode === "reply" ? <>Envia por: <strong>{destination}</strong></> : <>Nota interna — <strong>visível só para a equipa</strong>{isZendesk ? " (comentário privado no Zendesk)" : ""}.</>}
-                  {mode === "reply" && !c.conversation.assignee_id && !isZendesk && !replyBlocked && <small className="block muted">Ao responder fica responsável por esta conversa.</small>}
+                  {mode === "reply" && !c.conversation.assignee_id && !c.conversation.external_assignee_id && !replyBlocked && <small className="block muted">Ao responder fica responsável por esta conversa.</small>}
                 </p>
                 {(mode === "reply" ? replyBlocked : noteBlocked) ? (
                   <div className="composer-blocked">
@@ -995,6 +995,12 @@ function CustomerPanel({
             </label>
             <button type="submit" className="secondary-button" disabled={!target || busy}>Transferir</button>
           </form>
+        )}
+        {d.super && conv.assignee_id && (
+          <button type="button" className="secondary-button" disabled={busy}
+            onClick={() => { if (confirm("Deixar esta conversa sem responsável? Volta para a lista \"Sem responsável\" e a próxima pessoa a responder fica com ela.")) run({ action: "update", assigneeId: null }); }}>
+            Deixar sem responsável
+          </button>
         )}
         {conv.assignee_id && !canTransfer(own) && <small className="muted">Só {conv.assignee_name || "o responsável"} (ou o Super Admin) pode responder ao cliente e transferir esta conversa. Pode deixar notas internas.</small>}
         {isZendesk && <small className="muted">Estado e responsável são gravados no Zendesk (fonte de verdade) com a sua conta. Estado no Zendesk: {conv.platform_status || "—"}.</small>}

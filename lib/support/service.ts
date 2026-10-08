@@ -15,7 +15,10 @@ type Begin = {
   platform: "zendesk" | "metricool" | "whatsapp" | "site";
   message: { id: string; kind: "outbound" | "note"; delivery: string | null; body: string };
   uploads: string[];
-  conversation: { id: string; source_id: string; channel: string; external_id: string; via: string | null; contact_external_id: string | null };
+  conversation: {
+    id: string; source_id: string; channel: string; external_id: string; via: string | null; contact_external_id: string | null;
+    assignee_id?: string | null; external_assignee_id?: string | null;
+  };
 };
 type Result = { outcome: "accepted" | "failed" | "uncertain"; externalId: string | null; detail: string | null };
 
@@ -56,10 +59,19 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
     prepared = { outcome: "failed", externalId: null, detail: e instanceof Error ? e.message : "Anexo indisponível." };
   }
 
+  // Zendesk: quem responde primeiro a um ticket sem responsável fica com ele (no mesmo pedido ao Zendesk,
+  // para a resposta e a atribuição não se separarem). Nos outros canais trata disto a BD.
+  let claimZendesk: string | null = null;
+  if (begin.platform === "zendesk" && kind === "outbound" && !begin.conversation.assignee_id && !begin.conversation.external_assignee_id) {
+    const users = await sessionRpc<SupportUser[]>(viewer.session, "ldo_support_users").catch(() => [] as SupportUser[]);
+    claimZendesk = users.find((u) => u.id === viewer.id)?.zendesk_user_id || null;
+  }
+
   let r: Result;
   try {
     if (prepared) r = prepared;
-    else if (begin.platform === "zendesk") r = await zendeskComment(viewer.id, begin.conversation.external_id, begin.message.body, kind === "outbound", files);
+    else if (begin.platform === "zendesk")
+      r = await zendeskComment(viewer.id, begin.conversation.external_id, begin.message.body, kind === "outbound", files, claimZendesk);
     else if (begin.platform === "metricool")
       r = await metricoolSend(PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.body, image);
     // Chat do site: a resposta fica guardada e o widget vai buscá-la (o dashboard é a fonte de verdade).
@@ -92,6 +104,12 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
   // Atualiza o ticket com o que o Zendesk tem agora (comentário, estado); falhar aqui não muda o envio.
   if (begin.platform === "zendesk" && r.outcome !== "failed")
     await readTicket(viewer.id, begin.conversation.external_id).then((c) => ingest("zendesk", [c])).catch(() => undefined);
+  if (claimZendesk && r.outcome === "accepted") {
+    await serverRpc("ldo_support_log", {
+      p_actor: viewer.id, p_conversation: conversationId, p_action: "assign",
+      p_details: { kind: "claim", from: null, to: viewer.id, to_name: viewer.fullName || viewer.username, notice: false, platform: "zendesk" },
+    }).catch(() => undefined);
+  }
   return { messageId: begin.message.id, delivery: r.outcome === "accepted" && kind === "note" ? null : r.outcome, detail, repeated: false };
 }
 

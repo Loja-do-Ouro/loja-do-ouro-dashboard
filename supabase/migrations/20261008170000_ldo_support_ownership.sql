@@ -196,7 +196,7 @@ begin
     'uploads', (select coalesce(jsonb_agg(u.id order by array_position(v_uploads, u.id)), '[]'::jsonb) from public.ldo_support_uploads u where u.message_id = v_m.id),
     'conversation', jsonb_build_object('id', v_c.id, 'source_id', v_c.source_id, 'channel', v_c.channel, 'account', v_c.account,
       'external_id', v_c.external_id, 'via', v_c.via, 'contact_external_id', v_k.external_id,
-      'external_assignee_id', v_c.external_assignee_id, 'status', v_c.status));
+      'assignee_id', v_c.assignee_id, 'external_assignee_id', v_c.external_assignee_id, 'status', v_c.status));
 end;
 $$;
 

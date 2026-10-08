@@ -511,34 +511,37 @@
     });
     return into;
   }
-  function productHandle(url) {
+  // Ligação de um produto da loja: { handle, variant } (variant = ?variant=<id>, se vier), ou null.
+  function productLink(url) {
     var u;
     try { u = new URL(url); } catch (e) { return null; }
     var host = u.hostname.toLowerCase();
     if (host !== location.hostname.toLowerCase() && !/(^|\.)lojadoouro\.pt$/.test(host) && !/\.myshopify\.com$/.test(host)) return null;
     var m = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?products\/([a-z0-9][a-z0-9-]{0,200})\/?$/i.exec(u.pathname);
-    return m ? m[1].toLowerCase() : null;
+    if (!m) return null;
+    var variant = u.searchParams.get("variant");
+    return { handle: m[1].toLowerCase(), variant: variant && /^\d{1,20}$/.test(variant) ? variant : null };
   }
   function formatTeam(text) {
     var box = el("div", { class: "txt" });
     var lines = String(text).replace(/\r\n?/g, "\n").split("\n");
-    var para = null, listEl = null;
-    function closeAll() { para = null; listEl = null; }
+    var para = null, paraLines = 0, lastLine = "", listEl = null;
+    function closeAll() { para = null; paraLines = 0; listEl = null; }
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       var trimmed = line.trim();
       if (!trimmed) { closeAll(); continue; }
-      var handle = /^https?:\/\/\S+$/.test(trimmed) ? productHandle(trimmed.replace(/[.,;:!?)]+$/, "")) : null;
-      if (handle) {
-        // A linha anterior (nome — preço, como a insere o botão "Produto" do dashboard) passa a legenda do cartão.
+      var url = trimmed.replace(/[.,;:!?)]+$/, "");
+      var link = /^https?:\/\/\S+$/.test(trimmed) ? productLink(url) : null;
+      if (link) {
+        // Legenda do cartão: só a linha "Nome — preço" que o botão "Produto" do dashboard põe por cima da
+        // ligação (sozinha no parágrafo). Qualquer outro texto fica no chat tal como foi escrito.
         var caption = "";
-        if (para && para.lastChild && para.getAttribute("data-last")) {
-          caption = para.getAttribute("data-last");
-          para.removeChild(para.lastChild);
-          if (para.lastChild && para.lastChild.nodeName === "BR") para.removeChild(para.lastChild);
-          if (!para.childNodes.length) box.removeChild(para);
+        if (para && paraLines === 1 && / — [^—]*\d/.test(lastLine) && lastLine.length <= 200) {
+          caption = lastLine;
+          box.removeChild(para);
         }
-        box.appendChild(productCard(trimmed.replace(/[.,;:!?)]+$/, ""), handle, caption));
+        box.appendChild(productCard(url, link, caption));
         closeAll();
         continue;
       }
@@ -547,20 +550,22 @@
         var ordered = Boolean(li[1]);
         if (!listEl || listEl.nodeName !== (ordered ? "OL" : "UL")) {
           listEl = el(ordered ? "ol" : "ul", {});
+          // Mantém a numeração escrita (ex.: passos separados por linhas em branco).
+          if (ordered && Number(li[1]) > 1) listEl.setAttribute("start", String(Number(li[1])));
           box.appendChild(listEl);
         }
         listEl.appendChild(inline(li[2], el("li", {})));
         para = null;
+        paraLines = 0;
         continue;
       }
       listEl = null;
       if (!para) { para = el("p", {}); box.appendChild(para); }
       else para.appendChild(el("br", {}));
-      var span = inline(trimmed, el("span", {}));
-      para.appendChild(span);
-      para.setAttribute("data-last", trimmed.length <= 200 ? trimmed : "");
+      para.appendChild(inline(trimmed, el("span", {})));
+      paraLines++;
+      lastLine = trimmed;
     }
-    Array.prototype.forEach.call(box.querySelectorAll("p[data-last]"), function (p) { p.removeAttribute("data-last"); });
     return box;
   }
 
@@ -574,6 +579,11 @@
       return priceFmt.format(cents / 100);
     } catch (e) { return ""; }
   }
+  function imageUrl(src) {
+    var img = typeof src === "string" ? src : src && typeof src.src === "string" ? src.src : "";
+    if (img.indexOf("//") === 0) img = "https:" + img;
+    return /^https:\/\/[^\s"'<>]+$/.test(img) ? img + (img.indexOf("?") >= 0 ? "&" : "?") + "width=200" : "";
+  }
   function loadProduct(handle) {
     if (products[handle] || !window.Shopify) return;
     var root = (window.Shopify.routes && window.Shopify.routes.root) || "/";
@@ -582,29 +592,38 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (p) {
         if (!p || typeof p.title !== "string") { products[handle] = "none"; return; }
-        var img = typeof p.featured_image === "string" ? p.featured_image : "";
-        if (img.indexOf("//") === 0) img = "https:" + img;
         products[handle] = {
           title: p.title.slice(0, 120),
-          price: typeof p.price === "number" ? money(p.price) : "",
-          image: /^https:\/\/[^\s"'<>]+$/.test(img) ? img + (img.indexOf("?") >= 0 ? "&" : "?") + "width=200" : "",
+          price: typeof p.price === "number" ? p.price : null,
+          priceMin: typeof p.price_min === "number" ? p.price_min : null,
+          varies: p.price_varies === true,
+          image: imageUrl(p.featured_image),
           available: p.available !== false,
+          variants: (Array.isArray(p.variants) ? p.variants : []).slice(0, 250).map(function (v) {
+            return { id: String(v.id), price: typeof v.price === "number" ? v.price : null, available: v.available !== false, image: imageUrl(v.featured_image) };
+          }),
         };
         renderMessages();
       })
       .catch(function () { products[handle] = "none"; });
   }
-  function productCard(url, handle, caption) {
-    loadProduct(handle);
-    var p = typeof products[handle] === "object" ? products[handle] : null;
+  // Preço e disponibilidade da opção indicada na ligação (?variant=), ou "desde" quando o preço varia.
+  function productCard(url, link, caption) {
+    loadProduct(link.handle);
+    var p = typeof products[link.handle] === "object" ? products[link.handle] : null;
+    var v = p && link.variant ? p.variants.filter(function (x) { return x.id === link.variant; })[0] : null;
     var card = el("a", { class: "product", href: url, target: "_blank", rel: "noopener" });
-    if (p && p.image) card.appendChild(el("img", { src: p.image, alt: "", loading: "lazy" }));
+    var image = p ? (v && v.image) || p.image : "";
+    if (image) card.appendChild(el("img", { src: image, alt: "", loading: "lazy" }));
     var info = el("span", { class: "pinfo" });
-    var fallback = caption || handle.replace(/-/g, " ");
+    var fallback = caption || link.handle.replace(/-/g, " ");
     info.appendChild(el("strong", {}, p ? p.title : fallback.split(" — ")[0]));
-    var price = p ? p.price : (caption.split(" — ")[1] || "");
+    var price = !p ? (caption.split(" — ")[1] || "")
+      : v && v.price != null ? money(v.price)
+      : p.varies && p.priceMin != null ? "desde " + money(p.priceMin)
+      : p.price != null ? money(p.price) : "";
     if (price) info.appendChild(el("span", { class: "price" }, price));
-    if (p && !p.available) info.appendChild(el("span", { class: "soldout" }, "Esgotado"));
+    if (p && !(v ? v.available : p.available)) info.appendChild(el("span", { class: "soldout" }, "Esgotado"));
     info.appendChild(el("span", { class: "cta" }, "Ver produto"));
     card.appendChild(info);
     return card;
