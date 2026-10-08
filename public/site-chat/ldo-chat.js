@@ -129,11 +129,13 @@
   function request(method, url, body) {
     var headers = { "Content-Type": "application/json" };
     if (state.session && state.session.token) headers.Authorization = "Bearer " + state.session.token;
-    return fetch(API + url, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store", credentials: "omit" })
+    return fetch(API + url, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store", credentials: "same-origin" })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (data) {
-          if (r.status === 401 && data && data.restart) { restart(data.error); throw new Error(data.error); }
-          if (!r.ok) throw new Error((data && data.error) || "O chat está indisponível de momento.");
+          // Só as mensagens do próprio chat (texto); qualquer outra resposta (proteção, erro da plataforma) fica genérica.
+          var message = data && typeof data.error === "string" ? data.error : "";
+          if (r.status === 401 && data && data.restart) { restart(message); throw new Error(message); }
+          if (!r.ok) throw new Error(message || "O chat está indisponível de momento (erro " + r.status + "). Tente novamente dentro de instantes.");
           return data;
         });
       });
