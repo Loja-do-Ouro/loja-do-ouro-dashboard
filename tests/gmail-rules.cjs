@@ -341,9 +341,10 @@ test("Subjects lose repeated reply/forward prefixes; replies get 'Re: '", () => 
   assert.equal(g.cleanSubject(null), "");
   assert.equal(g.replySubject("RE: Fwd: Encomenda 1234"), "Re: Encomenda 1234");
   assert.equal(g.replySubject("Troca de anel"), "Re: Troca de anel");
-  assert.equal(g.replySubject(null), "Re: A sua mensagem");
-  assert.equal(g.replySubject("  Fwd:  "), "Re: A sua mensagem");
-  assert.equal(g.replySubject("x".repeat(400)).length, 254);
+  // Sem assunto: "Re:" (o Gmail só junta à conversa com o mesmo assunto); assuntos longos não são cortados.
+  assert.equal(g.replySubject(null), "Re:");
+  assert.equal(g.replySubject("  Fwd:  "), "Re:");
+  assert.equal(g.replySubject("x".repeat(400)), "Re: " + "x".repeat(400));
 });
 
 test("Header values are one line; non-ASCII becomes =?UTF-8?B?...?= words of at most 75 characters", () => {
@@ -610,4 +611,39 @@ test("Hour formats, empty days and missing schedules", () => {
   assert.deepEqual(g.hourRanges("00:00-24:00"), [[0, 1440]]);
   assert.deepEqual(g.hourRanges("25:00-26:00, 13:00-09:00, 10:61-11:00, lixo"), []);
   assert.deepEqual(g.hourRanges(undefined), []);
+});
+
+test("The customer is the authenticated From; a contact-form Reply-To is kept as unverified", () => {
+  const msg = (headers, labelIds = ["INBOX"]) => ({ id: "m", threadId: "t", labelIds, payload: { headers } });
+  const direct = g.senderOf(msg([{ name: "From", value: "Ana <ana@cliente.pt>" }, { name: "Reply-To", value: "outra@x.pt" }]));
+  assert.deepEqual(direct, { name: "Ana", email: "ana@cliente.pt", verified: true });
+  const form = g.senderOf(msg([{ name: "From", value: "Loja do Ouro <mailer@shopify.com>" }, { name: "Reply-To", value: "Rui <rui@cliente.pt>" }]));
+  assert.deepEqual(form, { name: "Rui", email: "rui@cliente.pt", verified: false });
+  // Formulário sem Reply-To válido: fica o From.
+  assert.equal(g.senderOf(msg([{ name: "From", value: "mailer@shopify.com" }])).email, "mailer@shopify.com");
+});
+
+test("Dashboard sends carry their id and auto-replies are marked as automatic", () => {
+  const id = "0f8b6c2e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
+  const mime = g.buildMime({ from: "apoio@lojadoouro.pt", to: "ana@cliente.pt", subject: "Re: x", text: "a", html: "<p>a</p>", dashboardId: id, autoSubmitted: true });
+  assert.match(mime, /\r\nX-LDO-Message: 0f8b6c2e-1a2b-4c3d-8e9f-0a1b2c3d4e5f\r\n/);
+  assert.match(mime, /\r\nAuto-Submitted: auto-replied\r\nX-Auto-Response-Suppress: All\r\n/);
+  assert.throws(() => g.buildMime({ from: "apoio@lojadoouro.pt", to: "ana@cliente.pt", subject: "x", text: "a", html: "a", dashboardId: "x\r\nBcc: a@b.pt" }));
+  const plain = g.buildMime({ from: "apoio@lojadoouro.pt", to: "ana@cliente.pt", subject: "x", text: "a", html: "a" });
+  assert.doesNotMatch(plain, /X-LDO-Message|Auto-Submitted/);
+  const read = (headers) => ({ id: "m", threadId: "t", payload: { headers } });
+  assert.equal(g.dashboardMessageId(read([{ name: "X-LDO-Message", value: id.toUpperCase() }])), id);
+  assert.equal(g.dashboardMessageId(read([{ name: "X-LDO-Message", value: "nao-e-um-id" }])), null);
+  assert.equal(g.isAutoSubmitted(read([{ name: "Auto-Submitted", value: "auto-replied" }])), true);
+  assert.equal(g.isAutoSubmitted(read([{ name: "Auto-Submitted", value: "no" }])), false);
+  assert.equal(g.isAutoSubmitted(read([])), false);
+});
+
+test("Text sent to the database has no NUL and no lone surrogates", () => {
+  assert.equal(g.cleanText("a\u0000b"), "ab");
+  assert.equal(g.cleanText("x\ud83d"), "x\ufffd");
+  assert.equal(g.cleanText("\ude00y"), "\ufffdy");
+  assert.equal(g.cleanText("ok 😀"), "ok 😀");
+  assert.equal(g.cleanText(null), "");
+  assert.doesNotThrow(() => JSON.parse(JSON.stringify(g.cleanText("a\u0000\ud800"))));
 });

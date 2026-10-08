@@ -195,8 +195,9 @@ function contextText(d: Detail, visitor: SiteVisitorCtx = null) {
     k?.handle && k.handle !== k.name && `perfil ${untrusted(k.handle)}`,
     k?.email && `email ${untrusted(k.email)}`,
     k?.linked_email && `email associado pela equipa ${untrusted(k.linked_email)}`,
-    // Chat do site sem sessão iniciada na loja: o email foi escrito pelo próprio e não está confirmado.
-    !k?.email && k?.claimed_email && `email indicado no chat, NÃO confirmado (não serve para mostrar encomendas) ${untrusted(k.claimed_email)}`,
+    // Chat do site sem sessão iniciada na loja, ou formulário de contacto da loja: o email foi escrito pelo próprio
+    // e não está confirmado.
+    !k?.email && k?.claimed_email && `email indicado ${c.channel === "email" ? "no formulário de contacto" : "no chat"}, NÃO confirmado (não serve para mostrar encomendas) ${untrusted(k.claimed_email)}`,
     k?.phone && `telefone ${untrusted(k.phone)}`,
   ].filter(Boolean).join("; ");
   const lines: string[] = [

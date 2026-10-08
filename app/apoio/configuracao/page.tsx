@@ -40,7 +40,7 @@ type AiAdmin = {
 type GmailStatus = { email: string; status: "active" | "reconnect"; status_detail: string | null; scope: string | null; watch_expires_at: string | null; connected_at: string; connected_by: string | null } | null;
 // Resultado da ligação ao Gmail (código no URL, vindo das rotas /api/support/gmail/*).
 const GMAIL_FLASH: Record<string, [boolean, string]> = {
-  ligado: [true, "Caixa Gmail ligada. A primeira sincronização (emails dos últimos 14 dias) corre agora; atualize daqui a um minuto."],
+  ligado: [true, "Caixa Gmail ligada. Os emails que chegarem a partir de agora entram no canal Email (os anteriores ficam no Gmail e no Zendesk). Envie um email de teste de um endereço nosso para confirmar."],
   "sem-acesso": [false, "Só o Super Admin pode ligar a caixa de email."],
   "por-configurar": [false, "Faltam GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ou SUPPORT_ENCRYPTION_KEY na Vercel."],
   endereco: [false, "A caixa liga-se no endereço de produção do dashboard (o registado na Google). Carregue em Ligar Gmail aqui."],
@@ -287,7 +287,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           )}
         </div>
         <p className="panel-note">
-          Os emails para {gmailMailbox()} entram no canal &quot;Email&quot; em poucos segundos (aviso da Google) e também em cada sincronização. As respostas saem desta caixa, na mesma conversa do Gmail, com a assinatura acima, e ficam nos Enviados do Gmail. A resposta automática vai só uma vez por conversa e no máximo uma vez por dia a cada remetente; nunca a newsletters, notificações automáticas ou endereços do próprio domínio. Spam, promoções e redes sociais do Gmail ficam de fora. Para deixar o Zendesk: depois de confirmar aqui que os emails entram e que as respostas chegam, desligue no Gmail o reencaminhamento para o Zendesk e, no Zendesk, as respostas automáticas, para o cliente não receber mensagens duplicadas.
+          Os emails para {gmailMailbox()} entram no canal &quot;Email&quot; em poucos segundos (aviso da Google) e também em cada sincronização, a partir do momento em que a caixa é ligada (os anteriores não são importados). As respostas vão sempre para o cliente da conversa. Nos pedidos do formulário de contacto da loja o email do cliente fica como não confirmado: as encomendas só aparecem depois de a equipa associar o cliente. As respostas saem desta caixa, na mesma conversa do Gmail, com a assinatura acima, e ficam nos Enviados do Gmail. A resposta automática vai só uma vez por conversa e no máximo uma vez por dia a cada remetente; nunca a newsletters, notificações automáticas ou endereços do próprio domínio. Spam, promoções e redes sociais do Gmail ficam de fora. Para deixar o Zendesk: depois de confirmar aqui que os emails entram e que as respostas chegam, desligue no Gmail o reencaminhamento para o Zendesk e, no Zendesk, as respostas automáticas, para o cliente não receber mensagens duplicadas.
         </p>
       </Panel>
 

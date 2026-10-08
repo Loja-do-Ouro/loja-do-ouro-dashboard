@@ -1,10 +1,12 @@
 import "server-only";
-import { ingest, serverRpc, type IngestConversation } from "./db";
+import { SupabaseError } from "@/lib/supabase";
+import { ingest, serverRpc, type IngestConversation, type IngestMessage } from "./db";
 import { open, randomToken, seal } from "./crypto";
 import { gmailThreadLink } from "./rules";
 import {
-  autoReplyAllowed, buildMime, cleanSubject, formatAddress, header, labelExcluded, messageAttachments, messageText, parseAddress,
-  parseAddressList, replySubject, signatureBlock, textToHtml, withinHours, type GmailMessage, type GmailPart,
+  autoReplyAllowed, buildMime, cleanSubject, cleanText, dashboardMessageId, formatAddress, header, isAutoSubmitted, labelExcluded,
+  messageAttachments, messageText, replySubject, senderOf, signatureBlock, textToHtml, validEmail, withinHours,
+  type GmailMessage, type GmailPart,
 } from "./gmail-rules";
 
 // Email do Apoio ao Cliente diretamente pela caixa Gmail (Google Workspace), em vez do Zendesk.
@@ -230,50 +232,112 @@ export async function gmailDisconnectRemote() {
 // ---------------------------------------------------------------- sincronização
 
 type Thread = { id: string; historyId?: string; messages?: GmailMessage[] };
-type Cursor = { historyId?: string; pending?: string[] };
+type HistoryChange = { message: { id: string; threadId: string; labelIds?: string[] }; labelIds?: string[] };
+type HistoryPage = {
+  history?: { messagesAdded?: HistoryChange[]; labelsAdded?: HistoryChange[]; labelsRemoved?: HistoryChange[] }[];
+  historyId?: string;
+  nextPageToken?: string;
+};
 const MAX_THREADS_PER_RUN = 40;
+// Conversas por ler entre passagens (no cursor da fonte). Muito acima do normal: se alguma vez passar, as mais
+// antigas saem e o estado da fonte diz quantas.
+const MAX_PENDING = 5000;
+// Uma conversa volta a contar quando entra na caixa de entrada ou sai do spam, do lixo, das promoções ou das redes sociais.
+const RETURNING = ["SPAM", "TRASH", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL"];
+const SENT_CHECK_DAYS = 7;
 
-const isOwn = (m: GmailMessage, mailbox: string) =>
-  (m.labelIds || []).includes("SENT") || parseAddress(header(m.payload, "From")).email === mailbox;
+// Nosso é só o que saiu desta caixa (o Gmail marca-o como SENT): um From forjado com o endereço da loja não conta.
+const isOwn = (m: GmailMessage) => (m.labelIds || []).includes("SENT");
+// Mensagens que contam: sem rascunhos, spam, lixo, promoções e redes sociais.
+const visible = (t: Thread) => (t.messages || []).filter((m) => !labelExcluded(m.labelIds));
+const at = (m: GmailMessage) => Number(m.internalDate) || 0;
 
-// Endereço de quem escreveu: o Reply-To quando existe (formulário de contacto da loja, que chega de um
-// remetente da Shopify com o email do cliente em Reply-To), senão o From.
-function senderOf(m: GmailMessage, mailbox: string) {
-  const reply = parseAddress(header(m.payload, "Reply-To"));
-  if (reply.email && reply.email !== mailbox) return reply;
-  return parseAddress(header(m.payload, "From"));
+export type MappedThread = {
+  conversation: IngestConversation;
+  // Email do formulário de contacto (Reply-To), guardado como não confirmado.
+  claimed: string | null;
+  // Envios feitos pelo dashboard que o Gmail tem nos Enviados: confirmam envios incertos.
+  sent: { id: string; externalId: string; at: number }[];
+};
+
+// Uma conversa do Gmail no formato comum.
+// - O cliente é quem escreveu a primeira mensagem recebida: o From (autenticado pelo Gmail) ou, nos formulários de
+//   contacto, o Reply-To, que fica como email não confirmado (não mostra encomendas até a equipa o associar).
+// - As nossas respostas automáticas não entram como mensagens (aparecem como acontecimento na conversa).
+// - Os envios do dashboard já estão no dashboard: só confirmam o envio.
+// - Todo o texto é limpo para o Postgres (um NUL num email não pode travar a sincronização).
+export function mapThread(t: Thread, mailbox: string): MappedThread | null {
+  const msgs = visible(t);
+  const inbound = msgs.filter((m) => !isOwn(m));
+  const customer = inbound.map((m) => senderOf(m)).find((a) => a.email && a.email !== mailbox);
+  if (!customer?.email) return null;
+  const sent: MappedThread["sent"] = [];
+  const messages: IngestMessage[] = [];
+  for (const m of msgs) {
+    const own = isOwn(m);
+    if (own) {
+      const id = dashboardMessageId(m);
+      if (id) {
+        sent.push({ id, externalId: m.id, at: at(m) });
+        continue;
+      }
+      if (isAutoSubmitted(m)) continue;
+    }
+    const from = own ? null : senderOf(m);
+    // Um email recebido com o endereço da própria caixa no From não foi enviado por nós.
+    const author = from ? `${from.name || from.email || "Remetente desconhecido"}${from.email === mailbox ? " (não enviado por esta caixa)" : ""}` : null;
+    messages.push({
+      external_id: m.id,
+      kind: own ? "outbound" : "inbound",
+      author_name: author ? cleanText(author).slice(0, 200) : null,
+      body: cleanText(messageText(m.payload) || (m.snippet || "").slice(0, 500)),
+      attachments: messageAttachments(m.id, m.payload).map((a) => ({ ...a, name: cleanText(a.name) })),
+      created_at: new Date(at(m) || Date.now()).toISOString(),
+      ...(own ? { delivery: "accepted" as const } : {}),
+    });
+  }
+  const subject = Array.from(cleanText(cleanSubject(header(msgs[0].payload, "Subject")))).slice(0, 300).join("");
+  return {
+    conversation: {
+      external_id: t.id,
+      contact: { external_id: customer.email, name: customer.name ? cleanText(customer.name) : null, email: customer.verified ? customer.email : null },
+      subject: subject || "(sem assunto)",
+      via: customer.verified ? "email" : "formulario",
+      external_updated_at: new Date(Math.max(...msgs.map(at)) || Date.now()).toISOString(),
+      messages,
+    },
+    claimed: customer.verified ? null : customer.email,
+    sent,
+  };
 }
 
-// Uma conversa do Gmail no formato comum. O cliente é o primeiro remetente que não é a caixa (ou o
-// primeiro destinatário, se fomos nós a começar). Rascunhos, spam, lixo e promoções ficam de fora.
-export function mapThread(t: Thread, mailbox: string): IngestConversation | null {
-  const msgs = (t.messages || []).filter((m) => isOwn(m, mailbox) ? !(m.labelIds || []).some((l) => l === "DRAFT" || l === "TRASH") : !labelExcluded(m.labelIds));
-  if (!msgs.length || !msgs.some((m) => !isOwn(m, mailbox))) return null;
-  let customer = msgs.filter((m) => !isOwn(m, mailbox)).map((m) => senderOf(m, mailbox)).find((a) => a.email && a.email !== mailbox) || null;
-  if (!customer)
-    customer = msgs.flatMap((m) => parseAddressList(header(m.payload, "To"))).find((a) => a.email && a.email !== mailbox) || null;
-  if (!customer?.email) return null;
-  const times = msgs.map((m) => Number(m.internalDate) || 0);
-  return {
-    external_id: t.id,
-    contact: { external_id: customer.email, name: customer.name, email: customer.email },
-    subject: (cleanSubject(header(msgs[0].payload, "Subject")) || "(sem assunto)").slice(0, 300),
-    via: "email",
-    external_updated_at: new Date(Math.max(...times) || Date.now()).toISOString(),
-    messages: msgs.map((m) => {
-      const own = isOwn(m, mailbox);
-      const from = senderOf(m, mailbox);
-      return {
-        external_id: m.id,
-        kind: own ? ("outbound" as const) : ("inbound" as const),
-        author_name: own ? null : from.name || from.email,
-        body: messageText(m.payload) || (m.snippet || "").slice(0, 500),
-        attachments: messageAttachments(m.id, m.payload),
-        created_at: new Date(Number(m.internalDate) || Date.now()).toISOString(),
-        ...(own ? { delivery: "accepted" as const } : {}),
-      };
-    }),
-  };
+// Erro dos dados (classe 22 do Postgres, ex.: texto que o jsonb recusa) e não da ligação.
+const dataError = (e: unknown) => e instanceof SupabaseError && e.code.startsWith("22");
+
+type Totals = { conversations: number; new_conversations: number; new_messages: number; reopened: number };
+
+// Grava as conversas; uma que a base de dados recuse é saltada (e contada) em vez de travar todas as outras.
+async function ingestEach(conversations: IngestConversation[]) {
+  const totals: Totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
+  const add = (r: Totals) => (Object.keys(totals) as (keyof Totals)[]).forEach((k) => (totals[k] += r[k] || 0));
+  let skipped = 0;
+  if (!conversations.length) return { totals, skipped };
+  try {
+    add(await ingest("gmail", conversations));
+  } catch (first) {
+    let ok = 0;
+    for (const c of conversations) {
+      try {
+        add(await ingest("gmail", [c]));
+        ok++;
+      } catch (e) {
+        if (!dataError(e)) throw e;
+        skipped++;
+      }
+    }
+    if (!ok && !skipped) throw first;
+  }
+  return { totals, skipped };
 }
 
 export async function syncGmail(cursor: Record<string, unknown>, deadline: number) {
@@ -284,41 +348,83 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
   const watchUntil = state.account.watch_expires_at ? Date.parse(state.account.watch_expires_at) : 0;
   if (gmailPushReady() && watchUntil - Date.now() < 2 * 24 * 3600 * 1000) await gmailWatch().catch(() => undefined);
 
-  const pending = new Set(Array.isArray(cursor.pending) ? (cursor.pending as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 500) : []);
+  const now = () => Math.floor(Date.now() / 1000);
   let historyId = typeof cursor.historyId === "string" ? cursor.historyId : undefined;
-  let initial = false;
-  const recent = async (days: number) => {
-    const profile = await call<{ historyId: string }>("/profile");
-    const list = await call<{ threads?: { id: string }[] }>(`/threads?${new URLSearchParams({ q: `in:inbox newer_than:${days}d`, maxResults: "50" })}`);
-    for (const t of list.threads || []) pending.add(t.id);
-    return profile.historyId;
-  };
+  let syncedAt = typeof cursor.syncedAt === "number" ? cursor.syncedAt : null;
+  const previous = Array.isArray(cursor.pending) ? (cursor.pending as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const notes: string[] = [];
+
   if (!historyId) {
-    // Primeira passagem: os emails dos últimos 14 dias (sem respostas automáticas a mensagens antigas).
-    historyId = await recent(14);
-    initial = true;
-  } else {
-    try {
-      let page: string | undefined;
-      let latest = historyId;
-      do {
-        const h = await call<{ history?: { messagesAdded?: { message: { id: string; threadId: string; labelIds?: string[] } }[] }[]; historyId?: string; nextPageToken?: string }>(
-          `/history?${new URLSearchParams({ startHistoryId: historyId, historyTypes: "messageAdded", maxResults: "500", ...(page ? { pageToken: page } : {}) })}`);
-        for (const e of h.history || []) for (const a of e.messagesAdded || []) if (!(a.message.labelIds || []).includes("DRAFT")) pending.add(a.message.threadId);
-        latest = h.historyId || latest;
-        page = h.nextPageToken;
-      } while (page && Date.now() < deadline - 15000);
-      // Sem ler o histórico todo, o ponto de partida fica onde estava (as conversas lidas ficam pendentes).
-      if (!page) historyId = latest;
-    } catch (e) {
-      // Histórico demasiado antigo (a Google guarda cerca de uma semana): recomeça pelos últimos 7 dias.
-      if (!(e instanceof GmailError && e.status === 404)) throw e;
-      historyId = await recent(7);
-    }
+    // Primeira passagem: só entra o que chegar a partir de agora. Os emails anteriores ficam no Gmail (e no Zendesk,
+    // durante a transição); importá-los como "Novo" levaria a responder outra vez a clientes já atendidos.
+    const profile = await call<{ historyId: string }>("/profile");
+    return {
+      cursor: { historyId: profile.historyId, syncedAt: now(), pending: [] },
+      totals: { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0, autoreplies: 0, skipped: 0 },
+      detail: `Gmail (${mailbox}): os emails novos entram a partir de agora.`,
+      more: false,
+    };
   }
 
-  const queue = [...pending];
-  const conversations: IngestConversation[] = [];
+  // Conversas alteradas, as mais recentes primeiro.
+  const found: string[] = [];
+  try {
+    let page: string | undefined;
+    let latest = historyId;
+    const ids: string[] = [];
+    do {
+      const q = new URLSearchParams({ startHistoryId: historyId, maxResults: "500" });
+      for (const type of ["messageAdded", "labelAdded", "labelRemoved"]) q.append("historyTypes", type);
+      if (page) q.set("pageToken", page);
+      const h = await call<HistoryPage>(`/history?${q}`);
+      for (const e of h.history || []) {
+        for (const a of e.messagesAdded || []) if (!(a.message.labelIds || []).includes("DRAFT")) ids.push(a.message.threadId);
+        for (const a of e.labelsAdded || []) if ((a.labelIds || []).includes("INBOX")) ids.push(a.message.threadId);
+        for (const a of e.labelsRemoved || []) if ((a.labelIds || []).some((l) => RETURNING.includes(l))) ids.push(a.message.threadId);
+      }
+      latest = h.historyId || latest;
+      page = h.nextPageToken;
+    } while (page && Date.now() < deadline - 15000);
+    found.push(...ids.reverse());
+    // Sem ler o histórico todo, o ponto de partida fica onde estava (a passagem seguinte relê-o).
+    if (!page) {
+      historyId = latest;
+      syncedAt = now();
+    }
+  } catch (e) {
+    if (!(e instanceof GmailError && e.status === 404)) throw e;
+    // Histórico expirado (a Google pode guardá-lo só algumas horas): todas as conversas alteradas desde a última
+    // leitura completa (com 1 hora de margem), página a página.
+    const profile = await call<{ historyId: string }>("/profile");
+    const since = syncedAt ? `after:${syncedAt - 3600}` : "newer_than:7d";
+    let page: string | undefined;
+    let pages = 0;
+    do {
+      const q = new URLSearchParams({ q: `${since} -in:spam -in:trash -in:drafts`, maxResults: "100" });
+      if (page) q.set("pageToken", page);
+      const list = await call<{ threads?: { id: string }[]; nextPageToken?: string }>(`/threads?${q}`);
+      for (const t of list.threads || []) found.push(t.id);
+      page = list.nextPageToken;
+      pages++;
+    } while (page && pages < 30 && Date.now() < deadline - 15000);
+    if (page) notes.push("histórico do Gmail expirado: conversas mais antigas não foram relidas");
+    historyId = profile.historyId;
+    syncedAt = now();
+  }
+
+  const seen = new Set<string>();
+  const queue: string[] = [];
+  for (const id of [...found, ...previous]) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    queue.push(id);
+  }
+  if (queue.length > MAX_PENDING) {
+    notes.push(`${queue.length - MAX_PENDING} conversas antigas por ler ficaram de fora`);
+    queue.length = MAX_PENDING;
+  }
+
+  const mapped: MappedThread[] = [];
   const fresh: Thread[] = [];
   let read = 0;
   while (queue.length && read < MAX_THREADS_PER_RUN && Date.now() < deadline - 10000) {
@@ -329,12 +435,24 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
       throw e;
     });
     if (!t) continue;
-    const conv = mapThread(t, mailbox);
-    if (!conv) continue;
-    conversations.push(conv);
-    if (!initial) fresh.push(t);
+    fresh.push(t);
+    const m = mapThread(t, mailbox);
+    if (m) mapped.push(m);
   }
-  const totals = conversations.length ? await ingest("gmail", conversations) : { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
+  const { totals, skipped } = await ingestEach(mapped.map((m) => m.conversation));
+  if (skipped) notes.push(`${skipped} conversa(s) com conteúdo que a base de dados recusou`);
+
+  // Formulário de contacto: o email indicado fica como não confirmado.
+  const claimed = [...new Set(mapped.map((m) => m.claimed).filter((x): x is string => Boolean(x)))];
+  if (claimed.length) await serverRpc("ldo_support_gmail_claimed", { p_addresses: claimed }).catch(() => undefined);
+  // Envios do dashboard encontrados nos Enviados: um envio incerto passa a Aceite (os outros não mudam).
+  for (const s of mapped.flatMap((m) => m.sent)) {
+    if (Date.now() - s.at > SENT_CHECK_DAYS * 86400_000 || Date.now() > deadline - 5000) continue;
+    await serverRpc("ldo_support_finish_send", {
+      p_message: s.id, p_delivery: "accepted", p_detail: "Confirmado nos Enviados do Gmail.", p_external_id: s.externalId,
+    }).catch(() => undefined);
+  }
+
   let autoreplies = 0;
   if (state.settings.autoreply_enabled) {
     for (const t of fresh) {
@@ -343,40 +461,45 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
     }
   }
   return {
-    cursor: { historyId, pending: queue },
-    totals: { ...totals, autoreplies },
-    detail: `Gmail (${mailbox})`,
+    cursor: { historyId, syncedAt, pending: queue },
+    totals: { ...totals, autoreplies, skipped },
+    detail: `Gmail (${mailbox})${notes.length ? ` · ${notes.join("; ")}` : ""}`,
     more: queue.length > 0,
   };
 }
 
 // ---------------------------------------------------------------- envio
 
-const HEADERS_FOR_REPLY = ["From", "Reply-To", "To", "Subject", "Message-ID", "Message-Id", "References"];
+const HEADERS_FOR_REPLY = ["From", "Reply-To", "Subject", "Message-ID", "References"];
 
 function personalise(signature: string, firstName: string | null) {
   return signature.split("\n").map((l) => l.replace(/\{nome\}/gi, firstName || "").trimEnd()).filter((l, i, all) => l || (i > 0 && all[i - 1])).join("\n").trim();
 }
 
 // Resposta na mesma conversa do Gmail (threadId + In-Reply-To/References + assunto), com a assinatura.
+// O destinatário é sempre o cliente da conversa (o que o dashboard mostra), nunca outro participante do thread.
 export async function gmailSendReply(o: {
-  threadId: string; body: string; signature: string; senderFirstName: string | null; files?: { name: string; type: string; data: Buffer }[];
+  threadId: string; to: string; body: string; signature: string; senderFirstName: string | null;
+  files?: { name: string; type: string; data: Buffer }[]; dashboardId?: string; autoSubmitted?: boolean;
 }) {
   const mailbox = gmailMailbox();
+  const to = (o.to || "").trim().toLowerCase();
+  if (!validEmail(to) || to === mailbox) throw new GmailError("Esta conversa não tem um email de cliente válido.", 400);
   const q = new URLSearchParams([["format", "metadata"], ...HEADERS_FOR_REPLY.map((h) => ["metadataHeaders", h])]);
   const t = await call<Thread>(`/threads/${encodeURIComponent(o.threadId)}?${q}`);
-  const msgs = (t.messages || []).filter((m) => !(m.labelIds || []).includes("DRAFT"));
-  const lastIn = [...msgs].reverse().find((m) => !isOwn(m, mailbox));
-  if (!lastIn) throw new GmailError("Esta conversa não tem mensagens do cliente para responder.", 400);
-  const to = parseAddress(header(lastIn.payload, "Reply-To")).email || parseAddress(header(lastIn.payload, "From")).email;
-  if (!to || to === mailbox) throw new GmailError("Não foi possível saber o email do cliente nesta conversa.", 400);
-  const messageId = header(lastIn.payload, "Message-ID") || header(lastIn.payload, "Message-Id");
-  const references = [header(lastIn.payload, "References"), messageId].filter(Boolean).join(" ").split(/\s+/).slice(-20).join(" ");
+  const msgs = visible(t);
+  const inbound = msgs.filter((m) => !isOwn(m));
+  // Responde à última mensagem deste cliente (para o Gmail manter a conversa); sem nenhuma, à última recebida.
+  const ref = [...inbound].reverse().find((m) => senderOf(m).email === to) || inbound[inbound.length - 1];
+  if (!ref) throw new GmailError("Esta conversa não tem mensagens do cliente para responder.", 400);
+  const messageId = header(ref.payload, "Message-ID");
+  const references = [header(ref.payload, "References"), messageId].filter(Boolean).join(" ");
   const sig = signatureBlock(personalise(o.signature, o.senderFirstName));
   const mime = buildMime({
     from: formatAddress("Loja do Ouro", mailbox), to, subject: replySubject(header(msgs[0].payload, "Subject")),
     inReplyTo: messageId, references: references || null,
     text: o.body + sig.text, html: textToHtml(o.body) + sig.html, attachments: o.files,
+    dashboardId: o.dashboardId, autoSubmitted: o.autoSubmitted,
   });
   // Envio com a mensagem completa (anexos incluídos) e o threadId, num só pedido.
   const boundary = `ldo-${randomToken(12)}`;
@@ -387,22 +510,21 @@ export async function gmailSendReply(o: {
   });
 }
 
-// "Recebemos o seu email": só em conversas novas (a primeira mensagem é do cliente e ainda não respondemos),
-// com a última mensagem do cliente com menos de 1 hora, nunca a remetentes automáticos, listas ou ao próprio
-// domínio, uma vez por conversa e uma vez por dia por remetente (a BD confirma).
+// "Recebemos o seu email": só em conversas novas (ainda sem nada enviado por nós), com a última mensagem do
+// cliente com menos de 1 hora, nunca a remetentes automáticos, listas ou ao próprio domínio, uma vez por conversa
+// e uma vez por dia por remetente (a BD confirma). Sai marcada como automática (Auto-Submitted).
 async function autoReply(t: Thread, s: EmailSettings, mailbox: string) {
-  const msgs = (t.messages || []).filter((m) => !labelExcluded(m.labelIds) || isOwn(m, mailbox));
-  if (!msgs.length || isOwn(msgs[0], mailbox) || msgs.some((m) => isOwn(m, mailbox))) return false;
+  const msgs = visible(t);
+  if (!msgs.length || msgs.some(isOwn)) return false;
   const last = msgs[msgs.length - 1];
-  if (Date.now() - (Number(last.internalDate) || 0) > 60 * 60 * 1000) return false;
-  const check = autoReplyAllowed(last, { mailbox, ownDomains: [mailbox.split("@")[1] || ""] });
-  if (!check.ok) return false;
-  const email = parseAddress(header(last.payload, "Reply-To")).email || parseAddress(header(last.payload, "From")).email;
-  if (!email) return false;
-  if (!(await serverRpc<boolean>("ldo_support_gmail_autoreply_claim", { p_thread: t.id, p_email: email }))) return false;
+  if (Date.now() - at(last) > 60 * 60 * 1000) return false;
+  if (!autoReplyAllowed(last, { mailbox, ownDomains: [mailbox.split("@")[1] || ""] }).ok) return false;
+  const to = senderOf(last).email;
+  if (!to || to === mailbox) return false;
+  if (!(await serverRpc<boolean>("ldo_support_gmail_autoreply_claim", { p_thread: t.id, p_email: to }))) return false;
   const text = withinHours(s.hours, new Date()) ? s.autoreply_text : s.autoreply_offhours_text;
   try {
-    await gmailSendReply({ threadId: t.id, body: text, signature: s.signature, senderFirstName: null });
+    await gmailSendReply({ threadId: t.id, to, body: text, signature: s.signature, senderFirstName: null, autoSubmitted: true });
     return true;
   } catch {
     await serverRpc("ldo_support_gmail_autoreply_release", { p_thread: t.id }).catch(() => undefined);

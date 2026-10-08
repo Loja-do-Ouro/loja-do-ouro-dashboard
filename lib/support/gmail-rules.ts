@@ -450,6 +450,41 @@ export function autoReplyAllowed(msg: GmailMessage, opts: { mailbox: string; own
   return { ok: true };
 }
 
+// Formulários que escrevem em nome do cliente: o From é do serviço e o cliente vem no Reply-To (o que a pessoa
+// escreveu no formulário, sem verificação).
+export const FORM_RELAYS = ["mailer@shopify.com"];
+
+// Quem escreveu a mensagem: o From, que o Gmail autentica (SPF/DKIM/DMARC; o que falha vai para o spam, que fica
+// de fora). O Reply-To só conta nos formulários de contacto e fica como não verificado: nunca serve de identidade
+// para mostrar encomendas.
+export function senderOf(msg: GmailMessage): MailAddress & { verified: boolean } {
+  const from = parseAddress(header(msg.payload, "From"));
+  if (from.email && FORM_RELAYS.includes(from.email)) {
+    const reply = parseAddress(header(msg.payload, "Reply-To"));
+    if (reply.email && !FORM_RELAYS.includes(reply.email)) return { ...reply, verified: false };
+  }
+  return { ...from, verified: true };
+}
+
+// Mensagem automática (RFC 3834): também a nossa resposta "recebemos o seu email".
+export function isAutoSubmitted(msg: GmailMessage): boolean {
+  const v = header(msg.payload, "Auto-Submitted");
+  return v !== null && v.split(";")[0].trim().toLowerCase() !== "no";
+}
+
+// Envio feito pelo dashboard: o id da mensagem no dashboard vai no cabeçalho X-LDO-Message (o Gmail guarda-o
+// nos Enviados). Assim um envio incerto é confirmado pela sincronização sem depender do texto.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function dashboardMessageId(msg: GmailMessage): string | null {
+  const v = (header(msg.payload, "X-LDO-Message") || "").trim().toLowerCase();
+  return UUID.test(v) ? v : null;
+}
+
+// Texto que o Postgres aceita em jsonb: sem NUL e sem metades soltas de pares surrogate (passam a U+FFFD).
+export function cleanText(value: string | null | undefined): string {
+  return String(value ?? "").replace(/\u0000/g, "").replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "\ufffd");
+}
+
 // Prefixos de resposta e reencaminhamento (pt, en, es, fr, de), repetidos e com contador ("Re[2]:").
 const SUBJECT_PREFIX = /^\s*(?:re|res|fwd?|enc|rv|tr|aw|wg)\s*(?:\[\d+\]|\(\d+\))?\s*:\s*/i;
 
@@ -462,9 +497,10 @@ export function cleanSubject(subject: string | null): string {
   return s.trim();
 }
 
+// O Gmail só junta a resposta à conversa se o assunto corresponder: sem cortes e sem inventar texto.
 export function replySubject(subject: string | null): string {
-  const s = Array.from(cleanSubject(subject)).slice(0, 250).join("").trim();
-  return s ? `Re: ${s}` : "Re: A sua mensagem";
+  const s = Array.from(cleanSubject(subject)).slice(0, 900).join("").trim();
+  return s ? `Re: ${s}` : "Re:";
 }
 
 // Valor de cabeçalho numa só linha. Com caracteres fora do ASCII: palavras =?UTF-8?B?…?= de até 64 caracteres
@@ -654,6 +690,10 @@ export type MimeInput = {
   date?: Date;
   messageId?: string;
   boundary?: string;
+  // Id da mensagem no dashboard (cabeçalho X-LDO-Message).
+  dashboardId?: string;
+  // Resposta automática: "Auto-Submitted: auto-replied" (RFC 3834) para outros sistemas não responderem.
+  autoSubmitted?: boolean;
 };
 
 // Mensagem RFC 5322 (CRLF) para o campo raw do Gmail (em base64url, por quem envia). Texto e HTML em
@@ -676,6 +716,11 @@ export function buildMime(o: MimeInput): string {
   let refs = messageIds(o.references);
   if (refs.length > 20) refs = [refs[0], ...refs.slice(-19)]; // o primeiro e os mais recentes
   if (refs.length) headers.push(foldIds("References", refs));
+  if (o.dashboardId !== undefined) {
+    if (!UUID.test(o.dashboardId)) throw new Error("Identificador de mensagem inválido.");
+    headers.push(`X-LDO-Message: ${o.dashboardId.toLowerCase()}`);
+  }
+  if (o.autoSubmitted) headers.push("Auto-Submitted: auto-replied", "X-Auto-Response-Suppress: All");
   headers.push("MIME-Version: 1.0");
 
   const altBody = [

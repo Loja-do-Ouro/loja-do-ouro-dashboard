@@ -511,9 +511,11 @@ export function SupportInbox({
         ? `Esta conversa está com ${ownerName}: só essa pessoa responde ao cliente. ${c.super ? "Para responder, transfira-a para si (Cliente → Atendimento)." : "Se precisar de a assumir, peça-lhe que a transfira."} Pode deixar uma nota interna.`
         : isZendesk && !me?.zendesk
           ? "Ligue a sua conta Zendesk para responder com a sua autoria."
-          : c.conversation.source_status === "blocked" && !isZendesk
-            ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
-            : "";
+          : c.conversation.source_status === "blocked" && isGmail
+            ? "A caixa Gmail do apoio precisa de ser ligada de novo (Configuração do apoio → Email (Gmail))."
+            : c.conversation.source_status === "blocked" && !isZendesk
+              ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
+              : "";
   const noteBlocked = !c ? "A carregar…" : isZendesk && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
 
   // Assistente de IA: pede uma proposta (abre o separador da IA) e passa-a para o campo de resposta.
@@ -622,7 +624,7 @@ export function SupportInbox({
     if (!c) return "";
     const who = c.contact?.handle || c.contact?.name || c.contact?.email || "cliente";
     if (isZendesk) return `Resposta pública no ticket ${c.conversation.subject?.split(" · ")[0] || ""} — Zendesk notifica ${c.contact?.email || who}`;
-    if (isGmail) return `Email para ${c.contact?.email || who}, de ${c.conversation.account || "apoiocliente@lojadoouro.pt"} — na mesma conversa, com a assinatura automática`;
+    if (isGmail) return `Email para ${c.contact?.email || c.contact?.claimed_email || who}, de ${c.conversation.account || "apoiocliente@lojadoouro.pt"} — na mesma conversa, com a assinatura automática`;
     if (c.conversation.channel === "instagram") return `Instagram Direct · para ${who}`;
     if (c.conversation.channel === "facebook") return `Facebook Messenger · para ${who}`;
     if (c.conversation.channel === "site") return `Chat do site · para ${who} (se já tiver saído do site, recebe também por email)`;
@@ -1097,7 +1099,7 @@ function CustomerPanel({
           {contact?.handle && contact.handle !== contact.name && (<><dt>Perfil</dt><dd>{contact.handle}</dd></>)}
           <dt>Email</dt>
           <dd>
-            {contact?.email || (contact?.claimed_email ? <>{contact.claimed_email} <small className="muted">(indicado no chat, não confirmado)</small></> : "—")}
+            {contact?.email || (contact?.claimed_email ? <>{contact.claimed_email} <small className="muted">({conv.channel === "email" ? "indicado no formulário de contacto" : "indicado no chat"}, não confirmado)</small></> : "—")}
             {conv.channel === "site" && contact?.email && <small className="muted block">Confirmado: o cliente tinha sessão iniciada na loja.</small>}
           </dd>
           <dt>Telefone</dt><dd>{contact?.phone || "—"}</dd>

@@ -39,7 +39,8 @@ export async function GET(request: NextRequest) {
     if (e instanceof GmailError && e.status === 403 && !e.reconnect) return done("outra-conta");
     return done("erro");
   }
-  // Avisos da Google e primeira sincronização (últimos 14 dias), depois de responder ao browser.
+  // Avisos da Google e ponto de partida da sincronização (só entram os emails que chegarem a partir de agora),
+  // depois de responder ao browser.
   after(async () => {
     await gmailWatch().catch(() => undefined);
     await runSync({ only: ["gmail"], force: true, override: true, budgetMs: 45_000 }).catch(() => undefined);

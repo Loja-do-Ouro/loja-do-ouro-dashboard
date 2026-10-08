@@ -74,7 +74,8 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
     if (prepared) r = prepared;
     else if (begin.platform === "zendesk")
       r = await zendeskComment(viewer.id, begin.conversation.external_id, begin.message.body, kind === "outbound", files, claimZendesk);
-    else if (begin.platform === "gmail") r = await sendGmail(viewer, begin.conversation.external_id, begin.message.body, files);
+    else if (begin.platform === "gmail")
+      r = await sendGmail(viewer, begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.id, begin.message.body, files);
     else if (begin.platform === "metricool")
       r = await metricoolSend(PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.body, image);
     // Chat do site: a resposta fica guardada e o widget vai buscá-la (o dashboard é a fonte de verdade).
@@ -118,12 +119,15 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
   return { messageId: begin.message.id, delivery: r.outcome === "accepted" && kind === "note" ? null : r.outcome, detail, repeated: false };
 }
 
-// Email pelo Gmail: resposta na mesma conversa, com a assinatura (o {nome} é o primeiro nome de quem
-// responde). Uma recusa antes de enviar (4xx) é "Falhou"; sem resposta da Google, "incerto".
-async function sendGmail(viewer: Viewer, threadId: string, body: string, files: OutgoingFile[]): Promise<Result> {
+// Email pelo Gmail: resposta na mesma conversa, para o cliente da conversa (o endereço do contacto), com a
+// assinatura (o {nome} é o primeiro nome de quem responde) e o id da mensagem do dashboard (a sincronização
+// confirma assim um envio incerto). Uma recusa antes de enviar (4xx) é "Falhou"; sem resposta da Google, "incerto".
+async function sendGmail(viewer: Viewer, threadId: string, to: string | null, messageId: string, body: string, files: OutgoingFile[]): Promise<Result> {
   try {
     const settings = await emailSettings();
-    const sent = await gmailSendReply({ threadId, body, signature: settings.signature, senderFirstName: firstName(viewer.fullName), files });
+    const sent = await gmailSendReply({
+      threadId, to: to || "", body, signature: settings.signature, senderFirstName: firstName(viewer.fullName), files, dashboardId: messageId,
+    });
     return { outcome: "accepted", externalId: sent.id, detail: null };
   } catch (e) {
     if (e instanceof GmailError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429)

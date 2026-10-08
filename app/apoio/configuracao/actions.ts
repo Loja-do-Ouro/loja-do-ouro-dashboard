@@ -5,6 +5,7 @@ import { userMessage } from "@/lib/supabase";
 import { sessionRpc } from "@/lib/support/db";
 import { REFUSAL, runSync } from "@/lib/support/sync";
 import { gmailDisconnectRemote } from "@/lib/support/gmail";
+import { hourRanges } from "@/lib/support/gmail-rules";
 import { revokeConnection } from "@/lib/support/zendesk";
 import { requireViewer } from "@/lib/viewer";
 
@@ -110,6 +111,13 @@ export async function deleteKnowledge(form: FormData) {
 export async function saveEmailSettings(form: FormData) {
   const viewer = await superViewer();
   const text = (name: string) => String(form.get(name) ?? "").replace(/\r\n/g, "\n");
+  // Um horário que não se percebe deixaria a resposta automática sempre em "fora do horário": recusa-se.
+  const DAY_LABEL: Record<string, string> = { hours_weekdays: "Dias úteis", hours_saturday: "Sábado", hours_sunday: "Domingo" };
+  for (const field of Object.keys(DAY_LABEL)) {
+    const pieces = text(field).split(/[,;]| e /).map((p) => p.trim()).filter(Boolean);
+    if (pieces.some((p) => !hourRanges(p).length))
+      back({ erro: `Horário de ${DAY_LABEL[field]} não reconhecido. Use, por exemplo, 09:30-13:00, 14:00-18:30 (vazio = fechado).` }, "#email");
+  }
   try {
     await sessionRpc(viewer.session, "ldo_support_email_save_settings", {
       p_signature: text("email_signature"), p_autoreply_enabled: form.get("email_autoreply_enabled") === "on",
