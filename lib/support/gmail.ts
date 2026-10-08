@@ -549,7 +549,9 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
     for (const t of threads) {
       const to = autoReplyTarget(t, mailbox);
       if (!to) continue;
-      if (Date.now() > deadline - AUTOREPLY_RESERVE_MS + 5000) {
+      // O orçamento da passagem deixa folga até ao limite da função (60 s): as respostas automáticas podem sair até
+      // 5 s depois dele (um aviso tratado tarde, com pouco orçamento, também responde).
+      if (Date.now() > deadline + 5000) {
         later.push(t.id);
         continue;
       }
