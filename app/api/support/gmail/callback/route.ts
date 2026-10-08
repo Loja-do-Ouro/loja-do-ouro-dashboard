@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const c = await exchangeGmailCode(code, verifier);
     await sessionRpc(viewer.session, "ldo_support_gmail_save", {
       p_email: c.email, p_scope: c.scope, p_refresh_ct: c.refresh_ct, p_access_ct: c.access_ct, p_access_expires_at: c.access_expires_at,
+      p_history_id: c.history_id,
     });
   } catch (e) {
     // 403 sem "voltar a ligar" = entrou com outra conta Google (a caixa confirmada não é a do apoio).

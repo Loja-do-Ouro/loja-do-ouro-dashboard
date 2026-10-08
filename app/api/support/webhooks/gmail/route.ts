@@ -33,7 +33,8 @@ export async function POST(request: Request) {
   // Tudo dentro de ~50 s, abaixo dos 60 s da função; o que sobrar fica para a sincronização seguinte.
   after(async () => {
     const end = Date.now() + 50_000;
-    while (Date.now() < end - 8_000) {
+    // Nunca começa uma passagem com menos de 20 s: com pouco tempo leria o histórico e nenhuma conversa.
+    while (Date.now() < end - 23_000) {
       const budgetMs = Math.min(35_000, end - Date.now() - 3_000);
       const [r] = await runSync({ only: ["gmail"], force: true, override: true, budgetMs }).catch(() => [] as SyncOutcome[]);
       if (!r) return;

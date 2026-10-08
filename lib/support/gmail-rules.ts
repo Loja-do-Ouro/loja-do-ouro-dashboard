@@ -412,10 +412,11 @@ export function messageAttachments(messageId: string, payload: GmailPart | undef
   return out;
 }
 
-// Fora do Apoio ao Cliente: spam, lixo, rascunhos, promoções e redes sociais. "Atualizações" e "Fóruns" entram
-// (o Gmail põe lá, por exemplo, os pedidos do formulário de contacto da loja), mas sem resposta automática.
-export const EXCLUDED_LABELS = ["SPAM", "TRASH", "DRAFT", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL"];
-export const AUTOREPLY_EXCLUDED_LABELS = [...EXCLUDED_LABELS, "CATEGORY_FORUMS", "CATEGORY_UPDATES"];
+// Fora do Apoio ao Cliente só o spam, o lixo e os rascunhos: um cliente cujo email o Gmail ponha em Promoções,
+// Redes sociais, Atualizações ou Fóruns (ex.: o formulário de contacto da loja) tem de aparecer. Essas categorias
+// não recebem a resposta automática.
+export const EXCLUDED_LABELS = ["SPAM", "TRASH", "DRAFT"];
+export const AUTOREPLY_EXCLUDED_LABELS = [...EXCLUDED_LABELS, "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS", "CATEGORY_UPDATES"];
 
 export function labelExcluded(labels: string[] | undefined): boolean {
   return (labels || []).some((l) => EXCLUDED_LABELS.includes(l));
@@ -464,6 +465,19 @@ export function senderOf(msg: GmailMessage): MailAddress & { verified: boolean }
     if (reply.email && !FORM_RELAYS.includes(reply.email)) return { ...reply, verified: false };
   }
   return { ...from, verified: true };
+}
+
+// Contacto de um formulário (email não confirmado): linha própria, "formulario:<email>", que nunca se mistura com
+// o contacto confirmado do mesmo endereço.
+export const FORM_CONTACT_PREFIX = "formulario:";
+export function contactExternalId(sender: { email: string | null; verified: boolean }) {
+  return sender.email ? `${sender.verified ? "" : FORM_CONTACT_PREFIX}${sender.email}` : null;
+}
+// Endereço para onde se responde a partir do id do contacto (com ou sem o prefixo do formulário).
+export function contactAddress(externalId: string | null | undefined): string | null {
+  const v = String(externalId ?? "").trim().toLowerCase();
+  const email = v.startsWith(FORM_CONTACT_PREFIX) ? v.slice(FORM_CONTACT_PREFIX.length) : v;
+  return validEmail(email) ? email : null;
 }
 
 // Mensagem automática (RFC 3834): também a nossa resposta "recebemos o seu email".

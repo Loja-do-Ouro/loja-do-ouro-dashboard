@@ -4,8 +4,8 @@ import { ingest, serverRpc, type IngestConversation, type IngestMessage } from "
 import { open, randomToken, seal } from "./crypto";
 import { gmailThreadLink } from "./rules";
 import {
-  autoReplyAllowed, buildMime, cleanSubject, cleanText, dashboardMessageId, formatAddress, header, isAutoSubmitted, labelExcluded,
-  messageAttachments, messageText, replySubject, senderOf, signatureBlock, textToHtml, validEmail, withinHours,
+  autoReplyAllowed, buildMime, cleanSubject, cleanText, contactExternalId, dashboardMessageId, formatAddress, header, isAutoSubmitted,
+  labelExcluded, messageAttachments, messageText, replySubject, senderOf, signatureBlock, textToHtml, validEmail, withinHours,
   type GmailMessage, type GmailPart,
 } from "./gmail-rules";
 
@@ -140,10 +140,12 @@ export async function exchangeGmailCode(code: string, verifier: string) {
   const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: gmailRedirectUri(), code_verifier: verifier });
   if (!t.refresh_token) throw new GmailError("A Google não devolveu a autorização permanente. Volte a carregar em Ligar Gmail.");
   if (t.scope && !t.scope.split(" ").includes(GMAIL_SCOPE)) throw new GmailError("Falta autorizar o acesso ao Gmail. Volte a ligar e aceite o pedido.");
-  const profile = await gmailFetch<{ emailAddress: string }>(t.access_token, "/profile");
+  const profile = await gmailFetch<{ emailAddress: string; historyId?: string }>(t.access_token, "/profile");
   const email = (profile.emailAddress || "").toLowerCase();
   if (email !== gmailMailbox()) throw new GmailError(`Entrou com ${email || "outra conta"}: ligue a caixa ${gmailMailbox()}.`, 403);
   return {
+    // Ponto de partida da sincronização: os emails que chegarem a partir daqui entram todos.
+    history_id: profile.historyId || null,
     email, scope: t.scope || GMAIL_SCOPE, refresh_ct: seal(t.refresh_token, OWNER), access_ct: seal(t.access_token, OWNER),
     access_expires_at: new Date(Date.now() + (t.expires_in || 3600) * 1000).toISOString(),
   };
@@ -238,51 +240,61 @@ type HistoryPage = {
   historyId?: string;
   nextPageToken?: string;
 };
+// Releitura depois de o histórico expirar, retomada de passagem em passagem.
+type Recover = { q: string; page: string | null; historyId: string };
 const MAX_THREADS_PER_RUN = 40;
-// Conversas por ler entre passagens (no cursor da fonte). Muito acima do normal: se alguma vez passar, as mais
-// antigas saem e o estado da fonte diz quantas.
+// Conversas por ler entre passagens (no cursor). Com a fila cheia o ponto de partida não avança: o que falta é
+// relido mais tarde, nunca deitado fora.
 const MAX_PENDING = 5000;
-// Uma conversa volta a contar quando entra na caixa de entrada ou sai do spam, do lixo, das promoções ou das redes sociais.
-const RETURNING = ["SPAM", "TRASH", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL"];
-const SENT_CHECK_DAYS = 7;
+// Uma conversa que falha sempre ao ser lida (erro do Gmail só nela) não pode travar as outras: ao fim de 5
+// passagens sai da fila e fica contada no estado da fonte (volta a ser lida se chegar outra mensagem).
+const MAX_THREAD_FAILURES = 5;
+// Uma conversa volta a contar quando entra na caixa de entrada ou sai do spam ou do lixo.
+const RETURNING = ["SPAM", "TRASH"];
 
 // Nosso é só o que saiu desta caixa (o Gmail marca-o como SENT): um From forjado com o endereço da loja não conta.
 const isOwn = (m: GmailMessage) => (m.labelIds || []).includes("SENT");
-// Mensagens que contam: sem rascunhos, spam, lixo, promoções e redes sociais.
+// Mensagens que contam: sem rascunhos, spam e lixo.
 const visible = (t: Thread) => (t.messages || []).filter((m) => !labelExcluded(m.labelIds));
 const at = (m: GmailMessage) => Number(m.internalDate) || 0;
 
+// O cliente da conversa: quem escreveu a primeira mensagem recebida. O From (autenticado pelo Gmail) ou, nos
+// formulários de contacto, o Reply-To, que fica como email não confirmado.
+function customerOf(msgs: GmailMessage[], mailbox: string) {
+  return msgs.filter((m) => !isOwn(m)).map((m) => senderOf(m)).find((a) => a.email && a.email !== mailbox) || null;
+}
+
 export type MappedThread = {
   conversation: IngestConversation;
-  // Email do formulário de contacto (Reply-To), guardado como não confirmado.
+  // Email do formulário de contacto, guardado como não confirmado.
   claimed: string | null;
-  // Envios feitos pelo dashboard que o Gmail tem nos Enviados: confirmam envios incertos.
-  sent: { id: string; externalId: string; at: number }[];
 };
+type SentCopy = { id: string; thread: string; external_id: string; attachments: IngestMessage["attachments"] };
+
+// Envios do dashboard que o Gmail tem nos Enviados (cabeçalho X-LDO-Message): confirmam o envio e passam os
+// anexos para o Gmail. Lidos mesmo quando a conversa não tem (já) mensagens do cliente visíveis.
+function sentCopies(t: Thread): SentCopy[] {
+  return (t.messages || []).filter((m) => isOwn(m) && !labelExcluded(m.labelIds)).flatMap((m) => {
+    const id = dashboardMessageId(m);
+    return id ? [{ id, thread: t.id, external_id: m.id, attachments: messageAttachments(m.id, m.payload).map((a) => ({ ...a, name: cleanText(a.name) })) }] : [];
+  });
+}
 
 // Uma conversa do Gmail no formato comum.
-// - O cliente é quem escreveu a primeira mensagem recebida: o From (autenticado pelo Gmail) ou, nos formulários de
-//   contacto, o Reply-To, que fica como email não confirmado (não mostra encomendas até a equipa o associar).
-// - As nossas respostas automáticas não entram como mensagens (aparecem como acontecimento na conversa).
-// - Os envios do dashboard já estão no dashboard: só confirmam o envio.
+// - O contacto de um formulário tem id próprio ("formulario:<email>", sem email): nunca herda a identidade, o nome
+//   nem as encomendas de quem escreveu diretamente desse endereço.
+// - As nossas respostas automáticas e os envios do dashboard não entram como mensagens (os primeiros aparecem como
+//   acontecimento; os segundos já estão no dashboard).
 // - Todo o texto é limpo para o Postgres (um NUL num email não pode travar a sincronização).
 export function mapThread(t: Thread, mailbox: string): MappedThread | null {
   const msgs = visible(t);
-  const inbound = msgs.filter((m) => !isOwn(m));
-  const customer = inbound.map((m) => senderOf(m)).find((a) => a.email && a.email !== mailbox);
-  if (!customer?.email) return null;
-  const sent: MappedThread["sent"] = [];
+  const customer = customerOf(msgs, mailbox);
+  const externalId = customer ? contactExternalId(customer) : null;
+  if (!customer?.email || !externalId) return null;
   const messages: IngestMessage[] = [];
   for (const m of msgs) {
     const own = isOwn(m);
-    if (own) {
-      const id = dashboardMessageId(m);
-      if (id) {
-        sent.push({ id, externalId: m.id, at: at(m) });
-        continue;
-      }
-      if (isAutoSubmitted(m)) continue;
-    }
+    if (own && (dashboardMessageId(m) || isAutoSubmitted(m))) continue;
     const from = own ? null : senderOf(m);
     // Um email recebido com o endereço da própria caixa no From não foi enviado por nós.
     const author = from ? `${from.name || from.email || "Remetente desconhecido"}${from.email === mailbox ? " (não enviado por esta caixa)" : ""}` : null;
@@ -300,14 +312,13 @@ export function mapThread(t: Thread, mailbox: string): MappedThread | null {
   return {
     conversation: {
       external_id: t.id,
-      contact: { external_id: customer.email, name: customer.name ? cleanText(customer.name) : null, email: customer.verified ? customer.email : null },
+      contact: { external_id: externalId, name: customer.name ? cleanText(customer.name) : null, email: customer.verified ? customer.email : null },
       subject: subject || "(sem assunto)",
       via: customer.verified ? "email" : "formulario",
       external_updated_at: new Date(Math.max(...msgs.map(at)) || Date.now()).toISOString(),
       messages,
     },
     claimed: customer.verified ? null : customer.email,
-    sent,
   };
 }
 
@@ -316,29 +327,54 @@ const dataError = (e: unknown) => e instanceof SupabaseError && e.code.startsWit
 
 type Totals = { conversations: number; new_conversations: number; new_messages: number; reopened: number };
 
-// Grava as conversas; uma que a base de dados recuse é saltada (e contada) em vez de travar todas as outras.
-async function ingestEach(conversations: IngestConversation[]) {
+// Grava as conversas lidas, marca os emails de formulário como não confirmados e confirma os envios do
+// dashboard. Uma conversa que a base de dados recuse é saltada (e contada) em vez de travar as outras.
+// Devolve as conversas cuja confirmação de envio não ficou feita, para voltarem à fila.
+async function store(threads: Thread[], mailbox: string) {
   const totals: Totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
   const add = (r: Totals) => (Object.keys(totals) as (keyof Totals)[]).forEach((k) => (totals[k] += r[k] || 0));
+  const mapped = threads.map((t) => mapThread(t, mailbox)).filter((m): m is MappedThread => m !== null);
+  const conversations = mapped.map((m) => m.conversation);
   let skipped = 0;
-  if (!conversations.length) return { totals, skipped };
-  try {
-    add(await ingest("gmail", conversations));
-  } catch (first) {
-    let ok = 0;
-    for (const c of conversations) {
-      try {
-        add(await ingest("gmail", [c]));
-        ok++;
-      } catch (e) {
-        if (!dataError(e)) throw e;
-        skipped++;
+  if (conversations.length) {
+    try {
+      add(await ingest("gmail", conversations));
+    } catch (first) {
+      let ok = 0;
+      for (const c of conversations) {
+        try {
+          add(await ingest("gmail", [c]));
+          ok++;
+        } catch (e) {
+          if (!dataError(e)) throw e;
+          skipped++;
+        }
       }
+      if (!ok && !skipped) throw first;
     }
-    if (!ok && !skipped) throw first;
   }
-  return { totals, skipped };
+  const claimed = [...new Set(mapped.map((m) => m.claimed).filter((x): x is string => Boolean(x)))];
+  if (claimed.length) await serverRpc("ldo_support_gmail_claimed", { p_addresses: claimed });
+  const copies = threads.flatMap(sentCopies);
+  let retry: string[] = [];
+  if (copies.length) {
+    try {
+      await serverRpc("ldo_support_gmail_confirm_sent", { p_items: copies });
+    } catch {
+      retry = [...new Set(copies.map((c) => c.thread))];
+    }
+  }
+  return { totals, skipped, retry };
 }
+
+// "Verificar" de uma resposta por email: relê já a conversa no Gmail (sem esperar pelo histórico).
+export async function gmailRecheck(threadId: string) {
+  const t = await call<Thread>(`/threads/${encodeURIComponent(threadId)}?format=full`);
+  const r = await store([t], gmailMailbox());
+  if (r.retry.length) throw new GmailError("Não foi possível confirmar o envio agora. Tente de novo.");
+}
+
+const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
 export async function syncGmail(cursor: Record<string, unknown>, deadline: number) {
   const state = await gmailState();
@@ -349,14 +385,19 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
   if (gmailPushReady() && watchUntil - Date.now() < 2 * 24 * 3600 * 1000) await gmailWatch().catch(() => undefined);
 
   const now = () => Math.floor(Date.now() / 1000);
+  const notes: string[] = [];
   let historyId = typeof cursor.historyId === "string" ? cursor.historyId : undefined;
   let syncedAt = typeof cursor.syncedAt === "number" ? cursor.syncedAt : null;
-  const previous = Array.isArray(cursor.pending) ? (cursor.pending as unknown[]).filter((x): x is string => typeof x === "string") : [];
-  const notes: string[] = [];
+  const previous = strings(cursor.pending);
+  const failures: Record<string, number> = {};
+  if (cursor.failures && typeof cursor.failures === "object")
+    for (const [k, v] of Object.entries(cursor.failures as Record<string, unknown>)) if (typeof v === "number") failures[k] = v;
+  let broken = strings(cursor.broken).slice(-50);
+  const r = cursor.recover as Partial<Recover> | undefined;
+  let recover: Recover | null = r && typeof r.q === "string" && typeof r.historyId === "string" ? { q: r.q, page: typeof r.page === "string" ? r.page : null, historyId: r.historyId } : null;
 
   if (!historyId) {
-    // Primeira passagem: só entra o que chegar a partir de agora. Os emails anteriores ficam no Gmail (e no Zendesk,
-    // durante a transição); importá-los como "Novo" levaria a responder outra vez a clientes já atendidos.
+    // Sem ponto de partida (não devia acontecer: a ligação grava-o). Começa agora.
     const profile = await call<{ historyId: string }>("/profile");
     return {
       cursor: { historyId: profile.historyId, syncedAt: now(), pending: [] },
@@ -366,105 +407,122 @@ export async function syncGmail(cursor: Record<string, unknown>, deadline: numbe
     };
   }
 
-  // Conversas alteradas, as mais recentes primeiro.
+  // Conversas alteradas, as mais recentes primeiro, e o ponto de partida seguinte (só gravado se couber tudo).
   const found: string[] = [];
-  try {
-    let page: string | undefined;
-    let latest = historyId;
-    const ids: string[] = [];
-    do {
-      const q = new URLSearchParams({ startHistoryId: historyId, maxResults: "500" });
-      for (const type of ["messageAdded", "labelAdded", "labelRemoved"]) q.append("historyTypes", type);
-      if (page) q.set("pageToken", page);
-      const h = await call<HistoryPage>(`/history?${q}`);
-      for (const e of h.history || []) {
-        for (const a of e.messagesAdded || []) if (!(a.message.labelIds || []).includes("DRAFT")) ids.push(a.message.threadId);
-        for (const a of e.labelsAdded || []) if ((a.labelIds || []).includes("INBOX")) ids.push(a.message.threadId);
-        for (const a of e.labelsRemoved || []) if ((a.labelIds || []).some((l) => RETURNING.includes(l))) ids.push(a.message.threadId);
-      }
-      latest = h.historyId || latest;
-      page = h.nextPageToken;
-    } while (page && Date.now() < deadline - 15000);
-    found.push(...ids.reverse());
-    // Sem ler o histórico todo, o ponto de partida fica onde estava (a passagem seguinte relê-o).
-    if (!page) {
-      historyId = latest;
-      syncedAt = now();
+  let next: { historyId: string; syncedAt: number | null; recover: Recover | null } = { historyId, syncedAt, recover };
+  if (!recover) {
+    try {
+      let page: string | undefined;
+      let latest = historyId;
+      const ids: string[] = [];
+      do {
+        const q = new URLSearchParams({ startHistoryId: historyId, maxResults: "500" });
+        for (const type of ["messageAdded", "labelAdded", "labelRemoved"]) q.append("historyTypes", type);
+        if (page) q.set("pageToken", page);
+        const h = await call<HistoryPage>(`/history?${q}`);
+        for (const e of h.history || []) {
+          for (const a of e.messagesAdded || []) if (!(a.message.labelIds || []).includes("DRAFT")) ids.push(a.message.threadId);
+          for (const a of e.labelsAdded || []) if ((a.labelIds || []).includes("INBOX")) ids.push(a.message.threadId);
+          for (const a of e.labelsRemoved || []) if ((a.labelIds || []).some((l) => RETURNING.includes(l))) ids.push(a.message.threadId);
+        }
+        latest = h.historyId || latest;
+        page = h.nextPageToken;
+      } while (page && Date.now() < deadline - 15000);
+      found.push(...ids.reverse());
+      // Sem ler o histórico todo, o ponto de partida fica onde estava (a passagem seguinte relê-o).
+      if (!page) next = { historyId: latest, syncedAt: now(), recover: null };
+    } catch (e) {
+      if (!(e instanceof GmailError && e.status === 404)) throw e;
+      // Histórico expirado (a Google pode guardá-lo só algumas horas): relê, página a página e ao longo das
+      // passagens que forem precisas, as conversas alteradas desde a última leitura completa (1 hora de margem).
+      // O ponto de partida novo é o de agora, mas só passa a valer quando a releitura acabar.
+      const profile = await call<{ historyId: string }>("/profile");
+      recover = { q: `${syncedAt ? `after:${syncedAt - 3600}` : "newer_than:7d"} -in:spam -in:trash -in:drafts -in:sent`, page: null, historyId: profile.historyId };
+      next = { historyId, syncedAt, recover };
     }
-  } catch (e) {
-    if (!(e instanceof GmailError && e.status === 404)) throw e;
-    // Histórico expirado (a Google pode guardá-lo só algumas horas): todas as conversas alteradas desde a última
-    // leitura completa (com 1 hora de margem), página a página.
-    const profile = await call<{ historyId: string }>("/profile");
-    const since = syncedAt ? `after:${syncedAt - 3600}` : "newer_than:7d";
-    let page: string | undefined;
+  }
+  if (recover) {
+    let page = recover.page;
     let pages = 0;
     do {
-      const q = new URLSearchParams({ q: `${since} -in:spam -in:trash -in:drafts`, maxResults: "100" });
+      const q = new URLSearchParams({ q: recover.q, maxResults: "100" });
       if (page) q.set("pageToken", page);
       const list = await call<{ threads?: { id: string }[]; nextPageToken?: string }>(`/threads?${q}`);
       for (const t of list.threads || []) found.push(t.id);
-      page = list.nextPageToken;
+      page = list.nextPageToken || null;
       pages++;
     } while (page && pages < 30 && Date.now() < deadline - 15000);
-    if (page) notes.push("histórico do Gmail expirado: conversas mais antigas não foram relidas");
-    historyId = profile.historyId;
-    syncedAt = now();
+    next = page ? { historyId, syncedAt, recover: { ...recover, page } } : { historyId: recover.historyId, syncedAt: now(), recover: null };
+    if (page) notes.push("a reler as conversas depois de o histórico do Gmail expirar");
   }
 
   const seen = new Set<string>();
   const queue: string[] = [];
-  for (const id of [...found, ...previous]) {
+  for (const id of previous) {
     if (seen.has(id)) continue;
     seen.add(id);
     queue.push(id);
   }
-  if (queue.length > MAX_PENDING) {
-    notes.push(`${queue.length - MAX_PENDING} conversas antigas por ler ficaram de fora`);
-    queue.length = MAX_PENDING;
+  const fresh: string[] = [];
+  for (const id of found) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    fresh.push(id);
+  }
+  if (queue.length + fresh.length > MAX_PENDING) {
+    // Fila cheia: entram as mais recentes que couberem e o ponto de partida não avança (relê-se o resto depois).
+    queue.unshift(...fresh.slice(0, Math.max(0, MAX_PENDING - queue.length)));
+    notes.push("muitas conversas por ler: a continuar nas próximas passagens");
+  } else {
+    queue.unshift(...fresh);
+    historyId = next.historyId;
+    syncedAt = next.syncedAt;
+    recover = next.recover;
   }
 
-  const mapped: MappedThread[] = [];
-  const fresh: Thread[] = [];
+  const threads: Thread[] = [];
   let read = 0;
+  let failedNow = 0;
   while (queue.length && read < MAX_THREADS_PER_RUN && Date.now() < deadline - 10000) {
     const id = queue.shift()!;
     read++;
-    const t = await call<Thread>(`/threads/${encodeURIComponent(id)}?format=full`).catch((e) => {
-      if (e instanceof GmailError && e.status === 404) return null; // apagada entretanto
-      throw e;
-    });
-    if (!t) continue;
-    fresh.push(t);
-    const m = mapThread(t, mailbox);
-    if (m) mapped.push(m);
+    let t: Thread | null;
+    try {
+      t = await call<Thread>(`/threads/${encodeURIComponent(id)}?format=full`);
+    } catch (e) {
+      if (e instanceof GmailError && e.status === 404) continue; // apagada entretanto
+      // Problema geral (ligação, limite de pedidos) ou mais de uma conversa a falhar: pára e tenta tudo mais tarde.
+      if (!(e instanceof GmailError) || e.reconnect || e.status === 401 || e.status === 429 || ++failedNow > 1) throw e;
+      failures[id] = (failures[id] || 0) + 1;
+      if (failures[id] < MAX_THREAD_FAILURES) queue.push(id);
+      else {
+        delete failures[id];
+        broken = [...broken.filter((b) => b !== id), id].slice(-50);
+      }
+      continue;
+    }
+    delete failures[id];
+    broken = broken.filter((b) => b !== id);
+    threads.push(t);
   }
-  const { totals, skipped } = await ingestEach(mapped.map((m) => m.conversation));
+  const { totals, skipped, retry } = await store(threads, mailbox);
+  if (retry.length) queue.unshift(...retry.filter((id) => !queue.includes(id)));
   if (skipped) notes.push(`${skipped} conversa(s) com conteúdo que a base de dados recusou`);
-
-  // Formulário de contacto: o email indicado fica como não confirmado.
-  const claimed = [...new Set(mapped.map((m) => m.claimed).filter((x): x is string => Boolean(x)))];
-  if (claimed.length) await serverRpc("ldo_support_gmail_claimed", { p_addresses: claimed }).catch(() => undefined);
-  // Envios do dashboard encontrados nos Enviados: um envio incerto passa a Aceite (os outros não mudam).
-  for (const s of mapped.flatMap((m) => m.sent)) {
-    if (Date.now() - s.at > SENT_CHECK_DAYS * 86400_000 || Date.now() > deadline - 5000) continue;
-    await serverRpc("ldo_support_finish_send", {
-      p_message: s.id, p_delivery: "accepted", p_detail: "Confirmado nos Enviados do Gmail.", p_external_id: s.externalId,
-    }).catch(() => undefined);
-  }
+  if (broken.length) notes.push(`${broken.length} conversa(s) que o Gmail não deixou ler (abrir no Gmail)`);
 
   let autoreplies = 0;
   if (state.settings.autoreply_enabled) {
-    for (const t of fresh) {
+    for (const t of threads) {
       if (Date.now() > deadline - 5000) break;
       if (await autoReply(t, state.settings, mailbox).catch(() => false)) autoreplies++;
     }
   }
+  for (const k of Object.keys(failures)) if (!queue.includes(k)) delete failures[k];
   return {
-    cursor: { historyId, syncedAt, pending: queue },
+    cursor: { historyId, syncedAt, pending: queue, ...(recover ? { recover } : {}), ...(Object.keys(failures).length ? { failures } : {}), ...(broken.length ? { broken } : {}) },
     totals: { ...totals, autoreplies, skipped },
     detail: `Gmail (${mailbox})${notes.length ? ` · ${notes.join("; ")}` : ""}`,
-    more: queue.length > 0,
+    more: queue.length > 0 || Boolean(recover),
   };
 }
 
@@ -518,9 +576,10 @@ async function autoReply(t: Thread, s: EmailSettings, mailbox: string) {
   if (!msgs.length || msgs.some(isOwn)) return false;
   const last = msgs[msgs.length - 1];
   if (Date.now() - at(last) > 60 * 60 * 1000) return false;
+  // Só ao cliente da conversa (quem escreveu primeiro) e só se a última mensagem for dele.
+  const to = customerOf(msgs, mailbox)?.email;
+  if (!to || senderOf(last).email !== to) return false;
   if (!autoReplyAllowed(last, { mailbox, ownDomains: [mailbox.split("@")[1] || ""] }).ok) return false;
-  const to = senderOf(last).email;
-  if (!to || to === mailbox) return false;
   if (!(await serverRpc<boolean>("ldo_support_gmail_autoreply_claim", { p_thread: t.id, p_email: to }))) return false;
   const text = withinHours(s.hours, new Date()) ? s.autoreply_text : s.autoreply_offhours_text;
   try {

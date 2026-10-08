@@ -8,7 +8,8 @@ import { notifySiteVisitors } from "./site-chat";
 import { whatsappSend } from "./whatsapp";
 import { getUpload, publishUpload } from "./uploads";
 import { readTicket, zendeskComment, zendeskUpdate, ZendeskError, type OutgoingFile } from "./zendesk";
-import { emailSettings, gmailMailbox, gmailSendReply, GmailError } from "./gmail";
+import { emailSettings, gmailMailbox, gmailRecheck, gmailSendReply, GmailError } from "./gmail";
+import { contactAddress } from "./gmail-rules";
 import { firstName } from "./rules";
 import type { Viewer } from "@/lib/viewer";
 
@@ -126,7 +127,7 @@ async function sendGmail(viewer: Viewer, threadId: string, to: string | null, me
   try {
     const settings = await emailSettings();
     const sent = await gmailSendReply({
-      threadId, to: to || "", body, signature: settings.signature, senderFirstName: firstName(viewer.fullName), files, dashboardId: messageId,
+      threadId, to: contactAddress(to) || "", body, signature: settings.signature, senderFirstName: firstName(viewer.fullName), files, dashboardId: messageId,
     });
     return { outcome: "accepted", externalId: sent.id, detail: null };
   } catch (e) {
@@ -212,6 +213,14 @@ export async function verifyMessage(viewer: Viewer, conversationId: string, mess
   if (!m || m.conversation.id !== conversationId) throw new Error("Mensagem não encontrada.");
   let note: string | null = null;
   if (m.conversation.source_id === "zendesk") await ingest("zendesk", [await readTicket(viewer.id, m.conversation.external_id)]);
+  // Email: relê já a conversa no Gmail (o envio do dashboard é reconhecido pelo cabeçalho X-LDO-Message).
+  else if (m.conversation.source_id === "gmail") {
+    try {
+      await gmailRecheck(m.conversation.external_id);
+    } catch (e) {
+      note = `A verificação falhou: ${e instanceof Error ? e.message : "Gmail indisponível."}`;
+    }
+  }
   // Chat do site: o dashboard é a fonte de verdade; a resposta guardada fica disponível no chat.
   else if (m.conversation.source_id === "site-chat")
     await serverRpc("ldo_support_finish_send", { p_message: messageId, p_delivery: "accepted", p_detail: "Disponível no chat do site (confirmado em Verificar).", p_external_id: null });

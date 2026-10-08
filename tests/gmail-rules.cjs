@@ -280,9 +280,9 @@ test("Attachments and inline images are listed with stable refs and safe names",
 });
 
 test("Spam, trash, drafts and Gmail's automatic tabs are excluded", () => {
-  for (const l of ["SPAM", "TRASH", "DRAFT", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL"]) assert.equal(g.labelExcluded(["INBOX", l]), true, l);
-  // Atualizações e Fóruns entram (ex.: formulário de contacto da loja), mas sem resposta automática.
-  for (const l of ["CATEGORY_FORUMS", "CATEGORY_UPDATES"]) {
+  for (const l of ["SPAM", "TRASH", "DRAFT"]) assert.equal(g.labelExcluded(["INBOX", l]), true, l);
+  // As categorias do Gmail entram (um cliente nunca pode ficar de fora), mas sem resposta automática.
+  for (const l of ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS", "CATEGORY_UPDATES"]) {
     assert.equal(g.labelExcluded(["INBOX", l]), false, l);
     assert.equal(g.autoReplyAllowed({ id: "m", threadId: "t", labelIds: ["INBOX", l], payload: { headers: [{ name: "From", value: "Ana <ana@cliente.pt>" }] } }, { mailbox: "apoiocliente@lojadoouro.pt", ownDomains: ["lojadoouro.pt"] }).ok, false, l);
   }
@@ -646,4 +646,15 @@ test("Text sent to the database has no NUL and no lone surrogates", () => {
   assert.equal(g.cleanText("ok 😀"), "ok 😀");
   assert.equal(g.cleanText(null), "");
   assert.doesNotThrow(() => JSON.parse(JSON.stringify(g.cleanText("a\u0000\ud800"))));
+});
+
+test("Contact-form senders get their own contact id; replies go to the plain address", () => {
+  assert.equal(g.contactExternalId({ email: "ana@cliente.pt", verified: true }), "ana@cliente.pt");
+  assert.equal(g.contactExternalId({ email: "ana@cliente.pt", verified: false }), "formulario:ana@cliente.pt");
+  assert.equal(g.contactExternalId({ email: null, verified: true }), null);
+  assert.equal(g.contactAddress("formulario:Ana@Cliente.pt"), "ana@cliente.pt");
+  assert.equal(g.contactAddress("ana@cliente.pt"), "ana@cliente.pt");
+  assert.equal(g.contactAddress("formulario:"), null);
+  assert.equal(g.contactAddress("conversa:123"), null);
+  assert.equal(g.contactAddress(null), null);
 });
