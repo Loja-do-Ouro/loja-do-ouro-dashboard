@@ -166,6 +166,33 @@ test("An attached email (message/rfc822) is not the body, unless there is nothin
   assert.equal(g.messageText(onlyAttached), "Conteúdo do email anexado");
 });
 
+test("Malformed or hostile HTML and long inputs are processed quickly", () => {
+  const html = (s) => textPart("", "text/html", s);
+  const cases = [
+    html("<!--".repeat(50000) + "fim"),
+    html("<head>".repeat(50000) + "fim"),
+    html("<script>".repeat(30000) + "fim"),
+    html('<a href="https://x.pt">'.repeat(30000) + "fim"),
+    html("<a href='x' ".repeat(30000) + ">fim"),
+    html("<".repeat(300000) + "fim"),
+    html("<blockquote ".repeat(50000) + "fim"),
+    html("<p>Olá</p>" + "<blockquote>x</blockquote>".repeat(50000)),
+    html('<div class="gmail_quote">Forwarded message '.repeat(5000)),
+    textPart("", "text/plain", " ".repeat(300000) + "x\n" + "On x 1 wrote\n".repeat(50000)),
+  ];
+  const t = Date.now();
+  for (const p of cases) g.messageText(p);
+  g.parseAddressList(" ".repeat(100000) + "x");
+  g.parseAddress("a@".repeat(50000));
+  g.safeFileName(".".repeat(100000) + "x");
+  g.textToHtml("https://x.pt" + ")".repeat(100000));
+  assert.ok(Date.now() - t < 3000, `${Date.now() - t} ms`);
+  // HTML enorme é cortado sem deixar meia etiqueta; o texto continua certo em HTML estragado.
+  assert.equal(g.messageText(html("<p>Olá</p>" + "<blockquote>x</blockquote>".repeat(50000))), "Olá");
+  assert.equal(g.messageText(html("<head><title>t</title>Olá <b>Ana</b> 1 < 2 <a href='https://x.pt'>site</a> <a>solta")), "Olá Ana 1 < 2 site (https://x.pt) solta");
+  assert.equal(g.messageText(html("<html><head><meta charset=utf-8><body><p>Sem fecho do head</p>")), "Sem fecho do head");
+});
+
 test("The message text is capped at 60000 characters and blank-line runs are limited", () => {
   assert.equal(g.messageText(textPart("", "text/plain", "a".repeat(70000))).length, g.MAX_MESSAGE_TEXT);
   assert.equal(g.MAX_MESSAGE_TEXT, 60000);

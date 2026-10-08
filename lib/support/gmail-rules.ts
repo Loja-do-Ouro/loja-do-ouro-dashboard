@@ -113,7 +113,7 @@ export function parseAddress(value: string | null): MailAddress {
     rawEmail = m[1];
     rawName = v.slice(0, m.index);
   } else {
-    const m = /^([^\s<>()",;:]+@[^\s<>()",;:]+)\s*(?:\(([^()]*)\))?$/.exec(v);
+    const m = /^([^\s<>()",;:@]+@[^\s<>()",;:]+)\s*(?:\(([^()]*)\))?$/.exec(v);
     if (m) {
       rawEmail = m[1];
       rawName = m[2] || "";
@@ -154,7 +154,7 @@ export function parseAddressList(value: string | null): MailAddress[] {
   }
   pieces.push(cur);
   return pieces
-    .map((p) => parseAddress(p.replace(/^\s*[^"<>@:,]*:\s*/, ""))) // "Grupo: a@x.pt, b@x.pt;"
+    .map((p) => parseAddress(p.replace(/^[^"<>@:,]*:\s*/, ""))) // "Grupo: a@x.pt, b@x.pt;"
     .filter((a) => a.email !== null);
 }
 
@@ -192,7 +192,11 @@ function firstBody(payload: GmailPart | undefined, mime: string, intoAttached: b
   for (const p of walk(payload, intoAttached)) {
     if (mimeOf(p) !== mime || isAttachment(p) || !p.body?.data) continue;
     const text = decodeBody(p.body.data, charsetOf(p));
-    if (text.trim()) return text.slice(0, MAX_SOURCE);
+    if (!text.trim()) continue;
+    if (text.length <= MAX_SOURCE) return text;
+    const cut = text.slice(0, MAX_SOURCE);
+    const lt = cut.lastIndexOf("<"); // sem etiqueta cortada a meio
+    return mime === "text/html" && lt > cut.lastIndexOf(">") ? cut.slice(0, lt) : cut;
   }
   return "";
 }
@@ -201,43 +205,91 @@ function firstBody(payload: GmailPart | undefined, mime: string, intoAttached: b
 const FORWARD = /forwarded message|begin forwarded message|mensagem (?:re)?encaminhada|in[ií]cio da mensagem (?:re)?encaminhada|message transf[ée]r[ée]|mensaje reenviado/i;
 const tagText = (html: string) => html.replace(/<[^>]*>/g, " ");
 
-// Remove o elemento que abre em `start` (com o que tem dentro, contando os aninhados); sem fecho, corta até ao fim.
-function cutElement(html: string, start: number, tag: string) {
-  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, "gi");
+// Fim do elemento que abre em `start` (contando os aninhados); sem fecho, o fim do HTML. As etiquetas lêem-se com
+// [^<>]* (nunca passam do "<" seguinte) e tudo anda só para a frente: HTML estragado não fica lento.
+function elementEnd(html: string, start: number, tag: string) {
+  const re = new RegExp(`<(/?)${tag}\\b[^<>]*>`, "gi");
   re.lastIndex = start;
   let depth = 0;
   for (let m = re.exec(html); m; m = re.exec(html)) {
     if (!m[1] && m[0].endsWith("/>")) continue;
     depth += m[1] ? -1 : 1;
-    if (depth <= 0) return html.slice(0, start) + html.slice(m.index + m[0].length);
+    if (depth <= 0) return m.index + m[0].length;
   }
-  return html.slice(0, start);
+  return html.length;
 }
 
+// Remove os elementos `tag` escolhidos por `match` (com o que têm dentro), menos os de um reencaminhamento.
 function removeElements(html: string, tag: string, match: (open: string) => boolean) {
-  const open = new RegExp(`<${tag}\\b[^>]*>`, "gi");
-  let from = 0;
-  for (let guard = 0; guard < 500; guard++) {
-    open.lastIndex = from;
-    const m = open.exec(html);
-    if (!m) break;
-    const near = tagText(html.slice(Math.max(0, m.index - 400), m.index + m[0].length + 800));
-    if (match(m[0]) && !FORWARD.test(near)) html = cutElement(html, m.index, tag);
-    else from = m.index + m[0].length;
+  const open = new RegExp(`<${tag}\\b[^<>]*>`, "gi");
+  const forwards = FORWARD.test(tagText(html));
+  let out = "";
+  let last = 0;
+  for (let m = open.exec(html); m; m = open.exec(html)) {
+    if (!match(m[0])) continue;
+    if (forwards && FORWARD.test(tagText(html.slice(Math.max(0, m.index - 400), m.index + m[0].length + 800)))) continue;
+    out += html.slice(last, m.index);
+    last = elementEnd(html, m.index, tag);
+    open.lastIndex = last;
   }
-  return html;
+  return out + html.slice(last);
 }
 
 // Histórico citado no HTML: Gmail (div.gmail_quote), Yahoo, Thunderbird, Apple Mail (blockquote) e Outlook
 // (div#appendonsend, div#divRplyFwdMsg ou hr#stopSpelling: daí até ao fim).
 function withoutQuotedHtml(html: string) {
-  const cut = html.search(/<(?:div|hr)\b[^>]*\bid\s*=\s*["']?(?:appendonsend|divRplyFwdMsg|stopSpelling)\b/i);
+  const cut = html.search(/<(?:div|hr)\b[^<>]*\bid\s*=\s*["']?(?:appendonsend|divRplyFwdMsg|stopSpelling)\b/i);
   let h = cut >= 0 ? html.slice(0, cut) : html;
   h = removeElements(h, "div", (open) => /\bclass\s*=\s*["']?[^"'>]*\b(?:gmail_quote|yahoo_quoted|moz-cite-prefix)\b/i.test(open));
   return removeElements(h, "blockquote", () => true);
 }
 
-const withoutHead = (html: string) => html.replace(/<head\b[\s\S]*?<\/head>/gi, "").replace(/<!--[\s\S]*?-->/g, "").replace(/<title\b[\s\S]*?<\/title>/gi, "");
+// Ligações em texto, como em htmlToText ("rótulo (endereço)" só para http/https), mas aos pares <a>…</a> e sem
+// voltar atrás; aberturas ou fechos soltos saem.
+function anchorsToText(html: string) {
+  const tokens = [...html.matchAll(/<a\b[^<>]*>|<\/a\s*>/gi)];
+  let out = "";
+  let last = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const next = tokens[i + 1];
+    out += html.slice(last, t.index);
+    last = (t.index ?? 0) + t[0].length;
+    if (t[0][1] !== "/" && next && next[0][1] === "/") {
+      const label = html.slice(last, next.index).replace(/<[^>]+>/g, "").trim();
+      const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(t[0])?.[1] ?? "";
+      out += /^https?:\/\//i.test(href) && !label.includes(href) ? `${label} (${href})` : label;
+      last = (next.index ?? 0) + next[0].length;
+      i++;
+    }
+  }
+  return out + html.slice(last);
+}
+
+// HTML pronto para htmlToText: sem comentários, <head>, <title>, <script>, <style> e <noscript> (sem fecho, sai só
+// a abertura); um "<" que não abre etiqueta passa a "&lt;"; ligações já em texto. Tudo em passagens para a frente:
+// HTML estragado (blocos ou ligações sem fecho, repetidos) não torna a conversão lenta.
+function preparedHtml(html: string) {
+  const open = /<!--|<(head|title|script|style|noscript)\b[^<>]*>?/gi;
+  const unclosed = new Set<string>();
+  let out = "";
+  let last = 0;
+  for (let m = open.exec(html); m; m = open.exec(html)) {
+    const kind = (m[1] || "!--").toLowerCase();
+    out += html.slice(last, m.index);
+    last = m.index + m[0].length;
+    if (!unclosed.has(kind)) {
+      const close = m[1] ? new RegExp(`</${kind}\\s*>`, "gi") : /-->/g;
+      close.lastIndex = last;
+      const c = close.exec(html);
+      if (c) last = c.index + c[0].length;
+      else unclosed.add(kind);
+    }
+    open.lastIndex = last;
+  }
+  out += html.slice(last);
+  return anchorsToText(out.replace(/<(?=[^<>]*(?:<|$))/g, "&lt;"));
+}
 
 export const MAX_MESSAGE_TEXT = 60000;
 
@@ -253,13 +305,13 @@ export function messageText(payload: GmailPart | undefined): string {
     }
     const html = firstBody(payload, "text/html", intoAttached);
     if (html) {
-      const clean = withoutHead(html);
+      const clean = preparedHtml(html);
       const reply = htmlToText(withoutQuotedHtml(clean));
-      text = stripQuoted(reply || htmlToText(clean.replace(/<\/?blockquote\b[^>]*>/gi, "<br>")));
+      text = stripQuoted(reply || htmlToText(clean.replace(/<\/?blockquote\b[^<>]*>/gi, "<br>")));
       break;
     }
   }
-  let out = text.replace(/\r\n?/g, "\n").replace(/[ \t]+$/gm, "").replace(/\n{4,}/g, "\n\n\n").trim();
+  let out = text.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trimEnd()).join("\n").replace(/\n{4,}/g, "\n\n\n").trim();
   if (out.length > MAX_MESSAGE_TEXT) out = out.slice(0, MAX_MESSAGE_TEXT).replace(/[\ud800-\udbff]$/, "");
   return out;
 }
@@ -324,7 +376,7 @@ const EXTENSIONS: Record<string, string> = {
 // Nome de ficheiro seguro: sem caminho, sem caracteres de controlo nem reservados; até `max` caracteres,
 // mantendo a extensão.
 export function safeFileName(raw: string | null | undefined, max = 200): string {
-  let n = decodeWords(String(raw ?? "")).replace(CONTROL, " ");
+  let n = decodeWords(String(raw ?? "").slice(0, 2000)).replace(CONTROL, " ");
   n = n.split(/[\\/]/).pop() || "";
   n = n.replace(/[<>:"|?*]+/g, "_").replace(/\s+/g, " ").trim().replace(/^[.\s]+/, "").replace(/[.\s]+$/, "");
   const chars = Array.from(n);
@@ -458,11 +510,14 @@ function linkify(line: string) {
   let last = 0;
   for (const m of line.matchAll(URL_RE)) {
     let url = m[0];
+    let round = count(url, ")") - count(url, "(");
+    let square = count(url, "]") - count(url, "[");
     for (;;) {
-      if (/[.,;:!?…]$/.test(url)) url = url.slice(0, -1);
-      else if (url.endsWith(")") && count(url, "(") < count(url, ")")) url = url.slice(0, -1);
-      else if (url.endsWith("]") && count(url, "[") < count(url, "]")) url = url.slice(0, -1);
-      else break;
+      const c = url[url.length - 1];
+      if (c === ")" && round > 0) round--;
+      else if (c === "]" && square > 0) square--;
+      else if (!".,;:!?…".includes(c)) break;
+      url = url.slice(0, -1);
     }
     const at = m.index ?? 0;
     out += escapeHtml(line.slice(last, at));
@@ -672,7 +727,7 @@ const minutesOf = (h: string, m: string | undefined) => {
 // Intervalos em minutos desde a meia-noite; os inválidos (ou que passam da meia-noite) são ignorados.
 export function hourRanges(value: string | null | undefined): [number, number][] {
   const out: [number, number][] = [];
-  for (const chunk of (value || "").split(/[,;]|\s+e\s+/)) {
+  for (const chunk of (value || "").replace(/\s+/g, " ").split(/[,;]| e /)) {
     const m = RANGE.exec(chunk);
     if (!m) continue;
     const a = minutesOf(m[1], m[2]);
