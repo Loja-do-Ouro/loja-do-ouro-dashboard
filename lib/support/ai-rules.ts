@@ -2,6 +2,13 @@
 
 export const AI_MODEL = "claude-opus-5-5";
 
+// Workspace da Anthropic (ANTHROPIC_WORKSPACE_ID): as chaves que não pertencem a um workspace têm de o
+// indicar em cada pedido (cabeçalho anthropic-workspace-id). Só identificadores simples, nunca outro texto.
+export function anthropicWorkspace(raw: string | undefined) {
+  const id = (raw || "").trim();
+  return /^[A-Za-z0-9_-]{4,100}$/.test(id) ? id : null;
+}
+
 // Resposta da IA: "mensagem" é para a colaboradora; "resposta_cliente" é a proposta de texto ao
 // cliente (null quando o pedido não era uma resposta); "verificar" lista o que confirmar antes de enviar.
 export type AiOutput = { mensagem: string; resposta_cliente: string | null; verificar: string[] };

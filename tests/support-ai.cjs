@@ -67,3 +67,12 @@ test("Physical stores are grouped by their weekly closing day", () => {
   assert.equal(t, "Tomar, Benfica (Premium) (Lisboa): encerramento semanal: domingo.\nLeiria City: sem dia de encerramento registado.");
   assert.equal(ai.storesText([]), "");
 });
+
+test("The Anthropic workspace ID is only sent when it is a plain identifier", () => {
+  assert.equal(ai.anthropicWorkspace(" wrkspc_01AbCdEf123 "), "wrkspc_01AbCdEf123");
+  assert.equal(ai.anthropicWorkspace("c7b0e4d9-1a2b-4c3d-8e9f-0123456789ab"), "c7b0e4d9-1a2b-4c3d-8e9f-0123456789ab");
+  assert.equal(ai.anthropicWorkspace(undefined), null);
+  assert.equal(ai.anthropicWorkspace("   "), null);
+  assert.equal(ai.anthropicWorkspace("wrkspc_1\r\nx-other: 1"), null);
+  assert.equal(ai.anthropicWorkspace("wrkspc 01"), null);
+});
