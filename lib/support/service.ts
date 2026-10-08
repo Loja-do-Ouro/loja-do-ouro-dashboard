@@ -8,11 +8,13 @@ import { notifySiteVisitors } from "./site-chat";
 import { whatsappSend } from "./whatsapp";
 import { getUpload, publishUpload } from "./uploads";
 import { readTicket, zendeskComment, zendeskUpdate, ZendeskError, type OutgoingFile } from "./zendesk";
+import { emailSettings, gmailMailbox, gmailSendReply, GmailError } from "./gmail";
+import { firstName } from "./rules";
 import type { Viewer } from "@/lib/viewer";
 
 type Begin = {
   existing: boolean;
-  platform: "zendesk" | "metricool" | "whatsapp" | "site";
+  platform: "zendesk" | "metricool" | "whatsapp" | "site" | "gmail";
   message: { id: string; kind: "outbound" | "note"; delivery: string | null; body: string };
   uploads: string[];
   conversation: {
@@ -42,7 +44,7 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
   let image: string | null = null;
   let prepared: Result | null = null;
   try {
-    if (begin.platform === "zendesk")
+    if (begin.platform === "zendesk" || begin.platform === "gmail")
       for (const id of begin.uploads || []) {
         const u = await getUpload(id);
         if (!u) throw new Error("Anexo já não disponível.");
@@ -72,6 +74,7 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
     if (prepared) r = prepared;
     else if (begin.platform === "zendesk")
       r = await zendeskComment(viewer.id, begin.conversation.external_id, begin.message.body, kind === "outbound", files, claimZendesk);
+    else if (begin.platform === "gmail") r = await sendGmail(viewer, begin.conversation.external_id, begin.message.body, files);
     else if (begin.platform === "metricool")
       r = await metricoolSend(PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.body, image);
     // Chat do site: a resposta fica guardada e o widget vai buscá-la (o dashboard é a fonte de verdade).
@@ -89,7 +92,9 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
           : zendeskReplyWarning(begin.conversation.via)
         : begin.platform === "site"
           ? "No chat do site: passa a Entregue quando o chat do cliente a recebe e a Lida com o chat aberto."
-          : "Aceite pela Metricool. Entrega no Messenger/Instagram sem confirmação pela API."
+          : begin.platform === "gmail"
+            ? `Enviado pelo Gmail (${gmailMailbox()}), na mesma conversa e com a assinatura automática.`
+            : "Aceite pela Metricool. Entrega no Messenger/Instagram sem confirmação pela API."
       : r.detail;
   await serverRpc("ldo_support_finish_send", { p_message: begin.message.id, p_delivery: r.outcome, p_detail: detail, p_external_id: r.externalId });
   // Chat do site: a resposta já está visível no chat; se o cliente saiu do site (há mais de 45 s), segue
@@ -111,6 +116,21 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
     }).catch(() => undefined);
   }
   return { messageId: begin.message.id, delivery: r.outcome === "accepted" && kind === "note" ? null : r.outcome, detail, repeated: false };
+}
+
+// Email pelo Gmail: resposta na mesma conversa, com a assinatura (o {nome} é o primeiro nome de quem
+// responde). Uma recusa antes de enviar (4xx) é "Falhou"; sem resposta da Google, "incerto".
+async function sendGmail(viewer: Viewer, threadId: string, body: string, files: OutgoingFile[]): Promise<Result> {
+  try {
+    const settings = await emailSettings();
+    const sent = await gmailSendReply({ threadId, body, signature: settings.signature, senderFirstName: firstName(viewer.fullName), files });
+    return { outcome: "accepted", externalId: sent.id, detail: null };
+  } catch (e) {
+    if (e instanceof GmailError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429)
+      return { outcome: "failed", externalId: null, detail: e.message };
+    if (e instanceof GmailError && e.reconnect) return { outcome: "failed", externalId: null, detail: e.message };
+    return { outcome: "uncertain", externalId: null, detail: e instanceof Error ? e.message : "Sem resposta do Gmail." };
+  }
 }
 
 type Conversation = {

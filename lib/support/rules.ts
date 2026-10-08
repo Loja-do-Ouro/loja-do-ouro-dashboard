@@ -1,7 +1,7 @@
 // Apoio ao Cliente: tipos e regras partilhados entre servidor e browser (sem segredos nem I/O).
 
 export type Status = "novo" | "em_atendimento" | "aguarda_cliente" | "resolvido";
-export type Channel = "zendesk" | "facebook" | "instagram" | "whatsapp" | "site";
+export type Channel = "zendesk" | "facebook" | "instagram" | "whatsapp" | "site" | "email";
 export type Kind = "inbound" | "outbound" | "note";
 export type Delivery = "sending" | "accepted" | "delivered" | "read" | "failed" | "uncertain";
 
@@ -18,7 +18,13 @@ export const CHANNEL_LABEL: Record<Channel, string> = {
   instagram: "Instagram",
   whatsapp: "WhatsApp",
   site: "Chat do site",
+  email: "Email",
 };
+// Conversa no Gmail (web), aberta já na conta da caixa do apoio.
+export function gmailThreadLink(mailbox: string, threadId: string) {
+  return `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(mailbox)}#all/${encodeURIComponent(threadId)}`;
+}
+
 export const DELIVERY_LABEL: Record<Delivery, string> = {
   sending: "A enviar",
   accepted: "Aceite pela plataforma",

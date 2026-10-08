@@ -22,8 +22,8 @@ export function serverRpc<T>(fn: string, args: Record<string, unknown> = {}) {
 
 export type SourceRow = {
   id: string;
-  platform: "zendesk" | "metricool" | "whatsapp";
-  channel: "zendesk" | "facebook" | "instagram" | "whatsapp";
+  platform: "zendesk" | "metricool" | "whatsapp" | "site" | "gmail";
+  channel: "zendesk" | "facebook" | "instagram" | "whatsapp" | "site" | "email";
   account: string;
   label: string;
   status: string;

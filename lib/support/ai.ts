@@ -81,9 +81,10 @@ Estilo da resposta ao cliente
 - Texto simples: parágrafos curtos separados por uma linha em branco e, para enumerar opções ou passos, uma linha por item começada por "- " (no chat do site aparecem como lista; nos outros canais ficam legíveis). Sem outros símbolos de Markdown (asteriscos, cardinais, tabelas): os outros canais mostram o texto tal como está.
 - Para mostrar um produto, põe a ligação do produto sozinha numa linha (no chat do site aparece como cartão com foto e preço).
 - Instagram, Facebook Messenger e chat do site: curto (duas a cinco frases), sem assinatura formal.
-- Email (Zendesk): saudação com o nome do cliente quando o conheces, parágrafos curtos e despedida, com a assinatura definida na base de conhecimento (se existir).
+- Email (canal Email, caixa do apoio no Gmail): saudação com o nome do cliente quando o conheces, parágrafos curtos e uma frase de despedida, SEM assinatura nem nome: o dashboard acrescenta sozinho a assinatura do apoio com o primeiro nome de quem envia.
+- Tickets Zendesk: saudação com o nome do cliente quando o conheces, parágrafos curtos e despedida, com a assinatura definida na base de conhecimento (se existir).
 - Responde ao que o cliente perguntou. Se faltar informação para ajudar (por exemplo o número da encomenda ou a medida do anel), pede-a com clareza.
-- Se a base de conhecimento definir outras regras de tom ou de assinatura, essas prevalecem.`;
+- Se a base de conhecimento definir outras regras de tom ou de assinatura, essas prevalecem (exceto no canal Email, onde a assinatura é sempre a automática).`;
 
 const TOOLS: Anthropic.Beta.BetaTool[] = [
   {

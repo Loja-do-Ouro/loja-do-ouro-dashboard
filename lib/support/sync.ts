@@ -1,9 +1,10 @@
 import "server-only";
 import { serverConfigured, serverRpc, type SourceRow } from "./db";
 import { MetricoolError, syncMetricool } from "./metricool";
+import { GmailError, syncGmail } from "./gmail";
 import { ZendeskError, syncZendesk } from "./zendesk";
 
-const SOURCES = ["zendesk", "metricool-facebook", "metricool-instagram"] as const;
+const SOURCES = ["zendesk", "metricool-facebook", "metricool-instagram", "gmail"] as const;
 
 export type SyncOutcome = { source: string; ran: boolean; ok?: boolean; detail?: string; reason?: string; nextAt?: string | null; totals?: unknown; more?: boolean };
 type Claim = { claimed: true; source: SourceRow } | { claimed: false; reason: string; next_attempt_at: string | null };
@@ -37,9 +38,12 @@ async function syncOne(id: string, force: boolean, override: boolean, deadline: 
   const source = claim.source;
   const progress = (cursor: unknown) => serverRpc("ldo_support_sync_progress", { p_source: id, p_cursor: cursor }).catch(() => undefined);
   try {
-    const r = source.platform === "zendesk" ? await syncZendesk(source.cursor, deadline, progress) : await syncMetricool(source, deadline);
+    const r = source.platform === "zendesk" ? await syncZendesk(source.cursor, deadline, progress)
+      : source.platform === "gmail" ? await syncGmail(source.cursor, deadline)
+        : await syncMetricool(source, deadline);
     if ("skipped" in r) {
-      await finish(id, "skipped", "pending", r.skipped ?? null, null, null, 0);
+      // Gmail sem caixa ligada fica "Por configurar" (as outras fontes ficam a aguardar).
+      await finish(id, "skipped", source.platform === "gmail" ? "not_configured" : "pending", r.skipped ?? null, null, null, 0);
       return { source: id, ran: true, ok: true, detail: r.skipped };
     }
     const detail = "detail" in r ? (r.detail as string | null) : null;
@@ -48,8 +52,8 @@ async function syncOne(id: string, force: boolean, override: boolean, deadline: 
     return { source: id, ran: true, ok: true, totals: r.totals, more, detail: detail || undefined };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro desconhecido";
-    const blocked = (e instanceof MetricoolError && e.blocked) || (e instanceof ZendeskError && (e.status === 403 || e.reconnect));
-    const retry = e instanceof MetricoolError || e instanceof ZendeskError ? e.retryAfter : 0;
+    const blocked = (e instanceof MetricoolError && e.blocked) || (e instanceof ZendeskError && (e.status === 403 || e.reconnect)) || (e instanceof GmailError && e.reconnect);
+    const retry = e instanceof MetricoolError || e instanceof ZendeskError || e instanceof GmailError ? e.retryAfter : 0;
     await finish(id, "error", blocked ? "blocked" : "error", null, message, null, retry).catch(() => undefined);
     return { source: id, ran: true, ok: false, detail: message };
   }

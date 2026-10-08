@@ -7,6 +7,7 @@ import { homePath } from "@/lib/permissions";
 import { aiConfigured, aiWorkspaceStatus } from "@/lib/support/ai";
 import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
+import { emailSettings, gmailConfigured, gmailMailbox, gmailPushAudience, gmailPushReady, gmailRedirectUri, type EmailSettings } from "@/lib/support/gmail";
 import { serverConfigured, sessionRpc } from "@/lib/support/db";
 import { supportEmailFrom } from "@/lib/support/notify";
 import { siteOrigins } from "@/lib/support/site-chat";
@@ -17,7 +18,7 @@ import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { deleteKnowledge, disconnectZendesk, saveAiSettings, saveKnowledge, savePolling, setSupportAccess, syncNow } from "./actions";
+import { deleteKnowledge, disconnectGmail, disconnectZendesk, saveAiSettings, saveEmailSettings, saveKnowledge, savePolling, setSupportAccess, syncNow } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,6 +37,18 @@ type AiAdmin = {
   knowledge: { id: string; title: string; body: string; position: number; updated_at: string; updated_by_name: string | null }[];
   usage: { month_cost: number; month_requests: number; month_errors: number; by_user: { name: string; requests: number; cost: number }[] };
 };
+type GmailStatus = { email: string; status: "active" | "reconnect"; status_detail: string | null; scope: string | null; watch_expires_at: string | null; connected_at: string; connected_by: string | null } | null;
+// Resultado da ligação ao Gmail (código no URL, vindo das rotas /api/support/gmail/*).
+const GMAIL_FLASH: Record<string, [boolean, string]> = {
+  ligado: [true, "Caixa Gmail ligada. A primeira sincronização (emails dos últimos 14 dias) corre agora; atualize daqui a um minuto."],
+  "sem-acesso": [false, "Só o Super Admin pode ligar a caixa de email."],
+  "por-configurar": [false, "Faltam GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ou SUPPORT_ENCRYPTION_KEY na Vercel."],
+  endereco: [false, "A caixa liga-se no endereço de produção do dashboard (o registado na Google). Carregue em Ligar Gmail aqui."],
+  recusado: [false, "A autorização foi cancelada na Google. Nada foi alterado."],
+  invalido: [false, "O pedido de ligação expirou ou não é válido. Carregue de novo em Ligar Gmail."],
+  "outra-conta": [false, "Entrou com outra conta Google. Escolha a conta da caixa do apoio e volte a tentar."],
+  erro: [false, "A Google não concluiu a ligação. Tente de novo; se repetir, veja os registos da Vercel."],
+};
 const usd = (v: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "USD" }).format(Number(v) || 0);
 
 const STATUS: Record<string, [string, string]> = {
@@ -51,9 +64,11 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const viewer = await requireViewer();
   if (!viewer.isSuper) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const [state, ai] = await Promise.all([
+  const [state, ai, gmail, email] = await Promise.all([
     sessionRpc<State>(viewer.session, "ldo_support_admin_state"),
     sessionRpc<AiAdmin>(viewer.session, "ldo_support_ai_admin"),
+    sessionRpc<GmailStatus>(viewer.session, "ldo_support_gmail_status").catch((): GmailStatus => null),
+    emailSettings().catch((): EmailSettings | null => null),
   ]);
   // O que a IA consegue ler da loja online (políticas e páginas dependem de autorizações da app Shopify).
   let store: StoreInfo | null = null;
@@ -71,6 +86,13 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const siteDomainPending = /resend\.dev/i.test(siteFrom);
   // Mensagens das ações da IA aparecem dentro da secção da IA (o redirect leva até lá com #ia).
   const aiFlash = q.secao === "ia";
+  // Email: mensagens das ações (secao=email) e da ligação OAuth (gmail=<código>) aparecem na secção do email.
+  const gmailFlash = typeof q.gmail === "string" ? GMAIL_FLASH[q.gmail] : undefined;
+  const emailFlash = q.secao === "email" || Boolean(gmailFlash);
+  const gmailSource = state.sources.find((x) => x.id === "gmail");
+  const gmailOrigin = new URL(gmailRedirectUri()).origin;
+  // O botão só aparece onde a Google aceita o retorno (produção); numa preview fica o endereço certo.
+  const gmailHere = process.env.VERCEL_ENV === "production" || !process.env.VERCEL_ENV;
   const aiWorkspace = aiWorkspaceStatus();
   const flashOk = typeof q.ok === "string" ? q.ok.slice(0, 200) : undefined;
   const flashError = typeof q.erro === "string" ? q.erro.slice(0, 600) : undefined;
@@ -88,7 +110,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
       <PageHeading eyebrow="APOIO AO CLIENTE" title="Configuração do apoio" text="Ligações às plataformas, sincronização e acessos. Só o Super Admin vê esta página.">
         <Link className="outline-button" href="/apoio/configuracao?diagnostico=1">Validar ligações</Link>
       </PageHeading>
-      {!aiFlash && <Flash ok={flashOk} error={flashError} />}
+      {!aiFlash && !emailFlash && <Flash ok={flashOk} error={flashError} />}
       {!serverConfigured() && <div className="notice error-notice">O servidor não tem ligação ao Supabase (BI_INGEST_TOKEN): a sincronização não pode gravar.</div>}
 
       <div className="two-col">
@@ -186,6 +208,88 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           <p className="panel-note">WhatsApp Cloud API, independente do Zendesk. Nada foi ligado: o número e o WhatsApp atual nos telemóveis não foram alterados.</p>
         </Panel>
       </div>
+
+      <Panel title="Email (Gmail)" eyebrow="CAIXA DO APOIO" id="email">
+        {emailFlash && (gmailFlash
+          ? <Flash ok={gmailFlash[0] ? gmailFlash[1] : undefined} error={gmailFlash[0] ? undefined : gmailFlash[1]} />
+          : <Flash ok={flashOk} error={flashError} />)}
+        <div className="two-col">
+          <div>
+            <dl className="config-list">
+              <dt>Caixa</dt><dd>{gmailMailbox()}</dd>
+              <dt>Ligação</dt>
+              <dd>
+                {!gmail ? <span className="pill">Por ligar</span> : gmail.status === "active" ? <span className="pill ok">Ligada</span> : <span className="pill warn">Voltar a ligar</span>}
+                {gmail && <small className="muted block">{gmail.connected_by ? `Por ${gmail.connected_by}, ` : ""}{timestamp(gmail.connected_at)}</small>}
+                {gmail?.status_detail && <small className="block error-text">{gmail.status_detail}</small>}
+              </dd>
+              <dt>Cliente OAuth</dt><dd>{yes(gmailConfigured())} <small className="muted">GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET</small></dd>
+              <dt>Cifra das chaves</dt><dd>{yes(!encryptionProblem())} <small className="muted">{encryptionProblem() || "SUPPORT_ENCRYPTION_KEY"}</small></dd>
+              <dt>Avisos da Google</dt>
+              <dd>
+                {yes(gmailPushReady())} <small className="muted">GMAIL_PUBSUB_TOPIC, GMAIL_PUSH_SERVICE_ACCOUNT</small>
+                {gmail?.watch_expires_at && <small className="muted block">Ativos até {timestamp(gmail.watch_expires_at)} (renovados automaticamente)</small>}
+              </dd>
+              <dt>Redirect URI</dt><dd><code>{gmailRedirectUri()}</code></dd>
+              <dt>Endereço dos avisos</dt><dd><code>{gmailPushAudience()}</code></dd>
+              {gmailSource && (
+                <>
+                  <dt>Sincronização</dt>
+                  <dd>
+                    {STATUS[gmailSource.status]?.[0] || gmailSource.status}{gmailSource.last_success_at ? ` · ${timestamp(gmailSource.last_success_at)}` : ""}
+                    {gmailSource.last_error && <small className="block error-text">{gmailSource.last_error}</small>}
+                  </dd>
+                </>
+              )}
+            </dl>
+            {gmailHere ? (
+              <form method="post" action="/api/support/gmail/connect" className="inline-form">
+                <button type="submit" className="secondary-button" disabled={!gmailConfigured() || Boolean(encryptionProblem())}>{gmail ? "Voltar a ligar Gmail" : "Ligar Gmail"}</button>
+              </form>
+            ) : (
+              <p className="panel-note">A caixa liga-se no dashboard de produção (<code>{gmailOrigin}/apoio/configuracao</code>), o endereço registado na Google.</p>
+            )}
+            {gmail && (
+              <form action={disconnectGmail} className="knowledge-row">
+                <label className="checkbox-label"><input type="checkbox" name="confirm" required /> Confirmo</label>
+                <button type="submit" className="secondary-button">Desligar a caixa</button>
+              </form>
+            )}
+          </div>
+          {email ? (
+            <form action={saveEmailSettings} className="email-form">
+              <label>
+                Assinatura automática
+                <textarea name="email_signature" defaultValue={email.signature} maxLength={2000} rows={5} />
+                <small className="muted">{"{nome}"} é trocado pelo primeiro nome de quem responde. Entra em todas as respostas por email.</small>
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" name="email_autoreply_enabled" defaultChecked={email.autoreply_enabled} /> Resposta automática ligada (&quot;recebemos o seu email&quot;)
+              </label>
+              <label>
+                Texto dentro do horário
+                <textarea name="email_autoreply_text" defaultValue={email.autoreply_text} maxLength={4000} rows={5} />
+              </label>
+              <label>
+                Texto fora do horário
+                <textarea name="email_autoreply_offhours_text" defaultValue={email.autoreply_offhours_text} maxLength={4000} rows={5} />
+              </label>
+              <div className="email-hours">
+                <label>Dias úteis<input name="hours_weekdays" defaultValue={email.hours.weekdays || ""} maxLength={80} placeholder="09:30-13:00, 14:00-18:30" /></label>
+                <label>Sábado<input name="hours_saturday" defaultValue={email.hours.saturday || ""} maxLength={80} placeholder="vazio = fechado" /></label>
+                <label>Domingo<input name="hours_sunday" defaultValue={email.hours.sunday || ""} maxLength={80} placeholder="vazio = fechado" /></label>
+              </div>
+              <small className="muted">Horário de Lisboa, só para escolher o texto da resposta automática. Os feriados não são considerados.</small>
+              <div className="knowledge-row"><button type="submit" className="secondary-button">Guardar</button></div>
+            </form>
+          ) : (
+            <p className="error-text">Definições do email indisponíveis (falta a atualização do Gmail na base de dados?).</p>
+          )}
+        </div>
+        <p className="panel-note">
+          Os emails para {gmailMailbox()} entram no canal &quot;Email&quot; em poucos segundos (aviso da Google) e também em cada sincronização. As respostas saem desta caixa, na mesma conversa do Gmail, com a assinatura acima, e ficam nos Enviados do Gmail. A resposta automática vai só uma vez por conversa e no máximo uma vez por dia a cada remetente; nunca a newsletters, notificações automáticas ou endereços do próprio domínio. Spam, promoções e redes sociais do Gmail ficam de fora. Para deixar o Zendesk: depois de confirmar aqui que os emails entram e que as respostas chegam, desligue no Gmail o reencaminhamento para o Zendesk e, no Zendesk, as respostas automáticas, para o cliente não receber mensagens duplicadas.
+        </p>
+      </Panel>
 
       <Panel title="Assistente de IA" eyebrow="RESPOSTAS COM IA" id="ia">
         {aiFlash && <Flash ok={flashOk} error={flashError} />}

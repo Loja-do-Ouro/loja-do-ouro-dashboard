@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "node scripts/verify-production-data.mjs && next build",
     "start": "next start",
-    "test": "tsc lib/bi/model.ts lib/bi/periods.ts lib/bi/live-model.ts lib/bi/channels.ts lib/permissions.ts lib/store-records.ts lib/rate-limit.ts lib/support/rules.ts lib/support/ai-rules.ts lib/support/site-rules.ts lib/email-layout.ts --module commonjs --target ES2022 --skipLibCheck --rootDir lib --outDir .test-build && node --test tests/*.cjs"
+    "test": "tsc lib/bi/model.ts lib/bi/periods.ts lib/bi/live-model.ts lib/bi/channels.ts lib/permissions.ts lib/store-records.ts lib/rate-limit.ts lib/support/rules.ts lib/support/ai-rules.ts lib/support/site-rules.ts lib/support/gmail-rules.ts lib/support/google-jwt.ts lib/email-layout.ts --module commonjs --target ES2022 --skipLibCheck --rootDir lib --outDir .test-build && node --test tests/*.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

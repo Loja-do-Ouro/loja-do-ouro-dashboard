@@ -9,6 +9,7 @@ import {
   canReply,
   canTransfer,
   CHANNEL_LABEL,
+  gmailThreadLink,
   DELIVERY_LABEL,
   orderNumbersIn,
   previewKind,
@@ -36,7 +37,7 @@ type Message = {
 type User = { id: string; name: string; me: boolean; zendesk: boolean; zendesk_name: string | null; zendesk_status: string | null };
 type Detail = {
   conversation: {
-    id: string; source_id: string; channel: Channel; external_id: string; subject: string | null; status: Status; platform_status: string | null;
+    id: string; source_id: string; channel: Channel; account: string | null; external_id: string; subject: string | null; status: Status; platform_status: string | null;
     assignee_id: string | null; assignee_name: string | null; external_assignee_id: string | null; external_assignee_name: string | null;
     via: string | null; platform: string; source_label: string; source_status: string; read_at: string | null; last_inbound_at: string | null;
     last_inbound_inserted_at: string | null;
@@ -116,15 +117,19 @@ const REASON: Record<string, string> = {
 const AUDIT: Record<string, string> = {
   status: "mudou o estado", assign: "atribuiu", reply: "respondeu", note: "acrescentou uma nota", reopen: "reabriu (nova mensagem do cliente)",
   link_customer: "associou o cliente", "zendesk.connect": "ligou o Zendesk", "zendesk.disconnect": "desligou o Zendesk",
+  "gmail.connect": "ligou a caixa Gmail", "gmail.disconnect": "desligou a caixa Gmail", "email.settings": "alterou as definições do email",
 };
 
-// Acontecimentos mostrados na própria conversa: mudanças de responsável e o fim da conversa pelo cliente.
-const THREAD_EVENTS = new Set(["assign", "visitor_end"]);
+// Acontecimentos mostrados na própria conversa: mudanças de responsável, o fim da conversa pelo cliente e a
+// resposta automática do email.
+const THREAD_EVENTS = new Set(["assign", "visitor_end", "email.autoreply"]);
 
 // Acontecimento por extenso (na conversa e no registo).
 function assignText(a: AuditEntry) {
   if (a.action === "visitor_end")
     return `O cliente terminou a conversa no site${a.details.transcript ? " e pediu uma cópia por email" : ""}`;
+  if (a.action === "email.autoreply")
+    return `Resposta automática “recebemos o seu email” enviada${typeof a.details.email === "string" ? ` para ${a.details.email}` : ""}`;
   const to = typeof a.details.to_name === "string" ? a.details.to_name : "outra pessoa";
   switch (a.details.kind) {
     case "claim":
@@ -415,6 +420,7 @@ export function SupportInbox({
   const c = detail?.conversation.id === selected ? detail : null;
   const isZendesk = c?.conversation.platform === "zendesk";
   const isWhatsapp = c?.conversation.platform === "whatsapp";
+  const isGmail = c?.conversation.platform === "gmail";
   const me = c?.users.find((u) => u.me);
   const draft = (selected && drafts[selected]) || { reply: "", note: "" };
   const text = mode === "reply" ? draft.reply : draft.note;
@@ -433,9 +439,9 @@ export function SupportInbox({
   const sending = sendingId === selected;
   const slotOf = (id: string, m: "reply" | "note") => `${id}:${m}`;
   const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
-  // Zendesk: até 5 anexos (imagens ou PDF). Facebook/Instagram: uma imagem por mensagem, só em respostas.
-  const maxAttachments = !c ? 0 : isZendesk ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
-  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : c.conversation.platform === "site" ? "O chat do site ainda não aceita anexos. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
+  // Zendesk: até 5 anexos (imagens ou PDF). Email: até 5, só em respostas. Facebook/Instagram: uma imagem por mensagem, só em respostas.
+  const maxAttachments = !c ? 0 : isZendesk || (isGmail && mode === "reply") ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
+  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : c.conversation.platform === "site" ? "O chat do site ainda não aceita anexos. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
     if (!selected) return;
@@ -456,7 +462,7 @@ export function SupportInbox({
     setSendError("");
     try {
       for (const f of list) {
-        if (f.type === "application/pdf" && !isZendesk) throw new Error("PDF só nos tickets Zendesk.");
+        if (f.type === "application/pdf" && !isZendesk && !isGmail) throw new Error("PDF só no email e nos tickets Zendesk.");
         const blob = await prepareFile(f);
         const up = await uploadBlob(id, f.name, blob);
         const preview = up.type.startsWith("image/") ? URL.createObjectURL(blob) : null;
@@ -616,11 +622,12 @@ export function SupportInbox({
     if (!c) return "";
     const who = c.contact?.handle || c.contact?.name || c.contact?.email || "cliente";
     if (isZendesk) return `Resposta pública no ticket ${c.conversation.subject?.split(" · ")[0] || ""} — Zendesk notifica ${c.contact?.email || who}`;
+    if (isGmail) return `Email para ${c.contact?.email || who}, de ${c.conversation.account || "apoiocliente@lojadoouro.pt"} — na mesma conversa, com a assinatura automática`;
     if (c.conversation.channel === "instagram") return `Instagram Direct · para ${who}`;
     if (c.conversation.channel === "facebook") return `Facebook Messenger · para ${who}`;
     if (c.conversation.channel === "site") return `Chat do site · para ${who} (se já tiver saído do site, recebe também por email)`;
     return `${CHANNEL_LABEL[c.conversation.channel]} · por configurar`;
-  }, [c, isZendesk]);
+  }, [c, isZendesk, isGmail]);
 
   return (
     <div className={`support-app show-${pane}`}>
@@ -864,7 +871,7 @@ export function SupportInbox({
                         type="file"
                         hidden
                         multiple={maxAttachments > 1}
-                        accept={isZendesk ? "image/jpeg,image/png,image/webp,image/heic,application/pdf" : "image/jpeg,image/png,image/webp,image/heic"}
+                        accept={isZendesk || isGmail ? "image/jpeg,image/png,image/webp,image/heic,application/pdf" : "image/jpeg,image/png,image/webp,image/heic"}
                         onChange={(e) => {
                           if (e.target.files) addFiles(e.target.files);
                           e.target.value = "";
@@ -1073,6 +1080,9 @@ function CustomerPanel({
           <button type="button" className="secondary-button" onClick={() => onAct({ action: "unread" })}>Marcar como não lida</button>
           {isZendesk && (
             <a className="outline-button" href={`https://${zendeskSubdomain}.zendesk.com/agent/tickets/${encodeURIComponent(conv.external_id)}`} target="_blank" rel="noopener noreferrer">Abrir no Zendesk</a>
+          )}
+          {conv.platform === "gmail" && conv.account && (
+            <a className="outline-button" href={gmailThreadLink(conv.account, conv.external_id)} target="_blank" rel="noopener noreferrer">Abrir no Gmail</a>
           )}
         </div>
         {actionError && <p className="support-error" role="alert">{actionError}</p>}
