@@ -353,10 +353,11 @@ export function SupportInbox({
   const setText = (v: string) => {
     if (selected) setDraft(selected, mode, v);
   };
-  // Só a escrita da própria pessoa conta como "a escrever" (e só nesta conversa).
+  // Só a escrita da própria pessoa conta como "a escrever" (e só nesta conversa). Notas internas não contam:
+  // no chat do site o cliente vê "A equipa está a escrever…".
   const typed = (v: string) => {
     if (!selected) return;
-    lastTyped.current = { id: selected, at: Date.now() };
+    if (mode === "reply") lastTyped.current = { id: selected, at: Date.now() };
     setText(v);
   };
   const sending = sendingId === selected;
@@ -476,6 +477,7 @@ export function SupportInbox({
         if (here()) setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
       } else {
         setDraft(id, which, "");
+        if (lastTyped.current.id === id) lastTyped.current = { id: null, at: 0 };
         (pending[slot] || []).forEach(dropPreview);
         setPending((p) => ({ ...p, [slot]: [] }));
         if (r.delivery === "uncertain" && here()) setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
@@ -928,6 +930,8 @@ function CustomerPanel({
         {actionError && <p className="support-error" role="alert">{actionError}</p>}
       </section>
 
+      {conv.channel === "site" && <SiteVisitor conversationId={conv.id} />}
+
       <section>
         <span className="eyebrow">Contactos conhecidos</span>
         <dl>
@@ -1003,5 +1007,107 @@ function CustomerPanel({
         </ul>
       </section>
     </div>
+  );
+}
+
+type SiteVisitorInfo = {
+  page_url: string | null; page_title: string | null; visit_started_at: string | null; pages_viewed: number | null;
+  context_at: string | null; last_seen_at: string; created_at: string; verified: boolean; now: string;
+  cart: { count: number; total: number; currency: string; items: { title: string; variant: string | null; quantity: number; price: number; url: string | null }[] } | null;
+};
+
+// Duração legível ("4 min", "1 h 20 min").
+function duration(ms: number) {
+  const min = Math.max(0, Math.round(ms / 60000));
+  if (min < 1) return "menos de 1 min";
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  return `${h} h${min % 60 ? ` ${min % 60} min` : ""}`;
+}
+
+// Chat do site: o que o cliente está a fazer na loja. Enviado pelo browser do cliente (não confirmado);
+// atualiza a cada 15 s enquanto a conversa está aberta.
+function SiteVisitor({ conversationId }: { conversationId: string }) {
+  const [info, setInfo] = useState<SiteVisitorInfo | null | undefined>(undefined);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api<{ visitor: SiteVisitorInfo | null }>(`/api/support/site-visitor?conversa=${conversationId}`)
+        .then((r) => {
+          if (!alive) return;
+          setInfo(r.visitor);
+          setError("");
+        })
+        .catch((e) => alive && setError(e instanceof Error ? e.message : "Indisponível."));
+    load();
+    const t = setInterval(() => visible() && load(), 15000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [conversationId]);
+
+  if (info === undefined && !error) return null;
+  const now = info ? Date.parse(info.now) : 0;
+  const online = Boolean(info && now - Date.parse(info.last_seen_at) < 75_000);
+  const origin = (() => {
+    try {
+      return info?.page_url ? new URL(info.page_url).origin : "https://www.lojadoouro.pt";
+    } catch {
+      return "https://www.lojadoouro.pt";
+    }
+  })();
+  const money = (v: number, currency: string) => new Intl.NumberFormat("pt-PT", { style: "currency", currency }).format(v);
+  return (
+    <section>
+      <span className="eyebrow">{online ? "No site agora" : "No site"}</span>
+      {error && <p className="support-error">{error}</p>}
+      {info === null && <small className="muted">Sem informação do visitante.</small>}
+      {info && (
+        <>
+          <p className={`site-presence ${online ? "on" : "off"}`}>
+            <span aria-hidden="true" />
+            {online ? "No site agora" : `Saiu do site · visto há ${duration(now - Date.parse(info.last_seen_at))}`}
+          </p>
+          <dl>
+            <dt>Página</dt>
+            <dd>
+              {info.page_url ? (
+                <a href={info.page_url} target="_blank" rel="noopener noreferrer">{info.page_title || new URL(info.page_url).pathname}</a>
+              ) : "—"}
+            </dd>
+            <dt>Visita</dt>
+            <dd>
+              {info.visit_started_at
+                ? `${online ? "Na loja há" : "Esteve na loja"} ${duration((online ? now : Date.parse(info.last_seen_at)) - Date.parse(info.visit_started_at))}`
+                : "—"}
+              {info.pages_viewed ? <small className="muted block">{info.pages_viewed} página{info.pages_viewed === 1 ? "" : "s"} vista{info.pages_viewed === 1 ? "" : "s"} nesta visita</small> : null}
+            </dd>
+            <dt>Carrinho</dt>
+            <dd>
+              {!info.cart ? (
+                "Sem informação"
+              ) : !info.cart.count ? (
+                "Vazio"
+              ) : (
+                <>
+                  {info.cart.count} artigo{info.cart.count === 1 ? "" : "s"} · {money(info.cart.total, info.cart.currency)}
+                  <ul className="site-cart">
+                    {info.cart.items.map((i, n) => (
+                      <li key={n}>
+                        {i.quantity} × {i.url ? <a href={`${origin}${i.url}`} target="_blank" rel="noopener noreferrer">{i.title}</a> : i.title}
+                        {i.variant ? <small className="muted"> ({i.variant})</small> : null} — {money(i.price, info.cart!.currency)}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </dd>
+          </dl>
+          <small className="muted">Enviado pelo browser do cliente (não confirmado){info.context_at ? `; atualizado há ${duration(now - Date.parse(info.context_at))}` : ""}.</small>
+        </>
+      )}
+    </section>
   );
 }

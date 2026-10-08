@@ -45,3 +45,36 @@ test("Emails and pages from the widget are validated", () => {
   assert.equal(site.cleanPage("https://evil.example/x", allowed), null);
   assert.equal(site.cleanPage("não é url", allowed), null);
 });
+
+test("The cart sent by the browser is reduced to short, valid data", () => {
+  const cart = site.cleanCart({
+    count: 2, total: 449.9, currency: "EUR",
+    items: [
+      { title: "Anel em ouro 19,2k\u0007", variant: "T14", quantity: 1, price: 399.9, url: "/products/anel-ouro?variant=123" },
+      { title: "Fio", variant: null, quantity: 1, price: 50, url: "javascript:alert(1)" },
+      { title: "", quantity: 1, price: 1 },
+      { title: "Sem preço", quantity: 1, price: "x" },
+    ],
+  });
+  assert.deepEqual(cart, {
+    count: 2, total: 449.9, currency: "EUR",
+    items: [
+      { title: "Anel em ouro 19,2k", variant: "T14", quantity: 1, price: 399.9, url: "/products/anel-ouro?variant=123" },
+      { title: "Fio", variant: null, quantity: 1, price: 50, url: null },
+    ],
+  });
+  assert.equal(site.cleanCart(null), null);
+  assert.equal(site.cleanCart({ count: -1, total: 0, items: [] }), null);
+  assert.equal(site.cleanCart({ count: 1, total: 10, items: "x" }), null);
+  assert.equal(site.cleanCart({ count: 0, total: 0, currency: "eur", items: [] }).currency, "EUR");
+});
+
+test("Abuse limits group visitors by network and the identity header is decoded safely", () => {
+  assert.equal(site.ipPrefix("85.240.12.34"), "85.240.12.0/24");
+  assert.equal(site.ipPrefix("2001:db8:1234:5678:9abc::1"), "2001:db8:1234:5678::/64");
+  assert.equal(site.ipPrefix("unknown"), "unknown");
+  const header = Buffer.from(JSON.stringify({ email: "a@b.pt", ts: "1", sig: "x" })).toString("base64");
+  assert.deepEqual(site.decodeIdentity(header), { email: "a@b.pt", ts: "1", sig: "x" });
+  assert.equal(site.decodeIdentity("não-é-base64-json"), null);
+  assert.equal(site.decodeIdentity(null), null);
+});

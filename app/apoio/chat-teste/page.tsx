@@ -1,4 +1,3 @@
-import Script from "next/script";
 import { redirect } from "next/navigation";
 import { canSupport, homePath } from "@/lib/permissions";
 import { requireViewer } from "@/lib/viewer";
@@ -25,7 +24,7 @@ const CONFIG = {
   offsetSide: 20,
   mobile: true,
   hideOn: "",
-  privacyText: "Ao iniciar a conversa aceita a nossa Política de privacidade.",
+  privacyText: "Ao iniciar a conversa aceita a nossa Política de privacidade. Para o podermos ajudar, a equipa vê a página em que está e o seu carrinho.",
   privacyUrl: "https://www.lojadoouro.pt/pages/declaracao-de-cookies",
   offlineMessage: "Neste momento estamos fora do horário de atendimento. Deixe a sua mensagem: respondemos assim que possível e enviamos também a resposta para o seu email.",
   hours: { weekdays: "09:30-13:00, 14:00-18:30", saturday: "10:00-13:00", sunday: "" },
@@ -43,13 +42,13 @@ export default async function ChatTestPage() {
         <ol className="panel-note">
           <li>Abra o chat, escreva um nome, um email seu e uma mensagem.</li>
           <li>Noutro separador, abra o Apoio ao Cliente: a conversa aparece no canal “Chat do site”. Responda.</li>
+          <li>No Apoio ao Cliente, o separador Cliente mostra “No site agora”: a página em que o cliente está, há quanto tempo navega e o carrinho (nesta página de teste não há carrinho; no site aparece o da loja).</li>
           <li>A resposta aparece aqui em poucos segundos. Se fechar este separador e esperar 1 minuto antes de responder, a resposta segue também por email (quando o envio de emails estiver configurado).</li>
         </ol>
         <ChatTestTools />
         <p className="panel-note">No site, cores, textos, posição e horário mudam-se em Loja online → Personalizar tema → Definições do tema → Chat Loja do Ouro. Esta página usa os valores por omissão.</p>
       </Panel>
       <script id="ldo-chat-config" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(CONFIG).replace(/</g, "\\u003c") }} />
-      <Script src="/site-chat/ldo-chat.js" strategy="afterInteractive" />
     </AppShell>
   );
 }

@@ -3672,3 +3672,9 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .panel-subtitle { font-size: 15px; font-weight: 600; margin: 18px 0 4px; }
 .checkbox-label, .inline-form .checkbox-label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); }
 .checkbox-label input { width: auto; }
+.site-presence { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.site-presence span { width: 8px; height: 8px; border-radius: 50%; background: #c8ccc4; }
+.site-presence.on { color: #2c6e45; }
+.site-presence.on span { background: #4cd07d; box-shadow: 0 0 0 3px rgba(76, 208, 125, 0.18); }
+.site-presence.off { color: var(--muted); }
+.site-cart { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }

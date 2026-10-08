@@ -157,7 +157,29 @@ function knowledgeText(begin: AiBegin, store: StoreInfo | null, storeError: stri
   return out.join("\n");
 }
 
-function contextText(d: Detail) {
+type SiteVisitorCtx = {
+  page_url: string | null; page_title: string | null; visit_started_at: string | null; pages_viewed: number | null; last_seen_at: string; now: string;
+  cart: { count: number; total: number; currency: string; items: { title: string; variant: string | null; quantity: number; price: number }[] } | null;
+} | null;
+
+// Chat do site: o que o cliente está a fazer na loja, enviado pelo browser dele (não confirmado).
+function visitorText(v: SiteVisitorCtx) {
+  if (!v) return [];
+  const now = Date.parse(v.now);
+  const min = (ms: number) => Math.max(0, Math.round(ms / 60000));
+  const online = now - Date.parse(v.last_seen_at) < 75_000;
+  const money = (n: number, c: string) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: c }).format(n);
+  const cart = !v.cart ? "sem informação" : !v.cart.count ? "vazio"
+    : `${v.cart.count} artigo(s), total ${money(v.cart.total, v.cart.currency)}: ${v.cart.items.map((i) => `${i.quantity} × ${untrusted(i.title)}${i.variant ? ` (${untrusted(i.variant)})` : ""} ${money(i.price, v.cart!.currency)}`).join("; ")}`;
+  return [
+    "No site (informação enviada pelo browser do cliente, não confirmada):",
+    `- ${online ? "está no site agora" : `saiu do site há ${min(now - Date.parse(v.last_seen_at))} min`}${v.visit_started_at ? `; visita de ${min((online ? now : Date.parse(v.last_seen_at)) - Date.parse(v.visit_started_at))} min` : ""}${v.pages_viewed ? `, ${v.pages_viewed} página(s) vista(s)` : ""}`,
+    `- página atual: ${v.page_title ? `«${untrusted(v.page_title)}» ` : ""}${v.page_url || "desconhecida"}`,
+    `- carrinho: ${cart}`,
+  ];
+}
+
+function contextText(d: Detail, visitor: SiteVisitorCtx = null) {
   const c = d.conversation, k = d.contact;
   const who = [
     k?.name && `nome ${untrusted(k.name)}`,
@@ -177,6 +199,7 @@ function contextText(d: Detail) {
     ...(d.related.length
       ? [`Outros contactos do mesmo cliente (mesmo email ou telefone): ${d.related.map((r) => `${CHANNEL_LABEL[r.channel]} ${untrusted(r.name || r.email || r.phone || "")}`).join("; ")}`]
       : []),
+    ...visitorText(visitor),
     "",
     "Mensagens (da mais antiga para a mais recente):",
   ];
@@ -409,7 +432,10 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
         : Promise.resolve(null),
     ]);
     const knowledge = knowledgeText(begin, store, storeError);
-    const context = contextText(detail);
+    const visitor = detail.conversation.channel === "site"
+      ? await sessionRpc<SiteVisitorCtx>(viewer.session, "ldo_support_site_visitor_info", { p_conversation: conversationId }).catch(() => null)
+      : null;
+    const context = contextText(detail, visitor);
     // Um só email de identidade, como no painel do cliente: o associado pela equipa prevalece sobre o
     // do contacto (que pode ser uma caixa partilhada ou de outra pessoa).
     const identity = (detail.contact?.linked_email || detail.contact?.email || "").trim().toLowerCase();

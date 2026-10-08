@@ -1,6 +1,6 @@
 import { serverRpc } from "@/lib/support/db";
 import { isUuid } from "@/lib/support/rules";
-import { ChatError, chatHandle, chatJson, checkOrigin, preflight, readJson, siteOrigins, visitorTokenHash } from "@/lib/support/site-chat";
+import { ChatError, chatHandle, chatJson, checkOrigin, identityEmail, ipHash, preflight, readJson, siteOrigins, visitorTokenHash } from "@/lib/support/site-chat";
 import { cleanPage } from "@/lib/support/site-rules";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +10,12 @@ export function OPTIONS(request: Request) {
 }
 
 type Messages = {
-  name: string; email: string; verified: boolean; typing: boolean;
-  messages: { id: string; from: "visitor" | "team"; author: string | null; body: string; created_at: string; inserted_at: string }[];
+  name: string; verified: boolean; typing: boolean;
+  messages: { id: string; from: "visitor" | "team"; author: string | null; key: string | null; body: string; created_at: string; inserted_at: string }[];
 };
 
-// Mensagens da conversa do visitante (desde ?depois=<inserted_at>). Com ?aberto=1 o chat está à
-// vista: as respostas passam a "Lida" no dashboard.
+// Mensagens da conversa do visitante (desde ?depois=<inserted_at>). Com ?aberto=1 o chat está à vista:
+// as respostas devolvidas passam a "Lida" no dashboard.
 export async function GET(request: Request) {
   return chatHandle(request, async () => {
     checkOrigin(request);
@@ -23,7 +23,9 @@ export async function GET(request: Request) {
     const q = new URL(request.url).searchParams;
     const after = q.get("depois");
     const valid = after && !Number.isNaN(Date.parse(after)) ? new Date(after).toISOString() : null;
-    const r = await serverRpc<Messages>("ldo_support_site_messages", { p_token_hash: tokenHash, p_after: valid, p_open: q.get("aberto") === "1" });
+    const r = await serverRpc<Messages>("ldo_support_site_messages", {
+      p_token_hash: tokenHash, p_identity_email: identityEmail(request), p_after: valid, p_open: q.get("aberto") === "1",
+    });
     return chatJson(request, r);
   });
 }
@@ -39,7 +41,8 @@ export async function POST(request: Request) {
     if (body.length > 2000) throw new ChatError(400, "Mensagem demasiado longa (máximo 2000 caracteres).");
     if (!isUuid(b.clientKey)) throw new ChatError(400, "Pedido inválido.");
     const r = await serverRpc<{ id: string; created_at: string; repeated: boolean }>("ldo_support_site_send", {
-      p_token_hash: tokenHash, p_body: body, p_client_key: b.clientKey, p_page: cleanPage(b.page, siteOrigins()),
+      p_token_hash: tokenHash, p_identity_email: identityEmail(request), p_body: body, p_client_key: b.clientKey,
+      p_page: cleanPage(b.page, [...siteOrigins(), new URL(request.url).origin]), p_ip_hash: ipHash(request),
     });
     return chatJson(request, r);
   });

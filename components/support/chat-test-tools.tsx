@@ -2,12 +2,22 @@
 
 import { useEffect } from "react";
 
-// Página de teste do chat do site: recomeçar como um cliente novo e retirar o botão ao sair da página.
+type ChatWindow = Window & { __ldoChatLoaded?: boolean; LdoChat?: { open: () => void; destroy: () => void } };
+
+// Página de teste do chat do site: carrega o widget (sempre a versão atual), recomeça como cliente novo
+// e desliga o widget ao sair da página (deixa de consultar o servidor).
 export function ChatTestTools() {
   useEffect(() => {
+    const w = window as ChatWindow;
+    w.LdoChat?.destroy();
+    w.__ldoChatLoaded = false;
+    const script = document.createElement("script");
+    script.src = `/site-chat/ldo-chat.js?t=${Date.now()}`;
+    script.async = true;
+    document.body.appendChild(script);
     return () => {
-      document.getElementById("ldo-chat")?.remove();
-      (window as unknown as { __ldoChatLoaded?: boolean }).__ldoChatLoaded = false;
+      (window as ChatWindow).LdoChat?.destroy();
+      script.remove();
     };
   }, []);
 
@@ -23,7 +33,7 @@ export function ChatTestTools() {
 
   return (
     <div className="customer-actions">
-      <button type="button" className="secondary-button" onClick={() => (window as unknown as { LdoChat?: { open: () => void } }).LdoChat?.open()}>Abrir o chat</button>
+      <button type="button" className="secondary-button" onClick={() => (window as ChatWindow).LdoChat?.open()}>Abrir o chat</button>
       <button type="button" className="secondary-button" onClick={restart}>Recomeçar como cliente novo</button>
     </div>
   );

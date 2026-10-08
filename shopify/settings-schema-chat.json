@@ -27,7 +27,7 @@
     { "type": "header", "content": "Horário de atendimento" },
     {
       "type": "paragraph",
-      "content": "Hora de Lisboa, no formato 09:30-19:00. Vários períodos separados por vírgula (09:30-13:00, 14:30-19:00). Vazio = fechado nesse dia. Fora do horário o chat continua disponível e mostra a mensagem acima."
+      "content": "Hora de Lisboa, no formato 09:30-19:00. Vários períodos separados por vírgula (09:30-13:00, 14:30-19:00). Vazio = fechado nesse dia; com os três vazios, o chat aparece sempre como disponível. Fora do horário o chat continua aberto e mostra a mensagem acima."
     },
     { "type": "text", "id": "ldo_chat_hours_weekdays", "label": "Segunda a sexta", "default": "09:30-13:00, 14:00-18:30" },
     { "type": "text", "id": "ldo_chat_hours_saturday", "label": "Sábado", "default": "10:00-13:00" },
@@ -57,7 +57,7 @@
       "default": "/cart"
     },
     { "type": "header", "content": "Privacidade" },
-    { "type": "text", "id": "ldo_chat_privacy_text", "label": "Aviso de privacidade", "default": "Ao iniciar a conversa aceita a nossa Política de privacidade." },
+    { "type": "text", "id": "ldo_chat_privacy_text", "label": "Aviso de privacidade", "default": "Ao iniciar a conversa aceita a nossa Política de privacidade. Para o podermos ajudar, a equipa vê a página em que está e o seu carrinho." },
     { "type": "url", "id": "ldo_chat_privacy_url", "label": "Página da política de privacidade", "info": "Vazio: usa a política de privacidade da loja." },
     { "type": "header", "content": "Clientes com sessão iniciada" },
     {

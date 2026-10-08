@@ -3,7 +3,7 @@ import { ingest, serverRpc, sessionRpc } from "./db";
 import { metricoolSend } from "./metricool";
 import { REFUSAL, runSync } from "./sync";
 import { isStatus, zendeskReplyWarning, type Status } from "./rules";
-import { notifySiteVisitor } from "./site-chat";
+import { notifySiteVisitors } from "./site-chat";
 import { whatsappSend } from "./whatsapp";
 import { getUpload, publishUpload } from "./uploads";
 import { readTicket, zendeskComment, zendeskUpdate, ZendeskError, type OutgoingFile } from "./zendesk";
@@ -78,10 +78,16 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
           ? "No chat do site: passa a Entregue quando o chat do cliente a recebe e a Lida com o chat aberto."
           : "Aceite pela Metricool. Entrega no Messenger/Instagram sem confirmação pela API."
       : r.detail;
-  // Cliente que já saiu do site: a resposta segue também por email (no máximo um a cada 10 minutos).
-  if (begin.platform === "site" && kind === "outbound" && r.outcome === "accepted")
-    detail = (await notifySiteVisitor(conversationId, begin.message.body).catch(() => null)) || detail;
   await serverRpc("ldo_support_finish_send", { p_message: begin.message.id, p_delivery: r.outcome, p_detail: detail, p_external_id: r.externalId });
+  // Chat do site: a resposta já está visível no chat; se o cliente saiu do site (há mais de 45 s), segue
+  // também por email (as respostas que ficarem por ver são reenviadas mais tarde, agrupadas).
+  if (begin.platform === "site" && kind === "outbound" && r.outcome === "accepted") {
+    const notified = await notifySiteVisitors({ conversation: conversationId, idleSeconds: 45, minAgeSeconds: 0, limit: 1 }).catch(() => null);
+    if (notified) {
+      detail = notified;
+      await serverRpc("ldo_support_set_delivery_detail", { p_message: begin.message.id, p_detail: notified }).catch(() => undefined);
+    }
+  }
   // Atualiza o ticket com o que o Zendesk tem agora (comentário, estado); falhar aqui não muda o envio.
   if (begin.platform === "zendesk" && r.outcome !== "failed")
     await readTicket(viewer.id, begin.conversation.external_id).then((c) => ingest("zendesk", [c])).catch(() => undefined);
@@ -138,9 +144,13 @@ export async function verifyMessage(viewer: Viewer, conversationId: string, mess
   if (!m || m.conversation.id !== conversationId) throw new Error("Mensagem não encontrada.");
   let note: string | null = null;
   if (m.conversation.source_id === "zendesk") await ingest("zendesk", [await readTicket(viewer.id, m.conversation.external_id)]);
+  // Chat do site: o dashboard é a fonte de verdade; a resposta guardada fica disponível no chat.
+  else if (m.conversation.source_id === "site-chat")
+    await serverRpc("ldo_support_finish_send", { p_message: messageId, p_delivery: "accepted", p_detail: "Disponível no chat do site (confirmado em Verificar).", p_external_id: null });
   else {
     const [r] = await runSync({ force: true, only: [m.conversation.source_id] });
-    if (!r.ran) note = `A verificação não correu agora (${REFUSAL[r.reason || ""] || "indisponível"}); tente dentro de momentos.`;
+    if (!r) note = "Este canal não tem sincronização.";
+    else if (!r.ran) note = `A verificação não correu agora (${REFUSAL[r.reason || ""] || "indisponível"}); tente dentro de momentos.`;
     else if (r.ok === false) note = `A verificação falhou: ${r.detail}`;
   }
   const after = await serverRpc<ServerMessage | null>("ldo_support_server_message", { p_message: messageId });
