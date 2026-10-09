@@ -314,18 +314,18 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
               <input name="social_thanks_text" defaultValue={social.thanks_text} maxLength={300} placeholder="Vazio = não agradece" />
             </label>
             <div className="email-hours">
-              <label>Dias úteis<input name="social_hours_weekdays" defaultValue={social.hours.weekdays || ""} maxLength={80} placeholder="07:00-21:00" /></label>
+              <label>Dias úteis<input name="social_hours_weekdays" defaultValue={social.hours.weekdays || ""} maxLength={80} placeholder="vazio = fechado" /></label>
               <label>Sábado<input name="social_hours_saturday" defaultValue={social.hours.saturday || ""} maxLength={80} placeholder="vazio = fechado" /></label>
               <label>Domingo<input name="social_hours_sunday" defaultValue={social.hours.sunday || ""} maxLength={80} placeholder="vazio = fechado" /></label>
             </div>
-            <small className="muted">{"{nome}"} é trocado pelo primeiro nome da pessoa (no Instagram, o nome de utilizador). Horário de Lisboa.</small>
+            <small className="muted">{"{nome}"} é trocado pelo primeiro nome da pessoa (no Instagram, o nome de utilizador). Horário de Lisboa, por exemplo 07:00-21:00; um dia vazio está fechado (com os três vazios, a mensagem de fora do horário sai sempre). Os feriados não são considerados.</small>
             <div className="knowledge-row"><button type="submit" className="secondary-button">Guardar</button></div>
           </form>
         ) : (
           <p className="error-text">Definições indisponíveis (falta a atualização na base de dados?).</p>
         )}
         <p className="panel-note">
-          Substitui a &quot;mensagem de ausência&quot; do Meta, que responde a tudo, também às reações às stories. Aqui, quem escreve um pedido (texto, pergunta ou foto) recebe a mensagem automática no máximo uma vez por conversa em 24 horas; quem só reage a uma story, dá um gosto ou envia um emoji ou um elogio curto recebe apenas o agradecimento, no máximo uma vez por pessoa em 7 dias, e só quando não há conversa em curso; essas conversas saem da lista principal para o separador &quot;Automáticas&quot; da caixa de entrada (com o número de respostas automáticas enviadas) e voltam se a pessoa escrever de novo. Só se responde a mensagens com menos de 30 minutos. Antes de ligar: no Meta Business Suite → Caixa de entrada → Automatizações, desligue a &quot;Mensagem de ausência&quot; no Facebook e no Instagram, para o cliente não receber duas mensagens. As respostas saem quando a caixa sincroniza.
+          Substitui a &quot;mensagem de ausência&quot; do Meta, que responde a tudo, também às reações às stories. Aqui, quem escreve um pedido (texto, pergunta ou foto) recebe a mensagem automática no máximo uma vez por conversa em 24 horas; quem só reage a uma story, dá um gosto ou envia um emoji ou um elogio curto recebe apenas o agradecimento, no máximo uma vez por pessoa em 7 dias, e só quando não há conversa em curso; essas conversas saem da lista principal para o separador &quot;Automáticas&quot; da caixa de entrada (com o número de respostas automáticas enviadas) e voltam se a pessoa escrever de novo. Só se responde a mensagens chegadas depois de ligar esta função e com menos de 3 horas, e nunca depois de alguém da equipa já ter respondido. Antes de ligar: no Meta Business Suite → Caixa de entrada → Automatizações, desligue a &quot;Mensagem de ausência&quot; no Facebook e no Instagram, para o cliente não receber duas mensagens. As respostas saem na verificação automática (de 5 em 5 minutos) ou quando alguém tem o Apoio ao Cliente aberto.
         </p>
       </Panel>
 

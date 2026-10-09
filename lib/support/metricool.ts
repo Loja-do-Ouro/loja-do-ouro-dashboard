@@ -72,7 +72,8 @@ async function listConversations(provider: string, { maxPages = 5, deadline = In
     paging = raw ? (/^https?:|^\//.test(raw) ? "url" : "token") : paging;
     next = raw && /^https?:|^\//.test(raw) ? raw : null;
     pages++;
-  } while (next && pages < maxPages && Date.now() < deadline);
+    // Uma página pode demorar até 55 s: só se pede outra com tempo para ela dentro do orçamento da passagem.
+  } while (next && pages < maxPages && Date.now() < deadline - 25_000);
   return { conversations: out, pages, paging, complete: !next };
 }
 
@@ -138,10 +139,11 @@ export async function syncMetricool(source: { id: string; config: Record<string,
     deadline,
     onPage: async (page) => {
       brand = brandParticipant(page, brand);
-      const mapped = page.map((c) => toConversation(c, brand)).filter((c): c is IngestConversation => !!c);
+      const pairs = page.map((raw) => ({ raw, conv: toConversation(raw, brand) })).filter((p): p is { raw: Conversation; conv: IngestConversation } => !!p.conv);
+      const mapped = pairs.map((p) => p.conv);
       skipped += page.length - mapped.length;
       const r = await ingest(source.id, mapped);
-      const autoreplies = social?.enabled ? await sendAutoReplies(provider, source.id, mapped, social, deadline) : 0;
+      const autoreplies = social?.enabled ? await sendAutoReplies(provider, source.id, pairs, social, deadline) : 0;
       totals = { conversations: totals.conversations + r.conversations, new_conversations: totals.new_conversations + r.new_conversations,
         new_messages: totals.new_messages + r.new_messages, reopened: totals.reopened + r.reopened, autoreplies: totals.autoreplies + autoreplies };
     },
@@ -156,24 +158,30 @@ export async function syncMetricool(source: { id: string; config: Record<string,
 // de dados confirma antes de enviar (uma vez por mensagem, por conversa em 24 h e por pessoa em 7 dias); um envio
 // recusado liberta o registo. Um resultado incerto fica registado: nunca se repete (podia ter chegado).
 // Uma reação sozinha (agradecida ou não) sai da lista principal para "Automáticas" até o cliente voltar a escrever.
-async function sendAutoReplies(provider: string, sourceId: string, conversations: IngestConversation[], settings: SocialSettings, deadline: number) {
+// A classificação usa os anexos tal como a Metricool os entrega (também os que não são https), para uma mensagem
+// com conteúdo nunca passar por reação. As decisões são rápidas: correm até 15 s depois do orçamento da passagem, e
+// cada envio tem no máximo 10 s, dentro do limite da função.
+async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw: Conversation; conv: IngestConversation }[], settings: SocialSettings, deadline: number) {
   let sent = 0;
-  for (const conv of conversations) {
-    if (Date.now() > deadline - 5000) break;
+  for (const { raw, conv } of pairs) {
+    if (Date.now() > deadline + 15_000) break;
     const recipient = conv.contact.external_id;
     if (!recipient) continue;
-    const messages = conv.messages.map((m) => ({ ...m, attachments: m.attachments || [] }));
+    const rawFiles = new Map((raw.messages || []).map((m) => [String(m.id), m.attachments || []]));
+    const messages = conv.messages.map((m) => ({ ...m, attachments: rawFiles.get(m.external_id) || m.attachments || [] }));
     const now = new Date();
-    const through = isolatedReaction(messages, now);
+    const through = isolatedReaction(messages, now, settings);
     if (through)
       await serverRpc("ldo_support_social_mark_auto", { p_source: sourceId, p_conversation: conv.external_id, p_through: through }).catch(() => undefined);
     const decision = socialAutoReply(messages, settings, now, conv.contact.name || conv.contact.handle || null);
     if (!decision) continue;
     const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
     if (!(await serverRpc<boolean>("ldo_support_social_autoreply_claim", { ...claim, p_contact: recipient, p_kind: decision.kind }).catch(() => false))) continue;
-    const r = await metricoolSend(provider, conv.external_id, recipient, decision.text).catch(() => ({ outcome: "uncertain" as const }));
-    if (r.outcome === "failed") await serverRpc("ldo_support_social_autoreply_release", claim).catch(() => undefined);
-    else sent++;
+    const r = await metricoolSend(provider, conv.external_id, recipient, decision.text, null, 10_000).catch(() => ({ outcome: "uncertain" as const }));
+    // Falhou: o registo sai e a mensagem pode voltar a ser respondida. Enviada ou sem confirmação: fica o
+    // acontecimento na conversa (o incerto nunca se repete, porque pode ter chegado).
+    await serverRpc("ldo_support_social_autoreply_result", { ...claim, p_outcome: r.outcome }).catch(() => undefined);
+    if (r.outcome !== "failed") sent++;
   }
   return sent;
 }
@@ -191,13 +199,13 @@ async function hostedImage(publicUrl: string) {
 // Envio numa conversa existente, ao participante cliente: texto e, no máximo, uma imagem (JPEG/PNG,
 // limite da Metricool) no mesmo pedido. A resposta da API é um texto livre: não é usada como id; a
 // sincronização seguinte reconhece a mensagem pelo texto.
-export async function metricoolSend(provider: string, conversationId: string, recipient: string | null, text: string, imageUrl?: string | null) {
+export async function metricoolSend(provider: string, conversationId: string, recipient: string | null, text: string, imageUrl?: string | null, timeoutMs = 30_000) {
   if (!recipient || recipient.startsWith("conversa:"))
     return { outcome: "failed" as const, externalId: null, detail: "Destinatário por identificar nesta conversa: nada foi enviado." };
   let attachment: string | undefined;
   // Fotos da Shopify já são públicas e estáveis; só o URL temporário do dashboard é copiado para a Metricool.
   if (imageUrl) attachment = new URL(imageUrl).hostname === "cdn.shopify.com" ? imageUrl : (await hostedImage(imageUrl)).url;
-  const r = await metricoolRequest("POST", "/v2/inbox/conversations", {}, { provider, conversationId, recipient, text, ...(attachment ? { attachment } : {}) });
+  const r = await metricoolRequest("POST", "/v2/inbox/conversations", {}, { provider, conversationId, recipient, text, ...(attachment ? { attachment } : {}) }, timeoutMs);
   const outcome = sendOutcome(r.status);
   // A Meta recusa imagens que não consegue ir buscar (endereço protegido, expirado) ou em formato não suportado.
   const imageRefused = outcome === "failed" && attachment && /attachment format|attachment.*not supported|#100/i.test(r.text || "");

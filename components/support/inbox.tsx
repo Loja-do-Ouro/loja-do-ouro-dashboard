@@ -144,8 +144,10 @@ const THREAD_EVENTS = new Set(["assign", "visitor_end", "email.autoreply", "soci
 function assignText(a: AuditEntry) {
   if (a.action === "visitor_end")
     return `O cliente terminou a conversa no site${a.details.transcript ? " e pediu uma cópia por email" : ""}`;
-  if (a.action === "social.autoreply")
-    return a.details.kind === "thanks" ? "Agradecimento automático enviado (reação)" : "Resposta automática enviada ao cliente";
+  if (a.action === "social.autoreply") {
+    const what = a.details.kind === "thanks" ? "Agradecimento automático à reação" : "Resposta automática ao cliente";
+    return a.details.outcome === "uncertain" ? `${what}: sem confirmação da Metricool (pode não ter chegado)` : `${what} enviada`;
+  }
   if (a.action === "email.autoreply")
     return `Resposta automática “recebemos o seu email” enviada${typeof a.details.email === "string" ? ` para ${a.details.email}` : ""}`;
   const to = typeof a.details.to_name === "string" ? a.details.to_name : "outra pessoa";

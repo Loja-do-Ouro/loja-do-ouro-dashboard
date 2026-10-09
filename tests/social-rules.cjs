@@ -46,25 +46,30 @@ test("A support message off-hours gets the away message with the first name; wit
 });
 
 test("A story reaction never gets the away message; it gets a short thanks once it settles and only when isolated", () => {
-  const reaction = [msg("inbound", "", 3)];
+  const reaction = [msg("inbound", "", 5)];
   const d = s.socialAutoReply(reaction, settings(), NIGHT, "Ana");
   assert.deepEqual({ kind: d.kind, text: d.text }, { kind: "thanks", text: "Obrigado! 💛" });
-  // Ainda a escrever (menos de 1 minuto): espera.
-  assert.equal(s.socialAutoReply([msg("inbound", "😍", 0.5)], settings(), NIGHT, "Ana"), null);
+  // Ainda pode estar a escrever (menos de 4 minutos): espera.
+  assert.equal(s.socialAutoReply([msg("inbound", "😍", 2)], settings(), NIGHT, "Ana"), null);
   // Reação no meio de uma conversa (respondemos há 2 horas): nada.
-  assert.equal(s.socialAutoReply([msg("inbound", "Tem o anel?", 300), msg("outbound", "Temos sim!", 120), msg("inbound", "", 3)], settings(), NIGHT, "Ana"), null);
+  assert.equal(s.socialAutoReply([msg("inbound", "Tem o anel?", 300), msg("outbound", "Temos sim!", 120), msg("inbound", "", 5)], settings(), NIGHT, "Ana"), null);
   // Reação seguida de um pedido: é o pedido que conta.
   assert.equal(s.socialAutoReply([msg("inbound", "", 3), msg("inbound", "Quanto custa este?", 1)], settings(), NIGHT, "Ana").kind, "support");
   // Sem texto de agradecimento: nada.
   assert.equal(s.socialAutoReply(reaction, settings({ thanks_text: "" }), NIGHT, "Ana"), null);
   // Conversa antiga (a última resposta foi há 3 dias): a reação de agora é agradecida.
-  assert.equal(s.socialAutoReply([msg("outbound", "Obrigado!", 3 * 24 * 60), msg("inbound", "❤️", 2)], settings(), NIGHT, "Ana").kind, "thanks");
+  assert.equal(s.socialAutoReply([msg("outbound", "Obrigado!", 3 * 24 * 60), msg("inbound", "❤️", 6)], settings(), NIGHT, "Ana").kind, "thanks");
 });
 
 test("Nothing is sent when switched off, when we spoke last, for old messages or for deleted ones", () => {
   assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 2)], settings({ enabled: false }), NIGHT, "Ana"), null);
   assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 5), msg("outbound", "Temos!", 1)], settings(), NIGHT, "Ana"), null);
-  assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 45)], settings(), NIGHT, "Ana"), null);
+  // Mensagem com mais de 3 horas: nada.
+  assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 200)], settings(), NIGHT, "Ana"), null);
+  // Sincronização atrasada (45 minutos): ainda responde.
+  assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 45)], settings(), NIGHT, "Ana").kind, "support");
+  // Mensagem anterior à ligação da função: nada.
+  assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 10)], settings({ enabled_at: new Date(NIGHT.getTime() - 5 * 60000).toISOString() }), NIGHT, "Ana"), null);
   assert.equal(s.socialAutoReply([{ ...msg("inbound", "Tem este anel?", 2), deleted: true }], settings(), NIGHT, "Ana"), null);
   assert.equal(s.socialAutoReply([], settings(), NIGHT, "Ana"), null);
   // Notas internas não contam como resposta nossa.
@@ -85,6 +90,13 @@ test("An isolated reaction is marked as handled (until the customer writes again
   assert.equal(s.isolatedReaction([msg("inbound", "Tem o anel?", 300), msg("outbound", "Temos!", 120), msg("inbound", "❤️", 3)], NIGHT), null);
   // Já respondemos depois da reação: nada a marcar.
   assert.equal(s.isolatedReaction([msg("inbound", "😍", 10), msg("outbound", "Obrigado! 💛", 5)], NIGHT), null);
-  // Reação antiga (mais de 30 minutos): não é marcada agora.
-  assert.equal(s.isolatedReaction([msg("inbound", "😍", 45)], NIGHT), null);
+  // Reação antiga (mais de 3 horas) ou anterior à ligação: não é marcada.
+  assert.equal(s.isolatedReaction([msg("inbound", "😍", 200)], NIGHT), null);
+  assert.equal(s.isolatedReaction([msg("inbound", "😍", 10)], NIGHT, { enabled_at: new Date(NIGHT.getTime() - 5 * 60000).toISOString() }), null);
+});
+
+test("With no hours filled in, social media is always 'closed': the off-hours message always goes out", () => {
+  const empty = { weekdays: "", saturday: "", sunday: "" };
+  assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 2, DAY)], settings({ hours: empty }), DAY, "Ana").kind, "support");
+  assert.match(s.socialAutoReply([msg("inbound", "Tem este anel?", 2, DAY)], settings({ hours: empty }), DAY, "Ana").text, /não estamos disponíveis/);
 });
