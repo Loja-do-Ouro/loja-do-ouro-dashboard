@@ -31,6 +31,13 @@ export function zendeskSubdomain() {
 }
 const base = () => `https://${zendeskSubdomain()}.zendesk.com`;
 
+// Zendesk desligado no dashboard (Super Admin, Configuração do apoio): não sincroniza, não aceita ligações de
+// agentes e os tickets ficam como histórico. Sem resposta da BD conta como ligado (a BD volta a confirmar).
+export async function zendeskOff(): Promise<boolean> {
+  if (!serverConfigured()) return false;
+  return serverRpc<boolean>("ldo_support_zendesk_is_off").then(Boolean, () => false);
+}
+
 export function zendeskReadiness() {
   return {
     client: Boolean(process.env.ZENDESK_CLIENT_ID && process.env.ZENDESK_CLIENT_SECRET),

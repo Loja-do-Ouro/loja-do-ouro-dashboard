@@ -439,6 +439,9 @@ export function SupportInbox({
 
   const c = detail?.conversation.id === selected ? detail : null;
   const isZendesk = c?.conversation.platform === "zendesk";
+  // Zendesk desligado no dashboard: os tickets ficam como histórico (notas, estado e responsável só aqui).
+  const zendeskOff = isZendesk && c?.conversation.source_status === "disabled";
+  const zendeskLive = isZendesk && !zendeskOff;
   const isWhatsapp = c?.conversation.platform === "whatsapp";
   const isGmail = c?.conversation.platform === "gmail";
   const me = c?.users.find((u) => u.me);
@@ -460,7 +463,7 @@ export function SupportInbox({
   const slotOf = (id: string, m: "reply" | "note") => `${id}:${m}`;
   const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
   // Zendesk: até 5 anexos (imagens ou PDF). Email: até 5, só em respostas. Facebook/Instagram: uma imagem por mensagem, só em respostas.
-  const maxAttachments = !c ? 0 : isZendesk || (isGmail && mode === "reply") ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
+  const maxAttachments = !c ? 0 : zendeskLive || (isGmail && mode === "reply") ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
   const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : c.conversation.platform === "site" ? "O chat do site ainda não aceita anexos. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
@@ -482,7 +485,7 @@ export function SupportInbox({
     setSendError("");
     try {
       for (const f of list) {
-        if (f.type === "application/pdf" && !isZendesk && !isGmail) throw new Error("PDF só no email e nos tickets Zendesk.");
+        if (f.type === "application/pdf" && !zendeskLive && !isGmail) throw new Error("PDF só no email e nos tickets Zendesk.");
         const blob = await prepareFile(f);
         const up = await uploadBlob(id, f.name, blob);
         const preview = up.type.startsWith("image/") ? URL.createObjectURL(blob) : null;
@@ -527,16 +530,18 @@ export function SupportInbox({
     ? "A carregar…"
     : isWhatsapp
       ? "WhatsApp por configurar: ainda não é possível responder por este canal."
+      : zendeskOff
+        ? "O Zendesk foi desligado do dashboard: este ticket fica como histórico. Responda no Zendesk (separador Cliente → Abrir no Zendesk). Pode deixar uma nota interna."
       : own && !canReply(own)
         ? `Esta conversa está com ${ownerName}: só essa pessoa responde ao cliente. ${c.super ? "Para responder, transfira-a para si (Cliente → Atendimento)." : "Se precisar de a assumir, peça-lhe que a transfira."} Pode deixar uma nota interna.`
-        : isZendesk && !me?.zendesk
+        : zendeskLive && !me?.zendesk
           ? "Ligue a sua conta Zendesk para responder com a sua autoria."
           : c.conversation.source_status === "blocked" && isGmail
             ? "A caixa Gmail do apoio precisa de ser ligada de novo (Configuração do apoio → Email (Gmail))."
             : c.conversation.source_status === "blocked" && !isZendesk
               ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
               : "";
-  const noteBlocked = !c ? "A carregar…" : isZendesk && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
+  const noteBlocked = !c ? "A carregar…" : zendeskLive && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
 
   // Assistente de IA: pede uma proposta (abre o separador da IA) e passa-a para o campo de resposta.
   // A proposta nunca é enviada sozinha: fica no rascunho para rever e enviar.
@@ -659,7 +664,7 @@ export function SupportInbox({
         {sources.map((s) => (
           <span key={s.id} className={`source-chip ${s.status}`} title={s.last_error || s.status_detail || ""}>
             <b>{s.label}</b>
-            {s.status === "not_configured" ? "Por configurar" : s.status === "active" && s.platform === "site" ? "Em direto" : s.status === "active" ? `Sincronizado ${time(s.last_success_at)}` : s.status === "pending" ? s.status_detail || "A aguardar ligação" : s.status === "blocked" ? "Bloqueado" : "Erro"}
+            {s.status === "disabled" ? "Desligado (só histórico)" : s.status === "not_configured" ? "Por configurar" : s.status === "active" && s.platform === "site" ? "Em direto" : s.status === "active" ? `Sincronizado ${time(s.last_success_at)}` : s.status === "pending" ? s.status_detail || "A aguardar ligação" : s.status === "blocked" ? "Bloqueado" : "Erro"}
           </span>
         ))}
         <span className="support-sync">
@@ -848,13 +853,13 @@ export function SupportInbox({
                   <button type="button" role="tab" aria-selected={mode === "note"} className={mode === "note" ? "active" : ""} onClick={() => setMode("note")}>Nota interna</button>
                 </div>
                 <p className="composer-target">
-                  {mode === "reply" ? <>Envia por: <strong>{destination}</strong></> : <>Nota interna — <strong>visível só para a equipa</strong>{isZendesk ? " (comentário privado no Zendesk)" : ""}.</>}
+                  {mode === "reply" ? <>Envia por: <strong>{destination}</strong></> : <>Nota interna — <strong>visível só para a equipa</strong>{zendeskLive ? " (comentário privado no Zendesk)" : ""}.</>}
                   {mode === "reply" && !c.conversation.assignee_id && !c.conversation.external_assignee_id && !replyBlocked && <small className="block muted">Ao responder fica responsável por esta conversa.</small>}
                 </p>
                 {(mode === "reply" ? replyBlocked : noteBlocked) ? (
                   <div className="composer-blocked">
                     {mode === "reply" ? replyBlocked : noteBlocked}
-                    {isZendesk && !me?.zendesk && zendeskReady && (
+                    {zendeskLive && !me?.zendesk && zendeskReady && (
                       <form method="post" action="/api/support/zendesk/connect"><button type="submit" className="secondary-button">Ligar Zendesk</button></form>
                     )}
                   </div>
@@ -997,7 +1002,9 @@ function CustomerPanel({
   const [orders, setOrders] = useState<Orders | null>(null);
   const [email, setEmail] = useState(contact?.linked_email || "");
   const [linkError, setLinkError] = useState("");
-  const isZendesk = conv.platform === "zendesk";
+  // Zendesk desligado: os tickets antigos ficam como no resto do dashboard (estado e responsável locais).
+  const isZendesk = conv.platform === "zendesk" && conv.source_status !== "disabled";
+  const zendeskOff = conv.platform === "zendesk" && conv.source_status === "disabled";
   const contactId = contact?.id, linkedEmail = contact?.linked_email, contactEmail = contact?.email;
   const loadOrders = useCallback(() => {
     if (!contactId) return;
@@ -1106,10 +1113,11 @@ function CustomerPanel({
         )}
         {conv.assignee_id && !canTransfer(own) && <small className="muted">Só {conv.assignee_name || "o responsável"} (ou o Super Admin) pode responder ao cliente e transferir esta conversa. Pode deixar notas internas.</small>}
         {isZendesk && <small className="muted">Estado e responsável são gravados no Zendesk (fonte de verdade) com a sua conta. Estado no Zendesk: {conv.platform_status || "—"}.</small>}
-        {!isZendesk && <small className="muted">Estado e responsável pertencem ao dashboard; uma nova mensagem do cliente reabre uma conversa resolvida.</small>}
+        {zendeskOff && <small className="muted">O Zendesk foi desligado do dashboard: estado e responsável deste ticket ficam só aqui (não mudam no Zendesk).</small>}
+        {!isZendesk && !zendeskOff && <small className="muted">Estado e responsável pertencem ao dashboard; uma nova mensagem do cliente reabre uma conversa resolvida.</small>}
         <div className="customer-actions">
           <button type="button" className="secondary-button" onClick={() => onAct({ action: "unread" })}>Marcar como não lida</button>
-          {isZendesk && (
+          {(isZendesk || zendeskOff) && (
             <a className="outline-button" href={`https://${zendeskSubdomain}.zendesk.com/agent/tickets/${encodeURIComponent(conv.external_id)}`} target="_blank" rel="noopener noreferrer">Abrir no Zendesk</a>
           )}
           {conv.platform === "gmail" && conv.account && (

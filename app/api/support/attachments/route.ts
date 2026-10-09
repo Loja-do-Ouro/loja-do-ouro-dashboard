@@ -4,7 +4,7 @@ import { handle, HttpError, supportViewer } from "@/lib/support/http";
 import { metricoolImage } from "@/lib/support/metricool";
 import { isUuid, previewKind, sniffType } from "@/lib/support/rules";
 import { getUpload } from "@/lib/support/uploads";
-import { zendeskAttachment } from "@/lib/support/zendesk";
+import { zendeskAttachment, zendeskOff } from "@/lib/support/zendesk";
 import { gmailAttachment, GmailError } from "@/lib/support/gmail";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +85,7 @@ export async function GET(request: Request) {
     }
 
     if (a.ref.startsWith("zendesk:") && d.conversation.source_id === "zendesk") {
+      if (await zendeskOff()) throw new HttpError(409, "O Zendesk está desligado do dashboard: abra este anexo no próprio Zendesk.");
       const users = await sessionRpc<{ id: string; zendesk: boolean }[]>(viewer.session, "ldo_support_users");
       const reader = users.find((u) => u.id === viewer.id)?.zendesk ? viewer.id : await serverRpc<string | null>("ldo_support_zendesk_sync_user");
       if (!reader) throw new HttpError(409, "Ligue o Zendesk para abrir anexos.");

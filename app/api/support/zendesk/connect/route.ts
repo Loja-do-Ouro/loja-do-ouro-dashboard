@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { canSupport } from "@/lib/permissions";
 import { randomToken, sha256Hex } from "@/lib/support/crypto";
 import { sessionRpc } from "@/lib/support/db";
-import { authorizeUrl, OAUTH_COOKIE, publicOrigin, zendeskConfigured } from "@/lib/support/zendesk";
+import { authorizeUrl, OAUTH_COOKIE, publicOrigin, zendeskConfigured, zendeskOff } from "@/lib/support/zendesk";
 import { loadViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   if (!viewer) return NextResponse.redirect(new URL("/login?redirect=/apoio", request.url), 303);
   if (!canSupport(viewer) || viewer.mustChangePassword) return back(request, "sem-acesso");
   if (!zendeskConfigured()) return back(request, "por-configurar");
+  if (await zendeskOff()) return back(request, "desligado");
   // A ligação tem de começar no endereço registado no Zendesk, para o cookie voltar no callback.
   const canonical = publicOrigin(request.url);
   if (new URL(request.url).origin !== canonical) return NextResponse.redirect(new URL("/apoio?zendesk=endereco", canonical), 303);

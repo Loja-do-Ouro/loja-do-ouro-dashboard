@@ -14,6 +14,7 @@ export const REFUSAL: Record<string, string> = {
   recent: "sincronizou há menos de 15 s",
   backoff: "em espera depois de erros",
   not_due: "ainda não é a hora",
+  disabled: "desligado",
 };
 
 // Uma passagem por fonte, se estiver na hora (ou se for pedida) e ninguém a estiver a fazer.

@@ -7,7 +7,7 @@ import { assignmentChange, canChangeStatus, isStatus, isUuid, zendeskReplyWarnin
 import { notifySiteVisitors } from "./site-chat";
 import { whatsappSend } from "./whatsapp";
 import { getUpload, publishUpload } from "./uploads";
-import { readTicket, zendeskComment, zendeskUpdate, ZendeskError, type OutgoingFile } from "./zendesk";
+import { readTicket, zendeskComment, zendeskOff, zendeskUpdate, ZendeskError, type OutgoingFile } from "./zendesk";
 import { emailSettings, gmailMailbox, gmailRecheck, gmailSendReply, GmailError } from "./gmail";
 import { contactAddress } from "./gmail-rules";
 import { firstName } from "./rules";
@@ -15,6 +15,8 @@ import type { Viewer } from "@/lib/viewer";
 
 type Begin = {
   existing: boolean;
+  // Zendesk desligado: a BD recusa respostas; as notas internas ficam só no dashboard.
+  zendesk_off?: boolean;
   platform: "zendesk" | "metricool" | "whatsapp" | "site" | "gmail";
   message: { id: string; kind: "outbound" | "note"; delivery: string | null; body: string };
   uploads: string[];
@@ -38,7 +40,7 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
   });
   // Pedido repetido (duplo clique, nova tentativa do browser): devolve o que já existe, sem reenviar.
   if (begin.existing) return { messageId: begin.message.id, delivery: begin.message.delivery, repeated: true };
-  if (kind === "note" && begin.platform !== "zendesk") return { messageId: begin.message.id, delivery: null, repeated: false };
+  if (kind === "note" && (begin.platform !== "zendesk" || begin.zendesk_off)) return { messageId: begin.message.id, delivery: null, repeated: false };
 
   // Preparar os anexos ainda não envia nada: se falhar, o resultado é "Falhou", nunca "incerto".
   const files: OutgoingFile[] = [];
@@ -165,7 +167,8 @@ export async function updateConversation(viewer: Viewer, id: string, change: { s
     ? { conversationId: id, target: assignee, actor: viewer.fullName || viewer.username, contact: contact?.name || contact?.handle || contact?.email || contact?.claimed_email || "cliente", channel: c.channel }
     : null;
 
-  if (c.source_id !== "zendesk") {
+  // Zendesk desligado: os tickets antigos ficam só no dashboard (estado e responsável passam a ser daqui).
+  if (c.source_id !== "zendesk" || (await zendeskOff())) {
     await sessionRpc(viewer.session, "ldo_support_set_local", {
       p_id: id, p_set_status: status !== undefined, p_status: status ?? null, p_set_assignee: assignee !== undefined, p_assignee: assignee ?? null,
     });
@@ -212,7 +215,10 @@ export async function verifyMessage(viewer: Viewer, conversationId: string, mess
   const m = await serverRpc<ServerMessage | null>("ldo_support_server_message", { p_message: messageId });
   if (!m || m.conversation.id !== conversationId) throw new Error("Mensagem não encontrada.");
   let note: string | null = null;
-  if (m.conversation.source_id === "zendesk") await ingest("zendesk", [await readTicket(viewer.id, m.conversation.external_id)]);
+  if (m.conversation.source_id === "zendesk") {
+    if (await zendeskOff()) note = "O Zendesk está desligado do dashboard: confirme no próprio Zendesk.";
+    else await ingest("zendesk", [await readTicket(viewer.id, m.conversation.external_id)]);
+  }
   // Email: relê já a conversa no Gmail (o envio do dashboard é reconhecido pelo cabeçalho X-LDO-Message).
   else if (m.conversation.source_id === "gmail") {
     try {
