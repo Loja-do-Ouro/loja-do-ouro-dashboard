@@ -1,7 +1,8 @@
 import "server-only";
 import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/bi/metricool";
-import { ingest, serverConfigured, type IngestConversation, type IngestMessage } from "./db";
+import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
 import { sendOutcome } from "./rules";
+import { socialAutoReply, type SocialSettings } from "./social-rules";
 
 // Metricool Inbox (API v2, https://app.metricool.com/api/swagger.json), mensagens privadas do
 // Facebook Messenger e do Instagram da marca "Loja do Ouro Jericó" (blogId 2912472). Reutiliza o
@@ -128,24 +129,47 @@ export async function syncMetricool(source: { id: string; config: Record<string,
   if (!auth.allowAccessToMessages)
     throw new MetricoolError(`Metricool não tem acesso às mensagens ${provider}${auth.missingScopes.length ? ` (em falta: ${auth.missingScopes.join(", ")})` : ""}. Voltar a ligar a rede na marca Metricool.`, 403, 0, true);
   const configured = typeof source.config.brand_id === "string" ? source.config.brand_id : typeof source.cursor.brand === "string" ? source.cursor.brand : null;
-  let totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
+  let totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0, autoreplies: 0 };
   let brand = configured;
   let skipped = 0;
+  // Respostas automáticas (em vez da mensagem de ausência do Meta): lidas uma vez por passagem.
+  const social = await serverRpc<SocialSettings | null>("ldo_support_social_settings").catch(() => null);
   const { complete } = await listConversations(provider, {
     deadline,
     onPage: async (page) => {
       brand = brandParticipant(page, brand);
-      const mapped = page.map((c) => toConversation(c, brand));
-      skipped += mapped.filter((c) => !c).length;
-      const r = await ingest(source.id, mapped.filter((c): c is IngestConversation => !!c));
+      const mapped = page.map((c) => toConversation(c, brand)).filter((c): c is IngestConversation => !!c);
+      skipped += page.length - mapped.length;
+      const r = await ingest(source.id, mapped);
+      const autoreplies = social?.enabled ? await sendAutoReplies(provider, source.id, mapped, social, deadline) : 0;
       totals = { conversations: totals.conversations + r.conversations, new_conversations: totals.new_conversations + r.new_conversations,
-        new_messages: totals.new_messages + r.new_messages, reopened: totals.reopened + r.reopened };
+        new_messages: totals.new_messages + r.new_messages, reopened: totals.reopened + r.reopened, autoreplies: totals.autoreplies + autoreplies };
     },
   });
   const detail = skipped
     ? `${skipped} conversa(s) por interpretar: conta da marca ainda não identificada. Indicar o id da conta da marca na configuração da fonte (brand_id).`
     : complete ? null : "Nem todas as páginas foram lidas nesta passagem; continuam na seguinte.";
   return { cursor: { ...source.cursor, ...(brand ? { brand } : {}) }, totals, detail, more: !complete };
+}
+
+// Resposta automática ou agradecimento (regras em social-rules.ts), depois de a conversa estar gravada. A base
+// de dados confirma antes de enviar (uma vez por mensagem, por conversa em 24 h e por pessoa em 7 dias); um envio
+// recusado liberta o registo. Um resultado incerto fica registado: nunca se repete (podia ter chegado).
+async function sendAutoReplies(provider: string, sourceId: string, conversations: IngestConversation[], settings: SocialSettings, deadline: number) {
+  let sent = 0;
+  for (const conv of conversations) {
+    if (Date.now() > deadline - 5000) break;
+    const recipient = conv.contact.external_id;
+    if (!recipient) continue;
+    const decision = socialAutoReply(conv.messages.map((m) => ({ ...m, attachments: m.attachments || [] })), settings, new Date(), conv.contact.name || conv.contact.handle || null);
+    if (!decision) continue;
+    const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
+    if (!(await serverRpc<boolean>("ldo_support_social_autoreply_claim", { ...claim, p_contact: recipient, p_kind: decision.kind }).catch(() => false))) continue;
+    const r = await metricoolSend(provider, conv.external_id, recipient, decision.text).catch(() => ({ outcome: "uncertain" as const }));
+    if (r.outcome === "failed") await serverRpc("ldo_support_social_autoreply_release", claim).catch(() => undefined);
+    else sent++;
+  }
+  return sent;
 }
 
 // Imagem para a Meta: a Metricool envia anexos a partir de um URL que ela própria aloja (é o que a sua

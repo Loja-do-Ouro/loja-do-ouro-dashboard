@@ -16,9 +16,22 @@ async function superViewer() {
   return viewer;
 }
 
-// Ações das secções da IA e do email voltam a essa secção (secao=ia mostra lá a mensagem; #ia faz scroll até ela).
+// Ações das secções da IA, do email e das redes sociais voltam a essa secção (secao=ia mostra lá a mensagem;
+// #ia faz scroll até ela).
+const SECTIONS = new Set(["#ia", "#email", "#redes"]);
 const back = (params: Record<string, string>, hash = ""): never =>
-  redirect(`/apoio/configuracao?${new URLSearchParams(hash === "#ia" || hash === "#email" ? { ...params, secao: hash.slice(1) } : params)}${hash}`);
+  redirect(`/apoio/configuracao?${new URLSearchParams(SECTIONS.has(hash) ? { ...params, secao: hash.slice(1) } : params)}${hash}`);
+
+// Horário "09:30-13:00, 14:00-18:30" de cada dia; um pedaço que não se percebe é recusado.
+function hoursError(form: FormData, prefix: string) {
+  const DAY_LABEL: Record<string, string> = { weekdays: "Dias úteis", saturday: "Sábado", sunday: "Domingo" };
+  for (const day of Object.keys(DAY_LABEL)) {
+    const pieces = String(form.get(`${prefix}${day}`) ?? "").split(/[,;]| e /).map((p) => p.trim()).filter(Boolean);
+    if (pieces.some((p) => !hourRanges(p).length))
+      return `Horário de ${DAY_LABEL[day]} não reconhecido. Use, por exemplo, 09:30-13:00, 14:00-18:30 (vazio = fechado).`;
+  }
+  return null;
+}
 
 export async function savePolling(form: FormData) {
   const viewer = await superViewer();
@@ -112,12 +125,8 @@ export async function saveEmailSettings(form: FormData) {
   const viewer = await superViewer();
   const text = (name: string) => String(form.get(name) ?? "").replace(/\r\n/g, "\n");
   // Um horário que não se percebe deixaria a resposta automática sempre em "fora do horário": recusa-se.
-  const DAY_LABEL: Record<string, string> = { hours_weekdays: "Dias úteis", hours_saturday: "Sábado", hours_sunday: "Domingo" };
-  for (const field of Object.keys(DAY_LABEL)) {
-    const pieces = text(field).split(/[,;]| e /).map((p) => p.trim()).filter(Boolean);
-    if (pieces.some((p) => !hourRanges(p).length))
-      back({ erro: `Horário de ${DAY_LABEL[field]} não reconhecido. Use, por exemplo, 09:30-13:00, 14:00-18:30 (vazio = fechado).` }, "#email");
-  }
+  const wrongHours = hoursError(form, "hours_");
+  if (wrongHours) back({ erro: wrongHours }, "#email");
   try {
     await sessionRpc(viewer.session, "ldo_support_email_save_settings", {
       p_signature: text("email_signature"), p_autoreply_enabled: form.get("email_autoreply_enabled") === "on",
@@ -141,4 +150,22 @@ export async function disconnectGmail(form: FormData) {
     back({ erro: userMessage(e) }, "#email");
   }
   back({ ok: "Caixa Gmail desligada." }, "#email");
+}
+
+// Respostas automáticas no Facebook e no Instagram (em vez da mensagem de ausência do Meta).
+export async function saveSocialSettings(form: FormData) {
+  const viewer = await superViewer();
+  const text = (name: string) => String(form.get(name) ?? "").replace(/\r\n/g, "\n");
+  const wrongHours = hoursError(form, "social_hours_");
+  if (wrongHours) back({ erro: wrongHours }, "#redes");
+  try {
+    await sessionRpc(viewer.session, "ldo_support_social_save_settings", {
+      p_enabled: form.get("social_enabled") === "on", p_text: text("social_text"), p_offhours_text: text("social_offhours_text"),
+      p_thanks_text: text("social_thanks_text"),
+      p_hours: { weekdays: text("social_hours_weekdays"), saturday: text("social_hours_saturday"), sunday: text("social_hours_sunday") },
+    });
+  } catch (e) {
+    back({ erro: userMessage(e) }, "#redes");
+  }
+  back({ ok: "Respostas automáticas das redes sociais guardadas." }, "#redes");
 }
