@@ -49,7 +49,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
       <PageHeading
         eyebrow="LOJAS FÍSICAS"
         title={`Vendas e atendimentos · ${store.name}`}
-        text="Registe cada cliente atendido, com ou sem venda. Substitui a folha “Análise de Vendas”."
+        text="Cada cliente atendido, com ou sem venda. Enquanto as lojas usarem a folha “Análise de Vendas”, os dados entram daí todas as madrugadas e antes do alerta das 22h; um dia registado aqui no formulário fica com o formulário."
       />
       <StoreChips stores={viewer.stores} current={store.id} href={(code) => `/lojas?${new URLSearchParams({ loja: code, mes: month })}`} />
       <Flash ok={ok} error={error} />
@@ -152,7 +152,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
           )}
           {editing && (
             <p className="panel-note">
-              {editing.source === "import" ? "Importado do Excel" : `Registado por ${editing.created_by_name || "—"}`} em {timestamp(editing.created_at)}
+              {editing.source === "import" ? "Importado do Excel" : editing.source === "sheet" ? "Importado da folha Análise de Vendas" : `Registado por ${editing.created_by_name || "—"}`} em {timestamp(editing.created_at)}
               {editing.updated_at ? ` · corrigido por ${editing.updated_by_name || "—"} em ${timestamp(editing.updated_at)}` : ""}.
             </p>
           )}
@@ -216,7 +216,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
                   <td>{label(all, "client_type", r.client_type)}</td>
                   <td>{label(all, "seen_where", r.seen_where)}</td>
                   <td>{r.campaign ? label(all, "campaign", r.campaign_code) : r.campaign === false ? "Não" : "—"}</td>
-                  <td>{r.source === "import" ? "Excel" : r.created_by_name}</td>
+                  <td>{r.source === "import" || r.source === "sheet" ? "Folha" : r.created_by_name}</td>
                   <td>
                     <Link href={link({ editar: r.id })}>{canEditRecord(viewer, store.id, r) ? "Corrigir" : "Ver"}</Link>
                   </td>
@@ -227,7 +227,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
         </div>
         {!dayRows.length && <p className="panel-note">Ainda não há atendimentos registados neste dia.</p>}
       </Panel>
-      <Panel title="O que aconteceu no mês" eyebrow={`${integer(sum.served)} ATENDIMENTOS`} note="Percentagens sobre as respostas dadas; registos importados do Excel podem não ter todas as respostas.">
+      <Panel title="O que aconteceu no mês" eyebrow={`${integer(sum.served)} ATENDIMENTOS`} note="Percentagens sobre as respostas dadas; registos importados da folha Análise de Vendas podem não ter todas as respostas.">
         <div className="breakdowns">
           <Breakdown title="Onde viu o produto" rows={count(rows, (r) => r.seen_where)} options={all.seen_where} total={rows.filter((r) => r.seen_where).length} />
           <Breakdown title="Tipo de cliente" rows={count(rows, (r) => r.client_type)} options={all.client_type} total={rows.filter((r) => r.client_type).length} />
