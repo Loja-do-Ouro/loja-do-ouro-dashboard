@@ -26,9 +26,13 @@ type Source = { id: string; platform: string; channel: Channel; label: string; s
 type Item = {
   id: string; channel: Channel; subject: string | null; status: Status; contact_name: string; contact_handle: string | null;
   assignee_id: string | null; assignee_name: string | null; last_message_at: string; last_preview: string | null; last_direction: Kind | null;
-  unread: number; attention: boolean;
+  unread: number; attention: boolean; auto?: boolean;
 };
-type List = { items: Item[]; counts: { all: number; mine: number; unassigned: number; unread: number }; sources: Source[]; poll_seconds: number };
+type AutoCounts = { support: number; thanks: number; email: number };
+type List = {
+  items: Item[]; counts: { all: number; mine: number; unassigned: number; unread: number; auto?: number }; sources: Source[]; poll_seconds: number;
+  automatic?: { today: AutoCounts; week: AutoCounts };
+};
 type Message = {
   id: string; kind: Kind; author_name: string | null; author_user_id: string | null; body: string;
   attachments: { name: string; type: string | null; size: number | null; ref: string; inline?: boolean }[];
@@ -99,7 +103,18 @@ const FILTERS = [
   ["mine", "Minhas"],
   ["unassigned", "Sem responsável"],
   ["unread", "Não lidas"],
+  ["auto", "Automáticas"],
 ] as const;
+
+// Resumo das respostas automáticas enviadas (redes sociais e email).
+function autoSummary(c: AutoCounts) {
+  const parts = [
+    c.thanks && `${c.thanks} agradecimento${c.thanks === 1 ? "" : "s"} a reações`,
+    c.support && `${c.support} resposta${c.support === 1 ? "" : "s"} automática${c.support === 1 ? "" : "s"} a pedidos`,
+    c.email && `${c.email} email${c.email === 1 ? "" : "s"} "recebemos o seu email"`,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "nenhuma";
+}
 
 const time = (iso: string | null | undefined, withDate = true) => {
   if (!iso) return "—";
@@ -129,8 +144,10 @@ const THREAD_EVENTS = new Set(["assign", "visitor_end", "email.autoreply", "soci
 function assignText(a: AuditEntry) {
   if (a.action === "visitor_end")
     return `O cliente terminou a conversa no site${a.details.transcript ? " e pediu uma cópia por email" : ""}`;
-  if (a.action === "social.autoreply")
-    return a.details.kind === "thanks" ? "Agradecimento automático enviado (reação)" : "Resposta automática enviada ao cliente";
+  if (a.action === "social.autoreply") {
+    const what = a.details.kind === "thanks" ? "Agradecimento automático à reação" : "Resposta automática ao cliente";
+    return a.details.outcome === "uncertain" ? `${what}: sem confirmação da Metricool (pode não ter chegado)` : `${what} enviada`;
+  }
   if (a.action === "email.autoreply")
     return `Resposta automática “recebemos o seu email” enviada${typeof a.details.email === "string" ? ` para ${a.details.email}` : ""}`;
   const to = typeof a.details.to_name === "string" ? a.details.to_name : "outra pessoa";
@@ -671,7 +688,7 @@ export function SupportInbox({
               {FILTERS.map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={filter === key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
                   {label}
-                  {list && <b>{list.counts[key]}</b>}
+                  {list && <b>{list.counts[key] ?? 0}</b>}
                 </button>
               ))}
             </div>
@@ -687,6 +704,14 @@ export function SupportInbox({
             </div>
           </div>
           {listError && <p className="support-error" role="alert">{listError}</p>}
+          {filter === "auto" && list?.automatic && (
+            <div className="auto-summary">
+              <p><strong>Respostas automáticas enviadas</strong></p>
+              <p>Hoje: {autoSummary(list.automatic.today)}</p>
+              <p>Últimos 7 dias: {autoSummary(list.automatic.week)}</p>
+              <p className="muted">Aqui ficam as conversas de quem só reagiu (story, gosto, emoji) e nunca fez um pedido. Voltam à lista principal se a pessoa escrever de novo, ou se alguém da equipa as atribuir, mudar o estado ou escrever nelas.</p>
+            </div>
+          )}
           <ul>
             {list?.items.map((i) => (
               <li key={i.id}>
@@ -698,6 +723,7 @@ export function SupportInbox({
                   <span className="support-item-meta">
                     <span className={`channel-badge ${i.channel}`}>{CHANNEL_LABEL[i.channel]}</span>
                     <span className={`status-badge ${i.status}`}>{STATUS_LABEL[i.status]}</span>
+                    {i.auto && <span className="status-badge auto">Tratada automaticamente</span>}
                     {i.unread > 0 && <b className="unread-badge" aria-label={`${i.unread} não lidas`}>{i.unread}</b>}
                     {i.attention && <span className="attention" title="Envio falhado, incerto ou por concluir">!</span>}
                   </span>

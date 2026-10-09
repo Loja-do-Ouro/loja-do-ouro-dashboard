@@ -16,14 +16,22 @@ export type SocialMessage = {
   attachments?: unknown[] | null;
   created_at: string;
   deleted?: boolean;
+  // Campo "properties" da Metricool (não documentado): pode dizer se a mensagem é uma reação ou menção numa story.
+  properties?: unknown;
 };
-export type SocialSettings = { enabled: boolean; text: string; offhours_text: string; thanks_text: string; hours: SupportHours };
+export type SocialSettings = {
+  enabled: boolean; text: string; offhours_text: string; thanks_text: string; hours: SupportHours;
+  // Hora a que foram ligadas: mensagens anteriores nunca recebem resposta automática.
+  enabled_at?: string | null;
+};
 export type SocialDecision = { kind: "support" | "thanks"; text: string; anchor: string };
 
-// Só se responde a mensagens com menos de 30 minutos (nunca a mensagens antigas, por exemplo ao ligar a função).
-export const MAX_AGE_MS = 30 * 60 * 1000;
-// Uma reação só é agradecida 1 minuto depois, para não agradecer a quem ainda está a escrever o pedido.
-export const SETTLE_MS = 60 * 1000;
+// Só se responde a mensagens com menos de 3 horas (uma sincronização atrasada, por exemplo depois de erros da
+// Metricool, ainda responde) e nunca a mensagens anteriores à ligação da função.
+export const MAX_AGE_MS = 3 * 3600 * 1000;
+// Uma reação só é agradecida 4 minutos depois, para não agradecer a quem ainda está a escrever o pedido
+// (com a verificação de 5 em 5 minutos, a pergunta que se segue à reação chega antes do agradecimento).
+export const SETTLE_MS = 4 * 60 * 1000;
 // Reação "sozinha": sem mensagens nossas nem pedidos do cliente nas últimas 24 horas.
 export const QUIET_MS = 24 * 3600 * 1000;
 
@@ -61,28 +69,81 @@ export function personaliseSocial(text: string, name: string | null | undefined)
 }
 
 const at = (m: SocialMessage) => Date.parse(m.created_at) || 0;
+const ordered = (messages: SocialMessage[]) => messages.filter((m) => m.kind !== "note" && !m.deleted && at(m)).sort((a, b) => at(a) - at(b));
+
+// Mensagens do cliente depois da nossa última, das últimas 3 horas e posteriores à ligação.
+function freshBurst(msgs: SocialMessage[], t: number, since: number) {
+  let i = msgs.length - 1;
+  while (i >= 0 && msgs[i].kind === "inbound") i--;
+  return msgs.slice(i + 1).filter((m) => t - at(m) <= MAX_AGE_MS && at(m) >= since);
+}
+const enabledSince = (s?: Pick<SocialSettings, "enabled_at"> | null) => (s?.enabled_at ? Date.parse(s.enabled_at) || 0 : 0);
+
+// Dentro do horário? Nas redes sociais, sem nenhum dia preenchido está sempre fechado (o painel diz "vazio =
+// fechado"): a mensagem de fora do horário sai sempre.
+function socialOpen(hours: SupportHours | null | undefined, now: Date) {
+  const any = [hours?.weekdays, hours?.saturday, hours?.sunday].some((v) => typeof v === "string" && v.trim());
+  return any && withinHours(hours, now);
+}
+
+// Reação sozinha para o agradecimento: só reações nas mensagens novas e nada nosso nem pedidos nas últimas 24 horas.
+function quietReaction(msgs: SocialMessage[], t: number, since: number) {
+  const fresh = freshBurst(msgs, t, since);
+  if (!fresh.length || fresh.some((m) => classifySocial(m) === "support")) return false;
+  const recent = msgs.filter((m) => t - at(m) <= QUIET_MS);
+  return !recent.some((m) => m.kind === "outbound" || classifySocial(m) === "support");
+}
+
+// Indício, no campo "properties" da Metricool, de que uma mensagem vazia é uma reação ou menção numa story (ou um
+// gosto). Sem este indício, uma mensagem vazia pode ser uma partilha de uma publicação ou um áudio.
+export function reactionHint(properties: unknown): boolean {
+  if (!properties || typeof properties !== "object") return false;
+  let text = "";
+  try {
+    text = JSON.stringify(properties);
+  } catch {
+    return false;
+  }
+  return /story|stories|reaction|reacted|mention|like|emoji/i.test(text.slice(0, 5000));
+}
+
+// Reação que se pode esconder com segurança: um emoji ou um elogio curto escrito, ou uma mensagem vazia que a
+// Metricool indique como reação ou menção numa story. Uma mensagem vazia sem indício nunca é escondida.
+export function hideableReaction(m: Pick<SocialMessage, "body" | "attachments" | "properties">): boolean {
+  if (classifySocial(m) !== "reaction") return false;
+  return Boolean(String(m.body ?? "").trim()) || reactionHint(m.properties);
+}
+
+// Conversa que não precisa da equipa: há reações novas e TODAS as mensagens que o cliente alguma vez enviou (as que
+// a Metricool mostra) são reações que se podem esconder. Sai da lista principal (separador "Automáticas") até o
+// cliente voltar a escrever ou alguém da equipa lhe mexer. Devolve as horas da primeira e da última mensagem do
+// cliente (a base de dados confirma que não há outras fora deste intervalo) ou null.
+export function hiddenReaction(messages: SocialMessage[], now: Date, settings?: Pick<SocialSettings, "enabled_at"> | null): { from: string; through: string } | null {
+  const msgs = ordered(messages);
+  const last = msgs[msgs.length - 1];
+  if (!last || last.kind !== "inbound") return null;
+  if (!freshBurst(msgs, now.getTime(), enabledSince(settings)).length) return null;
+  const inbound = msgs.filter((m) => m.kind === "inbound");
+  if (!inbound.every(hideableReaction)) return null;
+  return { from: new Date(at(inbound[0])).toISOString(), through: new Date(at(last)).toISOString() };
+}
 
 // O que enviar nesta conversa agora (ou null). "anchor" é a última mensagem do cliente: a base de dados nunca
 // responde duas vezes à mesma.
 export function socialAutoReply(messages: SocialMessage[], settings: SocialSettings, now: Date, contactName: string | null): SocialDecision | null {
   if (!settings.enabled) return null;
-  const msgs = messages.filter((m) => m.kind !== "note" && !m.deleted && at(m)).sort((a, b) => at(a) - at(b));
+  const msgs = ordered(messages);
   const last = msgs[msgs.length - 1];
   if (!last || last.kind !== "inbound") return null;
   const t = now.getTime();
-  // Mensagens do cliente depois da nossa última, das últimas 30 minutos.
-  let i = msgs.length - 1;
-  while (i >= 0 && msgs[i].kind === "inbound") i--;
-  const fresh = msgs.slice(i + 1).filter((m) => t - at(m) <= MAX_AGE_MS);
+  const fresh = freshBurst(msgs, t, enabledSince(settings));
   if (!fresh.length) return null;
 
   if (fresh.some((m) => classifySocial(m) === "support")) {
-    const text = withinHours(settings.hours, now) ? settings.text : settings.offhours_text;
+    const text = socialOpen(settings.hours, now) ? settings.text : settings.offhours_text;
     return text.trim() ? { kind: "support", text: personaliseSocial(text, contactName), anchor: last.external_id } : null;
   }
 
-  if (!settings.thanks_text.trim() || t - at(last) < SETTLE_MS) return null;
-  const recent = msgs.filter((m) => t - at(m) <= QUIET_MS);
-  if (recent.some((m) => m.kind === "outbound" || classifySocial(m) === "support")) return null;
+  if (!settings.thanks_text.trim() || t - at(last) < SETTLE_MS || !quietReaction(msgs, t, enabledSince(settings))) return null;
   return { kind: "thanks", text: personaliseSocial(settings.thanks_text, contactName), anchor: last.external_id };
 }
