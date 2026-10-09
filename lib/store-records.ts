@@ -29,7 +29,7 @@ export type ShopSale = {
   looking_for: string | null;
   notes: string | null;
   items: Item[];
-  source: "form" | "import";
+  source: "form" | "import" | "sheet";
   created_by: string;
   created_by_name: string | null;
   created_at: string;

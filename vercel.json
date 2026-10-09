@@ -15,6 +15,14 @@
     {
       "path": "/api/cron/support-sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/store-sheet?janela=noite&utc=0",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/store-sheet?janela=noite&utc=1",
+      "schedule": "0 1 * * *"
     }
   ]
 }

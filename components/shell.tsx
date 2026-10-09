@@ -73,6 +73,7 @@ export function AppShell({
                 ? [
                     { key: "campanhas", label: "Campanhas", href: "/admin/campanhas", icon: "ads" },
                     { key: "relatorios", label: "Relatórios por email", href: "/admin/relatorios", icon: "mail" },
+                    { key: "folha-lojas", label: "Folha das lojas", href: "/admin/folha-lojas", icon: "bag" },
                   ]
                 : []),
             ]
