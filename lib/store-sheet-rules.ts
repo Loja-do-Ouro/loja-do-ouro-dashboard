@@ -299,12 +299,13 @@ function checkHeader(r: SheetCell[]) {
   }
 }
 
-// Um número inteiro que, lido como data, cai entre dois anos antes e um ano depois de hoje: o Sheets guardou como
-// data o que a loja escreveu ("12/5" em vez de "12,5"). Nenhuma venda de loja chega perto destes valores.
-function valueLooksLikeDate(v: SheetCell, today: string): string | null {
+// Um número inteiro que, lido como data, cai a menos de um ano do dia da venda: o Sheets guardou como data o que a
+// loja escreveu ("12/5" em vez de "12,5"). Nenhuma venda de loja chega perto destes valores. Medido em relação ao
+// dia da venda, a mesma linha dá sempre o mesmo resultado, seja qual for o dia da importação.
+function valueLooksLikeDate(v: SheetCell, saleDate: string): string | null {
   if (typeof v !== "number" || !Number.isInteger(v)) return null;
   const iso = serialDate(v);
-  return iso && iso >= addDays(today, -730) && iso <= addDays(today, 365) ? iso : null;
+  return iso && iso >= addDays(saleDate, -366) && iso <= addDays(saleDate, 366) ? iso : null;
 }
 
 const isHeader = (v: SheetCell) => typeof v === "string" && (plain(v) === "DATA" || plain(v).startsWith("EX"));
@@ -348,7 +349,9 @@ function placeSections(sections: Section[], today: string) {
   let base = 0;
   if (months.length) {
     let i = months.length - 1;
-    while (i > 0 && !months[i].dated) i--;
+    // A secção do mês seguinte ao de hoje foi criada antes do tempo: não serve de referência se houver outra antes.
+    const early = (j: number) => months[j].month === (tm % 12) + 1 && months.slice(0, j).some((x) => x.dated);
+    while (i > 0 && (!months[i].dated || early(i))) i--;
     base = (months[i].month! <= tm ? ty : ty - 1) - off[i];
     const votes = new Map<number, number>([[base, PRIOR_VOTES]]);
     months.forEach((s, j) => {
@@ -364,11 +367,9 @@ function placeSections(sections: Section[], today: string) {
   const start = (s: Section) => fmt(s.year, s.month!, 1);
   sections.forEach((s, i) => {
     if (s.month === null) {
-      const next = sections.find((x) => x.month !== null);
-      const hi = next && addDays(start(next), -1) < today ? addDays(start(next), -1) : today;
-      const y = parts(hi)[0];
+      const y = parts(today)[0];
       s.year = y;
-      s.range = { lo: "0000-00-00", hi, fixHi: hi, years: [y, y - 1], fixYears: [y, y - 1], year: y, label: "antes do primeiro mês" };
+      s.range = { lo: "0000-00-00", hi: today, fixHi: today, years: [y, y - 1], fixYears: [y, y - 1], year: y, label: "antes do primeiro mês" };
       return;
     }
     const lo = start(s);
@@ -502,12 +503,36 @@ function parseTab(rows: SheetCell[][], store: string, title: string, today: stri
     const counts = new Map<number, number>();
     for (const x of list) counts.set(x.month, (counts.get(x.month) || 0) + 1);
     const [top, n] = [...counts].sort((a, b) => b[1] - a[1])[0];
-    if (top !== s.month && top >= 1 && top <= 12 && n * 2 > list.length && own * 2 < list.length) {
+    // O mês seguinte sem cabeçalho novo é uma continuação (o período da secção já o aceita), não um cabeçalho errado.
+    if (top !== s.month && top !== (s.month! % 12) + 1 && top >= 1 && top <= 12 && n * 2 > list.length && own * 2 < list.length) {
       issue(null, `Cabeçalho "${LABELS[s.month! - 1]}", mas a maioria das datas da secção é de ${LABELS[top - 1]}: usado ${LABELS[top - 1]}.`);
       s.month = top;
     }
   }
   placeSections(sections, today);
+
+  // Cabeçalho do mês novo posto depois das primeiras linhas desse mês ("Outubro" escrito no dia 3, por baixo das
+  // vendas de 1 e 2): as últimas linhas de uma secção com datas de série do mês seguinte, não futuras e até à
+  // primeira data da secção seguinte, ficam com a data escrita (em vez da da linha anterior).
+  const serialAt = grid.map((r) => {
+    const d = monthHeader(r[0]) || isHeader(r[0]) ? null : readDate(r[0]);
+    return d?.kind === "serial" ? d.iso : null;
+  });
+  const keepWritten = new Set<number>();
+  sections.forEach((s, si) => {
+    if (s.month === null) return;
+    const rowsOf = (j: number) => sectionOf.map((x, i) => (x === j ? i : -1)).filter((i) => i >= 0);
+    const after = sections.findIndex((x, j) => j > si && x.month !== null);
+    const firstNext = after < 0 ? null : rowsOf(after).map((i) => serialAt[i]).find(Boolean);
+    if (!firstNext) return;
+    const following = (s.month % 12) + 1;
+    for (const i of rowsOf(si).reverse()) {
+      const iso = serialAt[i];
+      if (!iso) continue;
+      if (iso > s.range.hi && iso <= today && iso <= firstNext && parts(iso)[1] === following) keepWritten.add(i);
+      else break;
+    }
+  });
 
   // 2.ª passagem: os registos (sales_rows(), linhas 156-224).
   const out: SheetSale[] = [];
@@ -559,7 +584,7 @@ function parseTab(rows: SheetCell[][], store: string, title: string, today: stri
         [m, d] = [cell.month, cell.day];
         y = rg.years.find((c) => inRange(mk(c, m, d), rg)) ?? rg.year;
       }
-      const res = resolveDate(y, m, d, rg, prevDate, today);
+      const res: Resolved = keepWritten.has(i) && cell.kind === "serial" ? { date: cell.iso, notes: [] } : resolveDate(y, m, d, rg, prevDate, today);
       if (res.issue) issue(rowNo, res.issue);
       if ("notes" in res) dateNotes.push(...res.notes);
       date = res.date;
@@ -578,7 +603,7 @@ function parseTab(rows: SheetCell[][], store: string, title: string, today: stri
 
     const notes = [...dateNotes];
     const parsed = parseValue(r[9]);
-    const valueDate = valueLooksLikeDate(r[9], today);
+    const valueDate = valueLooksLikeDate(r[9], date);
     if (parsed === INVALID || valueDate) {
       notes.push(`valor: ${t[9]}`);
       issue(rowNo, valueDate ? `Valor ${t[9]} parece uma data (${valueDate}): fica nas notas, sem valor.` : "Valor não reconhecido: fica nas notas, sem valor.");

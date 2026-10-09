@@ -580,3 +580,35 @@ test("Valor guardado pelo Sheets como data, ou soma acima do limite: fica nas no
   assert.match(sum.sales[0].notes, /valor: 12000000000/);
   assert.match(sum.issues.at(-1).message, /Valor somado da venda acima do limite/);
 });
+
+test("Mês seguinte sem cabeçalho novo, ou cabeçalho novo posto depois das primeiras linhas: cada venda fica no seu dia", () => {
+  // Continuação: novembro escrito debaixo de "Outubro" (mais linhas de novembro do que de outubro).
+  const oct = [6, 9, 13, 16, 20, 23, 27, 30].map((d) => sale({ date: S(`2026-10-${String(d).padStart(2, "0")}`) }));
+  const nov = Array.from({ length: 12 }, (_, i) => sale({ date: S(`2026-11-${String(i + 1).padStart(2, "0")}`) }));
+  const cont = parse([month("Setembro"), sale({ date: S("2026-09-28") }), month("Outubro"), ...oct, ...nov], { today: "2026-11-14" });
+  assert.equal(new Set(dates(cont)).size, 21);
+  assert.deepEqual(cont.issues, []);
+  // "Outubro" escrito no dia 3, por baixo das vendas de 1 e 2.
+  const late = parse([month("Setembro"), sale({ date: S("2026-09-29") }), sale({ date: S("2026-09-30") }), sale({ date: S("2026-10-01") }), sale({ date: S("2026-10-02") }), month("Outubro"), sale({ date: S("2026-10-03") })]);
+  assert.deepEqual(dates(late), ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03"]);
+  assert.deepEqual(late.issues, []);
+  // Mas uma data errada no fim do mês, depois da qual a secção seguinte começa mais cedo, continua a ser corrigida.
+  const typo = parse([month("Maio"), sale({ date: S("2026-05-29") }), sale({ date: S("2026-06-30") }), month("Junho"), sale({ date: S("2026-06-01") })]);
+  assert.deepEqual(dates(typo), ["2026-05-29", "2026-05-29", "2026-06-01"]);
+});
+
+test("Secção do mês seguinte com uma venda do mês atual, linhas antes do 1.º mês e valor como data: anos e valores estáveis", () => {
+  const rows = [month("Setembro"), sale({ date: "10/09" }), sale({ date: "22/09" }), month("Outubro"), sale({ date: "05/10" }), sale({ date: "28/10" }), month("Novembro"), sale({ date: "31/10" })];
+  const res = parse(rows, { today: "2026-10-31" });
+  assert.deepEqual(dates(res).slice(0, 4), ["2026-09-10", "2026-09-22", "2026-10-05", "2026-10-28"]);
+  // Linhas acrescentadas por cima do primeiro mês: ficam com o ano escrito.
+  const top = parse([sale({ date: S("2026-10-05") }), sale({ date: S("2026-10-07") }), month("Maio"), sale({ date: S("2026-05-04") })]);
+  assert.deepEqual(dates(top), ["2026-10-05", "2026-10-07", "2026-05-04"]);
+  assert.equal(top.sales[0].notes, null);
+  // O mesmo valor guardado como data dá o mesmo resultado em qualquer dia da importação.
+  const tab = [month("Maio"), sale({ date: S("2026-05-12"), value: S("2026-05-12") }), sale({ date: S("2026-05-13"), value: 30 }), sale({ date: S("2026-05-14") }), sale({ date: S("2026-05-15") })];
+  const h1 = r.dayHash(parse(tab, { today: "2026-10-09" }).sales.slice(0, 1));
+  const h2 = r.dayHash(parse(tab, { today: "2028-05-13" }).sales.slice(0, 1));
+  assert.equal(h1, h2);
+  assert.equal(parse(tab, { today: "2028-05-13" }).sales[0].total_value, null);
+});

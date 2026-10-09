@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const run = new URL(request.url).searchParams.get("run") === "evening" ? "evening" : "morning";
   // A folha nunca impede o alerta; uma falha fica no corpo da resposta e nos registos.
   const sheet = run === "evening" ? await importStoreSheet("antes_alerta").catch((e) => ({ ran: false as const, error: true as const, reason: e instanceof Error ? e.message : "Erro" })) : null;
-  if (sheet && ("error" in sheet || (sheet.ran && sheet.status === "failed"))) console.error("folha das lojas (antes do alerta):", sheet.ran ? sheet.detail : sheet.reason);
+  if (sheet && ("error" in sheet || (sheet.ran && (sheet.status === "failed" || sheet.unrecorded)))) console.error("folha das lojas (antes do alerta):", sheet.ran ? sheet.detail : sheet.reason);
   const results = run === "evening" ? [await sendMissingAlert()] : await sendMorningReports();
   const ok = results.every((r) => r.status !== "failed");
   return Response.json({ ok, run, results, sheet }, { status: ok ? 200 : 207, headers: { "Cache-Control": "no-store" } });

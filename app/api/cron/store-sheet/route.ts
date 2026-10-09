@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     return Response.json({ ok: true, ran: false, reason: "Fora da janela das 01h de Lisboa." }, { headers: { "Cache-Control": "no-store" } });
   // Uma exceção (base de dados ou BI_INGEST_TOKEN, antes de a execução ficar registada) é uma falha, não "nada a fazer".
   const result = await importStoreSheet(night ? "noite" : "cron").catch((e) => ({ ran: false as const, error: true as const, reason: e instanceof Error ? e.message : "Erro" }));
-  const ok = result.ran ? result.status !== "failed" : !("error" in result);
+  const ok = result.ran ? result.status !== "failed" && !result.unrecorded : !("error" in result);
   if (!ok) console.error("folha das lojas:", result.ran ? result.detail : result.reason);
   return Response.json({ ok, ...result }, { status: ok ? 200 : 500, headers: { "Cache-Control": "no-store" } });
 }

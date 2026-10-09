@@ -53,7 +53,7 @@ test("Form days and days corrected by a manager are protected", () => {
   const { changes } = p.planSheetChanges(sheet, ["tomar"], st);
   assert.deepEqual(keys(changes), ["tomar|2026-10-01|1"]);
   // A folha mudou num dia corrigido: vai à BD, que o mantém e o mostra no relatório.
-  const changed = p.planSheetChanges([day("tomar", "2026-10-02", H("z"))], ["tomar"], st).changes;
+  const changed = p.planSheetChanges([day("tomar", "2026-10-01", H("a")), day("tomar", "2026-10-02", H("z")), day("tomar", "2026-10-03", H("c"))], ["tomar"], st).changes;
   assert.ok(changed.some((c) => c.day === "2026-10-02" && c.rows));
 });
 
@@ -62,9 +62,20 @@ test("A sheet with as many days but different ones removes nothing (it must keep
   const sheet = Array.from({ length: 10 }, (_, i) => day("tomar", `2026-10-${String(i + 1).padStart(2, "0")}`, H("b")));
   const { changes, issues } = p.planSheetChanges(sheet, ["tomar"], state({ days: old }));
   assert.equal(changes.filter((c) => c.rows === null).length, 0);
+  // Os dias depois do último já importado (um período novo) entram.
   assert.equal(changes.length, 10);
   assert.equal(issues.length, 1);
   assert.match(issues[0].message, /Só 0 dos 10/);
+});
+
+test("A suspended store keeps its days: nothing removed, changed or added up to the last imported day", () => {
+  // Separador ordenado ou deslocado: os dias mudam de sítio dentro do período já importado.
+  const old = ["2026-08-03", "2026-08-04", "2026-08-05", "2026-09-01", "2026-09-02", "2026-09-03"].map((d) => ({ store_code: "tomar", day: d, hash: H("a") }));
+  const sheet = [day("tomar", "2025-08-03", H("b")), day("tomar", "2025-09-01", H("b")), day("tomar", "2026-08-03", H("c")), day("tomar", "2026-10-07", H("d"))];
+  const { changes, issues } = p.planSheetChanges(sheet, ["tomar"], state({ days: old }));
+  assert.deepEqual(keys(changes), ["tomar|2026-10-07|1"]);
+  assert.equal(issues.length, 1);
+  assert.match(issues[0].message, /Só 1 dos 6 .* até 2026-09-03 \(3 dia\(s\) da folha ficaram por importar\)\./);
 });
 
 test("Form days that still have sheet records are always sent, even when the store tab is missing or below half", () => {

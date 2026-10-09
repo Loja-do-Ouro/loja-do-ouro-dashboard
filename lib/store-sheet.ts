@@ -107,8 +107,9 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
   return body as TokenResponse;
 }
 
-// until: hora limite (ms) para esta leitura, contando com as novas tentativas.
-async function sheetsFetch<T>(token: string, path: string, until = Date.now() + 60_000): Promise<T> {
+// until: hora limite (ms) para esta leitura, contando com as novas tentativas; cada chamador dá a que cabe no
+// maxDuration da sua rota.
+async function sheetsFetch<T>(token: string, path: string, until: number): Promise<T> {
   let r: Response | null = null;
   for (let attempt = 0; ; attempt++) {
     const wait = RETRY_WAITS_MS[attempt];
@@ -156,7 +157,8 @@ export async function exchangeStoreSheetCode(code: string, verifier: string, spr
   const email = emailFromIdToken(t.id_token);
   // A caixa do apoio usa o mesmo cliente OAuth: desligar a folha revogaria também o Gmail do apoio.
   if (email && email === gmailMailbox()) throw new SheetError("Use outra conta: esta é a caixa do apoio.", null, false, "mailbox");
-  await sheetsFetch(t.access_token, `/${encodeURIComponent(spreadsheetId)}?fields=properties.title`);
+  // A rota de retorno tem 60 s: esta confirmação tem até 20 s, com as novas tentativas.
+  await sheetsFetch(t.access_token, `/${encodeURIComponent(spreadsheetId)}?fields=properties.title`, Date.now() + 20_000);
   return {
     email: email || "conta Google", scope: t.scope || SHEETS_SCOPE,
     refresh_ct: seal(t.refresh_token, OWNER), access_ct: seal(t.access_token, OWNER),
@@ -257,7 +259,8 @@ type Applied = { changed: number; inserted: number; removed: number; skipped: { 
 
 export type StoreSheetResult =
   | { ran: false; reason: string }
-  | { ran: true; status: "completed" | "partial" | "failed"; days: number; changed: number; inserted: number; removed: number; skipped: number; issues: number; detail: string };
+  // unrecorded: os dados foram aplicados, mas o registo da execução não ficou gravado (conta como falha na rota).
+  | { ran: true; status: "completed" | "partial" | "failed"; days: number; changed: number; inserted: number; removed: number; skipped: number; issues: number; detail: string; unrecorded?: true };
 
 const strip = (s: SheetSale) => {
   const { store_code: _store, sale_date: _date, row: _row, ...rest } = s;
@@ -298,10 +301,13 @@ export async function importStoreSheet(trigger: string): Promise<StoreSheetResul
     status = "failed";
     detail = e instanceof Error ? e.message : "Erro desconhecido.";
   }
-  await serverRpc("ldo_store_sheet_run_finish", {
+  // Fecha a execução (e liberta o lease); repetir é seguro. Se mesmo assim falhar, quem chamou fica a saber.
+  const finish = () => serverRpc("ldo_store_sheet_run_finish", {
     p_run: run, p_status: status, p_days_changed: totals.changed, p_rows_inserted: totals.inserted, p_rows_removed: totals.removed,
     p_skipped: totals.skipped.slice(0, 200), p_issues: issues.slice(0, 200), p_detail: detail,
-  }).catch(() => undefined);
-  return { ran: true, status, days, changed: totals.changed, inserted: totals.inserted, removed: totals.removed, skipped: totals.skipped.length, issues: issues.length, detail };
+  }).then(() => true, () => false);
+  const recorded = (await finish()) || (await sleep(1500).then(finish));
+  const result = { ran: true as const, status, days, changed: totals.changed, inserted: totals.inserted, removed: totals.removed, skipped: totals.skipped.length, issues: issues.length, detail };
+  return recorded ? result : { ...result, detail: `${detail} (o registo da execução não ficou gravado)`, unrecorded: true };
 }
 

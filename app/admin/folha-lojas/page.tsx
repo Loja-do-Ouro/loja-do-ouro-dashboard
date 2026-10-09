@@ -39,7 +39,10 @@ const LINK_FLASH: Record<string, [boolean, string]> = {
 };
 const TRIGGER: Record<string, string> = { noite: "Madrugada", antes_alerta: "Antes do alerta das 22h", manual: "Importar agora", cron: "Manual (segredo)" };
 const RUN_STATUS: Record<string, [string, string]> = { completed: ["Concluída", "ok"], partial: ["Com avisos", "warn"], failed: ["Falhou", "warn"], running: ["A correr", ""] };
-const SKIP_REASON: Record<string, string> = { form: "dia com registos do formulário (prevalecem)", edited: "registos corrigidos ou apagados por um Gestor (não tocados)", invalid: "loja desconhecida ou data futura" };
+const SKIP_REASON: Record<string, string> = {
+  form: "dia com registos do formulário (prevalecem)", edited: "registos corrigidos ou apagados por um Gestor (não tocados)", invalid: "loja desconhecida ou data futura",
+  correction_lost: "voltou a vir da folha depois de o formulário ser retirado; uma correção de um Gestor feita antes ficou só no histórico",
+};
 
 export default async function StoreSheetPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
@@ -107,7 +110,7 @@ export default async function StoreSheetPage({ searchParams }: { searchParams: P
                 <button type="submit" className="secondary-button" disabled={c!.status !== "active" || c!.running}>{c!.running ? "A importar…" : "Importar agora"}</button>
               </form>
               <p className="panel-note">
-                Todas as madrugadas (à 01h de Lisboa; na noite da mudança para a hora de verão, às 02h) e antes do alerta das 22h, o dashboard lê os separadores das lojas e compara cada loja/dia com a última versão importada: só os dias que mudaram são substituídos, e os dias que saíram da folha são retirados. Um dia em que a loja registou no formulário do dashboard fica com o formulário. Um dia em que um Gestor corrigiu ou apagou registos da folha não é tocado. Se o separador de uma loja desaparecer, mudar de colunas ou deixar de ter pelo menos metade dos dias já importados, nada dessa loja é apagado e fica um aviso abaixo. Mudar de folha obriga a ligar de novo.
+                Todas as madrugadas (à 01h de Lisboa; na noite da mudança para a hora de verão, às 02h) e antes do alerta das 22h, o dashboard lê os separadores das lojas e compara cada loja/dia com a última versão importada: só os dias que mudaram são substituídos, e os dias que saíram da folha são retirados. Um dia em que a loja registou no formulário do dashboard fica com o formulário. Um dia em que um Gestor corrigiu ou apagou registos da folha não é tocado. Se o separador de uma loja desaparecer ou mudar de colunas, nada dessa loja é alterado; se deixar de ter pelo menos metade dos dias já importados, nada é apagado nem alterado até ao último dia já importado (só entram os dias seguintes). Em ambos os casos fica um aviso abaixo. Mudar de folha obriga a ligar de novo.
               </p>
             </Panel>
           </div>
@@ -129,7 +132,7 @@ export default async function StoreSheetPage({ searchParams }: { searchParams: P
                         {r.detail && <small className="muted block">{r.detail}</small>}
                         {r.skipped.length > 0 && (
                           <details>
-                            <summary>{r.skipped.length} dia(s) mantido(s)</summary>
+                            <summary>{r.skipped.length} dia(s) mantido(s) ou com nota</summary>
                             <ul>{r.skipped.slice(0, 50).map((s, i) => <li key={i}>{s.store_code} · {s.day}: {SKIP_REASON[s.reason] || s.reason}</li>)}</ul>
                           </details>
                         )}
