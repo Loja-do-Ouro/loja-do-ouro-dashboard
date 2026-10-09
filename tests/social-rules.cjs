@@ -46,7 +46,7 @@ test("A support message off-hours gets the away message with the first name; wit
 });
 
 test("A story reaction never gets the away message; it gets a short thanks once it settles and only when isolated", () => {
-  const reaction = [msg("inbound", "", 5)];
+  const reaction = [msg("inbound", "😍", 5)];
   const d = s.socialAutoReply(reaction, settings(), NIGHT, "Ana");
   assert.deepEqual({ kind: d.kind, text: d.text }, { kind: "thanks", text: "Obrigado! 💛" });
   // Ainda pode estar a escrever (menos de 4 minutos): espera.
@@ -121,4 +121,15 @@ test("With no hours filled in, social media is always 'closed': the off-hours me
   const empty = { weekdays: "", saturday: "", sunday: "" };
   assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 2, DAY)], settings({ hours: empty }), DAY, "Ana").kind, "support");
   assert.match(s.socialAutoReply([msg("inbound", "Tem este anel?", 2, DAY)], settings({ hours: empty }), DAY, "Ana").text, /não estamos disponíveis/);
+});
+
+test("An empty message without a clear story hint gets no automatic message; a hinted story mention is a reaction even with an attachment", () => {
+  // Pode ser uma nota de voz ou uma partilha: nem agradecimento nem ausência (a equipa vê-a na lista principal).
+  assert.equal(s.socialAutoReply([msg("inbound", "", 6)], settings(), NIGHT, "Ana"), null);
+  // Menção na story com o anexo da story e indicação exata: agradecimento, nunca a mensagem de ausência.
+  const mention = [{ ...msg("inbound", "", 6, NIGHT, ["https://cdn/story.jpg"]), properties: { type: "story_mention" } }];
+  assert.equal(s.socialAutoReply(mention, settings(), NIGHT, "Ana").kind, "thanks");
+  assert.notEqual(s.hiddenReaction(mention, NIGHT, settings(), "Ana"), null);
+  // Foto sem indicação: pedido.
+  assert.equal(s.socialAutoReply([msg("inbound", "", 6, NIGHT, ["https://cdn/foto.jpg"])], settings(), NIGHT, "Ana").kind, "support");
 });

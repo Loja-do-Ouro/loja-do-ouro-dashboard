@@ -52,10 +52,12 @@ const PRAISE = new Set([
 // "support" quando é preciso responder (texto, pergunta ou foto); "reaction" quando é só uma reação.
 // Uma mensagem vazia sem anexos é o que a Metricool entrega para reações e menções nas stories, gostos e
 // partilhas: conta como reação.
-export function classifySocial(m: Pick<SocialMessage, "body" | "attachments">): "support" | "reaction" {
+// Uma mensagem vazia que a Metricool indique como reação ou menção numa story é reação mesmo com anexo (o anexo
+// é a própria story).
+export function classifySocial(m: Pick<SocialMessage, "body" | "attachments"> & { properties?: unknown }): "support" | "reaction" {
   const text = String(m.body ?? "").trim();
   const files = Array.isArray(m.attachments) ? m.attachments.length : 0;
-  if (!text) return files ? "support" : "reaction";
+  if (!text) return files && !reactionHint(m.properties) ? "support" : "reaction";
   if (text.includes("?")) return "support";
   if (!/[\p{L}\p{N}]/u.test(text)) return "reaction";
   const words = strip(text).match(/[\p{L}\p{N}]+/gu) || [];
@@ -88,9 +90,11 @@ function socialOpen(hours: SupportHours | null | undefined, now: Date) {
 }
 
 // Reação sozinha para o agradecimento: só reações nas mensagens novas e nada nosso nem pedidos nas últimas 24 horas.
+// Só se agradece uma reação clara (a mesma regra de esconder): uma mensagem vazia sem indicação da Metricool pode
+// ser uma nota de voz ou uma partilha e fica para a equipa, sem resposta automática.
 function quietReaction(msgs: SocialMessage[], t: number, since: number) {
   const fresh = freshBurst(msgs, t, since);
-  if (!fresh.length || fresh.some((m) => classifySocial(m) === "support")) return false;
+  if (!fresh.length || !fresh.every(hideableReaction)) return false;
   const recent = msgs.filter((m) => t - at(m) <= QUIET_MS);
   return !recent.some((m) => m.kind === "outbound" || classifySocial(m) === "support");
 }
