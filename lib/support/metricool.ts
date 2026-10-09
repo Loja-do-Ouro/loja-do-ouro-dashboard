@@ -2,7 +2,7 @@ import "server-only";
 import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/bi/metricool";
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
 import { sendOutcome } from "./rules";
-import { isolatedReaction, socialAutoReply, type SocialSettings } from "./social-rules";
+import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-rules";
 
 // Metricool Inbox (API v2, https://app.metricool.com/api/swagger.json), mensagens privadas do
 // Facebook Messenger e do Instagram da marca "Loja do Ouro Jericó" (blogId 2912472). Reutiliza o
@@ -14,7 +14,11 @@ import { isolatedReaction, socialAutoReply, type SocialSettings } from "./social
 // Comentários de publicações e anúncios ficam fora desta fase.
 
 type Participant = { id?: string; name?: string; email?: string; imageProfileUrl?: string };
-type Message = { id?: string; from?: string; to?: string; text?: string; publicationDateTime?: string; attachments?: string[]; status?: string };
+type Message = {
+  id?: string; from?: string; to?: string; text?: string; publicationDateTime?: string; attachments?: string[]; status?: string;
+  // Não documentado na API: pode indicar reações e menções nas stories.
+  properties?: Record<string, unknown>;
+};
 type Conversation = { id?: string; provider?: string; status?: string; creationDate?: string; lastUpdateTime?: string; participants?: Participant[]; messages?: Message[] };
 type Listing = { data?: Conversation[]; page?: { next?: string | null } };
 
@@ -157,9 +161,11 @@ export async function syncMetricool(source: { id: string; config: Record<string,
 // Resposta automática ou agradecimento (regras em social-rules.ts), depois de a conversa estar gravada. A base
 // de dados confirma antes de enviar (uma vez por mensagem, por conversa em 24 h e por pessoa em 7 dias); um envio
 // recusado liberta o registo. Um resultado incerto fica registado: nunca se repete (podia ter chegado).
-// Uma reação sozinha (agradecida ou não) sai da lista principal para "Automáticas" até o cliente voltar a escrever.
-// A classificação usa os anexos tal como a Metricool os entrega (também os que não são https), para uma mensagem
-// com conteúdo nunca passar por reação. As decisões são rápidas: correm até 15 s depois do orçamento da passagem, e
+// Uma conversa só com reações claras (emoji, elogio curto, ou reação/menção numa story indicada pela Metricool) sai
+// da lista principal para "Automáticas" até o cliente voltar a escrever ou alguém da equipa lhe mexer; a base de
+// dados confirma (sem outras mensagens do cliente, sem responsável, Novo ou Resolvido).
+// A classificação usa os anexos e as propriedades tal como a Metricool os entrega (também anexos que não são https),
+// para uma mensagem com conteúdo nunca passar por reação. As decisões são rápidas: correm até 15 s depois do orçamento da passagem, e
 // cada envio tem no máximo 10 s, dentro do limite da função.
 async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw: Conversation; conv: IngestConversation }[], settings: SocialSettings, deadline: number) {
   let sent = 0;
@@ -167,12 +173,15 @@ async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw:
     if (Date.now() > deadline + 15_000) break;
     const recipient = conv.contact.external_id;
     if (!recipient) continue;
-    const rawFiles = new Map((raw.messages || []).map((m) => [String(m.id), m.attachments || []]));
-    const messages = conv.messages.map((m) => ({ ...m, attachments: rawFiles.get(m.external_id) || m.attachments || [] }));
+    const rawById = new Map((raw.messages || []).map((m) => [String(m.id), m]));
+    const messages = conv.messages.map((m) => {
+      const r = rawById.get(m.external_id);
+      return { ...m, attachments: r?.attachments || m.attachments || [], properties: r?.properties };
+    });
     const now = new Date();
-    const through = isolatedReaction(messages, now, settings);
-    if (through)
-      await serverRpc("ldo_support_social_mark_auto", { p_source: sourceId, p_conversation: conv.external_id, p_through: through }).catch(() => undefined);
+    const hidden = hiddenReaction(messages, now, settings);
+    if (hidden)
+      await serverRpc("ldo_support_social_mark_auto", { p_source: sourceId, p_conversation: conv.external_id, p_from: hidden.from, p_through: hidden.through }).catch(() => undefined);
     const decision = socialAutoReply(messages, settings, now, conv.contact.name || conv.contact.handle || null);
     if (!decision) continue;
     const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
@@ -230,6 +239,27 @@ export async function metricoolImage(provider: string, target: string) {
 }
 
 // Diagnóstico para a configuração (Super Admin): só contagens e estrutura, nunca conteúdo de mensagens.
+function emptyMessageShapes(conversations: Conversation[]) {
+  const empty = conversations.flatMap((c) => (c.messages || []).filter((m) => !String(m.text || "").trim() && !(m.attachments || []).length));
+  const shapes = new Map<string, number>();
+  for (const m of empty) {
+    const parts: string[] = [];
+    const walk = (v: unknown, path: string, depth: number) => {
+      if (v && typeof v === "object" && !Array.isArray(v) && depth < 3) {
+        for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 20)) walk(x, path ? `${path}.${k}` : k, depth + 1);
+      } else {
+        // Valor só em campos que descrevem um tipo (type, kind, reaction…), nunca nomes nem conteúdo.
+        const typed = /(^|\.)(type|kind|subtype|category|event|reaction|source)$/i.test(path) && typeof v === "string" && /^[A-Za-z_]{1,30}$/.test(v);
+        parts.push(typed ? `${path}=${v}` : `${path}:${Array.isArray(v) ? "array" : typeof v}`);
+      }
+    };
+    walk(m.properties ?? null, "", 0);
+    const key = parts.sort().join(", ") || "(sem properties)";
+    shapes.set(key, (shapes.get(key) || 0) + 1);
+  }
+  return { count: empty.length, properties: [...shapes].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([shape, n]) => ({ shape, n })) };
+}
+
 export async function metricoolDiagnostics(provider: string) {
   const out: Record<string, unknown> = { provider };
   try {
@@ -251,6 +281,9 @@ export async function metricoolDiagnostics(provider: string) {
       statuses: [...new Set(conversations.map((c) => c.status))],
       messageStatuses: [...new Set(conversations.flatMap((c) => (c.messages || []).map((m) => m.status)))],
       withAttachments: conversations.reduce((n, c) => n + (c.messages || []).filter((m) => (m.attachments || []).length).length, 0),
+      // Mensagens sem texto nem anexos (reações e menções nas stories, partilhas, áudios?): que campos traz o
+      // "properties" da Metricool. Só nomes de campos e valores curtos sem espaços (tipos), nunca o conteúdo.
+      emptyMessages: emptyMessageShapes(conversations),
       brandDetected: Boolean(brand),
       brandId: brand,
       oldestMessage: conversations.flatMap((c) => (c.messages || []).map((m) => m.publicationDateTime || "")).filter(Boolean).sort()[0] || null,

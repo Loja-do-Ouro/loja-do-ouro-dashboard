@@ -110,7 +110,7 @@ const FILTERS = [
 function autoSummary(c: AutoCounts) {
   const parts = [
     c.thanks && `${c.thanks} agradecimento${c.thanks === 1 ? "" : "s"} a reações`,
-    c.support && `${c.support} mensage${c.support === 1 ? "m" : "ns"} fora do horário`,
+    c.support && `${c.support} resposta${c.support === 1 ? "" : "s"} automática${c.support === 1 ? "" : "s"} a pedidos`,
     c.email && `${c.email} email${c.email === 1 ? "" : "s"} "recebemos o seu email"`,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "nenhuma";
@@ -709,7 +709,7 @@ export function SupportInbox({
               <p><strong>Respostas automáticas enviadas</strong></p>
               <p>Hoje: {autoSummary(list.automatic.today)}</p>
               <p>Últimos 7 dias: {autoSummary(list.automatic.week)}</p>
-              <p className="muted">Aqui ficam as conversas só com reações (story, gosto, emoji) já tratadas automaticamente. Se a pessoa voltar a escrever, a conversa regressa à lista principal.</p>
+              <p className="muted">Aqui ficam as conversas de quem só reagiu (story, gosto, emoji) e nunca fez um pedido. Voltam à lista principal se a pessoa escrever de novo, ou se alguém da equipa as atribuir, mudar o estado ou escrever nelas.</p>
             </div>
           )}
           <ul>

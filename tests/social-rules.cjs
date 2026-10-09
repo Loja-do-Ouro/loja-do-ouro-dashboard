@@ -80,19 +80,28 @@ test("Nothing is sent when switched off, when we spoke last, for old messages or
   assert.equal(s.socialAutoReply(two, settings(), NIGHT, "Ana").anchor, two[1].external_id);
 });
 
-test("An isolated reaction is marked as handled (until the customer writes again), with or without a thanks", () => {
-  const r = [msg("inbound", "", 0.2)];
-  // Logo, mesmo antes do agradecimento (que espera 1 minuto).
-  assert.equal(s.isolatedReaction(r, NIGHT), r[0].created_at);
-  // Um pedido não é uma reação: fica na lista principal.
-  assert.equal(s.isolatedReaction([msg("inbound", "Tem este anel?", 2)], NIGHT), null);
-  // Reação no meio de uma conversa: fica na lista principal.
-  assert.equal(s.isolatedReaction([msg("inbound", "Tem o anel?", 300), msg("outbound", "Temos!", 120), msg("inbound", "❤️", 3)], NIGHT), null);
-  // Já respondemos depois da reação: nada a marcar.
-  assert.equal(s.isolatedReaction([msg("inbound", "😍", 10), msg("outbound", "Obrigado! 💛", 5)], NIGHT), null);
-  // Reação antiga (mais de 3 horas) ou anterior à ligação: não é marcada.
-  assert.equal(s.isolatedReaction([msg("inbound", "😍", 200)], NIGHT), null);
-  assert.equal(s.isolatedReaction([msg("inbound", "😍", 10)], NIGHT, { enabled_at: new Date(NIGHT.getTime() - 5 * 60000).toISOString() }), null);
+test("Only clear reactions from someone who never asked anything leave the main list", () => {
+  // Emoji ou elogio escrito: sai logo (mesmo antes do agradecimento, que espera 4 minutos).
+  const r = [msg("inbound", "😍", 0.2)];
+  assert.deepEqual(s.hiddenReaction(r, NIGHT), { from: r[0].created_at, through: r[0].created_at });
+  // Mensagem vazia sem indicação da Metricool (pode ser uma partilha ou um áudio): fica na lista principal...
+  assert.equal(s.hiddenReaction([msg("inbound", "", 0.2)], NIGHT), null);
+  // ...mas com a indicação de reação/menção na story sai.
+  const story = [{ ...msg("inbound", "", 0.2), properties: { type: "story_mention" } }];
+  assert.equal(s.hiddenReaction(story, NIGHT).through, story[0].created_at);
+  assert.equal(s.reactionHint({ reply_to: { story: { id: "1" } } }), true);
+  assert.equal(s.reactionHint({ shared_post: { url: "x" } }), false);
+  assert.equal(s.reactionHint(null), false);
+  // Um pedido, agora ou em qualquer altura da conversa, deixa-a na lista principal.
+  assert.equal(s.hiddenReaction([msg("inbound", "Tem este anel?", 2)], NIGHT), null);
+  assert.equal(s.hiddenReaction([msg("inbound", "Tem o anel?", 3000), msg("outbound", "Temos!", 2900), msg("inbound", "❤️", 3)], NIGHT), null);
+  // Várias reações: do primeiro ao último.
+  const many = [msg("inbound", "😍", 3000), msg("outbound", "Obrigado! 💛", 2990), msg("inbound", "Lindo!", 2)];
+  assert.deepEqual(s.hiddenReaction(many, NIGHT), { from: many[0].created_at, through: many[2].created_at });
+  // Já respondemos depois da reação, reação antiga ou anterior à ligação: nada a marcar.
+  assert.equal(s.hiddenReaction([msg("inbound", "😍", 10), msg("outbound", "Obrigado! 💛", 5)], NIGHT), null);
+  assert.equal(s.hiddenReaction([msg("inbound", "😍", 200)], NIGHT), null);
+  assert.equal(s.hiddenReaction([msg("inbound", "😍", 10)], NIGHT, { enabled_at: new Date(NIGHT.getTime() - 5 * 60000).toISOString() }), null);
 });
 
 test("With no hours filled in, social media is always 'closed': the off-hours message always goes out", () => {

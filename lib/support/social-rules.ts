@@ -16,6 +16,8 @@ export type SocialMessage = {
   attachments?: unknown[] | null;
   created_at: string;
   deleted?: boolean;
+  // Campo "properties" da Metricool (não documentado): pode dizer se a mensagem é uma reação ou menção numa story.
+  properties?: unknown;
 };
 export type SocialSettings = {
   enabled: boolean; text: string; offhours_text: string; thanks_text: string; hours: SupportHours;
@@ -84,19 +86,46 @@ function socialOpen(hours: SupportHours | null | undefined, now: Date) {
   return any && withinHours(hours, now);
 }
 
-// Reação sozinha (só reações nas mensagens novas, sem mensagens nossas nem pedidos nas últimas 24 horas): a conversa
-// não precisa da equipa e sai da lista principal (separador "Automáticas") até o cliente voltar a escrever.
-// Devolve a hora da última mensagem do cliente (até onde a conversa fica tratada) ou null.
-export function isolatedReaction(messages: SocialMessage[], now: Date, settings?: Pick<SocialSettings, "enabled_at"> | null): string | null {
+// Reação sozinha para o agradecimento: só reações nas mensagens novas e nada nosso nem pedidos nas últimas 24 horas.
+function quietReaction(msgs: SocialMessage[], t: number, since: number) {
+  const fresh = freshBurst(msgs, t, since);
+  if (!fresh.length || fresh.some((m) => classifySocial(m) === "support")) return false;
+  const recent = msgs.filter((m) => t - at(m) <= QUIET_MS);
+  return !recent.some((m) => m.kind === "outbound" || classifySocial(m) === "support");
+}
+
+// Indício, no campo "properties" da Metricool, de que uma mensagem vazia é uma reação ou menção numa story (ou um
+// gosto). Sem este indício, uma mensagem vazia pode ser uma partilha de uma publicação ou um áudio.
+export function reactionHint(properties: unknown): boolean {
+  if (!properties || typeof properties !== "object") return false;
+  let text = "";
+  try {
+    text = JSON.stringify(properties);
+  } catch {
+    return false;
+  }
+  return /story|stories|reaction|reacted|mention|like|emoji/i.test(text.slice(0, 5000));
+}
+
+// Reação que se pode esconder com segurança: um emoji ou um elogio curto escrito, ou uma mensagem vazia que a
+// Metricool indique como reação ou menção numa story. Uma mensagem vazia sem indício nunca é escondida.
+export function hideableReaction(m: Pick<SocialMessage, "body" | "attachments" | "properties">): boolean {
+  if (classifySocial(m) !== "reaction") return false;
+  return Boolean(String(m.body ?? "").trim()) || reactionHint(m.properties);
+}
+
+// Conversa que não precisa da equipa: há reações novas e TODAS as mensagens que o cliente alguma vez enviou (as que
+// a Metricool mostra) são reações que se podem esconder. Sai da lista principal (separador "Automáticas") até o
+// cliente voltar a escrever ou alguém da equipa lhe mexer. Devolve as horas da primeira e da última mensagem do
+// cliente (a base de dados confirma que não há outras fora deste intervalo) ou null.
+export function hiddenReaction(messages: SocialMessage[], now: Date, settings?: Pick<SocialSettings, "enabled_at"> | null): { from: string; through: string } | null {
   const msgs = ordered(messages);
   const last = msgs[msgs.length - 1];
   if (!last || last.kind !== "inbound") return null;
-  const t = now.getTime();
-  const fresh = freshBurst(msgs, t, enabledSince(settings));
-  if (!fresh.length || fresh.some((m) => classifySocial(m) === "support")) return null;
-  const recent = msgs.filter((m) => t - at(m) <= QUIET_MS);
-  if (recent.some((m) => m.kind === "outbound" || classifySocial(m) === "support")) return null;
-  return new Date(at(last)).toISOString();
+  if (!freshBurst(msgs, now.getTime(), enabledSince(settings)).length) return null;
+  const inbound = msgs.filter((m) => m.kind === "inbound");
+  if (!inbound.every(hideableReaction)) return null;
+  return { from: new Date(at(inbound[0])).toISOString(), through: new Date(at(last)).toISOString() };
 }
 
 // O que enviar nesta conversa agora (ou null). "anchor" é a última mensagem do cliente: a base de dados nunca
@@ -115,6 +144,6 @@ export function socialAutoReply(messages: SocialMessage[], settings: SocialSetti
     return text.trim() ? { kind: "support", text: personaliseSocial(text, contactName), anchor: last.external_id } : null;
   }
 
-  if (!settings.thanks_text.trim() || t - at(last) < SETTLE_MS || !isolatedReaction(msgs, now, settings)) return null;
+  if (!settings.thanks_text.trim() || t - at(last) < SETTLE_MS || !quietReaction(msgs, t, enabledSince(settings))) return null;
   return { kind: "thanks", text: personaliseSocial(settings.thanks_text, contactName), anchor: last.external_id };
 }
