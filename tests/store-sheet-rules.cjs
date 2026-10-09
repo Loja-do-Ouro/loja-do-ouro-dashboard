@@ -178,7 +178,7 @@ test("Datas futuras nunca saem: linha anterior, ou a linha fica de fora com avis
   assert.equal(res.sales[3].notes, "data escrita como texto (08/10); data inválida (2026-10-08), usado o dia da linha anterior");
   assert.deepEqual(res.issues.map((i) => [i.row, i.message]), [
     [4, "Data futura (2026-10-20) sem linha anterior no mês: linha ignorada."],
-    [10, "Data 2026-10-04 fora de novembro de 2026, sem linha anterior no mês: mantida."],
+    [10, "Data 2026-10-04 fora de novembro de 2026 (mês ainda por chegar): mantida."],
   ]);
   assert.equal(res.sales[6].notes, "data inválida (2026-11-02), usado o dia da linha anterior");
 });
@@ -336,6 +336,8 @@ test("Material e tipo de artigo: todos os ramos e partes separadas", () => {
   assert.deepEqual(r.splitRefs("2 * 50001782"), ["50001782"]);
   assert.deepEqual(r.splitRefs("50002473 (2UN)"), ["50002473"]);
   assert.deepEqual(r.splitRefs("9015568 + 9026900 - x2"), ["9015568", "9026900"]);
+  for (const [cell, refs] of [["50001663 x 2", ["50001663"]], ["50001 2 UN", ["50001"]], ["50001 (2 UN)", ["50001"]], ["50002606 (2 UNIDADES)", ["50002606"]], ["2 un.", []], ["50001 X 2 / 50002", ["50001", "50002"]], ["XL500 2x", ["XL500"]]])
+    assert.deepEqual(r.splitRefs(cell), refs, cell);
   // Vários tipos e materiais: um artigo por tipo/referência, o último material repete-se; "outro" guarda o texto.
   const res = parse([month("Maio"), sale({ date: S("2026-05-04"), ref: "50001/50002/50003", mat: "Ouro / Prata", type: "Fio + Coisa" })]);
   assert.deepEqual(res.sales[0].items, [
@@ -520,4 +522,61 @@ test("Nada faz parar a leitura; só uma data de hoje inválida é erro", () => {
     assert.doesNotThrow(() => r.parseSalesSheet(tabs, { stores: STORES, today: TODAY }));
   assert.doesNotThrow(() => r.parseSalesSheet([{ title: "Loures", rows: [] }], { stores: null, today: TODAY }));
   for (const today of ["2026-13-01", "2026-02-30", "hoje", undefined, 20261009]) assert.throws(() => r.parseSalesSheet([], { stores: STORES, today }), TypeError);
+});
+
+test("Colunas inseridas, apagadas ou trocadas: o separador é recusado e nada dessa loja muda", () => {
+  const ok = parse([month("Outubro"), HEADER, sale({ date: S("2026-10-01"), value: 120 })]);
+  assert.equal(ok.sales.length, 1);
+  const inserted = [...HEADER.slice(0, 2), "Vendedor", ...HEADER.slice(2)];
+  const res = parse([month("Outubro"), inserted, sale({ date: S("2026-10-01"), value: 120 })]);
+  assert.equal(res.sales.length, 0);
+  assert.deepEqual(res.tabs, [{ title: "Loures", store_code: null, sales: 0 }]);
+  assert.match(res.issues[0].message, /colunas diferentes das esperadas \(coluna C: "Vendedor" em vez de "Referência"\)/);
+  // Um título com outra grafia (sem acentos, maiúsculas, espaços) continua a servir; uma linha só com "Data" não conta.
+  const loose = parse([month("Outubro"), HEADER.map((h) => ` ${h.toUpperCase()} `), ["Data"], sale({ date: S("2026-10-01") })]);
+  assert.equal(loose.sales.length, 1);
+});
+
+test("Cabeçalho de mês copiado e não mudado: vale o mês das datas", () => {
+  const rows = [
+    month("Julho"), sale({ date: S("2026-07-06") }), sale({ date: S("2026-07-07") }),
+    month("Maio"), sale({ date: S("2026-08-03") }), sale({ date: S("2026-08-04") }), sale({ date: S("2026-08-11") }), sale({ date: S("2026-08-20") }),
+    month("Setembro"), sale({ date: S("2026-09-03") }), sale({ date: S("2026-09-04") }),
+  ];
+  const res = parse(rows);
+  assert.deepEqual(dates(res), ["2026-07-06", "2026-07-07", "2026-08-03", "2026-08-04", "2026-08-11", "2026-08-20", "2026-09-03", "2026-09-04"]);
+  assert.deepEqual(res.issues.map((i) => i.message), ['Cabeçalho "maio", mas a maioria das datas da secção é de agosto: usado agosto.']);
+  // Poucas datas, ou datas trocadas (dia = mês do cabeçalho), não mudam o mês.
+  const few = parse([month("Maio"), sale({ date: S("2026-08-03") }), sale({ date: S("2026-08-04") })]);
+  assert.equal(few.issues.some((i) => /Cabeçalho/.test(i.message)), false);
+  const swapped = parse([month("Maio"), sale({ date: S("2026-06-05") }), sale({ date: S("2026-07-05") }), sale({ date: S("2026-08-05") })]);
+  assert.equal(swapped.issues.some((i) => /Cabeçalho/.test(i.message)), false);
+});
+
+test("Secção do mês seguinte criada antes do tempo não muda o ano das outras", () => {
+  const rows = [
+    month("Setembro"), sale({ date: "10/09" }), sale({ date: "22/09" }), sale({ date: S("2026-09-25") }),
+    month("Outubro"), sale({ date: "05/10" }), sale({ date: "28/10" }),
+    month("Novembro"), sale({ date: "02/11" }),
+  ];
+  for (const today of ["2026-10-30", "2026-10-31"]) {
+    const res = parse(rows, { today });
+    assert.deepEqual(dates(res).slice(0, 5), ["2026-09-10", "2026-09-22", "2026-09-25", "2026-10-05", "2026-10-28"]);
+    for (const d of dates(res)) assert.ok(d <= today);
+  }
+  const serial = parse([...rows.slice(0, 7), month("Novembro"), sale({ date: S("2026-11-02") })], { today: "2026-10-30" });
+  assert.deepEqual(dates(serial), ["2026-09-10", "2026-09-22", "2026-09-25", "2026-10-05", "2026-10-28"]);
+});
+
+test("Valor guardado pelo Sheets como data, ou soma acima do limite: fica nas notas, sem valor", () => {
+  const res = parse([month("Outubro"), sale({ date: S("2026-10-01"), value: S("2026-05-12") }), sale({ date: S("2026-10-02"), value: 1250 })]);
+  assert.equal(res.sales[0].total_value, null);
+  assert.match(res.sales[0].notes, /valor: 46154/);
+  assert.match(res.issues[0].message, /parece uma data \(2026-05-12\)/);
+  assert.equal(res.sales[1].total_value, 1250);
+  const sum = parse([month("Outubro"), sale({ date: S("2026-10-01"), n: 7, value: 6e9 }), sale({ date: S("2026-10-01"), n: 7, value: 6e9 })]);
+  assert.equal(sum.sales.length, 1);
+  assert.equal(sum.sales[0].total_value, null);
+  assert.match(sum.sales[0].notes, /valor: 12000000000/);
+  assert.match(sum.issues.at(-1).message, /Valor somado da venda acima do limite/);
 });

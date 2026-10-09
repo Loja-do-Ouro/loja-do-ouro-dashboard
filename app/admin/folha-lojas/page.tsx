@@ -33,6 +33,8 @@ const LINK_FLASH: Record<string, [boolean, string]> = {
   recusado: [false, "A autorização foi cancelada na Google. Nada foi alterado."],
   invalido: [false, "O pedido de ligação expirou ou não é válido. Carregue de novo em Ligar folha."],
   "sem-folha": [false, "A conta escolhida não consegue abrir a folha. Use uma conta com quem a folha está partilhada."],
+  "sem-permissao": [false, "Falta aceitar a leitura das folhas de cálculo no ecrã da Google. Volte a ligar e deixe essa opção marcada."],
+  "conta-apoio": [false, "Essa é a conta da caixa do apoio, ligada ao Gmail do dashboard. Use a sua conta (com acesso à folha)."],
   erro: [false, "A Google não concluiu a ligação. Tente de novo; se repetir, veja os registos da Vercel."],
 };
 const TRIGGER: Record<string, string> = { noite: "Madrugada", antes_alerta: "Antes do alerta das 22h", manual: "Importar agora", cron: "Manual (segredo)" };
@@ -105,7 +107,7 @@ export default async function StoreSheetPage({ searchParams }: { searchParams: P
                 <button type="submit" className="secondary-button" disabled={c!.status !== "active" || c!.running}>{c!.running ? "A importar…" : "Importar agora"}</button>
               </form>
               <p className="panel-note">
-                Todas as madrugadas (entre a 01h e as 02h de Lisboa) e antes do alerta das 22h, o dashboard lê os separadores das lojas e compara cada loja/dia com a última versão importada: só os dias que mudaram são substituídos, e os dias que saíram da folha são retirados. Um dia em que a loja registou no formulário do dashboard fica com o formulário. Um dia em que um Gestor corrigiu ou apagou registos da folha não é tocado. Se o separador de uma loja desaparecer ou ficar com menos de metade dos dias, nada dessa loja é apagado e fica um aviso abaixo.
+                Todas as madrugadas (à 01h de Lisboa; na noite da mudança para a hora de verão, às 02h) e antes do alerta das 22h, o dashboard lê os separadores das lojas e compara cada loja/dia com a última versão importada: só os dias que mudaram são substituídos, e os dias que saíram da folha são retirados. Um dia em que a loja registou no formulário do dashboard fica com o formulário. Um dia em que um Gestor corrigiu ou apagou registos da folha não é tocado. Se o separador de uma loja desaparecer, mudar de colunas ou deixar de ter pelo menos metade dos dias já importados, nada dessa loja é apagado e fica um aviso abaixo. Mudar de folha obriga a ligar de novo.
               </p>
             </Panel>
           </div>
@@ -131,10 +133,11 @@ export default async function StoreSheetPage({ searchParams }: { searchParams: P
                             <ul>{r.skipped.slice(0, 50).map((s, i) => <li key={i}>{s.store_code} · {s.day}: {SKIP_REASON[s.reason] || s.reason}</li>)}</ul>
                           </details>
                         )}
-                        {r.issues.length > 0 && (
+                        {r.issues.filter((s) => s.row === null).slice(0, 20).map((s, i) => <small key={i} className="block error-text">{s.tab}: {s.message}</small>)}
+                        {r.issues.some((s) => s.row !== null) && (
                           <details>
-                            <summary>{r.issues.length} aviso(s) da folha</summary>
-                            <ul>{r.issues.slice(0, 80).map((s, i) => <li key={i}>{s.tab}{s.row ? `, linha ${s.row}` : ""}: {s.message}</li>)}</ul>
+                            <summary>{r.issues.filter((s) => s.row !== null).length} aviso(s) de linhas da folha</summary>
+                            <ul>{r.issues.filter((s) => s.row !== null).slice(0, 80).map((s, i) => <li key={i}>{s.tab}, linha {s.row}: {s.message}</li>)}</ul>
                           </details>
                         )}
                       </td>

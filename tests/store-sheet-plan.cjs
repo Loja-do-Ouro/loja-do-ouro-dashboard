@@ -21,7 +21,7 @@ test("October import days (no fingerprint yet) are replaced by the sheet version
   assert.deepEqual(keys(p.planSheetChanges(sheet, ["benfica"], st).changes), ["benfica|2026-06-01|1"]);
 });
 
-test("Days that left the sheet are removed, unless the store tab is missing or shrank to less than half", () => {
+test("Days that left the sheet are removed, unless the store tab is missing or kept less than half of its days", () => {
   const st = state({
     days: [
       { store_code: "tomar", day: "2026-10-01", hash: H("a") }, { store_code: "tomar", day: "2026-10-02", hash: H("b") },
@@ -34,7 +34,7 @@ test("Days that left the sheet are removed, unless the store tab is missing or s
   const { changes, issues } = p.planSheetChanges(sheet, ["tomar", "loures"], st);
   assert.deepEqual(keys(changes), ["tomar|2026-10-02|sai"]);
   assert.equal(issues.length, 2);
-  assert.ok(issues.some((i) => i.tab === "loures" && /menos de metade/.test(i.message)));
+  assert.ok(issues.some((i) => i.tab === "loures" && /continuam na folha/.test(i.message)));
   assert.ok(issues.some((i) => i.tab === "coimbra" && /não encontrado/.test(i.message)));
 });
 
@@ -55,4 +55,35 @@ test("Form days and days corrected by a manager are protected", () => {
   // A folha mudou num dia corrigido: vai à BD, que o mantém e o mostra no relatório.
   const changed = p.planSheetChanges([day("tomar", "2026-10-02", H("z"))], ["tomar"], st).changes;
   assert.ok(changed.some((c) => c.day === "2026-10-02" && c.rows));
+});
+
+test("A sheet with as many days but different ones removes nothing (it must keep half of the imported days)", () => {
+  const old = Array.from({ length: 10 }, (_, i) => ({ store_code: "tomar", day: `2026-09-${String(i + 1).padStart(2, "0")}`, hash: H("a") }));
+  const sheet = Array.from({ length: 10 }, (_, i) => day("tomar", `2026-10-${String(i + 1).padStart(2, "0")}`, H("b")));
+  const { changes, issues } = p.planSheetChanges(sheet, ["tomar"], state({ days: old }));
+  assert.equal(changes.filter((c) => c.rows === null).length, 0);
+  assert.equal(changes.length, 10);
+  assert.equal(issues.length, 1);
+  assert.match(issues[0].message, /Só 0 dos 10/);
+});
+
+test("Form days that still have sheet records are always sent, even when the store tab is missing or below half", () => {
+  const st = state({
+    days: [{ store_code: "tomar", day: "2026-10-07", hash: H("a") }, { store_code: "tomar", day: "2026-10-08", hash: H("b") }, { store_code: "tomar", day: "2026-10-06", hash: H("c") }],
+    imported: [{ store_code: "tomar", day: "2026-10-07" }, { store_code: "tomar", day: "2026-10-08" }, { store_code: "tomar", day: "2026-10-06" }],
+    protected: [{ store_code: "tomar", day: "2026-10-08", reason: "form" }],
+  });
+  // Separador em falta: só o dia do formulário vai à BD (para os registos da folha saírem).
+  assert.deepEqual(keys(p.planSheetChanges([], [], st).changes), ["tomar|2026-10-08|sai"]);
+  // Separador lido mas só com 1 de 3 dias: idem.
+  assert.deepEqual(keys(p.planSheetChanges([day("tomar", "2026-10-06", H("c"))], ["tomar"], st).changes), ["tomar|2026-10-08|sai"]);
+});
+
+test("A day protected for both reasons is treated as a form day", () => {
+  const st = state({
+    days: [{ store_code: "tomar", day: "2026-10-02", hash: H("b") }],
+    imported: [{ store_code: "tomar", day: "2026-10-02" }],
+    protected: [{ store_code: "tomar", day: "2026-10-02", reason: "edited" }, { store_code: "tomar", day: "2026-10-02", reason: "form" }],
+  });
+  assert.deepEqual(keys(p.planSheetChanges([day("tomar", "2026-10-02", H("b"))], ["tomar"], st).changes), ["tomar|2026-10-02|1"]);
 });

@@ -2,6 +2,7 @@ import "server-only";
 import { localDate } from "@/lib/bi/periods";
 import { serverRpc } from "@/lib/support/db";
 import { open, seal } from "@/lib/support/crypto";
+import { gmailMailbox } from "@/lib/support/gmail";
 import { planSheetChanges } from "@/lib/store-sheet-plan";
 import { dayHash, groupByDay, parseSalesSheet, type SheetCell, type SheetSale, type SheetTab } from "@/lib/store-sheet-rules";
 
@@ -19,11 +20,24 @@ const OWNER = "sheets:lojas"; // dados autenticados da cifra: as chaves só abre
 const RENEW_MARGIN_MS = 2 * 60 * 1000;
 // Dias enviados de cada vez à base de dados (cada chamada é uma transação curta).
 const APPLY_BATCH = 40;
+// Tempo para ler a folha (com as novas tentativas); o resto dos 120 s fica para gravar.
+const READ_BUDGET_MS = 70_000;
+// Erros passageiros da Google (rede, 408, 429, 5xx): mais duas tentativas, com estas esperas (ou o Retry-After,
+// até 15 s), enquanto houver tempo.
+const RETRY_WAITS_MS = [2000, 5000];
 
 export class SheetError extends Error {
-  constructor(message: string, public status: number | null = null, public reconnect = false) {
+  // kind: "scope" quando a leitura das folhas não foi aceite no ecrã da Google; "mailbox" quando a conta é a
+  // caixa do apoio (o mesmo cliente OAuth: desligar uma revogaria a outra).
+  constructor(message: string, public status: number | null = null, public reconnect = false, public kind: "scope" | "mailbox" | null = null) {
     super(message);
   }
+}
+
+const transient = (status: number) => status === 408 || status === 429 || status >= 500;
+function retryWait(r: Response | null, fallback: number) {
+  const s = Number(r?.headers.get("retry-after"));
+  return Number.isFinite(s) && s > 0 ? Math.min(s * 1000, 15_000) : fallback;
 }
 
 export function storeSheetConfigured() {
@@ -61,16 +75,25 @@ export function storeSheetAuthorizeUrl(state: string, challenge: string) {
 
 type TokenResponse = { access_token: string; expires_in?: number; refresh_token?: string; scope?: string; id_token?: string };
 
+// A troca do código de autorização não se repete (o código só vale uma vez); a renovação pode repetir-se.
 async function tokenRequest(params: Record<string, string>): Promise<TokenResponse> {
-  let r: Response;
-  try {
-    r = await fetch(TOKEN_URL, {
-      method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000),
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-      body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID || "", client_secret: process.env.GOOGLE_CLIENT_SECRET || "", ...params }),
-    });
-  } catch {
-    throw new SheetError("A Google não respondeu ao pedido de acesso. Tente de novo.");
+  const retry = params.grant_type === "refresh_token";
+  let r: Response | null = null;
+  for (let attempt = 0; ; attempt++) {
+    const wait = retry ? RETRY_WAITS_MS[attempt] : undefined;
+    try {
+      r = await fetch(TOKEN_URL, {
+        method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000),
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID || "", client_secret: process.env.GOOGLE_CLIENT_SECRET || "", ...params }),
+      });
+    } catch {
+      if (wait === undefined) throw new SheetError("A Google não respondeu ao pedido de acesso. Tente de novo.");
+      await sleep(wait);
+      continue;
+    }
+    if (wait === undefined || !transient(r.status)) break;
+    await sleep(retryWait(r, wait));
   }
   const body = (await r.json().catch(() => ({}))) as Partial<TokenResponse> & { error?: string; error_description?: string };
   if (!r.ok || !body.access_token) {
@@ -84,12 +107,21 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
   return body as TokenResponse;
 }
 
-async function sheetsFetch<T>(token: string, path: string): Promise<T> {
-  let r: Response;
-  try {
-    r = await fetch(`${SHEETS}${path}`, { cache: "no-store", signal: AbortSignal.timeout(30000), headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
-  } catch {
-    throw new SheetError("O Google Sheets não respondeu a tempo.");
+// until: hora limite (ms) para esta leitura, contando com as novas tentativas.
+async function sheetsFetch<T>(token: string, path: string, until = Date.now() + 60_000): Promise<T> {
+  let r: Response | null = null;
+  for (let attempt = 0; ; attempt++) {
+    const wait = RETRY_WAITS_MS[attempt];
+    const left = until - Date.now();
+    try {
+      r = await fetch(`${SHEETS}${path}`, { cache: "no-store", signal: AbortSignal.timeout(Math.max(1000, Math.min(30_000, left))), headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+    } catch {
+      if (wait === undefined || until - Date.now() < wait + 5000) throw new SheetError("O Google Sheets não respondeu a tempo.");
+      await sleep(wait);
+      continue;
+    }
+    if (r.ok || !transient(r.status) || wait === undefined || until - Date.now() < retryWait(r, wait) + 5000) break;
+    await sleep(retryWait(r, wait));
   }
   const body = (await r.json().catch(() => null)) as (T & { error?: { message?: string; status?: string } }) | null;
   if (!r.ok) {
@@ -119,10 +151,14 @@ function emailFromIdToken(idToken: string | undefined) {
 export async function exchangeStoreSheetCode(code: string, verifier: string, spreadsheetId: string) {
   const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: storeSheetRedirectUri(), code_verifier: verifier });
   if (!t.refresh_token) throw new SheetError("A Google não devolveu a autorização permanente. Volte a carregar em Ligar folha.");
-  if (t.scope && !t.scope.split(" ").includes(SHEETS_SCOPE)) throw new SheetError("Falta autorizar a leitura das folhas de cálculo. Volte a ligar e aceite o pedido.", 403);
+  if (t.scope && !t.scope.split(" ").includes(SHEETS_SCOPE))
+    throw new SheetError("Falta autorizar a leitura das folhas de cálculo. Volte a ligar e aceite o pedido.", null, false, "scope");
+  const email = emailFromIdToken(t.id_token);
+  // A caixa do apoio usa o mesmo cliente OAuth: desligar a folha revogaria também o Gmail do apoio.
+  if (email && email === gmailMailbox()) throw new SheetError("Use outra conta: esta é a caixa do apoio.", null, false, "mailbox");
   await sheetsFetch(t.access_token, `/${encodeURIComponent(spreadsheetId)}?fields=properties.title`);
   return {
-    email: emailFromIdToken(t.id_token) || "conta Google", scope: t.scope || SHEETS_SCOPE,
+    email: email || "conta Google", scope: t.scope || SHEETS_SCOPE,
     refresh_ct: seal(t.refresh_token, OWNER), access_ct: seal(t.access_token, OWNER),
     access_expires_at: new Date(Date.now() + (t.expires_in || 3600) * 1000).toISOString(),
   };
@@ -158,11 +194,12 @@ async function accessToken(failed?: string): Promise<{ token: string; spreadshee
         throw e;
       }
       const until = new Date(Date.now() + (t.expires_in || 3600) * 1000).toISOString();
-      await serverRpc<boolean>("ldo_store_sheet_rotate", {
+      const rotated = await serverRpc<boolean>("ldo_store_sheet_rotate", {
         p_version: a.version, p_access_ct: seal(t.access_token, OWNER), p_access_expires_at: until,
         p_refresh_ct: t.refresh_token ? seal(t.refresh_token, OWNER) : null,
       }).catch(() => false);
-      tokenCache = { token: t.access_token, until: Math.min(Date.parse(until) - RENEW_MARGIN_MS, Date.now() + 5 * 60 * 1000), version: a.version + 1 };
+      // Se a ligação mudou entretanto (voltou a ser ligada), não guardar esta chave: a seguinte lê a da BD.
+      tokenCache = rotated ? { token: t.access_token, until: Math.min(Date.parse(until) - RENEW_MARGIN_MS, Date.now() + 5 * 60 * 1000), version: a.version + 1 } : null;
       return { token: t.access_token, spreadsheetId: a.spreadsheet_id };
     }
     await sleep(800);
@@ -185,24 +222,25 @@ export async function storeSheetRevoke() {
   tokenCache = null;
 }
 
-// Todos os separadores visíveis, com os valores como estão guardados (datas em número de série, valores em número).
-async function readTabs(): Promise<SheetTab[]> {
+// Todos os separadores visíveis com grelha (não gráficos em folha própria), com os valores como estão guardados
+// (datas em número de série, valores em número), até à última linha preenchida.
+async function readTabs(until: number): Promise<SheetTab[]> {
   let { token, spreadsheetId } = await accessToken();
   const get = async <T>(path: string): Promise<T> => {
     try {
-      return await sheetsFetch<T>(token, path);
+      return await sheetsFetch<T>(token, path, until);
     } catch (e) {
       if (!(e instanceof SheetError && e.status === 401)) throw e;
       ({ token, spreadsheetId } = await accessToken(token));
-      return sheetsFetch<T>(token, path);
+      return sheetsFetch<T>(token, path, until);
     }
   };
   const id = encodeURIComponent(spreadsheetId);
-  const meta = await get<{ sheets?: { properties?: { title?: string; hidden?: boolean } }[] }>(`/${id}?fields=sheets.properties(title,hidden)`);
-  const titles = (meta.sheets || []).map((s) => s.properties).filter((p) => p?.title && !p.hidden).map((p) => p!.title!);
+  const meta = await get<{ sheets?: { properties?: { title?: string; hidden?: boolean; sheetType?: string } }[] }>(`/${id}?fields=sheets.properties(title,hidden,sheetType)`);
+  const titles = (meta.sheets || []).map((s) => s.properties).filter((p) => p?.title && !p.hidden && (p.sheetType ?? "GRID") === "GRID").map((p) => p!.title!);
   if (!titles.length) return [];
   const q = new URLSearchParams({ valueRenderOption: "UNFORMATTED_VALUE", dateTimeRenderOption: "SERIAL_NUMBER", majorDimension: "ROWS" });
-  for (const t of titles) q.append("ranges", `'${t.replace(/'/g, "''")}'!A1:O5000`);
+  for (const t of titles) q.append("ranges", `'${t.replace(/'/g, "''")}'!A:O`);
   const values = await get<{ valueRanges?: { values?: SheetCell[][] }[] }>(`/${id}/values:batchGet?${q}`);
   return titles.map((title, i) => ({ title, rows: values.valueRanges?.[i]?.values || [] }));
 }
@@ -239,14 +277,15 @@ export async function importStoreSheet(trigger: string): Promise<StoreSheetResul
   let detail = "";
   let days = 0;
   try {
-    const [tabs, state] = await Promise.all([readTabs(), serverRpc<State>("ldo_store_sheet_state")]);
+    const [tabs, state] = await Promise.all([readTabs(Date.now() + READ_BUDGET_MS), serverRpc<State>("ldo_store_sheet_state")]);
     const parsed = parseSalesSheet(tabs, { stores: state.stores.map((s) => ({ code: s.code, name: s.name })), today: localDate() });
-    issues.push(...parsed.issues);
     const grouped = groupByDay(parsed.sales);
     days = grouped.size;
     const sheetDays = [...grouped.values()].map((sales) => ({ store_code: sales[0].store_code, day: sales[0].sale_date, hash: dayHash(sales), rows: sales.map(strip) }));
     const plan = planSheetChanges(sheetDays, parsed.tabs.filter((t) => t.store_code).map((t) => t.store_code!), state);
-    issues.push(...plan.issues);
+    // Primeiro os avisos de loja e de separador (nada apagado, separador recusado), depois os de linha: a lista
+    // guardada é cortada.
+    issues.push(...plan.issues, ...parsed.issues.filter((i) => i.row === null), ...parsed.issues.filter((i) => i.row !== null));
     const changes = plan.changes;
 
     for (let i = 0; i < changes.length; i += APPLY_BATCH) {

@@ -154,14 +154,18 @@ export function splitParts(v: SheetCell): string[] {
 }
 
 // Referências (linha 188): separadas por "/", ";", "," ou espaços. Um número lê-se sem casas decimais vazias.
-// Quantidades escritas junto das referências ("2 *", "(2UN)", "x3"): não são referências.
+// Quantidades escritas junto das referências ("2 *", "(2UN)", "x3", "x 2", "2 UN", "(2 UNIDADES)"): não são
+// referências. As que têm espaço saem antes de separar; as restantes, e as palavras soltas, depois.
 const QUANTITY = /^\(?(\d{1,2}\s*(UN|UNID|UNIDADES|X)?|X\s*\d{1,2})\)?$/i;
+const QUANTITY_WORD = /^\(?(UNIDADES|UNID|UN|X)\.?\)?$/i;
+const QUANTITY_BEFORE = /\(?\b\d{1,2}\s*(?:UNIDADES|UNID|UN|X)\b\.?\)?/gi;
+const QUANTITY_AFTER = /\(?\bX\s*\d{1,2}\b\)?/gi;
 
 // Referências de uma célula: separadas por / ; , + e espaços; sem fragmentos só de símbolos ("+", "*", "-") nem
 // quantidades.
 export function splitRefs(v: SheetCell): string[] {
-  const t = cellText(v);
-  return t ? t.split(/[/;,+\s]+/).filter((p) => /[\p{L}\p{N}]/u.test(p) && !QUANTITY.test(p)) : [];
+  const t = cellText(v)?.replace(QUANTITY_BEFORE, " ").replace(QUANTITY_AFTER, " ");
+  return t ? t.split(/[/;,+\s]+/).filter((p) => /[\p{L}\p{N}]/u.test(p) && !QUANTITY.test(p) && !QUANTITY_WORD.test(p)) : [];
 }
 
 export const mapMaterial = (part: string) => first(plain(part), MATERIAL_RULES, "outro");
@@ -276,6 +280,33 @@ export function monthHeader(v: SheetCell): { month: number; year: number | null 
   return { month: i + 1, year: year && year >= 2000 ? year : null };
 }
 
+// Títulos das colunas B–N na linha "Data" de cada secção (comparados sem acentos). A leitura é por posição: uma
+// coluna inserida, apagada ou trocada faz recusar o separador, e nada dessa loja é alterado até ser corrigida.
+const HEADERS: readonly (readonly [number, RegExp, string])[] = [
+  [1, /VENDA/, "Nº Venda"], [2, /REFER/, "Referência"], [3, /CAMPANHA/, "Campanha"], [4, /MATERIAL/, "Material"],
+  [5, /^TIPO$/, "Tipo"], [6, /CLIENTE/, "Tipo de Cliente"], [7, /ONDE/, "Onde viu o Produto?"], [8, /COMPROU|ONLINE/, "Já comprou online?"],
+  [9, /VALOR/, "Valor"], [10, /REPOSI/, "Pedido Reposição"], [11, /OBSERV/, "Observações"], [12, /MOTIVO/, "Motivo de NÃO Venda"],
+  [13, /PROCURA/, "O que procurava?"],
+];
+const COLUMN = "ABCDEFGHIJKLMNO";
+
+function checkHeader(r: SheetCell[]) {
+  // Uma linha só com "Data" (sem os outros títulos) não diz nada sobre as colunas.
+  if (!r.slice(1, 14).some((c) => cellText(c))) return;
+  for (const [j, re, label] of HEADERS) {
+    if (!re.test(plainText(r[j])))
+      throw new Error(`colunas diferentes das esperadas (coluna ${COLUMN[j]}: "${cut(cellText(r[j]) || "", 40).text}" em vez de "${label}"). Nada desta loja foi alterado.`);
+  }
+}
+
+// Um número inteiro que, lido como data, cai entre dois anos antes e um ano depois de hoje: o Sheets guardou como
+// data o que a loja escreveu ("12/5" em vez de "12,5"). Nenhuma venda de loja chega perto destes valores.
+function valueLooksLikeDate(v: SheetCell, today: string): string | null {
+  if (typeof v !== "number" || !Number.isInteger(v)) return null;
+  const iso = serialDate(v);
+  return iso && iso >= addDays(today, -730) && iso <= addDays(today, 365) ? iso : null;
+}
+
 const isHeader = (v: SheetCell) => typeof v === "string" && (plain(v) === "DATA" || plain(v).startsWith("EX"));
 
 // Período em que as datas de uma secção são aceites tal como estão escritas: do dia 1 do mês da secção até à
@@ -371,6 +402,9 @@ function resolveDate(y: number, m: number, d: number, rg: Range, prev: string | 
       const swapped = mk(c, d, m);
       if (fixable(swapped)) return { date: swapped, notes: [`dia e mês trocados (${orig})`] };
     }
+  // Secção que só pode estar no futuro (cabeçalho de mês errado): a data escrita, se for válida e não futura, é
+  // mais fiável do que a da linha anterior.
+  if (rg.lo > rg.hi && iso && iso <= today) return { date: iso, notes: [], issue: `Data ${iso} fora de ${rg.label} (mês ainda por chegar): mantida.` };
   if (prev) return { date: prev, notes: [`data inválida (${orig}), usado o dia da linha anterior`] };
   if (iso && iso <= today) return { date: iso, notes: [], issue: `Data ${iso} fora de ${rg.label}, sem linha anterior no mês: mantida.` };
   return { date: null, issue: `Data ${iso ? "futura" : "inválida"} (${orig}) sem linha anterior no mês: linha ignorada.` };
@@ -438,17 +472,39 @@ function parseTab(rows: SheetCell[][], store: string, title: string, today: stri
   const blank = (): Section => ({ month: null, explicit: null, dated: false, votes: [], year: 0, range: null as unknown as Range });
   const sections: Section[] = [blank()];
   const sectionOf: number[] = [];
+  const seenDates = new Map<Section, { month: number; day: number }[]>();
+  const nextMonth = (parts(today)[1] % 12) + 1;
   for (const r of grid) {
     const head = monthHeader(r[0]);
     if (head) sections.push({ ...blank(), month: head.month, explicit: head.year });
     const s = sections[sections.length - 1];
     sectionOf.push(sections.length - 1);
+    if (!head && typeof r[0] === "string" && plain(r[0]) === "DATA") checkHeader(r);
     if (head || isHeader(r[0])) continue;
     const date = readDate(r[0]);
-    if (date.kind === "serial" || date.kind === "text") s.dated = true;
+    // Só datas que já podem ter acontecido dizem em que mês está a folha (não uma secção do mês seguinte criada
+    // antes do tempo).
+    if (date.kind === "serial" ? date.iso <= today : date.kind === "text" && date.month !== nextMonth) s.dated = true;
     if (date.kind === "serial" && s.month !== null) {
       const [y, m, d] = parts(date.iso);
       if (m === s.month || d === s.month) s.votes.push(y);
+    }
+    if (s.month !== null && (date.kind === "serial" || date.kind === "text")) {
+      const [m, d] = date.kind === "serial" ? parts(date.iso).slice(1) : [date.month, date.day];
+      seenDates.set(s, [...(seenDates.get(s) || []), { month: m, day: d }]);
+    }
+  }
+  // Cabeçalho de mês errado (copiado de outro mês e não mudado): se a maioria das datas da secção é de outro mês
+  // e menos de metade é do mês do cabeçalho (contando as trocadas), vale o mês das datas.
+  for (const [s, list] of seenDates) {
+    if (list.length < 3 || s.explicit) continue;
+    const own = list.filter((x) => x.month === s.month || x.day === s.month).length;
+    const counts = new Map<number, number>();
+    for (const x of list) counts.set(x.month, (counts.get(x.month) || 0) + 1);
+    const [top, n] = [...counts].sort((a, b) => b[1] - a[1])[0];
+    if (top !== s.month && top >= 1 && top <= 12 && n * 2 > list.length && own * 2 < list.length) {
+      issue(null, `Cabeçalho "${LABELS[s.month! - 1]}", mas a maioria das datas da secção é de ${LABELS[top - 1]}: usado ${LABELS[top - 1]}.`);
+      s.month = top;
     }
   }
   placeSections(sections, today);
@@ -522,11 +578,12 @@ function parseTab(rows: SheetCell[][], store: string, title: string, today: stri
 
     const notes = [...dateNotes];
     const parsed = parseValue(r[9]);
-    if (parsed === INVALID) {
+    const valueDate = valueLooksLikeDate(r[9], today);
+    if (parsed === INVALID || valueDate) {
       notes.push(`valor: ${t[9]}`);
-      issue(rowNo, "Valor não reconhecido: fica nas notas, sem valor.");
+      issue(rowNo, valueDate ? `Valor ${t[9]} parece uma data (${valueDate}): fica nas notas, sem valor.` : "Valor não reconhecido: fica nas notas, sem valor.");
     }
-    const value = parsed === INVALID ? null : parsed;
+    const value = parsed === INVALID || valueDate ? null : parsed;
     const reason = t[12];
     const sold = !reason || !!value;
     const camp = mapCampaign(r[3]);
@@ -593,6 +650,11 @@ function parseTab(rows: SheetCell[][], store: string, title: string, today: stri
       return { ...it, reference: ref.text || null };
     });
     if (longRef) issue(s.row, `Referência com mais de ${LIMITS.reference} caracteres: cortada.`);
+    if (s.total_value !== null && s.total_value > LIMITS.total_value) {
+      issue(s.row, "Valor somado da venda acima do limite: fica nas notas, sem valor.");
+      s.notes = joinNotes(s.notes, `valor: ${s.total_value}`);
+      s.total_value = null;
+    }
     if (s.notes) {
       const notes = cut(s.notes, LIMITS.notes);
       if (notes.cut) issue(s.row, `Notas com mais de ${LIMITS.notes} caracteres: cortadas.`);

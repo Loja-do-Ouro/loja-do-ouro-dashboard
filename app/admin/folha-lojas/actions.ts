@@ -31,17 +31,23 @@ export async function importNow() {
   back(message);
 }
 
-// Outra folha (o link ou só o identificador).
+// Outra folha (o link ou só o identificador). A autorização foi dada para a folha anterior: é revogada e a
+// ligação tem de ser feita de novo, o que confirma o acesso à nova folha.
 export async function setSpreadsheet(form: FormData) {
   const viewer = await superViewer();
   const raw = String(form.get("spreadsheet") || "").trim();
   const id = /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,100})/.exec(raw)?.[1] || raw;
   try {
+    const current = await sessionRpc<{ connection: { spreadsheet_id: string } }>(viewer.session, "ldo_store_sheet_status");
+    if (current.connection.spreadsheet_id === id) back({ ok: "Essa já é a folha configurada." });
+    if (!/^[A-Za-z0-9_-]{20,100}$/.test(id)) back({ erro: "Identificador da folha inválido." });
+    await storeSheetRevoke();
     await sessionRpc(viewer.session, "ldo_store_sheet_set_spreadsheet", { p_spreadsheet_id: id });
   } catch (e) {
+    if (e && typeof e === "object" && "digest" in e) throw e;
     back({ erro: userMessage(e) });
   }
-  back({ ok: "Folha guardada. A importação seguinte lê esta folha." });
+  back({ ok: "Folha guardada. Carregue em Ligar folha com uma conta com acesso a esta folha." });
 }
 
 // Desligar: revoga a autorização na Google e apaga as chaves. Os dados já importados ficam.

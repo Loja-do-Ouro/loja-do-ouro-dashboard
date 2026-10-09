@@ -35,7 +35,10 @@ export async function GET(request: NextRequest) {
       p_email: c.email, p_scope: c.scope, p_refresh_ct: c.refresh_ct, p_access_ct: c.access_ct, p_access_expires_at: c.access_expires_at,
     });
   } catch (e) {
+    if (e instanceof SheetError && e.kind) return done(e.kind === "scope" ? "sem-permissao" : "conta-apoio");
     if (e instanceof SheetError && (e.status === 403 || e.status === 404)) return done("sem-folha");
+    // Só a mensagem (sem códigos nem chaves), para os registos da Vercel.
+    console.error("folha-lojas callback:", e instanceof SheetError ? `${e.status ?? ""} ${e.message}` : e instanceof Error ? e.message : "erro");
     return done("erro");
   }
   return done("ligado");
