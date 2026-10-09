@@ -170,7 +170,8 @@ export async function syncMetricool(source: { id: string; config: Record<string,
 async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw: Conversation; conv: IngestConversation }[], settings: SocialSettings, deadline: number) {
   let sent = 0;
   for (const { raw, conv } of pairs) {
-    if (Date.now() > deadline + 15_000) break;
+    // Só com tempo dentro do orçamento da passagem (mais 5 s): os envios que ficarem passam à próxima verificação.
+    if (Date.now() > deadline + 5_000) break;
     const recipient = conv.contact.external_id;
     if (!recipient) continue;
     const rawById = new Map((raw.messages || []).map((m) => [String(m.id), m]));
@@ -179,17 +180,19 @@ async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw:
       return { ...m, attachments: r?.attachments || m.attachments || [], properties: r?.properties };
     });
     const now = new Date();
-    const hidden = hiddenReaction(messages, now, settings);
+    const name = conv.contact.name || conv.contact.handle || null;
+    const hidden = hiddenReaction(messages, now, settings, name);
     if (hidden)
       await serverRpc("ldo_support_social_mark_auto", { p_source: sourceId, p_conversation: conv.external_id, p_from: hidden.from, p_through: hidden.through }).catch(() => undefined);
-    const decision = socialAutoReply(messages, settings, now, conv.contact.name || conv.contact.handle || null);
+    const decision = socialAutoReply(messages, settings, now, name);
     if (!decision) continue;
     const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
-    if (!(await serverRpc<boolean>("ldo_support_social_autoreply_claim", { ...claim, p_contact: recipient, p_kind: decision.kind }).catch(() => false))) continue;
+    if (!(await serverRpc<boolean>("ldo_support_social_autoreply_claim", { ...claim, p_contact: recipient, p_kind: decision.kind, p_since: decision.since }).catch(() => false))) continue;
     const r = await metricoolSend(provider, conv.external_id, recipient, decision.text, null, 10_000).catch(() => ({ outcome: "uncertain" as const }));
     // Falhou: o registo sai e a mensagem pode voltar a ser respondida. Enviada ou sem confirmação: fica o
     // acontecimento na conversa (o incerto nunca se repete, porque pode ter chegado).
-    await serverRpc("ldo_support_social_autoreply_result", { ...claim, p_outcome: r.outcome }).catch(() => undefined);
+    const result = { ...claim, p_outcome: r.outcome };
+    await serverRpc("ldo_support_social_autoreply_result", result).catch(() => serverRpc("ldo_support_social_autoreply_result", result)).catch(() => undefined);
     if (r.outcome !== "failed") sent++;
   }
   return sent;
