@@ -46,7 +46,7 @@ test("A support message off-hours gets the away message with the first name; wit
 });
 
 test("A story reaction never gets the away message; it gets a short thanks once it settles and only when isolated", () => {
-  const reaction = [msg("inbound", "", 5)];
+  const reaction = [msg("inbound", "😍", 5)];
   const d = s.socialAutoReply(reaction, settings(), NIGHT, "Ana");
   assert.deepEqual({ kind: d.kind, text: d.text }, { kind: "thanks", text: "Obrigado! 💛" });
   // Ainda pode estar a escrever (menos de 4 minutos): espera.
@@ -81,31 +81,55 @@ test("Nothing is sent when switched off, when we spoke last, for old messages or
 });
 
 test("Only clear reactions from someone who never asked anything leave the main list", () => {
+  const hide = (msgs, opts = {}) => s.hiddenReaction(msgs, NIGHT, settings(opts), "Ana");
   // Emoji ou elogio escrito: sai logo (mesmo antes do agradecimento, que espera 4 minutos).
   const r = [msg("inbound", "😍", 0.2)];
-  assert.deepEqual(s.hiddenReaction(r, NIGHT), { from: r[0].created_at, through: r[0].created_at });
-  // Mensagem vazia sem indicação da Metricool (pode ser uma partilha ou um áudio): fica na lista principal...
-  assert.equal(s.hiddenReaction([msg("inbound", "", 0.2)], NIGHT), null);
-  // ...mas com a indicação de reação/menção na story sai.
+  assert.deepEqual(hide(r), { from: r[0].created_at, through: r[0].created_at });
+  assert.notEqual(hide([msg("inbound", "Que lindo!", 1)]), null);
+  // "Sim", "Ok", "Boa" (podem ser respostas a uma pergunta nossa): ficam na lista principal.
+  for (const text of ["Sim", "Ok", "Sim obrigada", "boa", "Muito bom"]) assert.equal(hide([msg("inbound", text, 1)]), null, text);
+  // Mensagem vazia sem indicação exata da Metricool (pode ser uma partilha ou um áudio): fica na lista principal...
+  assert.equal(hide([msg("inbound", "", 0.2)]), null);
+  // ...com a indicação exata de reação/menção na story sai.
   const story = [{ ...msg("inbound", "", 0.2), properties: { type: "story_mention" } }];
-  assert.equal(s.hiddenReaction(story, NIGHT).through, story[0].created_at);
-  assert.equal(s.reactionHint({ reply_to: { story: { id: "1" } } }), true);
-  assert.equal(s.reactionHint({ shared_post: { url: "x" } }), false);
-  assert.equal(s.reactionHint(null), false);
+  assert.equal(hide(story).through, story[0].created_at);
+  assert.equal(s.reactionHint({ data: { subtype: "STORY_REACTION" } }), true);
+  // Indícios fracos não contam: chaves com valores vazios/falsos, URLs, texto livre, resposta a uma story.
+  for (const p of [{ reactions: [] }, { is_story_reply: false }, { like_count: 0 }, { share: { url: "https://www.instagram.com/stories/x/1" } },
+    { type: "audio", note: "unlikely" }, { reply_to: { story: { id: "1" } } }, null])
+    assert.equal(s.reactionHint(p), false, JSON.stringify(p));
   // Um pedido, agora ou em qualquer altura da conversa, deixa-a na lista principal.
-  assert.equal(s.hiddenReaction([msg("inbound", "Tem este anel?", 2)], NIGHT), null);
-  assert.equal(s.hiddenReaction([msg("inbound", "Tem o anel?", 3000), msg("outbound", "Temos!", 2900), msg("inbound", "❤️", 3)], NIGHT), null);
-  // Várias reações: do primeiro ao último.
+  assert.equal(hide([msg("inbound", "Tem este anel?", 2)]), null);
+  assert.equal(hide([msg("inbound", "Tem o anel?", 3000), msg("outbound", "Temos!", 2900), msg("inbound", "❤️", 3)]), null);
+  // A loja escreveu-lhe (pergunta, campanha): fica na lista principal, mesmo que o cliente só responda com emoji.
+  assert.equal(hide([msg("inbound", "😍", 3000), msg("outbound", "Quer que lhe envie os preços?", 2990), msg("inbound", "😍", 2)]), null);
+  // Só o nosso agradecimento automático: continua a poder sair.
   const many = [msg("inbound", "😍", 3000), msg("outbound", "Obrigado! 💛", 2990), msg("inbound", "Lindo!", 2)];
-  assert.deepEqual(s.hiddenReaction(many, NIGHT), { from: many[0].created_at, through: many[2].created_at });
+  assert.deepEqual(hide(many), { from: many[0].created_at, through: many[2].created_at });
   // Já respondemos depois da reação, reação antiga ou anterior à ligação: nada a marcar.
-  assert.equal(s.hiddenReaction([msg("inbound", "😍", 10), msg("outbound", "Obrigado! 💛", 5)], NIGHT), null);
-  assert.equal(s.hiddenReaction([msg("inbound", "😍", 200)], NIGHT), null);
-  assert.equal(s.hiddenReaction([msg("inbound", "😍", 10)], NIGHT, { enabled_at: new Date(NIGHT.getTime() - 5 * 60000).toISOString() }), null);
+  assert.equal(hide([msg("inbound", "😍", 10), msg("outbound", "Obrigado! 💛", 5)]), null);
+  assert.equal(hide([msg("inbound", "😍", 200)]), null);
+  assert.equal(hide([msg("inbound", "😍", 10)], { enabled_at: new Date(NIGHT.getTime() - 5 * 60000).toISOString() }), null);
+});
+
+test("Every automatic reply carries the first new customer message (for the team-reply check)", () => {
+  const msgs = [msg("inbound", "Olá", 4), msg("inbound", "Tem este anel?", 2)];
+  assert.equal(s.socialAutoReply(msgs, settings(), NIGHT, "Ana").since, msgs[0].created_at);
 });
 
 test("With no hours filled in, social media is always 'closed': the off-hours message always goes out", () => {
   const empty = { weekdays: "", saturday: "", sunday: "" };
   assert.equal(s.socialAutoReply([msg("inbound", "Tem este anel?", 2, DAY)], settings({ hours: empty }), DAY, "Ana").kind, "support");
   assert.match(s.socialAutoReply([msg("inbound", "Tem este anel?", 2, DAY)], settings({ hours: empty }), DAY, "Ana").text, /não estamos disponíveis/);
+});
+
+test("An empty message without a clear story hint gets no automatic message; a hinted story mention is a reaction even with an attachment", () => {
+  // Pode ser uma nota de voz ou uma partilha: nem agradecimento nem ausência (a equipa vê-a na lista principal).
+  assert.equal(s.socialAutoReply([msg("inbound", "", 6)], settings(), NIGHT, "Ana"), null);
+  // Menção na story com o anexo da story e indicação exata: agradecimento, nunca a mensagem de ausência.
+  const mention = [{ ...msg("inbound", "", 6, NIGHT, ["https://cdn/story.jpg"]), properties: { type: "story_mention" } }];
+  assert.equal(s.socialAutoReply(mention, settings(), NIGHT, "Ana").kind, "thanks");
+  assert.notEqual(s.hiddenReaction(mention, NIGHT, settings(), "Ana"), null);
+  // Foto sem indicação: pedido.
+  assert.equal(s.socialAutoReply([msg("inbound", "", 6, NIGHT, ["https://cdn/foto.jpg"])], settings(), NIGHT, "Ana").kind, "support");
 });

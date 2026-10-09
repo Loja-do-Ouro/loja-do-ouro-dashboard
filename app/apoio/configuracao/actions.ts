@@ -69,7 +69,8 @@ export async function disconnectZendesk(form: FormData) {
 export async function syncNow() {
   await superViewer();
   // O Super Admin pode ignorar a espera depois de erros (por exemplo depois de corrigir uma ligação).
-  const results = await runSync({ force: true, override: true });
+  // 20 s de orçamento: com uma página da Metricool (até 55 s) fica dentro dos 60 s desta página.
+  const results = await runSync({ force: true, override: true, budgetMs: 20_000 });
   const failed = results.filter((r) => r.ran && r.ok === false);
   const refused = results.filter((r) => !r.ran && r.reason);
   const note = refused.map((r) => `${r.source}: ${REFUSAL[r.reason!] || r.reason}`).join(" · ");

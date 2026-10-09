@@ -22,7 +22,8 @@ import { AppShell, Flash, PageHeading } from "@/components/shell";
 import { deleteKnowledge, disconnectGmail, disconnectZendesk, saveAiSettings, saveEmailSettings, saveKnowledge, savePolling, saveSocialSettings, setSupportAccess, syncNow } from "./actions";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// "Sincronizar agora" corre aqui: uma listagem lenta da Metricool pode levar até 55 s.
+export const maxDuration = 120;
 export const metadata = { title: "Configuração do apoio · Loja do Ouro" };
 
 type State = {

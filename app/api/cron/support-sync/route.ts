@@ -12,7 +12,8 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || !constantTimeTextEqual(request.headers.get("authorization") || "", `Bearer ${secret}`))
     return new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } });
-  const results = await runSync({ force: true, budgetMs: 100_000 });
+  // 60 s de orçamento: com uma última página da Metricool (até 55 s) fica dentro dos 120 s da função.
+  const results = await runSync({ force: true, budgetMs: 60_000 });
   // Anexos enviados: os bytes apagam-se ao fim de 30 dias (e os nunca enviados ao fim de 1 dia).
   const purged = await serverRpc<number>("ldo_support_uploads_purge").catch(() => null);
   // Pedidos à IA: o registo apaga-se ao fim de 180 dias.
