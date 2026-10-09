@@ -8,7 +8,8 @@ import { aiConfigured, aiWorkspaceStatus } from "@/lib/support/ai";
 import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { emailSettings, gmailConfigured, gmailMailbox, gmailPushAudience, gmailPushReady, gmailRedirectUri, type EmailSettings } from "@/lib/support/gmail";
-import { serverConfigured, sessionRpc } from "@/lib/support/db";
+import { serverConfigured, serverRpc, sessionRpc } from "@/lib/support/db";
+import type { SocialSettings } from "@/lib/support/social-rules";
 import { supportEmailFrom } from "@/lib/support/notify";
 import { siteOrigins } from "@/lib/support/site-chat";
 import { metricoolDiagnostics } from "@/lib/support/metricool";
@@ -18,7 +19,7 @@ import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { deleteKnowledge, disconnectGmail, disconnectZendesk, saveAiSettings, saveEmailSettings, saveKnowledge, savePolling, setSupportAccess, syncNow } from "./actions";
+import { deleteKnowledge, disconnectGmail, disconnectZendesk, saveAiSettings, saveEmailSettings, saveKnowledge, savePolling, saveSocialSettings, setSupportAccess, syncNow } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -70,6 +71,8 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
     sessionRpc<GmailStatus>(viewer.session, "ldo_support_gmail_status").catch((): GmailStatus => null),
     emailSettings().catch((): EmailSettings | null => null),
   ]);
+  const social = await serverRpc<SocialSettings | null>("ldo_support_social_settings").catch(() => null);
+  const socialFlash = q.secao === "redes";
   // O que a IA consegue ler da loja online (políticas e páginas dependem de autorizações da app Shopify).
   let store: StoreInfo | null = null;
   let storeError = "";
@@ -110,7 +113,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
       <PageHeading eyebrow="APOIO AO CLIENTE" title="Configuração do apoio" text="Ligações às plataformas, sincronização e acessos. Só o Super Admin vê esta página.">
         <Link className="outline-button" href="/apoio/configuracao?diagnostico=1">Validar ligações</Link>
       </PageHeading>
-      {!aiFlash && !emailFlash && <Flash ok={flashOk} error={flashError} />}
+      {!aiFlash && !emailFlash && !socialFlash && <Flash ok={flashOk} error={flashError} />}
       {!serverConfigured() && <div className="notice error-notice">O servidor não tem ligação ao Supabase (BI_INGEST_TOKEN): a sincronização não pode gravar.</div>}
 
       <div className="two-col">
@@ -288,6 +291,41 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
         </div>
         <p className="panel-note">
           Os emails para {gmailMailbox()} entram no canal &quot;Email&quot; em poucos segundos (aviso da Google) e também em cada sincronização, a partir do momento em que a caixa é ligada (os anteriores não são importados). As respostas vão sempre para o cliente da conversa. Nos pedidos do formulário de contacto da loja o email do cliente fica como não confirmado: as encomendas só aparecem depois de a equipa associar o cliente. As respostas saem desta caixa, na mesma conversa do Gmail, com a assinatura acima, e ficam nos Enviados do Gmail. A resposta automática vai só uma vez por conversa e no máximo uma vez por dia a cada remetente; nunca a newsletters, notificações automáticas, emails que o Gmail ponha em Promoções/Redes sociais/Atualizações ou endereços do próprio domínio. Só o spam e o lixo do Gmail ficam de fora do dashboard. Para deixar o Zendesk: depois de confirmar aqui que os emails entram e que as respostas chegam, desligue no Gmail o reencaminhamento para o Zendesk e, no Zendesk, as respostas automáticas, para o cliente não receber mensagens duplicadas.
+        </p>
+      </Panel>
+
+      <Panel title="Respostas automáticas — Facebook e Instagram" eyebrow="MENSAGENS PRIVADAS" id="redes">
+        {socialFlash && <Flash ok={flashOk} error={flashError} />}
+        {social ? (
+          <form action={saveSocialSettings} className="email-form">
+            <label className="checkbox-label">
+              <input type="checkbox" name="social_enabled" defaultChecked={social.enabled} /> Respostas automáticas ligadas
+            </label>
+            <label>
+              Pedido de apoio fora do horário
+              <textarea name="social_offhours_text" defaultValue={social.offhours_text} maxLength={1000} rows={3} />
+            </label>
+            <label>
+              Pedido de apoio dentro do horário (opcional)
+              <textarea name="social_text" defaultValue={social.text} maxLength={1000} rows={2} placeholder="Vazio = dentro do horário não há resposta automática (a equipa responde)." />
+            </label>
+            <label>
+              Agradecimento a reações (story, gosto, emoji)
+              <input name="social_thanks_text" defaultValue={social.thanks_text} maxLength={300} placeholder="Vazio = não agradece" />
+            </label>
+            <div className="email-hours">
+              <label>Dias úteis<input name="social_hours_weekdays" defaultValue={social.hours.weekdays || ""} maxLength={80} placeholder="07:00-21:00" /></label>
+              <label>Sábado<input name="social_hours_saturday" defaultValue={social.hours.saturday || ""} maxLength={80} placeholder="vazio = fechado" /></label>
+              <label>Domingo<input name="social_hours_sunday" defaultValue={social.hours.sunday || ""} maxLength={80} placeholder="vazio = fechado" /></label>
+            </div>
+            <small className="muted">{"{nome}"} é trocado pelo primeiro nome da pessoa (no Instagram, o nome de utilizador). Horário de Lisboa.</small>
+            <div className="knowledge-row"><button type="submit" className="secondary-button">Guardar</button></div>
+          </form>
+        ) : (
+          <p className="error-text">Definições indisponíveis (falta a atualização na base de dados?).</p>
+        )}
+        <p className="panel-note">
+          Substitui a &quot;mensagem de ausência&quot; do Meta, que responde a tudo, também às reações às stories. Aqui, quem escreve um pedido (texto, pergunta ou foto) recebe a mensagem automática no máximo uma vez por conversa em 24 horas; quem só reage a uma story, dá um gosto ou envia um emoji ou um elogio curto recebe apenas o agradecimento, no máximo uma vez por pessoa em 7 dias, e só quando não há conversa em curso. Só se responde a mensagens com menos de 30 minutos. Antes de ligar: no Meta Business Suite → Caixa de entrada → Automatizações, desligue a &quot;Mensagem de ausência&quot; no Facebook e no Instagram, para o cliente não receber duas mensagens. As respostas saem quando a caixa sincroniza.
         </p>
       </Panel>
 

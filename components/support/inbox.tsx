@@ -118,16 +118,19 @@ const AUDIT: Record<string, string> = {
   status: "mudou o estado", assign: "atribuiu", reply: "respondeu", note: "acrescentou uma nota", reopen: "reabriu (nova mensagem do cliente)",
   link_customer: "associou o cliente", "zendesk.connect": "ligou o Zendesk", "zendesk.disconnect": "desligou o Zendesk",
   "gmail.connect": "ligou a caixa Gmail", "gmail.disconnect": "desligou a caixa Gmail", "email.settings": "alterou as definições do email",
+  "social.settings": "alterou as respostas automáticas das redes sociais",
 };
 
 // Acontecimentos mostrados na própria conversa: mudanças de responsável, o fim da conversa pelo cliente e a
 // resposta automática do email.
-const THREAD_EVENTS = new Set(["assign", "visitor_end", "email.autoreply"]);
+const THREAD_EVENTS = new Set(["assign", "visitor_end", "email.autoreply", "social.autoreply"]);
 
 // Acontecimento por extenso (na conversa e no registo).
 function assignText(a: AuditEntry) {
   if (a.action === "visitor_end")
     return `O cliente terminou a conversa no site${a.details.transcript ? " e pediu uma cópia por email" : ""}`;
+  if (a.action === "social.autoreply")
+    return a.details.kind === "thanks" ? "Agradecimento automático enviado (reação)" : "Resposta automática enviada ao cliente";
   if (a.action === "email.autoreply")
     return `Resposta automática “recebemos o seu email” enviada${typeof a.details.email === "string" ? ` para ${a.details.email}` : ""}`;
   const to = typeof a.details.to_name === "string" ? a.details.to_name : "outra pessoa";
