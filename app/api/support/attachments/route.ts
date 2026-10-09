@@ -5,6 +5,7 @@ import { metricoolImage } from "@/lib/support/metricool";
 import { isUuid, previewKind, sniffType } from "@/lib/support/rules";
 import { getUpload } from "@/lib/support/uploads";
 import { zendeskAttachment } from "@/lib/support/zendesk";
+import { gmailAttachment, GmailError } from "@/lib/support/gmail";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -119,6 +120,19 @@ export async function GET(request: Request) {
       if (!bytes.byteLength) throw new HttpError(410, "Imagem indisponível (o endereço da Meta pode ter expirado).");
       if (bytes.byteLength > MAX_BYTES) throw new HttpError(413, "Anexo demasiado grande para abrir aqui; abra-o na Metricool.");
       return respond(request, bytes, a.name, download);
+    }
+    // Email (Gmail): "gmail:<mensagem>:<parte>", lido com a ligação da caixa do apoio (até 4 MB).
+    if (a.ref.startsWith("gmail:") && d.conversation.source_id === "gmail") {
+      const [, messageId, partId] = a.ref.split(":");
+      if (!messageId || !partId || !/^[\w.-]{1,40}$/.test(partId)) throw new HttpError(400, "Anexo inválido.");
+      try {
+        const g = await gmailAttachment(messageId, partId);
+        if (g.threadId !== d.conversation.external_id) throw new HttpError(404, "Anexo não encontrado.");
+        return respond(request, new Uint8Array(g.data), a.name || g.name, download);
+      } catch (e) {
+        if (e instanceof GmailError) throw new HttpError(e.status === 413 ? 413 : e.status === 404 ? 404 : 502, e.message);
+        throw e;
+      }
     }
     throw new HttpError(404, "Anexo não encontrado.");
   });

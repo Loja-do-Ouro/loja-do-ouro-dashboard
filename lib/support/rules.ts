@@ -1,7 +1,7 @@
 // Apoio ao Cliente: tipos e regras partilhados entre servidor e browser (sem segredos nem I/O).
 
 export type Status = "novo" | "em_atendimento" | "aguarda_cliente" | "resolvido";
-export type Channel = "zendesk" | "facebook" | "instagram" | "whatsapp" | "site";
+export type Channel = "zendesk" | "facebook" | "instagram" | "whatsapp" | "site" | "email";
 export type Kind = "inbound" | "outbound" | "note";
 export type Delivery = "sending" | "accepted" | "delivered" | "read" | "failed" | "uncertain";
 
@@ -18,7 +18,13 @@ export const CHANNEL_LABEL: Record<Channel, string> = {
   instagram: "Instagram",
   whatsapp: "WhatsApp",
   site: "Chat do site",
+  email: "Email",
 };
+// Conversa no Gmail (web), aberta já na conta da caixa do apoio.
+export function gmailThreadLink(mailbox: string, threadId: string) {
+  return `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(mailbox)}#all/${encodeURIComponent(threadId)}`;
+}
+
 export const DELIVERY_LABEL: Record<Delivery, string> = {
   sending: "A enviar",
   accepted: "Aceite pela plataforma",
@@ -147,4 +153,37 @@ export function previewKind(type: string | null | undefined): PreviewKind {
   if (["video/mp4", "video/webm", "video/quicktime"].includes(t)) return "video";
   if (["audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/aac", "audio/webm"].includes(t)) return "audio";
   return "file";
+}
+
+// Responsável da conversa (espelha ldo_support_set_local / ldo_support_begin_send). Só o responsável
+// responde ao cliente; sem responsável, quem responde primeiro fica com a conversa. Notas internas: todos.
+export type Ownership = { assigneeId: string | null; me: string; isSuper: boolean };
+export const canReply = (o: Ownership) => !o.assigneeId || o.assigneeId === o.me;
+export const canChangeStatus = (o: Ownership) => o.isSuper || !o.assigneeId || o.assigneeId === o.me;
+export const canTransfer = (o: Ownership) => Boolean(o.assigneeId) && (o.isSuper || o.assigneeId === o.me);
+
+export type AssignKind = "claim" | "assign" | "transfer" | "release";
+// Mudança de responsável pedida (target null = deixar sem responsável). Devolve o tipo ou o motivo da recusa.
+export function assignmentChange(o: Ownership, target: string | null, ownerName = "o responsável"): { kind: AssignKind | null } | { error: string } {
+  if (target === o.assigneeId) return { kind: null };
+  if (target === null) return o.isSuper ? { kind: "release" } : { error: "Só o Super Admin pode deixar uma conversa sem responsável. Para a passar a um colega, use Transferir." };
+  if (!o.assigneeId) {
+    if (target === o.me) return { kind: "claim" };
+    return o.isSuper ? { kind: "assign" } : { error: "Só se pode atribuir a si próprio uma conversa sem responsável. Assuma-a e depois transfira-a." };
+  }
+  return canTransfer(o) ? { kind: "transfer" } : { error: `Esta conversa está com ${ownerName}. Só essa pessoa (ou o Super Admin) a pode transferir.` };
+}
+
+// Primeiro nome (o que o cliente vê no chat do site): nunca o nome completo nem o nome de utilizador.
+export function firstName(fullName: string | null | undefined): string | null {
+  const first = (fullName || "").trim().split(/\s+/)[0];
+  return first || null;
+}
+
+// Números de encomenda que o cliente escreveu ("#12345", "encomenda nº 12345", "encomenda 12345"), sem repetir.
+export function orderNumbersIn(texts: string[]) {
+  const found = new Set<string>();
+  const re = /(?:#\s?|\bencomenda\s*(?:n\.?\s*º|nº|n\.|número|numero|nr\.?)?\s*#?\s*)(\d{4,7})\b/gi;
+  for (const t of texts) for (let m = re.exec(t); m; m = re.exec(t)) found.add(m[1]);
+  return [...found].slice(0, 6);
 }

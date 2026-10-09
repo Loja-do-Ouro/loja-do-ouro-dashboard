@@ -1,9 +1,11 @@
 import "server-only";
-import { emailConfigured, emailFrom, sendEmail } from "@/lib/email";
+import { dashboardUrl as baseUrl, emailConfigured, sendEmail } from "@/lib/email";
 import { clientKey } from "@/lib/rate-limit";
 import { SupabaseError } from "@/lib/supabase";
 import { sha256Hex } from "./crypto";
 import { serverRpc } from "./db";
+import { supportEmailFrom, supportReplyTo } from "./notify";
+import { brandEmail, emailParagraph, emailQuote, esc } from "@/lib/email-layout";
 import { allowedOrigin, decodeIdentity, ipPrefix, parseOrigins, verifyIdentity } from "./site-rules";
 
 // Chat do site: rotas públicas (sem sessão do dashboard) usadas pelo botão do tema Shopify.
@@ -107,9 +109,11 @@ export async function readJson(request: Request): Promise<Record<string, unknown
   throw new ChatError(400, "Pedido inválido.");
 }
 
-const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-type Pending = { visitor: string; conversation: string; email: string; name: string; until: string; replies: string[] };
+type Pending = {
+  visitor: string; conversation: string; email: string; name: string; until: string; replies: string[];
+  items?: { body: string; author: string | null }[];
+};
 
 // Respostas que o cliente ainda não viu, por email: só quando está fora do site há algum tempo e reunindo
 // todas as respostas desde o último aviso. Uma falha volta a ser tentada mais tarde (30 minutos).
@@ -131,21 +135,64 @@ export async function notifySiteVisitors(opts: { conversation: string | null; id
 
 async function sendReplies(p: Pending): Promise<{ ok: boolean; detail: string }> {
   if (!emailConfigured()) return { ok: false, detail: "RESEND_API_KEY por configurar" };
-  const from = process.env.SITE_CHAT_FROM || process.env.REPORTS_FROM || emailFrom();
   const site = (process.env.SITE_CHAT_URL || "https://www.lojadoouro.pt").replace(/\/+$/, "");
   const first = p.name.split(/\s+/)[0] || "";
-  const blocks = (p.replies || []).map((body) =>
-    `<blockquote style="margin:12px 0;padding:10px 14px;border-left:3px solid #a47a37;background:#f7f8f5;white-space:pre-wrap">${escapeHtml(body)}</blockquote>`).join("");
-  const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#253531;max-width:560px">
-<p>Olá${first ? ` ${escapeHtml(first)}` : ""},</p>
-<p>${p.replies.length > 1 ? "Deixámos-lhe estas respostas" : "Respondemos à sua mensagem"} no chat da Loja do Ouro:</p>
-${blocks}
-<p><a href="${site}/?chat=abrir" style="color:#a47a37">Continuar a conversa no site</a></p>
-<p style="color:#78807c;font-size:13px">Recebeu este email porque falou connosco no chat de lojadoouro.pt.</p>
-</div>`;
-  return sendEmail([p.email], "Resposta da Loja do Ouro à sua mensagem", html, {
-    from, replyTo: process.env.SITE_CHAT_REPLY_TO || "apoiocliente@lojadoouro.pt", timeoutMs: 8000,
+  // Quem respondeu (só o primeiro nome), como no chat.
+  const items = p.items?.length ? p.items : (p.replies || []).map((body) => ({ body, author: null as string | null }));
+  const many = items.length > 1;
+  const hello = `Olá${first ? ` ${first}` : ""},`;
+  const intro = many ? "Deixámos-lhe estas respostas no chat da Loja do Ouro:" : "Respondemos à sua mensagem no chat da Loja do Ouro:";
+  const outro = "Pode continuar a conversa no site ou responder diretamente a este email.";
+  const html = brandEmail({
+    baseUrl: baseUrl(),
+    eyebrow: "Chat da Loja do Ouro",
+    title: many ? "Tem novas respostas nossas" : "Respondemos à sua mensagem",
+    preheader: (items[0]?.body || "").replace(/\s+/g, " ").slice(0, 120),
+    body: emailParagraph(esc(hello)) + emailParagraph(esc(intro))
+      + items.map((r) => emailQuote(r.author ? `${r.author} · Loja do Ouro` : "Loja do Ouro", r.body)).join("")
+      + emailParagraph(esc(outro)),
+    button: { label: "Continuar a conversa", url: `${site}/?chat=abrir` },
+    footer: "Recebeu este email porque falou connosco no chat de lojadoouro.pt · Loja do Ouro",
   });
+  const text = [hello, "", intro, "", ...items.flatMap((r) => [`${r.author ? `${r.author} · ` : ""}Loja do Ouro:`, r.body, ""]), outro,
+    `Continuar a conversa: ${site}/?chat=abrir`].join("\n");
+  return sendEmail([p.email], many ? "Novas respostas da Loja do Ouro" : "Resposta da Loja do Ouro à sua mensagem", html, {
+    from: supportEmailFrom(), replyTo: supportReplyTo(), text, timeoutMs: 8000,
+  });
+}
+
+export type Transcript = {
+  email: string | null; name: string; transcript: boolean;
+  messages: { from: "visitor" | "team" | "notice"; author: string | null; body: string; at: string }[];
+};
+
+// Cópia da conversa para o cliente que a terminou e a pediu (só para o email que ele próprio indicou).
+export async function sendTranscript(t: Transcript): Promise<{ ok: boolean; detail: string }> {
+  if (!t.email || !emailConfigured()) return { ok: false, detail: "Email indisponível." };
+  const site = (process.env.SITE_CHAT_URL || "https://www.lojadoouro.pt").replace(/\/+$/, "");
+  const first = (t.name || "").trim().split(/\s+/)[0] || "";
+  const when = new Intl.DateTimeFormat("pt-PT", { timeZone: "Europe/Lisbon", dateStyle: "long", timeStyle: "short" });
+  const label = (m: Transcript["messages"][number]) =>
+    m.from === "visitor" ? `${first || "Você"} · ${when.format(new Date(m.at))}` : `${m.author ? `${m.author} · ` : ""}Loja do Ouro · ${when.format(new Date(m.at))}`;
+  const rows = t.messages.map((m) => m.from === "notice"
+    ? emailParagraph(`<span style="color:#9a917f;font-size:13px">${esc(m.body)}</span>`)
+    : emailQuote(label(m), m.body, { links: m.from !== "visitor" })).join("");
+  const html = brandEmail({
+    baseUrl: baseUrl(),
+    eyebrow: "Chat da Loja do Ouro",
+    title: "A sua conversa connosco",
+    preheader: "Cópia da conversa que teve no chat de lojadoouro.pt.",
+    body: emailParagraph(esc(`Olá${first ? ` ${first}` : ""},`))
+      + emailParagraph(esc("Obrigado por falar connosco. Segue a cópia da conversa que teve no chat de lojadoouro.pt."))
+      + rows
+      + emailParagraph(esc("Se precisar de mais alguma coisa, responda a este email ou fale connosco no site.")),
+    button: { label: "Voltar à loja", url: site },
+    footer: "Recebeu esta cópia porque a pediu ao terminar a conversa no chat de lojadoouro.pt · Loja do Ouro",
+  });
+  const text = [`Olá${first ? ` ${first}` : ""},`, "", "Segue a cópia da conversa que teve no chat de lojadoouro.pt.", "",
+    ...t.messages.flatMap((m) => m.from === "notice" ? [`— ${m.body}`, ""] : [`${label(m)}:`, m.body, ""]),
+    `Loja do Ouro · ${site}`].join("\n");
+  return sendEmail([t.email], "A sua conversa com a Loja do Ouro", html, { from: supportEmailFrom(), replyTo: supportReplyTo(), text, timeoutMs: 8000 });
 }
 
 // Passagem pelos avisos pendentes (no máximo uma vez por minuto, decidido na BD). Corre quando a equipa tem

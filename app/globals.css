@@ -3481,6 +3481,7 @@ textarea:focus-visible,
 .channel-badge.instagram { background: #f9eef3; color: #9a3f68; }
 .channel-badge.whatsapp { background: #ecf6ef; color: #2c6e45; }
 .channel-badge.site { background: #f6efe3; color: #8a6428; }
+.channel-badge.email { background: #eef0f6; color: #3d4a78; }
 .status-badge.novo { background: #faf4e9; color: #957648; border-color: #eee1ca; }
 .status-badge.em_atendimento { background: #eef3ea; color: #4d6b4a; border-color: #d6e2cf; }
 .status-badge.aguarda_cliente { background: #f2f3f7; color: #5a6178; }
@@ -3500,6 +3501,7 @@ textarea:focus-visible,
 .msg { max-width: min(78%, 620px); border-radius: 10px; padding: 9px 12px; background: #fff; border: 1px solid var(--line); align-self: flex-start; }
 .msg.outbound { align-self: flex-end; background: #eef3ea; border-color: #d6e2cf; }
 .msg.note { align-self: stretch; max-width: none; background: #fff8e6; border: 1px dashed #e3c98d; }
+.msg-event { align-self: center; max-width: 90%; margin: 2px 0; padding: 3px 12px; border-radius: 999px; background: #f2f4ef; color: var(--muted); font-size: 12px; text-align: center; }
 .msg header { display: flex; gap: 10px; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
 .msg header strong { color: #4f5c55; font-weight: 600; }
 .msg p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; margin: 0; }
@@ -3524,6 +3526,10 @@ textarea:focus-visible,
 .customer-panel { padding: 14px 16px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
 .customer-panel section { display: flex; flex-direction: column; gap: 8px; }
 .customer-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #7e8776; }
+.owner-row { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #7e8776; }
+.owner-row strong { font-size: 13.5px; color: #253531; font-weight: 600; }
+.transfer-form { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.transfer-form label { flex: 1 1 160px; }
 .customer-panel dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 13px; }
 .customer-panel dt { color: var(--muted); }
 .customer-panel dd { margin: 0; overflow-wrap: anywhere; }
@@ -3531,6 +3537,17 @@ textarea:focus-visible,
 .link-form input { flex: 1 1 160px; width: auto; }
 .customer-panel .small, .customer-panel small { font-size: 12px; }
 .orders ul, .audit { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.orders.mentioned { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.order-phone { margin: 6px 0 2px; font-size: 13px; }
+.order-phone a { font-weight: 600; }
+.order-list details { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; }
+.order-list summary { cursor: pointer; }
+.order-items { margin: 8px 0 4px !important; gap: 6px !important; }
+.order-items li { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: center; }
+.order-items img, .order-noimg { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #f2f4ef; border: 1px solid var(--line); }
+.order-items b { font-weight: 600; white-space: nowrap; }
+.order-links { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; margin-top: 4px; }
+.support-warning { margin: 4px 0; padding: 6px 8px; border-radius: 6px; background: #fff8e6; color: #7a5f33; font-size: 12px; }
 .audit small { color: var(--muted); }
 .config-list { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 8px 14px; font-size: 13px; margin: 0 0 12px; }
 .config-list dt { color: var(--muted); }
@@ -3678,3 +3695,11 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .site-presence.on span { background: #4cd07d; box-shadow: 0 0 0 3px rgba(76, 208, 125, 0.18); }
 .site-presence.off { color: var(--muted); }
 .site-cart { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+
+/* Configuração do email (Gmail) */
+.email-form { display: flex; flex-direction: column; gap: 10px; }
+.email-form > label:not(.checkbox-label), .email-hours label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.email-form textarea, .email-form input:not([type="checkbox"]) { width: 100%; border: 1px solid #dfe3da; border-radius: 7px; padding: 7px 10px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
+.email-form textarea { resize: vertical; min-height: 96px; }
+.email-hours { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 640px) { .email-hours { grid-template-columns: 1fr; } }

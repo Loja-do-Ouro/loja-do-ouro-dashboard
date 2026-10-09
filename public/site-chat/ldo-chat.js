@@ -37,6 +37,8 @@
     messages: [],           // { id, from, author, key, body, created_at, inserted_at, local?, pending?, failed?, clientKey? }
     lastInserted: null,
     typing: false,
+    agent: null,            // primeiro nome de quem está a atender
+    ended: null,            // conversa terminada agora: { wanted, emailed, email } para o agradecimento
     open: false,
     busy: false,
     error: "",
@@ -195,9 +197,11 @@
     state.messages = [];
     state.lastInserted = null;
     state.typing = false;
+    state.agent = null;
     save();
     setError(message || "");
     showMode();
+    renderStatus();
   }
 
   // Cursor com 5 s de margem (respostas que ficam visíveis ao mesmo tempo); as repetidas ignoram-se pelo id.
@@ -209,6 +213,9 @@
       state.failures = 0;
       var changed = false;
       (r.messages || []).forEach(function (m) { if (merge(m)) changed = true; });
+      // Quem está a atender (só o primeiro nome): aparece no topo e no "a escrever".
+      var agent = typeof r.agent === "string" && r.agent ? r.agent.slice(0, 40) : null;
+      if (agent !== state.agent) { state.agent = agent; renderStatus(); renderTyping(); }
       if (state.typing !== Boolean(r.typing)) { state.typing = Boolean(r.typing); renderTyping(); }
       if (state.open && !document.hidden) markSeen();
       if (changed) renderMessages();
@@ -466,11 +473,58 @@
     input.value = "";
     send(text);
   }
+  // Terminar a conversa: confirmação dentro do chat (não a janela do browser) e, no fim, um agradecimento.
+  var sheet = el("div", { class: "sheet", hidden: "", role: "dialog", "aria-modal": "true", "aria-label": "Terminar a conversa" });
+  var sheetBox = el("div", { class: "sheet-box" });
+  sheetBox.appendChild(el("strong", { class: "sheet-title" }, "Terminar a conversa?"));
+  sheetBox.appendChild(el("p", {}, "A conversa fica guardada. Se lhe respondermos depois, enviamos a resposta para o seu email."));
+  var copyLabel = el("label", { class: "sheet-check" });
+  var copyBox = el("input", { type: "checkbox" });
+  copyLabel.appendChild(copyBox);
+  copyLabel.appendChild(el("span", {}, "Enviar-me uma cópia desta conversa por email"));
+  sheetBox.appendChild(copyLabel);
+  var endConfirm = el("button", { type: "button", class: "primary" }, "Terminar conversa");
+  var endCancel = el("button", { type: "button", class: "secondary" }, "Continuar a conversar");
+  sheetBox.appendChild(endConfirm);
+  sheetBox.appendChild(endCancel);
+  sheet.appendChild(sheetBox);
+  panel.appendChild(sheet);
+
+  var endedView = el("div", { class: "ended" });
+  endedView.appendChild(el("strong", { class: "ended-title" }, "Obrigado por falar connosco!"));
+  var endedText = el("p", {});
+  endedView.appendChild(endedText);
+  var newChatBtn = el("button", { type: "button", class: "primary" }, "Iniciar nova conversa");
+  endedView.appendChild(newChatBtn);
+  newChatBtn.addEventListener("click", function () { state.ended = null; showMode(); focusInput(); });
+
+  function closeSheet() { sheet.hidden = true; }
   endBtn.addEventListener("click", function () {
-    if (!confirm("Terminar esta conversa neste dispositivo? Para voltar a falar connosco terá de iniciar uma nova.")) return;
+    copyBox.checked = false;
+    // A cópia só existe depois de a equipa responder (o servidor confirma a mesma regra).
+    copyLabel.hidden = !state.messages.some(function (m) { return m.from === "team"; });
+    endConfirm.removeAttribute("disabled");
+    endConfirm.textContent = "Terminar conversa";
+    sheet.hidden = false;
+    endCancel.focus();
+  });
+  endCancel.addEventListener("click", function () { closeSheet(); focusInput(); });
+  endConfirm.addEventListener("click", function () {
+    var wanted = copyBox.checked && !copyLabel.hidden;
+    endConfirm.setAttribute("disabled", "");
+    endConfirm.textContent = "A terminar…";
     clearTimeout(state.timer);
-    restart("");
-    focusInput();
+    // Mesmo sem resposta do servidor a conversa termina neste dispositivo.
+    request("POST", "/api/chat/end", { transcript: wanted }).catch(function () { return null; }).then(function (r) {
+      restart("");
+      state.ended = { wanted: wanted, emailed: Boolean(r && r.emailed), email: r && typeof r.email === "string" ? r.email : "" };
+      endedText.textContent = state.ended.emailed
+        ? "Enviámos uma cópia da conversa para " + state.ended.email + "."
+        : wanted ? "Não foi possível enviar a cópia por email neste momento." : "Se precisar de mais alguma coisa, estamos aqui.";
+      closeSheet();
+      showMode();
+      newChatBtn.focus();
+    });
   });
 
   // ------------------------------------------------------------ atualizações
@@ -492,13 +546,149 @@
     return frag;
   }
 
+  // Texto da equipa com formatação simples, sempre construída aqui (nunca HTML vindo do servidor):
+  // parágrafos (linha em branco), listas ("- ", "• ", "* " ou "1. "), **negrito**, ligações e cartões dos
+  // produtos da loja (uma linha só com a ligação do produto; a linha de cima, se houver, é o nome e o preço).
+  var LIST_RE = /^\s*(?:[-•*]|(\d{1,2})[.)])\s+(.*)$/;
+  function inline(text, into) {
+    var parts = String(text).split(/\*\*([^*\n]+)\*\*/);
+    parts.forEach(function (part, i) {
+      if (!part) return;
+      if (i % 2) into.appendChild(el("strong", {}, part));
+      else into.appendChild(richText(part));
+    });
+    return into;
+  }
+  // Ligação de um produto da loja: { handle, variant } (variant = ?variant=<id>, se vier), ou null.
+  function productLink(url) {
+    var u;
+    try { u = new URL(url); } catch (e) { return null; }
+    var host = u.hostname.toLowerCase();
+    if (host !== location.hostname.toLowerCase() && !/(^|\.)lojadoouro\.pt$/.test(host) && !/\.myshopify\.com$/.test(host)) return null;
+    var m = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?products\/([a-z0-9][a-z0-9-]{0,200})\/?$/i.exec(u.pathname);
+    if (!m) return null;
+    var variant = u.searchParams.get("variant");
+    return { handle: m[1].toLowerCase(), variant: variant && /^\d{1,20}$/.test(variant) ? variant : null };
+  }
+  function formatTeam(text) {
+    var box = el("div", { class: "txt" });
+    var lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+    var para = null, paraLines = 0, lastLine = "", listEl = null;
+    function closeAll() { para = null; paraLines = 0; listEl = null; }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var trimmed = line.trim();
+      if (!trimmed) { closeAll(); continue; }
+      var url = trimmed.replace(/[.,;:!?)]+$/, "");
+      var link = /^https?:\/\/\S+$/.test(trimmed) ? productLink(url) : null;
+      if (link) {
+        // Legenda do cartão: só a linha "Nome — preço" que o botão "Produto" do dashboard põe por cima da
+        // ligação (sozinha no parágrafo). Qualquer outro texto fica no chat tal como foi escrito.
+        var caption = "";
+        if (para && paraLines === 1 && / — [^—]*\d/.test(lastLine) && lastLine.length <= 200) {
+          caption = lastLine;
+          box.removeChild(para);
+        }
+        box.appendChild(productCard(url, link, caption));
+        closeAll();
+        continue;
+      }
+      var li = LIST_RE.exec(line);
+      if (li) {
+        var ordered = Boolean(li[1]);
+        if (!listEl || listEl.nodeName !== (ordered ? "OL" : "UL")) {
+          listEl = el(ordered ? "ol" : "ul", {});
+          // Mantém a numeração escrita (ex.: passos separados por linhas em branco).
+          if (ordered && Number(li[1]) > 1) listEl.setAttribute("start", String(Number(li[1])));
+          box.appendChild(listEl);
+        }
+        listEl.appendChild(inline(li[2], el("li", {})));
+        para = null;
+        paraLines = 0;
+        continue;
+      }
+      listEl = null;
+      if (!para) { para = el("p", {}); box.appendChild(para); }
+      else para.appendChild(el("br", {}));
+      para.appendChild(inline(trimmed, el("span", {})));
+      paraLines++;
+      lastLine = trimmed;
+    }
+    return box;
+  }
+
+  // Cartão do produto: foto, nome e preço lidos da própria loja (/products/<handle>.js, só na loja Shopify).
+  var products = {};
+  var priceFmt = null;
+  function money(cents) {
+    try {
+      var cur = (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) || "EUR";
+      priceFmt = priceFmt || new Intl.NumberFormat("pt-PT", { style: "currency", currency: cur });
+      return priceFmt.format(cents / 100);
+    } catch (e) { return ""; }
+  }
+  function imageUrl(src) {
+    var img = typeof src === "string" ? src : src && typeof src.src === "string" ? src.src : "";
+    if (img.indexOf("//") === 0) img = "https:" + img;
+    return /^https:\/\/[^\s"'<>]+$/.test(img) ? img + (img.indexOf("?") >= 0 ? "&" : "?") + "width=200" : "";
+  }
+  function loadProduct(handle) {
+    if (products[handle] || !window.Shopify) return;
+    var root = (window.Shopify.routes && window.Shopify.routes.root) || "/";
+    products[handle] = "loading";
+    fetch(root + "products/" + encodeURIComponent(handle) + ".js", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (p) {
+        if (!p || typeof p.title !== "string") { products[handle] = "none"; return; }
+        products[handle] = {
+          title: p.title.slice(0, 120),
+          price: typeof p.price === "number" ? p.price : null,
+          priceMin: typeof p.price_min === "number" ? p.price_min : null,
+          varies: p.price_varies === true,
+          image: imageUrl(p.featured_image),
+          available: p.available !== false,
+          variants: (Array.isArray(p.variants) ? p.variants : []).slice(0, 250).map(function (v) {
+            return { id: String(v.id), price: typeof v.price === "number" ? v.price : null, available: v.available !== false, image: imageUrl(v.featured_image) };
+          }),
+        };
+        renderMessages();
+      })
+      .catch(function () { products[handle] = "none"; });
+  }
+  // Preço e disponibilidade da opção indicada na ligação (?variant=), ou "desde" quando o preço varia.
+  function productCard(url, link, caption) {
+    loadProduct(link.handle);
+    var p = typeof products[link.handle] === "object" ? products[link.handle] : null;
+    var v = p && link.variant ? p.variants.filter(function (x) { return x.id === link.variant; })[0] : null;
+    var card = el("a", { class: "product", href: url, target: "_blank", rel: "noopener" });
+    var image = p ? (v && v.image) || p.image : "";
+    if (image) card.appendChild(el("img", { src: image, alt: "", loading: "lazy" }));
+    var info = el("span", { class: "pinfo" });
+    var fallback = caption || link.handle.replace(/-/g, " ");
+    info.appendChild(el("strong", {}, p ? p.title : fallback.split(" — ")[0]));
+    var price = !p ? (caption.split(" — ")[1] || "")
+      : v && v.price != null ? money(v.price)
+      : p.varies && p.priceMin != null ? "desde " + money(p.priceMin)
+      : p.price != null ? money(p.price) : "";
+    if (price) info.appendChild(el("span", { class: "price" }, price));
+    if (p && !(v ? v.available : p.available)) info.appendChild(el("span", { class: "soldout" }, "Esgotado"));
+    info.appendChild(el("span", { class: "cta" }, "Ver produto"));
+    card.appendChild(info);
+    return card;
+  }
+
   function messageNode(m) {
     var d = new Date(m.created_at);
+    // Aviso (ex.: a conversa foi transferida): linha centrada, sem balão.
+    if (m.from === "notice") return el("div", { class: "msg notice", "data-id": m.id, role: "note" }, String(m.body || ""));
     var bubble = el("div", { class: "msg " + (m.from === "visitor" ? "me" : "team") + (m.failed ? " failed" : ""), "data-id": m.id });
     if (m.from === "team") bubble.appendChild(el("span", { class: "who" }, "Loja do Ouro" + (m.author ? " · " + m.author : "")));
-    var p = el("p", {});
-    p.appendChild(richText(m.body));
-    bubble.appendChild(p);
+    if (m.from === "team") bubble.appendChild(formatTeam(m.body || ""));
+    else {
+      var p = el("p", {});
+      p.appendChild(richText(m.body || ""));
+      bubble.appendChild(p);
+    }
     var meta = el("span", { class: "meta" }, m.pending ? "A enviar…" : m.failed ? "Não enviada" : timeFmt.format(d));
     if (m.failed) {
       var retry = el("button", { type: "button", class: "retry" }, "Tentar de novo");
@@ -525,13 +715,16 @@
     Array.prototype.forEach.call(list.querySelectorAll(".msg"), function (n) { old[n.getAttribute("data-id")] = n; });
     Array.prototype.forEach.call(frag.querySelectorAll(".msg"), function (n) {
       var prev = old[n.getAttribute("data-id")];
-      if (prev && prev.textContent === n.textContent && prev.className === n.className) n.parentNode.replaceChild(prev, n);
+      if (prev && prev.innerHTML === n.innerHTML && prev.className === n.className) n.parentNode.replaceChild(prev, n);
     });
     list.textContent = "";
     list.appendChild(frag);
     list.scrollTop = atBottom ? list.scrollHeight : prevTop;
   }
-  function renderTyping() { typingEl.hidden = !state.typing; }
+  function renderTyping() {
+    typingEl.textContent = state.agent ? state.agent + " está a escrever…" : "A equipa está a escrever…";
+    typingEl.hidden = !state.typing;
+  }
   function renderBadge() {
     var n = state.open ? 0 : unread();
     badge.hidden = !n;
@@ -541,7 +734,7 @@
   function renderStatus() {
     var online = isOpenNow();
     statusDot.className = "dot " + (online ? "on" : "off");
-    statusText.textContent = online ? cfg.subtitle : "Fora do horário de atendimento";
+    statusText.textContent = !online ? "Fora do horário de atendimento" : state.session && state.agent ? "A falar com " + state.agent : cfg.subtitle;
     offline.hidden = online;
     if (!online) {
       offline.textContent = cfg.offlineMessage;
@@ -559,7 +752,7 @@
     errorBox.hidden = !state.error;
   }
   function showMode() {
-    var want = state.session ? chat : form;
+    var want = state.session ? chat : state.ended ? endedView : form;
     if (bodyBox.firstChild !== want) {
       bodyBox.textContent = "";
       bodyBox.appendChild(want);
@@ -602,7 +795,9 @@
   function onKey(e) {
     if (e.key !== "Escape" || !state.open || e.isComposing) return;
     var inside = e.composedPath ? e.composedPath().indexOf(host) >= 0 : true;
-    if (inside) close();
+    if (!inside) return;
+    if (!sheet.hidden) { closeSheet(); focusInput(); return; }
+    close();
   }
   function onVisibility() {
     if (!document.hidden && state.session) fetchMessages().catch(function () {}).then(schedule);
@@ -680,12 +875,30 @@
       ".msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }",
       ".msg a { color: inherit; text-decoration: underline; }",
       ".who { display: block; font-size: 11px; color: #8a6428; font-weight: 600; margin-bottom: 2px; }",
+      ".msg.notice { align-self: center; max-width: 92%; padding: 4px 12px; border: 0; border-radius: 999px; background: #f2f4ef; color: #4f5c55; font-size: 12px; text-align: center; }",
+      ".txt p + p, .txt p + ul, .txt p + ol, .txt ul + p, .txt ol + p { margin-top: 7px; }",
+      ".txt ul, .txt ol { margin: 4px 0; padding-left: 20px; } .txt li { margin: 2px 0; overflow-wrap: anywhere; }",
+      ".msg a.product { display: flex; gap: 10px; align-items: center; margin: 6px 0; padding: 8px; border: 1px solid #e6e9e3; border-radius: 10px; background: #fafbf8; color: #253531; text-decoration: none; }",
+      ".product img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #fff; }",
+      ".pinfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .pinfo strong { font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }",
+      ".price { font-size: 13px; color: #8a6428; font-weight: 600; } .soldout { font-size: 11px; color: #a44b40; } .cta { font-size: 12px; color: #8a6428; text-decoration: underline; }",
       ".meta { display: block; font-size: 10.5px; opacity: .75; margin-top: 3px; text-align: right; }",
       ".retry { margin-left: 6px; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; font-size: 11px; }",
       ".typing { font-size: 12px; color: #78807c; font-style: italic; padding: 4px 12px; background: #fafbf8; }",
       ".compose { display: flex; gap: 8px; padding: 10px 10px 4px; border-top: 1px solid #e6e9e3; background: #fff; align-items: flex-end; }",
       ".compose textarea { resize: none; max-height: 120px; min-height: 40px; }",
       ".send { flex-shrink: 0; width: 42px; height: 42px; border: 0; border-radius: 50%; background: var(--c); color: var(--ct); cursor: pointer; display: grid; place-items: center; }",
+      ".panel { isolation: isolate; }",
+      ".sheet { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-end; background: rgba(20,30,28,.45); }",
+      ".sheet-box { width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 18px 16px 16px; background: #fff; border-radius: 14px 14px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.15); }",
+      ".sheet-title { font-size: 16px; }",
+      ".sheet-box p { margin: 0; font-size: 13.5px; color: #4f5c55; }",
+      ".sheet-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; cursor: pointer; }",
+      ".sheet-check input { margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--c); flex-shrink: 0; }",
+      ".secondary { border: 1px solid #d7dcd4; border-radius: 8px; padding: 10px; background: #fff; color: #253531; font-size: 14px; cursor: pointer; }",
+      ".ended { padding: 28px 18px; display: flex; flex-direction: column; gap: 12px; text-align: center; }",
+      ".ended-title { font-size: 17px; }",
+      ".ended p { margin: 0; color: #4f5c55; }",
       ".end { align-self: center; margin: 0 0 6px; background: none; border: 0; color: #78807c; font-size: 11.5px; text-decoration: underline; cursor: pointer; }",
       ".error { margin: 0; padding: 8px 14px; color: #a44b40; background: #fdf1ef; font-size: 13px; flex-shrink: 0; }",
       // Telemóvel (e telemóvel na horizontal): ecrã inteiro; letra de 16 px para o iPhone não ampliar a página.

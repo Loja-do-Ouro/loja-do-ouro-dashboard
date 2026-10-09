@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { userMessage } from "@/lib/supabase";
 import { sessionRpc } from "@/lib/support/db";
 import { REFUSAL, runSync } from "@/lib/support/sync";
+import { gmailDisconnectRemote } from "@/lib/support/gmail";
+import { hourRanges } from "@/lib/support/gmail-rules";
 import { revokeConnection } from "@/lib/support/zendesk";
 import { requireViewer } from "@/lib/viewer";
 
@@ -14,9 +16,9 @@ async function superViewer() {
   return viewer;
 }
 
-// Ações da secção da IA voltam a essa secção (secao=ia mostra lá a mensagem; #ia faz scroll até ela).
+// Ações das secções da IA e do email voltam a essa secção (secao=ia mostra lá a mensagem; #ia faz scroll até ela).
 const back = (params: Record<string, string>, hash = ""): never =>
-  redirect(`/apoio/configuracao?${new URLSearchParams(hash === "#ia" ? { ...params, secao: "ia" } : params)}${hash}`);
+  redirect(`/apoio/configuracao?${new URLSearchParams(hash === "#ia" || hash === "#email" ? { ...params, secao: hash.slice(1) } : params)}${hash}`);
 
 export async function savePolling(form: FormData) {
   const viewer = await superViewer();
@@ -103,4 +105,40 @@ export async function deleteKnowledge(form: FormData) {
     back({ erro: userMessage(e) }, "#ia");
   }
   back({ ok: "Secção apagada." }, "#ia");
+}
+
+// Email (Gmail): assinatura automática, resposta automática ("recebemos o seu email") e horário de atendimento.
+export async function saveEmailSettings(form: FormData) {
+  const viewer = await superViewer();
+  const text = (name: string) => String(form.get(name) ?? "").replace(/\r\n/g, "\n");
+  // Um horário que não se percebe deixaria a resposta automática sempre em "fora do horário": recusa-se.
+  const DAY_LABEL: Record<string, string> = { hours_weekdays: "Dias úteis", hours_saturday: "Sábado", hours_sunday: "Domingo" };
+  for (const field of Object.keys(DAY_LABEL)) {
+    const pieces = text(field).split(/[,;]| e /).map((p) => p.trim()).filter(Boolean);
+    if (pieces.some((p) => !hourRanges(p).length))
+      back({ erro: `Horário de ${DAY_LABEL[field]} não reconhecido. Use, por exemplo, 09:30-13:00, 14:00-18:30 (vazio = fechado).` }, "#email");
+  }
+  try {
+    await sessionRpc(viewer.session, "ldo_support_email_save_settings", {
+      p_signature: text("email_signature"), p_autoreply_enabled: form.get("email_autoreply_enabled") === "on",
+      p_autoreply_text: text("email_autoreply_text"), p_autoreply_offhours_text: text("email_autoreply_offhours_text"),
+      p_hours: { weekdays: text("hours_weekdays"), saturday: text("hours_saturday"), sunday: text("hours_sunday") },
+    });
+  } catch (e) {
+    back({ erro: userMessage(e) }, "#email");
+  }
+  back({ ok: "Definições do email guardadas." }, "#email");
+}
+
+// Desligar a caixa: para os avisos da Google, revoga a autorização e apaga as chaves.
+export async function disconnectGmail(form: FormData) {
+  const viewer = await superViewer();
+  if (form.get("confirm") !== "on") back({ erro: "Confirme antes de desligar a caixa." }, "#email");
+  try {
+    await gmailDisconnectRemote();
+    await sessionRpc(viewer.session, "ldo_support_gmail_disconnect");
+  } catch (e) {
+    back({ erro: userMessage(e) }, "#email");
+  }
+  back({ ok: "Caixa Gmail desligada." }, "#email");
 }
