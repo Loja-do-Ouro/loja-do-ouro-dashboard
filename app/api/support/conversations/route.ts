@@ -6,7 +6,7 @@ import { handle, json, supportViewer } from "@/lib/support/http";
 
 export const dynamic = "force-dynamic";
 
-const FILTERS = new Set(["all", "mine", "unassigned", "unread"]);
+const FILTERS = new Set(["all", "mine", "unassigned", "unread", "auto"]);
 
 // Lista de conversas com filtros e pesquisa; não lidas contadas para quem pede.
 export async function GET(request: Request) {

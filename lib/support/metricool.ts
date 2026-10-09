@@ -2,7 +2,7 @@ import "server-only";
 import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/bi/metricool";
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
 import { sendOutcome } from "./rules";
-import { socialAutoReply, type SocialSettings } from "./social-rules";
+import { isolatedReaction, socialAutoReply, type SocialSettings } from "./social-rules";
 
 // Metricool Inbox (API v2, https://app.metricool.com/api/swagger.json), mensagens privadas do
 // Facebook Messenger e do Instagram da marca "Loja do Ouro Jericó" (blogId 2912472). Reutiliza o
@@ -155,13 +155,19 @@ export async function syncMetricool(source: { id: string; config: Record<string,
 // Resposta automática ou agradecimento (regras em social-rules.ts), depois de a conversa estar gravada. A base
 // de dados confirma antes de enviar (uma vez por mensagem, por conversa em 24 h e por pessoa em 7 dias); um envio
 // recusado liberta o registo. Um resultado incerto fica registado: nunca se repete (podia ter chegado).
+// Uma reação sozinha (agradecida ou não) sai da lista principal para "Automáticas" até o cliente voltar a escrever.
 async function sendAutoReplies(provider: string, sourceId: string, conversations: IngestConversation[], settings: SocialSettings, deadline: number) {
   let sent = 0;
   for (const conv of conversations) {
     if (Date.now() > deadline - 5000) break;
     const recipient = conv.contact.external_id;
     if (!recipient) continue;
-    const decision = socialAutoReply(conv.messages.map((m) => ({ ...m, attachments: m.attachments || [] })), settings, new Date(), conv.contact.name || conv.contact.handle || null);
+    const messages = conv.messages.map((m) => ({ ...m, attachments: m.attachments || [] }));
+    const now = new Date();
+    const through = isolatedReaction(messages, now);
+    if (through)
+      await serverRpc("ldo_support_social_mark_auto", { p_source: sourceId, p_conversation: conv.external_id, p_through: through }).catch(() => undefined);
+    const decision = socialAutoReply(messages, settings, now, conv.contact.name || conv.contact.handle || null);
     if (!decision) continue;
     const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
     if (!(await serverRpc<boolean>("ldo_support_social_autoreply_claim", { ...claim, p_contact: recipient, p_kind: decision.kind }).catch(() => false))) continue;

@@ -61,19 +61,39 @@ export function personaliseSocial(text: string, name: string | null | undefined)
 }
 
 const at = (m: SocialMessage) => Date.parse(m.created_at) || 0;
+const ordered = (messages: SocialMessage[]) => messages.filter((m) => m.kind !== "note" && !m.deleted && at(m)).sort((a, b) => at(a) - at(b));
+
+// Mensagens do cliente depois da nossa última, das últimas 30 minutos.
+function freshBurst(msgs: SocialMessage[], t: number) {
+  let i = msgs.length - 1;
+  while (i >= 0 && msgs[i].kind === "inbound") i--;
+  return msgs.slice(i + 1).filter((m) => t - at(m) <= MAX_AGE_MS);
+}
+
+// Reação sozinha (só reações nas mensagens novas, sem mensagens nossas nem pedidos nas últimas 24 horas): a conversa
+// não precisa da equipa e sai da lista principal (separador "Automáticas") até o cliente voltar a escrever.
+// Devolve a hora da última mensagem do cliente (até onde a conversa fica tratada) ou null.
+export function isolatedReaction(messages: SocialMessage[], now: Date): string | null {
+  const msgs = ordered(messages);
+  const last = msgs[msgs.length - 1];
+  if (!last || last.kind !== "inbound") return null;
+  const t = now.getTime();
+  const fresh = freshBurst(msgs, t);
+  if (!fresh.length || fresh.some((m) => classifySocial(m) === "support")) return null;
+  const recent = msgs.filter((m) => t - at(m) <= QUIET_MS);
+  if (recent.some((m) => m.kind === "outbound" || classifySocial(m) === "support")) return null;
+  return new Date(at(last)).toISOString();
+}
 
 // O que enviar nesta conversa agora (ou null). "anchor" é a última mensagem do cliente: a base de dados nunca
 // responde duas vezes à mesma.
 export function socialAutoReply(messages: SocialMessage[], settings: SocialSettings, now: Date, contactName: string | null): SocialDecision | null {
   if (!settings.enabled) return null;
-  const msgs = messages.filter((m) => m.kind !== "note" && !m.deleted && at(m)).sort((a, b) => at(a) - at(b));
+  const msgs = ordered(messages);
   const last = msgs[msgs.length - 1];
   if (!last || last.kind !== "inbound") return null;
   const t = now.getTime();
-  // Mensagens do cliente depois da nossa última, das últimas 30 minutos.
-  let i = msgs.length - 1;
-  while (i >= 0 && msgs[i].kind === "inbound") i--;
-  const fresh = msgs.slice(i + 1).filter((m) => t - at(m) <= MAX_AGE_MS);
+  const fresh = freshBurst(msgs, t);
   if (!fresh.length) return null;
 
   if (fresh.some((m) => classifySocial(m) === "support")) {
@@ -81,8 +101,6 @@ export function socialAutoReply(messages: SocialMessage[], settings: SocialSetti
     return text.trim() ? { kind: "support", text: personaliseSocial(text, contactName), anchor: last.external_id } : null;
   }
 
-  if (!settings.thanks_text.trim() || t - at(last) < SETTLE_MS) return null;
-  const recent = msgs.filter((m) => t - at(m) <= QUIET_MS);
-  if (recent.some((m) => m.kind === "outbound" || classifySocial(m) === "support")) return null;
+  if (!settings.thanks_text.trim() || t - at(last) < SETTLE_MS || !isolatedReaction(msgs, now)) return null;
   return { kind: "thanks", text: personaliseSocial(settings.thanks_text, contactName), anchor: last.external_id };
 }

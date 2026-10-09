@@ -26,9 +26,13 @@ type Source = { id: string; platform: string; channel: Channel; label: string; s
 type Item = {
   id: string; channel: Channel; subject: string | null; status: Status; contact_name: string; contact_handle: string | null;
   assignee_id: string | null; assignee_name: string | null; last_message_at: string; last_preview: string | null; last_direction: Kind | null;
-  unread: number; attention: boolean;
+  unread: number; attention: boolean; auto?: boolean;
 };
-type List = { items: Item[]; counts: { all: number; mine: number; unassigned: number; unread: number }; sources: Source[]; poll_seconds: number };
+type AutoCounts = { support: number; thanks: number; email: number };
+type List = {
+  items: Item[]; counts: { all: number; mine: number; unassigned: number; unread: number; auto?: number }; sources: Source[]; poll_seconds: number;
+  automatic?: { today: AutoCounts; week: AutoCounts };
+};
 type Message = {
   id: string; kind: Kind; author_name: string | null; author_user_id: string | null; body: string;
   attachments: { name: string; type: string | null; size: number | null; ref: string; inline?: boolean }[];
@@ -99,7 +103,18 @@ const FILTERS = [
   ["mine", "Minhas"],
   ["unassigned", "Sem responsável"],
   ["unread", "Não lidas"],
+  ["auto", "Automáticas"],
 ] as const;
+
+// Resumo das respostas automáticas enviadas (redes sociais e email).
+function autoSummary(c: AutoCounts) {
+  const parts = [
+    c.thanks && `${c.thanks} agradecimento${c.thanks === 1 ? "" : "s"} a reações`,
+    c.support && `${c.support} mensage${c.support === 1 ? "m" : "ns"} fora do horário`,
+    c.email && `${c.email} email${c.email === 1 ? "" : "s"} "recebemos o seu email"`,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "nenhuma";
+}
 
 const time = (iso: string | null | undefined, withDate = true) => {
   if (!iso) return "—";
@@ -671,7 +686,7 @@ export function SupportInbox({
               {FILTERS.map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={filter === key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
                   {label}
-                  {list && <b>{list.counts[key]}</b>}
+                  {list && <b>{list.counts[key] ?? 0}</b>}
                 </button>
               ))}
             </div>
@@ -687,6 +702,14 @@ export function SupportInbox({
             </div>
           </div>
           {listError && <p className="support-error" role="alert">{listError}</p>}
+          {filter === "auto" && list?.automatic && (
+            <div className="auto-summary">
+              <p><strong>Respostas automáticas enviadas</strong></p>
+              <p>Hoje: {autoSummary(list.automatic.today)}</p>
+              <p>Últimos 7 dias: {autoSummary(list.automatic.week)}</p>
+              <p className="muted">Aqui ficam as conversas só com reações (story, gosto, emoji) já tratadas automaticamente. Se a pessoa voltar a escrever, a conversa regressa à lista principal.</p>
+            </div>
+          )}
           <ul>
             {list?.items.map((i) => (
               <li key={i.id}>
@@ -698,6 +721,7 @@ export function SupportInbox({
                   <span className="support-item-meta">
                     <span className={`channel-badge ${i.channel}`}>{CHANNEL_LABEL[i.channel]}</span>
                     <span className={`status-badge ${i.status}`}>{STATUS_LABEL[i.status]}</span>
+                    {i.auto && <span className="status-badge auto">Tratada automaticamente</span>}
                     {i.unread > 0 && <b className="unread-badge" aria-label={`${i.unread} não lidas`}>{i.unread}</b>}
                     {i.attention && <span className="attention" title="Envio falhado, incerto ou por concluir">!</span>}
                   </span>

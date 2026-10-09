@@ -74,3 +74,17 @@ test("Nothing is sent when switched off, when we spoke last, for old messages or
   const two = [msg("inbound", "Olá", 4), msg("inbound", "Tem este anel?", 2)];
   assert.equal(s.socialAutoReply(two, settings(), NIGHT, "Ana").anchor, two[1].external_id);
 });
+
+test("An isolated reaction is marked as handled (until the customer writes again), with or without a thanks", () => {
+  const r = [msg("inbound", "", 0.2)];
+  // Logo, mesmo antes do agradecimento (que espera 1 minuto).
+  assert.equal(s.isolatedReaction(r, NIGHT), r[0].created_at);
+  // Um pedido não é uma reação: fica na lista principal.
+  assert.equal(s.isolatedReaction([msg("inbound", "Tem este anel?", 2)], NIGHT), null);
+  // Reação no meio de uma conversa: fica na lista principal.
+  assert.equal(s.isolatedReaction([msg("inbound", "Tem o anel?", 300), msg("outbound", "Temos!", 120), msg("inbound", "❤️", 3)], NIGHT), null);
+  // Já respondemos depois da reação: nada a marcar.
+  assert.equal(s.isolatedReaction([msg("inbound", "😍", 10), msg("outbound", "Obrigado! 💛", 5)], NIGHT), null);
+  // Reação antiga (mais de 30 minutos): não é marcada agora.
+  assert.equal(s.isolatedReaction([msg("inbound", "😍", 45)], NIGHT), null);
+});
