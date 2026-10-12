@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/dashboard/ui";
+import { NavScroll } from "@/components/nav-scroll";
 import { canCompareStores, canManageStores, canManageUsers, canSeeOnline, canSupport, initials } from "@/lib/permissions";
 import type { Viewer } from "@/lib/viewer";
 
@@ -8,7 +9,7 @@ export const ONLINE_SECTIONS = [
   ["sales", "Vendas e operação", "bag"],
   ["marketing", "Marketing e canais", "ads"],
   ["social", "Redes sociais", "heart"],
-  ["audience", "Públicos e regiões", "people"],
+  ["audience", "Públicos e regiões", "globe"],
   ["quality", "Relatórios e qualidade", "check"],
 ] as const;
 
@@ -50,12 +51,12 @@ export function AppShell({
     groups.push({
       label: "LOJAS FÍSICAS",
       items: [
-        { key: "lojas", label: "Vendas e atendimentos", href: "/lojas", icon: "bag" },
+        { key: "lojas", label: "Vendas e atendimentos", href: "/lojas", icon: "store" },
         { key: "ouro", label: "Compra de ouro", href: "/lojas/ouro", icon: "sales" },
         ...(canCompareStores(viewer)
           ? [
               { key: "ranking", label: "Ranking das lojas", href: "/lojas/ranking", icon: "trophy" },
-              { key: "comparar", label: "Comparar lojas", href: "/lojas/comparar", icon: "grid" },
+              { key: "comparar", label: "Comparar lojas", href: "/lojas/comparar", icon: "compare" },
             ]
           : []),
       ],
@@ -67,13 +68,13 @@ export function AppShell({
         { key: "utilizadores", label: "Utilizadores", href: "/admin/utilizadores", icon: "people" },
         ...(canManageStores(viewer)
           ? [
-              { key: "admin-lojas", label: "Lojas", href: "/admin/lojas", icon: "bag" },
-              { key: "opcoes", label: "Listas de opções", href: "/admin/opcoes", icon: "check" },
+              { key: "admin-lojas", label: "Lojas", href: "/admin/lojas", icon: "pin" },
+              { key: "opcoes", label: "Listas de opções", href: "/admin/opcoes", icon: "list" },
               ...(viewer.isSuper
                 ? [
-                    { key: "campanhas", label: "Campanhas", href: "/admin/campanhas", icon: "ads" },
+                    { key: "campanhas", label: "Campanhas", href: "/admin/campanhas", icon: "target" },
                     { key: "relatorios", label: "Relatórios por email", href: "/admin/relatorios", icon: "mail" },
-                    { key: "folha-lojas", label: "Folha das lojas", href: "/admin/folha-lojas", icon: "bag" },
+                    { key: "folha-lojas", label: "Folha das lojas", href: "/admin/folha-lojas", icon: "sheet" },
                   ]
                 : []),
             ]
@@ -92,6 +93,8 @@ export function AppShell({
             width="160"
             height="92"
           />
+          {/* Na coluna de ícones do tablet, o logótipo inteiro não cabe: fica só o emblema. */}
+          <img className="brand-emblem" src="/emblema-loja-do-ouro.png" alt="" width="44" height="44" />
           <span className="brand-caption">ADMINISTRAÇÃO</span>
         </Link>
         <div className="nav-groups">
@@ -104,6 +107,7 @@ export function AppShell({
                   key={item.key}
                   href={item.href}
                   aria-label={item.label}
+                  title={item.label}
                   className={current === item.key ? "active" : ""}
                   aria-current={current === item.key ? "page" : undefined}
                 >
@@ -116,9 +120,10 @@ export function AppShell({
           </div>
         ))}
         </div>
+        <NavScroll current={current} />
         <div className="sidebar-bottom">
           <Link href="/conta" className={`private-label${current === "conta" ? " active" : ""}`} title="A minha conta · mudar palavra-passe">
-            <Icon name="check" />
+            <Icon name="user" />
             <span>
               {name}
               <small>A minha conta</small>
