@@ -6,7 +6,7 @@ import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { saveUser } from "./actions";
+import { resendAccess, saveUser } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Utilizadores · Loja do Ouro" };
@@ -29,10 +29,17 @@ type User = {
   receive_reports: boolean;
 };
 type Store = { id: string; code: string; name: string; active: boolean };
+// Último link de acesso enviado por email a cada pessoa (ldo_list_access, só Super Admin).
+type Access = { user_id: string; email: string; created_at: string; expires_at: string; used_at: string | null; revoked_at: string | null };
 
 const OK: Record<string, string> = {
   created: "Utilizador criado. Entregue à pessoa o nome de utilizador e a palavra-passe inicial.",
   updated: "Alterações guardadas.",
+  created_sent: "Utilizador criado e acesso enviado por email. O link para criar a palavra-passe é válido durante 48 horas.",
+  updated_sent: "Alterações guardadas e acesso enviado por email. O link é válido durante 48 horas.",
+  sent: "Acesso enviado por email. O link é válido durante 48 horas; os links anteriores deixam de funcionar.",
+  created_noemail: "Utilizador criado. Não foi enviado email porque o campo do email está vazio: entregue à pessoa o nome de utilizador e a palavra-passe inicial.",
+  updated_noemail: "Alterações guardadas. O acesso não foi enviado porque o campo do email está vazio.",
 };
 const LEVEL: Record<Level, string> = { manager: "Gestor", store: "Loja" };
 
@@ -40,10 +47,15 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const viewer = await requireViewer();
   if (!canManageUsers(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const [users, allStores] = await Promise.all([
+  const [users, allStores, links] = await Promise.all([
     rpc<User[]>("ldo_list_users", { p_session: viewer.session }),
     viewer.isSuper ? rpc<Store[]>("ldo_list_stores", { p_session: viewer.session }) : Promise.resolve([] as Store[]),
+    viewer.isSuper ? rpc<Access[]>("ldo_list_access", { p_session: viewer.session }) : Promise.resolve([] as Access[]),
   ]);
+  const access = new Map(links.map((l) => [l.user_id, l]));
+  const now = Date.now();
+  // Um link só vale enquanto o email da pessoa for aquele para onde foi enviado (ldo_access_info).
+  const pending = (l: Access | undefined, u: User) => !!l && !l.used_at && !l.revoked_at && Date.parse(l.expires_at) > now && l.email === u.email;
   const storeName = new Map<string, string>([...allStores, ...viewer.stores].map((s) => [s.id, s.name]));
   // A Gestor only assigns the stores they manage; the Super Admin every active store.
   const formStores = viewer.isSuper ? allStores.filter((s) => s.active) : managedStores(viewer);
@@ -92,7 +104,9 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                 </tr>
               </thead>
               <tbody>
-                {shown.map((u) => (
+                {shown.map((u) => {
+                  const link = access.get(u.id);
+                  return (
                   <tr key={u.id} className={u.id === editing?.id ? "selected-row" : ""}>
                     <td>
                       {u.full_name || u.username}
@@ -114,11 +128,16 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                         <span className="pill">Desativado</span>
                       ) : u.locked ? (
                         <span className="pill warn">Bloqueado 15 min</span>
+                      ) : pending(link, u) ? (
+                        <span className="pill">Acesso enviado</span>
+                      ) : !u.has_password ? (
+                        <span className="pill warn">{link && !link.used_at && !link.revoked_at && link.email === u.email ? "Link expirado" : "Sem palavra-passe"}</span>
                       ) : u.must_change_password ? (
                         <span className="pill warn">Palavra-passe temporária</span>
                       ) : (
                         <span className="pill ok">Ativo</span>
                       )}
+                      {u.active && link && pending(link, u) && <small className="muted block">Link válido até {timestamp(link.expires_at)}</small>}
                       {u.last_login_at && <small className="muted block">Último acesso {timestamp(u.last_login_at)}</small>}
                     </td>
                     <td>
@@ -127,9 +146,19 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                       ) : (
                         <small className="muted">{u.id === viewer.id ? "Você" : "Super Admin"}</small>
                       )}
+                      {viewer.isSuper && u.id !== viewer.id && u.active && u.email && (
+                        <form action={resendAccess} className="row-action">
+                          <input type="hidden" name="user_id" value={u.id} />
+                          {filter && <input type="hidden" name="loja" value={filter} />}
+                          <button type="submit" className="secondary-button" title={`Enviar para ${u.email} um link novo para criar a palavra-passe`}>
+                            {link ? "Reenviar acesso" : "Enviar acesso"}
+                          </button>
+                        </form>
+                      )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -157,8 +186,12 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
               <input name="full_name" maxLength={120} autoComplete="off" defaultValue={editing?.full_name || (typeof q.nome === "string" ? q.nome : "")} />
             </label>
             <label className="wide">
-              {editing ? "Nova palavra-passe (deixe vazio para manter a atual)" : "Palavra-passe inicial (mínimo 8 caracteres)"}
-              <input name="password" type="text" minLength={8} required={!editing} autoComplete="new-password" spellCheck={false} />
+              {editing
+                ? "Nova palavra-passe (deixe vazio para manter a atual)"
+                : viewer.isSuper
+                  ? "Palavra-passe inicial (mínimo 8 caracteres; deixe vazio se enviar o acesso por email)"
+                  : "Palavra-passe inicial (mínimo 8 caracteres)"}
+              <input name="password" type="text" minLength={8} required={!editing && !viewer.isSuper} autoComplete="new-password" spellCheck={false} />
             </label>
             <label className="check wide">
               <input type="checkbox" name="must_change" defaultChecked />
@@ -183,11 +216,19 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             )}
             {viewer.isSuper && (
               <fieldset className="wide">
-                <legend>Relatórios por email</legend>
+                <legend>Email</legend>
                 <label>
                   Email
                   <input name="email" type="email" maxLength={160} autoComplete="off" spellCheck={false} placeholder="nome@lojadoouro.pt" defaultValue={editing?.email || ""} />
                 </label>
+                {!self && (
+                  <label className="check">
+                    <input type="checkbox" name="send_access" defaultChecked={!editing || !editing.has_password} />
+                    <span>
+                      <strong>Enviar o acesso por email</strong> — o nome de utilizador e um link para a pessoa criar a palavra-passe (uso único, válido 48 horas). Nenhuma palavra-passe vai no email.
+                    </span>
+                  </label>
+                )}
                 <label className="check">
                   <input type="checkbox" name="receive_reports" defaultChecked={editing ? editing.receive_reports : true} />
                   <span>Receber os relatórios diários, semanais e mensais e o alerta de lojas sem dados (só Super Admins com email recebem).</span>

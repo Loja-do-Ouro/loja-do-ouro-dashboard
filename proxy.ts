@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authConfigured, SESSION_COOKIE } from "@/lib/session";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
+// /acesso: link do email para criar a palavra-passe (o token vai no corpo do pedido e é verificado na BD).
+const PUBLIC_PATHS = ["/login", "/acesso", "/api/auth/login", "/api/auth/logout"];
 
 // Sends visitors without a session to the login. The session itself and the
 // permissions are checked by each page and action in Supabase, never only here.

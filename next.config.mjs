@@ -9,6 +9,9 @@ if (process.env.VERCEL) console.info("[BI readiness]", JSON.stringify({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Em desenvolvimento, o Next escreve no terminal os argumentos das Server Functions (palavras-passe, tokens
+  // do link de acesso). Desligado: nenhum segredo vai para registos.
+  logging: { serverFunctions: false },
   // Widget do chat do site (carregado pelo tema Shopify): cache curta, para as atualizações chegarem depressa.
   async headers() {
     return [{ source: "/site-chat/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=300, stale-while-revalidate=3600" }] }];
