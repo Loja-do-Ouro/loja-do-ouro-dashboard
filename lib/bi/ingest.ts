@@ -1,11 +1,11 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
-import { closedPeriods, dates, previous, type Period } from "./periods";
+import { closedPeriods, dates, localDate, previous, shift, type Period } from "./periods";
 import { calculatedChecks, type Daily, type Dataset, type Row } from "./model";
 import { DAILY_SOURCES, DETAILS, sourceMetadata } from "./live";
 import { gaFields } from "./accounts";
 import { BI_CACHE_TAG, readWindsor } from "./windsor";
-import { FULFILLMENT_FIELDS, SALES_FIELDS, SESSION_FIELDS, dailyQuery, ordersByDay, productsQuery, shopSettings, shopifyConfigured, shopifyql, totalsQuery } from "./shopify";
+import { FULFILLMENT_FIELDS, SALES_FIELDS, SESSION_FIELDS, dailyQuery, ordersByDay, paidSalesByDay, productsQuery, shopSettings, shopifyConfigured, shopifyql, totalsQuery } from "./shopify";
 import { klaviyoCampaigns, klaviyoConfigured, klaviyoFlows } from "./klaviyo";
 import { metricoolAccount, metricoolConfigured, metricoolDaily, metricoolPosts } from "./metricool";
 import { closeStaleRuns, finishRun, startRun, upsert } from "./supabase-write";
@@ -13,6 +13,9 @@ import { readStore } from "./store";
 
 export { ingestRange } from "./periods";
 const CONCURRENCY = 6;
+// Vendas pagas: um Multibanco pago dias depois ou um reembolso parcial semanas depois mudam o dia da encomenda, por
+// isso todas as noites se recalcula o último ano (encomenda a encomenda; poucas consultas à Shopify).
+const PAID_LOOKBACK_DAYS = 400;
 
 async function pool(tasks: (() => Promise<void>)[]) {
   let next = 0;
@@ -107,6 +110,12 @@ export async function ingest(range: Period, trigger: string) {
     if (shop.currencyCode !== "EUR" || shop.ianaTimezone !== "Europe/Lisbon") throw new Error("Moeda ou fuso da loja sem confirmação EUR / Europe/Lisbon.");
     const shopTasks = [
       job("Shopify vendas diárias", async () => pushDaily("shopify_sales", await shopifyql(dailyQuery("sales", SALES_FIELDS, range)), "day")),
+      job("Shopify vendas pagas", async () => {
+        const window = { from: [range.from, shift(range.to, -(PAID_LOOKBACK_DAYS - 1))].sort()[0], to: range.to };
+        const fetched_at = stamp();
+        for (const r of await paidSalesByDay(window, localDate()))
+          daily.push({ source: "shopify_paid", metric_date: String(r.day), metrics: Object.fromEntries(Object.entries(r).filter(([k]) => k !== "day")), fetched_at, status: "provisional", run_id: runId });
+      }),
       job("Shopify sessões diárias", async () => pushDaily("shopify_sessions", await shopifyql(dailyQuery("sessions", SESSION_FIELDS, range)), "day")),
       job("Shopify expedições diárias", async () => pushDaily("shopify_fulfillments", await shopifyql(dailyQuery("fulfillments", FULFILLMENT_FIELDS, range)), "day")),
       job("Shopify encomendas", async () => {

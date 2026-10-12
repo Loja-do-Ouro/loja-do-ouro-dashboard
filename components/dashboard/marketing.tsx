@@ -49,8 +49,8 @@ export function Marketing({ store, range }: { store: Store; range: Period }) {
           </strong>
           <p>
             {inv.mer !== null
-              ? `Vendas totais Shopify ÷ investimento online (${currency(inv.online)}). Exclui as campanhas das lojas físicas. Não mede lucro nem ROAS atribuído.`
-              : "Vendas totais Shopify ÷ investimento Meta + Google, sem separar lojas físicas (detalhe de campanhas incompleto). Não mede lucro nem ROAS atribuído."}
+              ? `Vendas pagas sem IVA ÷ investimento online (${currency(inv.online)}). Exclui as campanhas das lojas físicas. Não mede lucro nem ROAS atribuído.`
+              : "Vendas pagas sem IVA ÷ investimento Meta + Google, sem separar lojas físicas (detalhe de campanhas incompleto). Não mede lucro nem ROAS atribuído."}
           </p>
         </article>
       </div>

@@ -204,9 +204,21 @@ export function metric(
 export function overview(store: Store, p: Period) {
   const get = (source: string, field: string, additive = true) =>
     metric(store, p, source, field, additive);
-  const sales = get("shopify_sales", "total_sales"),
-    orders = get("shopify_sales", "orders"),
-    aov = get("shopify_sales", "average_order_value", false);
+  // Vendas: encomendas pagas (não canceladas), pelo dia da encomenda, sem IVA nem portes (lib/bi/shopify.ts,
+  // paidSalesByDay). Com IVA e portes e as encomendas por pagar ficam à parte. A contabilidade da Shopify (que conta
+  // encomendas por pagar e desconta cancelamentos no dia em que acontecem) fica só na composição.
+  const sales = get("shopify_paid", "net_sales"),
+    orders = get("shopify_paid", "orders"),
+    salesWithVat = get("shopify_paid", "total_sales"),
+    pendingOrders = get("shopify_paid", "pending_orders"),
+    pendingValue = get("shopify_paid", "pending_total"),
+    accounting = get("shopify_sales", "total_sales");
+  const aov: Metric = {
+    ...sales,
+    field: "average_order_value",
+    value: ratio(sales.value, orders.value),
+    note: sales.value === null || orders.value === null ? sales.note : "Vendas pagas sem IVA ÷ encomendas pagas.",
+  };
   const meta = get("meta", "spend"),
     google = get("google_ads", "spend"),
     spend = plus(meta.value, google.value);
@@ -217,6 +229,10 @@ export function overview(store: Store, p: Period) {
     sales,
     orders,
     aov,
+    salesWithVat,
+    pendingOrders,
+    pendingValue,
+    accounting,
     meta,
     google,
     spend,
@@ -500,7 +516,7 @@ export function calculatedChecks(store: Store, p: Period) {
   const c = Object.fromEntries(s.composition.map((m) => [m.field, m.value]));
   // The direct connector never supplies the sales report; that is a known
   // limitation of the mode, not a divergence that needs attention.
-  if (store.mode === "live" && s.composition.every((m) => m.value === null) && s.sales.value === null) {
+  if (store.mode === "live" && s.composition.every((m) => m.value === null) && s.accounting.value === null) {
     checks.push({
       label: "Composição das vendas Shopify",
       detail: "Não aplicável no modo direto: o conector não fornece o relatório de vendas. Disponível com os fechos guardados.",
@@ -516,16 +532,16 @@ export function calculatedChecks(store: Store, p: Period) {
       net === null ||
       total === null ||
       c.net_sales === null ||
-      s.sales.value === null
+      s.accounting.value === null
         ? "Campos insuficientes para reconciliar a composição."
-        : `Brutas + descontos + reversões − líquidas: ${(net - c.net_sales).toFixed(2)} €. Líquidas + impostos + portes − total: ${(total - s.sales.value).toFixed(2)} €.`,
+        : `Brutas + descontos + reversões − líquidas: ${(net - c.net_sales).toFixed(2)} €. Líquidas + impostos + portes − total: ${(total - s.accounting.value!).toFixed(2)} €.`,
     warning:
       net === null ||
       total === null ||
       c.net_sales === null ||
-      s.sales.value === null ||
+      s.accounting.value === null ||
       Math.abs(net - c.net_sales) > 0.020001 ||
-      Math.abs(total - s.sales.value) > 0.020001,
+      Math.abs(total - s.accounting.value) > 0.020001,
   });
   return checks;
 }

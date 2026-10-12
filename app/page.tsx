@@ -103,7 +103,7 @@ export default async function Page({
                   <span className="period-date">{periodLabel(w.range)}</span>
                   <strong>{currency(live ? c.paidValue : v.sales.value)}</strong>
                   <div className="period-footer">
-                    <span>{live ? "Encomendas pagas · valor observado" : "Vendas Shopify"}</span>
+                    <span>{live ? "Encomendas pagas · valor observado" : "Vendas pagas · sem IVA"}</span>
                     {!live && <Change a={v.sales.value} b={before.sales.value} />}
                   </div>
                 </Link>

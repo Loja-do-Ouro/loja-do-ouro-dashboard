@@ -66,6 +66,7 @@ export function Kpi({
         <summary>
           {m.source
             .replace("shopify_sales", "Shopify")
+            .replace("shopify_paid", "Shopify")
             .replace("shopify_sessions", "Shopify")}{" "}
           · {m.value === null ? "Indisponível" : "Provisório"}
         </summary>

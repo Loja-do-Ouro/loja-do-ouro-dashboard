@@ -185,8 +185,8 @@ ${r.rows
       "Loja online",
       o.available
         ? tiles([
-            [o.live ? "Encomendas pagas (valor)" : "Vendas Shopify", eur(o.sales), change(o.sales, o.salesBefore)],
-            ["Encomendas", int(o.orders), change(o.orders, o.ordersBefore)],
+            [o.live ? "Encomendas pagas (valor)" : "Vendas pagas (sem IVA)", eur(o.sales), change(o.sales, o.salesBefore)],
+            [o.live ? "Encomendas" : "Encomendas pagas", int(o.orders), change(o.orders, o.ordersBefore)],
             [o.onlineOnly ? "Investimento em anúncios (online)" : "Investimento em anúncios", eur(o.spend), o.onlineOnly ? `Lojas físicas à parte: ${eur(o.physicalSpend)}` : `Meta ${eur(o.meta)} · Google ${eur(o.google)}`],
             ["Sessões", int(o.sessions), `conversão ${pct(o.conversion === null ? null : o.conversion * 100)}`],
           ])
