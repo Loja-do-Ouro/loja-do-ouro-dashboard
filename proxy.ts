@@ -34,6 +34,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(login);
 }
 
+// Ícones da janela (app/favicon.ico, app/apple-icon.png) e logótipo: públicos, também na página de entrada.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|logo-loja-do-ouro.png).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|apple-icon.png|logo-loja-do-ouro.png).*)"],
 };
