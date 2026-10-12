@@ -12,7 +12,7 @@ import { serverConfigured, serverRpc, sessionRpc } from "@/lib/support/db";
 import type { SocialSettings } from "@/lib/support/social-rules";
 import { supportEmailFrom } from "@/lib/support/notify";
 import { siteOrigins } from "@/lib/support/site-chat";
-import { metricoolDiagnostics } from "@/lib/support/metricool";
+import { metricoolCommentsDiagnostics, metricoolDiagnostics } from "@/lib/support/metricool";
 import { WHATSAPP_STATUS } from "@/lib/support/whatsapp";
 import { redirectUri, ZENDESK_SCOPES, zendeskDiagnostics, zendeskReadiness } from "@/lib/support/zendesk";
 import { requireViewer } from "@/lib/viewer";
@@ -105,9 +105,12 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const zendeskSource = state.sources.find((x) => x.id === "zendesk");
   const zendeskIsOff = zendeskSource?.status === "disabled";
   const diag = q.diagnostico === "1";
-  const [zd, fb, ig] = diag
-    ? await Promise.all([zendeskIsOff ? null : zendeskDiagnostics(), metricoolDiagnostics("FACEBOOK"), metricoolDiagnostics("INSTAGRAM")])
-    : [null, null, null];
+  // Comentários das publicações: só leitura (contagens e estrutura), para decidir se entram no Apoio ao Cliente.
+  // O Instagram pode estar ligado como INSTAGRAM ou INSTAGRAMBUSINESS: testam-se os dois.
+  const [zd, fb, ig, fbComments, igComments, igbComments] = diag
+    ? await Promise.all([zendeskIsOff ? null : zendeskDiagnostics(), metricoolDiagnostics("FACEBOOK"), metricoolDiagnostics("INSTAGRAM"),
+        metricoolCommentsDiagnostics("FACEBOOK"), metricoolCommentsDiagnostics("INSTAGRAM"), metricoolCommentsDiagnostics("INSTAGRAMBUSINESS")])
+    : [null, null, null, null, null, null];
   // URL de produção estável a registar no Zendesk (o da preview só serve para testes).
   const productionCallback = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL || "loja-do-ouro-dashboard.vercel.app"}/api/support/zendesk/callback`;
   const thisCallback = redirectUri(`https://${process.env.VERCEL_URL || "localhost"}/`);
@@ -189,6 +192,12 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           </dl>
           {fb && <pre className="diag">{JSON.stringify(fb, null, 2)}</pre>}
           {ig && <pre className="diag">{JSON.stringify(ig, null, 2)}</pre>}
+          {(fbComments || igComments || igbComments) && (
+            <p className="panel-note">Comentários das publicações (só leitura: contagens e estrutura, sem textos, nomes nem ligações).</p>
+          )}
+          {fbComments && <pre className="diag">{JSON.stringify(fbComments, null, 2)}</pre>}
+          {igComments && <pre className="diag">{JSON.stringify(igComments, null, 2)}</pre>}
+          {igbComments && <pre className="diag">{JSON.stringify(igbComments, null, 2)}</pre>}
           <p className="panel-note">Comentários de publicações e de anúncios ficam fora desta fase. As respostas saem pela página/conta da marca; o dashboard regista quem as escreveu.</p>
         </Panel>
       </div>

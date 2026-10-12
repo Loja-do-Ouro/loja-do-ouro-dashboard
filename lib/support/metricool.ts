@@ -242,25 +242,34 @@ export async function metricoolImage(provider: string, target: string) {
 }
 
 // Diagnóstico para a configuração (Super Admin): só contagens e estrutura, nunca conteúdo de mensagens.
-function emptyMessageShapes(conversations: Conversation[]) {
-  const empty = conversations.flatMap((c) => (c.messages || []).filter((m) => !String(m.text || "").trim() && !(m.attachments || []).length));
+// Estrutura de um objeto "properties" da Metricool: nomes de campos e tipos; valor só em campos que descrevem um
+// tipo (type, kind, reaction…) ou em verdadeiro/falso, nunca nomes nem conteúdo.
+function propertiesShape(value: unknown) {
+  const parts: string[] = [];
+  const walk = (v: unknown, path: string, depth: number) => {
+    if (v && typeof v === "object" && !Array.isArray(v) && depth < 3) {
+      for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 20)) walk(x, path ? `${path}.${k}` : k, depth + 1);
+    } else {
+      const typed = /(^|\.)(type|kind|subtype|category|event|reaction|source)$/i.test(path) && typeof v === "string" && /^[A-Za-z_]{1,30}$/.test(v);
+      parts.push(typed || typeof v === "boolean" ? `${path}=${v}` : `${path}:${Array.isArray(v) ? "array" : v === null ? "null" : typeof v}`);
+    }
+  };
+  walk(value ?? null, "", 0);
+  return parts.sort().join(", ") || "(sem properties)";
+}
+
+function topShapes(values: unknown[]) {
   const shapes = new Map<string, number>();
-  for (const m of empty) {
-    const parts: string[] = [];
-    const walk = (v: unknown, path: string, depth: number) => {
-      if (v && typeof v === "object" && !Array.isArray(v) && depth < 3) {
-        for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 20)) walk(x, path ? `${path}.${k}` : k, depth + 1);
-      } else {
-        // Valor só em campos que descrevem um tipo (type, kind, reaction…), nunca nomes nem conteúdo.
-        const typed = /(^|\.)(type|kind|subtype|category|event|reaction|source)$/i.test(path) && typeof v === "string" && /^[A-Za-z_]{1,30}$/.test(v);
-        parts.push(typed ? `${path}=${v}` : `${path}:${Array.isArray(v) ? "array" : typeof v}`);
-      }
-    };
-    walk(m.properties ?? null, "", 0);
-    const key = parts.sort().join(", ") || "(sem properties)";
+  for (const v of values) {
+    const key = propertiesShape(v);
     shapes.set(key, (shapes.get(key) || 0) + 1);
   }
-  return { count: empty.length, properties: [...shapes].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([shape, n]) => ({ shape, n })) };
+  return [...shapes].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([shape, n]) => ({ shape, n }));
+}
+
+function emptyMessageShapes(conversations: Conversation[]) {
+  const empty = conversations.flatMap((c) => (c.messages || []).filter((m) => !String(m.text || "").trim() && !(m.attachments || []).length));
+  return { count: empty.length, properties: topShapes(empty.map((m) => m.properties)) };
 }
 
 export async function metricoolDiagnostics(provider: string) {
@@ -290,6 +299,105 @@ export async function metricoolDiagnostics(provider: string) {
       brandDetected: Boolean(brand),
       brandId: brand,
       oldestMessage: conversations.flatMap((c) => (c.messages || []).map((m) => m.publicationDateTime || "")).filter(Boolean).sort()[0] || null,
+    };
+  } catch (e) {
+    out.read = { error: e instanceof Error ? e.message : "indisponível" };
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- comentários das publicações (diagnóstico)
+// Inbox "post-comments" da Metricool: um tópico por comentário principal, com a publicação (element) e as
+// respostas. Por agora só leitura, para decidir se os comentários entram no Apoio ao Cliente: devolve contagens
+// e estrutura, nunca textos, nomes nem ligações.
+type CommentItem = { id?: string; parentId?: string; creationDate?: string; owner?: string; text?: string; mediaUrl?: string; properties?: Record<string, unknown> };
+type PostElement = { id?: string; owner?: Participant; link?: string; text?: string; mediaUrls?: string[]; commentCount?: number; reactionCount?: number; properties?: Record<string, unknown> };
+type CommentThread = {
+  id?: string; provider?: string; status?: string; creationDate?: string; lastUpdateTime?: string; participants?: Participant[];
+  root?: CommentItem & { element?: PostElement; comments?: CommentItem[] };
+};
+
+// Tipo de publicação pelo endereço (sem guardar o endereço).
+function linkKind(link?: string) {
+  if (!link) return "sem ligação";
+  try {
+    const u = new URL(link);
+    const host = u.hostname.replace(/^(www|m|business)\./, "");
+    const p = `${u.pathname}${u.search}`;
+    const kind = /\/reels?\//.test(p) ? "reel" : /\/p\//.test(p) ? "publicação" : /\/videos?\/|\/watch/.test(p) ? "vídeo"
+      : /\/photos?\/|photo\.php/.test(p) ? "foto" : /\/posts?\/|permalink|story_fbid/.test(p) ? "publicação" : /\/stories\//.test(p) ? "story" : "outro";
+    return `${host} · ${kind}`;
+  } catch {
+    return "ligação inválida";
+  }
+}
+
+const range = (values: number[]) => (values.length ? { min: Math.min(...values), max: Math.max(...values) } : null);
+const countBy = (values: (string | undefined)[]) => Object.fromEntries([...values.reduce((m, v) => m.set(v || "(vazio)", (m.get(v || "(vazio)") || 0) + 1), new Map<string, number>())]);
+
+async function readCommentThreads(provider: string, maxPages: number, deadline: number) {
+  const out: CommentThread[] = [];
+  let next: string | null = null;
+  let pages = 0;
+  do {
+    let r;
+    if (next) {
+      const u = new URL(next, "https://app.metricool.com/api/");
+      if (u.hostname !== "app.metricool.com") break;
+      const params = Object.fromEntries(u.searchParams);
+      delete params.userId;
+      delete params.blogId;
+      r = await metricoolRequest("GET", u.pathname.replace(/^\/api/, ""), params, undefined, 40_000);
+    } else r = await metricoolRequest("GET", "/v2/inbox/post-comments", { provider }, undefined, 40_000);
+    if (r.status !== 200) throw failure(r.status, r.text, `Comentários ${provider}`, Number(r.headers?.get("retry-after")) || 0);
+    const body = r.json as { data?: CommentThread[]; page?: { next?: string | null } };
+    out.push(...(body?.data || []));
+    const raw = body?.page?.next || null;
+    next = raw && /^https?:|^\//.test(raw) ? raw : null;
+    pages++;
+  } while (next && pages < maxPages && Date.now() < deadline - 45_000);
+  return { threads: out, pages, complete: !next };
+}
+
+export async function metricoolCommentsDiagnostics(provider: string) {
+  const out: Record<string, unknown> = { provider };
+  const started = Date.now();
+  const deadline = started + 95_000;
+  const auth = await metricoolRequest("GET", "/v2/inbox/post-comments/authorizations", { provider });
+  out.authorizations = auth.status === 200
+    ? (auth.json as { data?: { missingScopes?: string[]; allowAccessToMessages?: boolean } })?.data || {}
+    : { error: failure(auth.status, auth.text, `Autorizações de comentários ${provider}`).message };
+  try {
+    const { threads, pages, complete } = await readCommentThreads(provider, 3, deadline);
+    out.listSeconds = Math.round((Date.now() - started) / 100) / 10;
+    out.allPagesRead = complete;
+    const roots = threads.map((t) => t.root).filter(Boolean) as NonNullable<CommentThread["root"]>[];
+    const replies = roots.flatMap((r) => r.comments || []);
+    const elements = roots.map((r) => r.element).filter(Boolean) as PostElement[];
+    const posts = new Map(elements.filter((e) => e.id).map((e) => [e.id!, e]));
+    const brandOwner = new Set(elements.map((e) => e.owner?.id).filter(Boolean) as string[]);
+    const dates = roots.map((r) => r.creationDate || "").filter(Boolean).sort();
+    out.read = {
+      threads: threads.length, pages,
+      providers: countBy(threads.map((t) => t.provider)),
+      statuses: countBy(threads.map((t) => t.status)),
+      posts: posts.size,
+      postKinds: countBy([...posts.values()].map((e) => linkKind(e.link))),
+      postOwnerIsBrand: [...posts.values()].filter((e) => BRAND_NAME.test(e.owner?.name || "")).length,
+      commentCountOnPosts: range([...posts.values()].map((e) => Number(e.commentCount) || 0)),
+      repliesPerThread: range(roots.map((r) => (r.comments || []).length)),
+      threadsWithReplies: roots.filter((r) => (r.comments || []).length).length,
+      repliesFromPostOwner: replies.filter((c) => c.owner && brandOwner.has(c.owner)).length,
+      replyOwnerFormat: countBy(replies.map((c) => (!c.owner ? "vazio" : /^\d+$/.test(c.owner) ? "id numérico" : "texto"))),
+      rootOwnerFormat: countBy(roots.map((r) => (!r.owner ? "vazio" : /^\d+$/.test(r.owner) ? "id numérico" : "texto"))),
+      participantsPerThread: [...new Set(threads.map((t) => (t.participants || []).length))],
+      rootsWithMedia: roots.filter((r) => r.mediaUrl).length,
+      rootsWithoutText: roots.filter((r) => !String(r.text || "").trim()).length,
+      oldestComment: dates[0] || null,
+      newestComment: dates.at(-1) || null,
+      // Campos extra da publicação e do comentário (para ver, por exemplo, se há marcação de anúncios).
+      postProperties: topShapes([...posts.values()].map((e) => e.properties)),
+      commentProperties: topShapes(roots.map((r) => r.properties)),
     };
   } catch (e) {
     out.read = { error: e instanceof Error ? e.message : "indisponível" };
