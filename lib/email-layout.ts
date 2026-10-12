@@ -22,6 +22,7 @@ export type BrandEmail = {
   preheader?: string; // texto da pré-visualização na caixa de entrada
   body: string; // linhas <tr> já em HTML (emailParagraph, emailQuote…)
   button?: { label: string; url: string };
+  after?: string; // linhas <tr> já em HTML, depois do botão
   footer: string;
 };
 
@@ -41,7 +42,7 @@ export function brandEmail(e: BrandEmail) {
 <div style="font-size:11px;letter-spacing:2px;color:${BRAND.goldLight};font-weight:bold;text-transform:uppercase">${esc(e.eyebrow)}</div>
 <div style="font-size:22px;color:#ffffff;font-weight:bold;margin-top:6px">${esc(e.title)}</div></td></tr></table></td></tr>
 ${e.body}
-${button}
+${button}${e.after || ""}
 <tr><td style="padding:14px 24px;background:${BRAND.soft};color:${BRAND.muted};font-size:11px;text-align:center">${esc(e.footer)}</td></tr>
 </table></td></tr></table></body></html>`;
 }
