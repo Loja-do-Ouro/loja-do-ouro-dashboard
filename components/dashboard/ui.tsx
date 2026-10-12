@@ -18,6 +18,15 @@ export function Icon({ name = "grid" }: { name?: string }) {
     heart: "M12 20s-7-4.4-9-9a4.5 4.5 0 0 1 9-3 4.5 4.5 0 0 1 9 3c-2 4.6-9 9-9 9",
     chat: "M4 5h16v11H9l-5 4V5 M8 9h8 M8 12h5",
     plug: "M9 3v5 M15 3v5 M6 8h12v3a6 6 0 0 1-12 0V8 M12 17v4",
+    // Ícones próprios para cada opção do menu (na coluna de ícones do tablet não há nomes).
+    store: "M3 4h18l-1 6H4L3 4 M4 10v10h16V10 M9 20v-6h6v6",
+    pin: "M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21 M12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5",
+    sheet: "M4 3h16v18H4z M4 9h16 M4 15h16 M10 3v18",
+    compare: "M7 20V4 M3 8l4-4 4 4 M17 4v16 M13 16l4 4 4-4",
+    list: "M9 6h12 M9 12h12 M9 18h12 M4 6h.01 M4 12h.01 M4 18h.01",
+    globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18 M3 12h18 M12 3a14 14 0 0 1 0 18 M12 3a14 14 0 0 0 0 18",
+    target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18 M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M12 12h.01",
+    user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
   };
   return (
     <svg
