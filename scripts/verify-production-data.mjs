@@ -45,7 +45,7 @@ if (process.env.VERCEL_ENV !== "production") {
       const to=new Date().toISOString().slice(0,10), from=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
       const r=await fetch(new URL("/rest/v1/rpc/ldo_bi_read",biUrl),{method:"POST",signal:AbortSignal.timeout(20000),
         headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY || process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY,"Content-Type":"application/json"},
-        body:JSON.stringify({p_token:biToken,p_from:from,p_to:to})});
+        body:JSON.stringify({p_token:biToken,p_from:from,p_to:to,p_datasets:[]})});
       if(!r.ok || !(await r.json()).daily?.length) throw new Error("No readable data");
       console.info("[release-check]",JSON.stringify({login:true,mode:"stored",readable:true}));
     } catch { throw new Error("Release blocked: private BI data could not be read."); }

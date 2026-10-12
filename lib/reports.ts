@@ -56,7 +56,8 @@ export async function logReport(kind: string, period: Period | null, recipients:
 // Online store: Shopify sales, ads and sessions from the dashboard's own sources.
 async function onlineSummary(range: Period, prev: Period) {
   try {
-    const store = await loadPeriods([range, prev], range, "overview");
+    // Campaign detail of both periods: the online investment is compared with the previous one.
+    const store = await loadPeriods([range, prev], range, "overview", [range, prev]);
     const s = overview(store, range);
     const p = overview(store, prev);
     const live = store.mode === "live";

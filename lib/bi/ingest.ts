@@ -9,7 +9,8 @@ import { FULFILLMENT_FIELDS, SALES_FIELDS, SESSION_FIELDS, dailyQuery, ordersByD
 import { klaviyoCampaigns, klaviyoConfigured, klaviyoFlows } from "./klaviyo";
 import { metricoolAccount, metricoolConfigured, metricoolDaily, metricoolPosts } from "./metricool";
 import { closeStaleRuns, finishRun, startRun, upsert } from "./supabase-write";
-import { readStore } from "./store";
+import { readDetail, readStore } from "./store";
+import { AD_DATASETS } from "./read-plan";
 
 export { ingestRange } from "./periods";
 const CONCURRENCY = 6;
@@ -159,6 +160,12 @@ export async function ingest(range: Period, trigger: string) {
   await write("Controlos", async () => {
     const all = windows.flatMap(w => [w.range, previous(w.range, w.key)]);
     const stored = await readStore(all.map(p => p.from).sort()[0], all.map(p => p.to).sort().at(-1)!);
+    // Campaign detail of each window, reconciled with the spend totals.
+    const ads = await Promise.all(windows.map(w => readDetail(w.range, { exact: [], daily: AD_DATASETS }).catch((e: unknown) => {
+      errors.push(`Controlos ${w.key}: ${e instanceof Error ? e.message : "detalhe indisponível"}`);
+      return [];
+    })));
+    stored.datasets.push(...ads.flat());
     const quality = windows.flatMap(w => calculatedChecks(stored, w.range).map(c => ({
       run_id: runId, metric_date: w.range.to,
       code: `CHECK_${w.key.toUpperCase()}_${c.label.normalize("NFD").replace(/[^A-Za-z]+/g, "_").toUpperCase()}`,
