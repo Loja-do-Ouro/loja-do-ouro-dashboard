@@ -52,6 +52,28 @@ test("A refund by amount (no items, no VAT in the report) is taken without VAT i
   assert.deepEqual([e.orders, c(e.net_sales)], [1, c(635.77 - 94 * (635.77 / (635.77 + 146.23)))]);
 });
 
+test("An item removed or returned without a refund (total 0, negative VAT) leaves the order, not adds to it", () => {
+  // Casos reais: #93092 (02/03) fica como na Shopify, 134,88 € / 165,90 €; #93460 (01/04) fica a 0 € e não conta.
+  const [a] = p.paidDays({ from: "2026-03-02", to: "2026-03-02" }, [line("#93092online", "2026-03-02", 1, 154.8, 190.4, 35.6)], [rev("#93092online", 4.58, 0, -4.58)], []);
+  assert.deepEqual([a.orders, a.net_sales, a.total_sales], [1, 134.88, 165.9]);
+  const [b] = p.paidDays({ from: "2026-04-01", to: "2026-04-01" }, [line("#93460online", "2026-04-01", 1, 50.81, 68.4, 11.69, 5.9)], [rev("#93460online", 11.69, 0, -11.69)], []);
+  assert.deepEqual([b.orders, b.net_sales, b.total_sales], [0, 0, 5.9]);
+});
+
+test("A refund by amount larger than items + VAT never leaves an order below 0 €", () => {
+  const [d] = p.paidDays({ from: "2026-09-24", to: "2026-09-24" }, [line("#1", "2026-09-24", 1, 80.08, 104.4, 18.42, 5.9)], [rev("#1", -104.4, -104.4)], []);
+  assert.deepEqual([d.orders, d.net_sales, d.total_sales], [0, 0, 0]);
+});
+
+test("An item added by edit after the period still counts on the order day (lines are read until today)", () => {
+  const period = { from: "2026-07-31", to: "2026-07-31" };
+  const lines = [line("#9", "2026-07-31", 1, 100, 123, 23), line("#9", "2026-08-02", 0, 120, 147.6, 27.6)];
+  const [d] = p.paidDays(period, lines, [rev("#9", -100, -123, -23)], []);
+  assert.deepEqual([d.orders, d.net_sales, d.total_sales], [1, 120, 147.6]);
+  // Uma encomenda feita depois do período não entra nele.
+  assert.equal(p.paidDays(period, [line("#10", "2026-08-01", 1, 50, 61.5, 11.5)], [], [])[0].net_sales, 0);
+});
+
 test("Orders worth 0 € without VAT (offers, 100 % discount) do not count as paid orders", () => {
   const period = { from: "2026-04-13", to: "2026-04-13" };
   const lines = [line("#93595online", "2026-04-13", 1, 0, 5.9, 0, 5.9), line("#93596online", "2026-04-13", 1, 50, 61.5, 11.5)];

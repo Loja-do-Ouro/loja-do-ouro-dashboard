@@ -34,18 +34,24 @@ export function halves(p: Period): [Period, Period] | null {
   return [{ from: p.from, to: mid }, { from: shift(mid, 1), to: p.to }];
 }
 
-// Uma reversão só "por valor" (sem artigos) vem da Shopify com net_sales = total_sales e sem IVA: o valor sem IVA
-// passa a ser o mesmo montante na proporção sem IVA da própria encomenda.
-function reversalNet(r: Row, order: { net: number; taxes: number }) {
-  const net = number(r.net_sales) || 0, total = number(r.total_sales) || 0;
-  const byAmount = (number(r.taxes) || 0) === 0 && (number(r.shipping_charges) || 0) === 0 && net !== 0 && Math.abs(net - total) < 0.005;
-  if (!byAmount || order.taxes <= 0 || order.net + order.taxes <= 0) return net;
-  return total * (order.net / (order.net + order.taxes));
+// Quanto uma reversão tira à encomenda, sem IVA e com IVA. Dois casos que a Shopify regista de forma incompleta:
+// - artigo retirado ou devolvido sem reembolso: total 0, IVA negativo e "sem IVA" positivo. Sai o artigo, na
+//   proporção da encomenda (o IVA retirado diz quanto valia);
+// - reembolso por valor (sem artigos): net_sales = total_sales e sem IVA. O valor sem IVA passa a ser o mesmo
+//   montante na proporção sem IVA da própria encomenda.
+function reversalAmounts(r: Row, order: { net: number; taxes: number }) {
+  const net = number(r.net_sales) || 0, total = number(r.total_sales) || 0, taxes = number(r.taxes) || 0;
+  if (Math.abs(total) < 0.005 && taxes < 0 && order.taxes > 0)
+    return { net: (taxes * order.net) / order.taxes, total: (taxes * (order.net + order.taxes)) / order.taxes };
+  const byAmount = taxes === 0 && (number(r.shipping_charges) || 0) === 0 && net !== 0 && Math.abs(net - total) < 0.005;
+  if (byAmount && order.taxes > 0 && order.net + order.taxes > 0) return { net: total * (order.net / (order.net + order.taxes)), total };
+  return { net, total };
 }
 
 // lines: linhas "order" de encomendas pagas, agrupadas por order_name e day (orders, net_sales, total_sales, taxes,
-// shipping_charges); o dia da encomenda é o da linha que a conta (orders > 0). reversals: linhas "reversal" das mesmas
-// encomendas (pagas ou reembolsadas em parte), agrupadas por order_name. pending: encomendas por pagar, por dia
+// shipping_charges), do início do período até hoje (um acrescento feito depois do período também conta); o dia da
+// encomenda é o da linha que a conta (orders > 0). reversals: linhas "reversal" das mesmas encomendas (pagas ou
+// reembolsadas em parte), agrupadas por order_name e day, até hoje. pending: encomendas por pagar, por dia
 // (TIMESERIES). Devolve uma linha por dia do período.
 export function paidDays(p: Period, lines: Row[], reversals: Row[], pending: Row[]): Row[] {
   type Order = { day: string; orders: number; net: number; total: number; taxes: number; revNet: number; revTotal: number };
@@ -68,19 +74,22 @@ export function paidDays(p: Period, lines: Row[], reversals: Row[], pending: Row
   for (const r of reversals) {
     const o = orders.get(String(r.order_name || ""));
     if (!o) continue;
-    o.revNet += reversalNet(r, o);
-    o.revTotal += number(r.total_sales) || 0;
+    const a = reversalAmounts(r, o);
+    o.revNet += a.net;
+    o.revTotal += a.total;
   }
   type Day = { orders: number; net: number; total: number; revNet: number; revTotal: number };
   const days = new Map<string, Day>();
   for (const o of orders.values()) {
     const d = days.get(o.day) || { orders: 0, net: 0, total: 0, revNet: 0, revTotal: 0 };
-    d.net += o.net + o.revNet;
-    d.total += o.total + o.revTotal;
-    d.revNet += o.revNet;
-    d.revTotal += o.revTotal;
+    // Uma encomenda nunca fica abaixo de 0 € (um reembolso por valor que inclua os portes, por exemplo).
+    const net = Math.max(o.net + o.revNet, 0), total = Math.max(o.total + o.revTotal, 0);
+    d.net += net;
+    d.total += total;
+    d.revNet += net - o.net;
+    d.revTotal += total - o.total;
     // Só conta como encomenda paga a que ainda vale alguma coisa sem IVA.
-    if (o.orders > 0 && o.net + o.revNet > 0.005) d.orders += 1;
+    if (o.orders > 0 && net > 0.005) d.orders += 1;
     days.set(o.day, d);
   }
   const unpaid = new Map(pending.map((r) => [String(r.day || ""), r]));

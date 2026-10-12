@@ -207,7 +207,7 @@ export function overview(store: Store, p: Period) {
   // Vendas: encomendas pagas (não canceladas), pelo dia da encomenda, sem IVA nem portes (lib/bi/shopify.ts,
   // paidSalesByDay). Com IVA e portes e as encomendas por pagar ficam à parte. A contabilidade da Shopify (que conta
   // encomendas por pagar e desconta cancelamentos no dia em que acontecem) fica só na composição.
-  const notCollected = store.mode !== "live" && !store.daily.some((r) => r.source === "shopify_paid");
+  const notCollected = store.mode === "stored" && !store.errors.length && !store.daily.some((r) => r.source === "shopify_paid");
   const paid = (field: string) => {
     const m = get("shopify_paid", field);
     return notCollected ? { ...m, note: "Vendas pagas ainda não recolhidas: use Recolher dados (Relatórios e qualidade) ou aguarde a recolha da noite." } : m;

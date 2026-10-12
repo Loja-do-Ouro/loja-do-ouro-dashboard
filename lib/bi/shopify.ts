@@ -100,13 +100,13 @@ async function limitedByPeriod(query: (p: Period) => string, p: Period): Promise
 // adjustments_net / adjustments_total (o que essas alterações descontaram) e pending_orders / pending_net /
 // pending_total. `today`: até quando se procuram alterações (uma edição de hoje muda uma encomenda de dias anteriores).
 export async function paidSalesByDay(p: Period, today: string): Promise<Row[]> {
+  // Linhas de encomenda até hoje: um acrescento por edição feito depois do período conta no dia da encomenda.
   const lines: Row[] = [];
-  for (const m of monthChunks(p))
-    lines.push(...await limitedByPeriod((x) => `FROM sales SHOW orders, net_sales, total_sales, taxes, shipping_charges WHERE order_or_sales_reversal = 'order' AND ${PAID_FILTER} GROUP BY order_name, day SINCE ${x.from} UNTIL ${x.to}`, m));
-  // Reversões (remoções por edição, trocas, reembolsos parciais) das encomendas pagas, feitas até hoje.
-  const reversals: Row[] = [];
   for (const m of monthChunks({ from: p.from, to: today }))
-    reversals.push(...await limitedByPeriod((x) => `FROM sales SHOW net_sales, total_sales, taxes, shipping_charges WHERE order_or_sales_reversal = 'reversal' AND ${PAID_FILTER} GROUP BY order_name SINCE ${x.from} UNTIL ${x.to}`, m));
+    lines.push(...await limitedByPeriod((x) => `FROM sales SHOW orders, net_sales, total_sales, taxes, shipping_charges WHERE order_or_sales_reversal = 'order' AND ${PAID_FILTER} GROUP BY order_name, day SINCE ${x.from} UNTIL ${x.to}`, m));
+  // Reversões (remoções por edição, trocas, reembolsos parciais) das encomendas pagas, feitas até hoje: poucas linhas,
+  // uma consulta (repartida só se chegar ao limite).
+  const reversals = await limitedByPeriod((x) => `FROM sales SHOW net_sales, total_sales, taxes, shipping_charges WHERE order_or_sales_reversal = 'reversal' AND ${PAID_FILTER} GROUP BY order_name, day SINCE ${x.from} UNTIL ${x.to}`, { from: p.from, to: today });
   const pending = await shopifyql(`FROM sales SHOW orders, net_sales, total_sales WHERE order_or_sales_reversal = 'order' AND ${UNPAID_FILTER} TIMESERIES day SINCE ${p.from} UNTIL ${p.to}`);
   return paidDays(p, lines, reversals, pending);
 }
