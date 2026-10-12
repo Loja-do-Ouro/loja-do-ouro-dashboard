@@ -3,6 +3,9 @@ import { calculatedChecks, canonicalOrders, detail, latestQuality, overview, tra
 import { integer, text, timestamp } from "./format";
 import { DetailNote, Empty, Panel, Table } from "./ui";
 
+// Data a partir da qual as vendas do dashboard são as vendas pagas sem IVA (lib/bi/paid-sales.ts).
+const PAID_SALES_SINCE = "2026-10-12T12:00:00Z";
+
 const INGEST_MESSAGES: Record<string, string> = {
   completed: "Recolha concluída. Os valores abaixo já usam os dados novos.",
   partial: "Recolha parcial: algumas fontes falharam. Ver as notas da recolha.",
@@ -192,8 +195,12 @@ export function QualityView({ store, range, ingestStatus }: { store: Store; rang
                   v{r.version} ·{" "}
                   {r.status === "partial" ? "Parcial" : "Provisório"} ·{" "}
                   {timestamp(r.created_at)}
+                  {r.created_at < PAID_SALES_SINCE ? " · definição anterior de vendas" : ""}
                 </small>
               </summary>
+              {r.created_at < PAID_SALES_SINCE && (
+                <p className="panel-note">Relatório anterior às vendas pagas: as vendas, as encomendas e o ticket médio deste texto são da contabilidade Shopify (com IVA e portes, contando encomendas por pagar), não as vendas pagas sem IVA que o dashboard mostra agora.</p>
+              )}
               <p>{r.summary}</p>
               {r.recommendations?.map((a, j) => (
                 <div className="report-recommendation" key={j}>

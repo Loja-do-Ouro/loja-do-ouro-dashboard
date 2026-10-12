@@ -1,7 +1,7 @@
 import "server-only";
 import { localDate, shift, type Period } from "./periods";
 import { number, type Row } from "./model";
-import { monthChunks, paidDays } from "./paid-sales";
+import { halves, monthChunks, paidDays } from "./paid-sales";
 
 // Shopify Admin API, read-only, through an app created in the Shopify Dev Dashboard
 // (scopes read_orders, read_all_orders, read_products, read_reports). The app's
@@ -78,33 +78,37 @@ export function dailyQuery(table: "sales" | "sessions" | "fulfillments", fields:
 export function totalsQuery(fields: string[], p: Period) {
   return `FROM sales SHOW ${fields.join(", ")} SINCE ${p.from} UNTIL ${p.to}`;
 }
-// Vendas pagas (a definição do dashboard): encomendas não canceladas com o pagamento confirmado (pagas ou
-// reembolsadas em parte), no dia português em que foram feitas. Valor sem IVA nem portes (net_sales da Shopify) e,
-// à parte, com IVA e portes (total_sales). Um reembolso parcial feito depois desconta no dia da encomenda; uma
-// encomenda reembolsada na totalidade ou cancelada sai. Encomendas por pagar (Multibanco, MB Way, cartão ainda
-// pendentes) ficam à parte e nunca contam como venda. Fonte: relatório de vendas da Shopify, encomenda a encomenda.
+// Vendas pagas (a definição do dashboard, ver lib/bi/paid-sales.ts): encomendas não canceladas com o pagamento
+// confirmado, no dia português da encomenda, sem IVA nem portes e, à parte, com IVA e portes; edições, trocas e
+// reembolsos parciais contam no dia da encomenda; as encomendas por pagar ficam à parte. Fonte: relatório de vendas da
+// Shopify (ShopifyQL), encomenda a encomenda.
 const PAID_FILTER = "is_canceled_order = false AND order_payment_status IN ('paid', 'partially_refunded')";
 const UNPAID_FILTER = "is_canceled_order = false AND order_payment_status NOT IN ('paid', 'partially_refunded', 'refunded', 'voided', 'expired')";
 const MAX_ROWS = 1000;
 
-// Uma consulta com limite de linhas: chegar ao limite é cobertura incompleta, nunca um valor por baixo.
-async function limited(query: string) {
-  const rows = await shopifyql(`${query} LIMIT ${MAX_ROWS}`);
-  if (rows.length >= MAX_ROWS) throw new Error("Cobertura incompleta: limite de linhas do relatório de vendas Shopify.");
-  return rows;
+// Uma consulta por período com limite de linhas: se chegar ao limite, reparte o período em metades (até um dia);
+// nunca devolve um resultado cortado.
+async function limitedByPeriod(query: (p: Period) => string, p: Period): Promise<Row[]> {
+  const rows = await shopifyql(`${query(p)} LIMIT ${MAX_ROWS}`);
+  if (rows.length < MAX_ROWS) return rows;
+  const parts = halves(p);
+  if (!parts) throw new Error(`Cobertura incompleta: limite de linhas do relatório de vendas Shopify em ${p.from}.`);
+  return [...await limitedByPeriod(query, parts[0]), ...await limitedByPeriod(query, parts[1])];
 }
 
-// Uma linha por dia do período: orders, net_sales, total_sales (pagas, já sem os reembolsos parciais),
-// refunds_net / refunds_total (reembolsos parciais descontados) e pending_orders / pending_net / pending_total.
-// `today`: até quando se procuram reembolsos (um reembolso de hoje desconta numa encomenda de dias anteriores).
+// Uma linha por dia do período: orders, net_sales, total_sales (pagas, já com edições e reembolsos parciais),
+// adjustments_net / adjustments_total (o que essas alterações descontaram) e pending_orders / pending_net /
+// pending_total. `today`: até quando se procuram alterações (uma edição de hoje muda uma encomenda de dias anteriores).
 export async function paidSalesByDay(p: Period, today: string): Promise<Row[]> {
   const lines: Row[] = [];
   for (const m of monthChunks(p))
-    lines.push(...await limited(`FROM sales SHOW orders, net_sales, total_sales WHERE order_or_sales_reversal = 'order' AND ${PAID_FILTER} GROUP BY order_name, day SINCE ${m.from} UNTIL ${m.to}`));
-  // Reembolsos parciais feitos até hoje: um reembolso de hoje desconta numa encomenda de dias anteriores.
-  const refunds = await limited(`FROM sales SHOW net_sales, total_sales WHERE order_or_sales_reversal = 'reversal' AND is_canceled_order = false AND order_payment_status = 'partially_refunded' GROUP BY order_name SINCE ${p.from} UNTIL ${today}`);
+    lines.push(...await limitedByPeriod((x) => `FROM sales SHOW orders, net_sales, total_sales, taxes, shipping_charges WHERE order_or_sales_reversal = 'order' AND ${PAID_FILTER} GROUP BY order_name, day SINCE ${x.from} UNTIL ${x.to}`, m));
+  // Reversões (remoções por edição, trocas, reembolsos parciais) das encomendas pagas, feitas até hoje.
+  const reversals: Row[] = [];
+  for (const m of monthChunks({ from: p.from, to: today }))
+    reversals.push(...await limitedByPeriod((x) => `FROM sales SHOW net_sales, total_sales, taxes, shipping_charges WHERE order_or_sales_reversal = 'reversal' AND ${PAID_FILTER} GROUP BY order_name SINCE ${x.from} UNTIL ${x.to}`, m));
   const pending = await shopifyql(`FROM sales SHOW orders, net_sales, total_sales WHERE order_or_sales_reversal = 'order' AND ${UNPAID_FILTER} TIMESERIES day SINCE ${p.from} UNTIL ${p.to}`);
-  return paidDays(p, lines, refunds, pending);
+  return paidDays(p, lines, reversals, pending);
 }
 
 export function productsQuery(p: Period) {

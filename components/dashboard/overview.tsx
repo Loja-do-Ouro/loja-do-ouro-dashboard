@@ -44,7 +44,7 @@ export function Overview({ store, range, s, p, live, cohort, critical, report, h
         label="Ticket médio"
         m={s.aov}
         prev={p.aov}
-        note="Vendas pagas sem IVA ÷ encomendas pagas."
+        note={s.aov.value === null ? undefined : "Vendas pagas sem IVA ÷ encomendas pagas."}
       />}
       <article className="kpi dark-kpi">
         <span className="eyebrow">Investimento em anúncios</span>

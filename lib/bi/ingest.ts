@@ -110,12 +110,24 @@ export async function ingest(range: Period, trigger: string) {
     if (shop.currencyCode !== "EUR" || shop.ianaTimezone !== "Europe/Lisbon") throw new Error("Moeda ou fuso da loja sem confirmação EUR / Europe/Lisbon.");
     const shopTasks = [
       job("Shopify vendas diárias", async () => pushDaily("shopify_sales", await shopifyql(dailyQuery("sales", SALES_FIELDS, range)), "day")),
-      job("Shopify vendas pagas", async () => {
-        const window = { from: [range.from, shift(range.to, -(PAID_LOOKBACK_DAYS - 1))].sort()[0], to: range.to };
-        const fetched_at = stamp();
-        for (const r of await paidSalesByDay(window, localDate()))
-          daily.push({ source: "shopify_paid", metric_date: String(r.day), metrics: Object.fromEntries(Object.entries(r).filter(([k]) => k !== "day")), fetched_at, status: "provisional", run_id: runId });
-      }),
+      // Vendas pagas em duas partes: a recente (desde o início do mês antes do mês passado: ontem, a semana, o mês e
+      // as comparações) e o resto do último ano. Uma falha na parte antiga não deixa sem vendas os fechos recentes.
+      ...(() => {
+        const [y, m] = range.to.split("-").map(Number);
+        const recentFrom = [range.from, new Date(Date.UTC(y, m - 3, 1)).toISOString().slice(0, 10)].sort()[0];
+        const oldFrom = shift(range.to, -(PAID_LOOKBACK_DAYS - 1));
+        const pushPaid = (rows: Row[]) => {
+          const fetched_at = stamp();
+          for (const r of rows)
+            daily.push({ source: "shopify_paid", metric_date: String(r.day), metrics: Object.fromEntries(Object.entries(r).filter(([k]) => k !== "day")), fetched_at, status: "provisional", run_id: runId });
+        };
+        return [
+          job("Shopify vendas pagas (recentes)", async () => pushPaid(await paidSalesByDay({ from: recentFrom, to: range.to }, localDate()))),
+          ...(oldFrom < recentFrom
+            ? [job("Shopify vendas pagas (último ano)", async () => pushPaid(await paidSalesByDay({ from: oldFrom, to: shift(recentFrom, -1) }, localDate())))]
+            : []),
+        ];
+      })(),
       job("Shopify sessões diárias", async () => pushDaily("shopify_sessions", await shopifyql(dailyQuery("sessions", SESSION_FIELDS, range)), "day")),
       job("Shopify expedições diárias", async () => pushDaily("shopify_fulfillments", await shopifyql(dailyQuery("fulfillments", FULFILLMENT_FIELDS, range)), "day")),
       job("Shopify encomendas", async () => {
