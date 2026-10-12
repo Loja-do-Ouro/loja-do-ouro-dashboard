@@ -66,6 +66,44 @@ export async function disconnectZendesk(form: FormData) {
   back({ ok: "Ligação Zendesk removida." });
 }
 
+// Desligar o Zendesk do dashboard: revoga na Zendesk a ligação de cada agente e passa a fonte a "Desligado"
+// (a BD apaga as ligações). Os tickets já importados ficam como histórico.
+export async function disableZendesk(form: FormData) {
+  const viewer = await superViewer();
+  if (form.get("confirm") !== "on") back({ erro: "Confirme antes de desligar o Zendesk." });
+  let unrevoked = 0;
+  try {
+    // 1. A fonte passa a "Desligado": a partir daqui nada sincroniza, liga ou envia pelo Zendesk.
+    const r = await sessionRpc<{ user_ids: string[] }>(viewer.session, "ldo_support_zendesk_set_enabled", { p_enabled: false });
+    const ids = Array.isArray(r?.user_ids) ? r.user_ids : [];
+    // 2. Revoga na Zendesk a ligação de cada agente, em paralelo e no máximo 40 s (a página tem 120 s).
+    const done = await Promise.race([
+      Promise.allSettled(ids.map((id) => revokeConnection(id))),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 40_000)),
+    ]);
+    unrevoked = done ? done.filter((x) => x.status !== "fulfilled" || !x.value).length : ids.length;
+    // 3. Apaga as ligações no dashboard.
+    await sessionRpc(viewer.session, "ldo_support_zendesk_clear_connections");
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e) throw e;
+    back({ erro: userMessage(e) });
+  }
+  back({ ok: `Zendesk desligado. Os tickets já importados ficam como histórico; o email entra só pelo Gmail.${unrevoked ? ` ${unrevoked} ligação(ões) não foram revogadas na Zendesk: revogue-as no Zendesk (Admin Center → Aplicações e integrações → APIs → Clientes OAuth).` : ""}` });
+}
+
+// Voltar a ligar: a sincronização recomeça e cada agente volta a ligar a sua conta no Apoio ao Cliente.
+export async function enableZendesk(form: FormData) {
+  const viewer = await superViewer();
+  if (form.get("confirm") !== "on") back({ erro: "Confirme antes de voltar a ligar o Zendesk." });
+  try {
+    await sessionRpc(viewer.session, "ldo_support_zendesk_set_enabled", { p_enabled: true });
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e) throw e;
+    back({ erro: userMessage(e) });
+  }
+  back({ ok: "Zendesk ligado outra vez. Cada colaboradora volta a ligar a sua conta no Apoio ao Cliente." });
+}
+
 export async function syncNow() {
   await superViewer();
   // O Super Admin pode ignorar a espera depois de erros (por exemplo depois de corrigir uma ligação).

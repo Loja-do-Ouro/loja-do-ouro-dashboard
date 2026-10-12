@@ -4,7 +4,7 @@ import { constantTimeTextEqual } from "@/lib/session";
 import { sha256Hex } from "@/lib/support/crypto";
 import { SupabaseError } from "@/lib/supabase";
 import { sessionRpc } from "@/lib/support/db";
-import { completeConnection, OAUTH_COOKIE, ZendeskError } from "@/lib/support/zendesk";
+import { completeConnection, OAUTH_COOKIE, ZendeskError, zendeskOff } from "@/lib/support/zendesk";
 import { loadViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
@@ -32,11 +32,14 @@ export async function GET(request: NextRequest) {
   if (!state || !code || !cookieState || !verifier || !constantTimeTextEqual(state, cookieState)) return done("invalido");
   if (!(await sessionRpc<boolean>(viewer.session, "ldo_support_oauth_consume", { p_state_hash: sha256Hex(state) }).catch(() => false)))
     return done("invalido");
+  if (await zendeskOff()) return done("desligado");
   try {
     await completeConnection(viewer.id, code, verifier, request.url);
   } catch (e) {
     if (e instanceof ZendeskError) return done(`erro-${e.code}`);
     if (e instanceof SupabaseError && e.code === "23505") return done("erro-ocupada");
+    // Desligado entre a verificação acima e a gravação da ligação.
+    if (e instanceof SupabaseError && e.code === "42501") return done("desligado");
     return done("erro");
   }
   return done("ligado");

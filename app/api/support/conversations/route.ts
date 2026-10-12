@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { sessionRpc } from "@/lib/support/db";
 import { sweepSiteNotifications } from "@/lib/support/site-chat";
-import { importTicket, zendeskConfigured } from "@/lib/support/zendesk";
+import { importTicket, zendeskConfigured, zendeskOff } from "@/lib/support/zendesk";
 import { handle, json, supportViewer } from "@/lib/support/http";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     let result = await list();
     // "#1234": um ticket Zendesk ainda não sincronizado (mais antigo que a janela inicial) é lido a pedido.
     const ticket = /^#?(\d{1,12})$/.exec(search)?.[1];
-    if (ticket && !result.items.length && zendeskConfigured() && (await importTicket(null, ticket).catch(() => false))) result = await list();
+    if (ticket && !result.items.length && zendeskConfigured() && !(await zendeskOff()) && (await importTicket(null, ticket).catch(() => false))) result = await list();
     return json(result);
   });
 }

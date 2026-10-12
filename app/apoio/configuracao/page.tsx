@@ -19,7 +19,7 @@ import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { deleteKnowledge, disconnectGmail, disconnectZendesk, saveAiSettings, saveEmailSettings, saveKnowledge, savePolling, saveSocialSettings, setSupportAccess, syncNow } from "./actions";
+import { deleteKnowledge, disableZendesk, disconnectGmail, disconnectZendesk, enableZendesk, saveAiSettings, saveEmailSettings, saveKnowledge, savePolling, saveSocialSettings, setSupportAccess, syncNow } from "./actions";
 
 export const dynamic = "force-dynamic";
 // "Sincronizar agora" corre aqui: uma listagem lenta da Metricool pode levar até 55 s.
@@ -59,6 +59,7 @@ const STATUS: Record<string, [string, string]> = {
   error: ["Erro", "warn"],
   blocked: ["Bloqueado", "warn"],
   not_configured: ["Por configurar", ""],
+  disabled: ["Desligado", "warn"],
 };
 const yes = (v: boolean) => (v ? <span className="pill ok">Configurado</span> : <span className="pill warn">Em falta</span>);
 
@@ -101,9 +102,11 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const flashOk = typeof q.ok === "string" ? q.ok.slice(0, 200) : undefined;
   const flashError = typeof q.erro === "string" ? q.erro.slice(0, 600) : undefined;
   const z = zendeskReadiness();
+  const zendeskSource = state.sources.find((x) => x.id === "zendesk");
+  const zendeskIsOff = zendeskSource?.status === "disabled";
   const diag = q.diagnostico === "1";
   const [zd, fb, ig] = diag
-    ? await Promise.all([zendeskDiagnostics(), metricoolDiagnostics("FACEBOOK"), metricoolDiagnostics("INSTAGRAM")])
+    ? await Promise.all([zendeskIsOff ? null : zendeskDiagnostics(), metricoolDiagnostics("FACEBOOK"), metricoolDiagnostics("INSTAGRAM")])
     : [null, null, null];
   // URL de produção estável a registar no Zendesk (o da preview só serve para testes).
   const productionCallback = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL || "loja-do-ouro-dashboard.vercel.app"}/api/support/zendesk/callback`;
@@ -121,6 +124,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
         <Panel title="Zendesk" eyebrow="TICKETS">
           <dl className="config-list">
             <dt>Conta</dt><dd>{state.settings.zendesk_subdomain}.zendesk.com</dd>
+            <dt>No dashboard</dt><dd>{zendeskIsOff ? <span className="pill warn">Desligado</span> : <span className="pill ok">Ligado</span>}</dd>
             <dt>Cliente OAuth</dt><dd>{yes(z.client)} <small className="muted">ZENDESK_CLIENT_ID, ZENDESK_CLIENT_SECRET</small></dd>
             <dt>Cifra dos tokens</dt><dd>{yes(!encryptionProblem())} <small className="muted">{encryptionProblem() || "SUPPORT_ENCRYPTION_KEY"}</small></dd>
             <dt>Scopes pedidos</dt><dd><code>{ZENDESK_SCOPES}</code></dd>
@@ -154,6 +158,26 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
             </table>
           </div>
           {zd && <pre className="diag">{JSON.stringify(zd, null, 2)}</pre>}
+          {zendeskIsOff ? (
+            <>
+              <p className="panel-note">O Zendesk está desligado: não entram tickets novos, ninguém liga a conta Zendesk e os tickets já importados ficam como histórico. Nessas conversas não se responde ao cliente pelo dashboard (responda no Zendesk); notas internas, estado e responsável ficam só no dashboard. O email entra pelo Gmail.</p>
+              {state.connections.length > 0 && (
+                <form action={disableZendesk} className="knowledge-row">
+                  <input type="hidden" name="confirm" value="on" />
+                  <button type="submit" className="secondary-button">Revogar e apagar as ligações que ficaram</button>
+                </form>
+              )}
+              <form action={enableZendesk} className="knowledge-row">
+                <label className="checkbox-label"><input type="checkbox" name="confirm" required /> Confirmo: o estado e o responsável dos tickets Zendesk voltam a vir do Zendesk, e as alterações feitas só aqui podem perder-se</label>
+                <button type="submit" className="secondary-button">Voltar a ligar o Zendesk</button>
+              </form>
+            </>
+          ) : (
+            <form action={disableZendesk} className="knowledge-row">
+              <label className="checkbox-label"><input type="checkbox" name="confirm" required /> Confirmo: deixa de entrar e de sair qualquer mensagem pelo Zendesk no dashboard</label>
+              <button type="submit" className="secondary-button">Desligar o Zendesk</button>
+            </form>
+          )}
         </Panel>
 
         <Panel title="Facebook e Instagram (Metricool)" eyebrow="MENSAGENS PRIVADAS">
