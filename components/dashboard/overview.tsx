@@ -8,6 +8,13 @@ import { Funnel, GaActivity } from "./sales";
 import { Trend } from "./trend";
 import { Change, Icon, Kpi, Panel } from "./ui";
 
+// Nota das vendas pagas: o valor com IVA e portes e as encomendas por pagar, à parte.
+function salesNote(s: ReturnType<typeof overview>) {
+  if (s.sales.value === null) return undefined;
+  const pending = s.pendingOrders.value ? ` · Por pagar: ${integer(s.pendingOrders.value)} encomenda(s), ${currency(s.pendingValue.value)}` : "";
+  return `Sem IVA nem portes, pelo dia da encomenda. Com IVA e portes: ${currency(s.salesWithVat.value)}${pending}.`;
+}
+
 export function Overview({ store, range, s, p, live, cohort, critical, report, href }: {
   store: Store;
   range: Period;
@@ -23,20 +30,21 @@ export function Overview({ store, range, s, p, live, cohort, critical, report, h
   return (
   <>
     <div className="four-col">
-      {live ? <article className="kpi"><div className="eyebrow">Encomendas pagas · valor</div><div className="kpi-value">{currency(cohort.paidValue)}</div><p>Valor observado das encomendas pagas recolhidas. Não é o total de vendas Shopify.</p><small>Shopify via Windsor · {timestamp(cohort.fetchedAt)}</small></article> : <Kpi label="Vendas totais" m={s.sales} prev={p.sales} />}
+      {live ? <article className="kpi"><div className="eyebrow">Encomendas pagas · valor</div><div className="kpi-value">{currency(cohort.paidValue)}</div><p>Valor observado das encomendas pagas recolhidas. Não é o total de vendas Shopify.</p><small>Shopify via Windsor · {timestamp(cohort.fetchedAt)}</small></article> : <Kpi label="Vendas pagas" m={s.sales} prev={p.sales} note={salesNote(s)} />}
       {live ? <article className="kpi"><div className="eyebrow">Encomendas recolhidas</div><div className="kpi-value">{integer(cohort.count)}</div><p>{integer(cohort.paidCount)} pagas · {integer(cohort.pendingCount)} pendentes de pagamento</p><small>Coorte pela data de criação · cobertura não certificada</small></article> :
       <Kpi
-        label="Encomendas"
+        label="Encomendas pagas"
         m={s.orders}
         prev={p.orders}
         format={integer}
+        note={s.orders.value === null ? undefined : `Pagas e não canceladas, pelo dia da encomenda.${s.pendingOrders.value ? ` Por pagar: ${integer(s.pendingOrders.value)} (${currency(s.pendingValue.value)} c/ IVA).` : ""}`}
       />}
       {live ? <Kpi label="Utilizadores GA4" m={s.users} prev={p.users} format={integer} /> :
       <Kpi
         label="Ticket médio"
         m={s.aov}
         prev={p.aov}
-        note="Valor oficial Shopify para este período."
+        note={s.aov.value === null ? undefined : "Vendas pagas sem IVA ÷ encomendas pagas."}
       />}
       <article className="kpi dark-kpi">
         <span className="eyebrow">Investimento em anúncios</span>
@@ -60,7 +68,7 @@ export function Overview({ store, range, s, p, live, cohort, critical, report, h
       <Panel
         title={live ? "Encomendas e investimento" : "Vendas e investimento"}
         eyebrow="EVOLUÇÃO DO PERÍODO"
-        note={live ? "Valor observado das encomendas pagas, agrupado pela data de criação, e custos Meta + Google. Não representa recebimentos por dia. Dias sem encomendas recolhidas ficam sem valor." : "Vendas totais Shopify e custos Meta + Google. Valores em falta não são zero. Totais do período podem ter revisões posteriores às séries diárias."}
+        note={live ? "Valor observado das encomendas pagas, agrupado pela data de criação, e custos Meta + Google. Não representa recebimentos por dia. Dias sem encomendas recolhidas ficam sem valor." : "Vendas pagas (sem IVA nem portes, pelo dia da encomenda) e custos Meta + Google. Valores em falta não são zero. Um dia pode subir quando um pagamento chega depois, ou descer com um reembolso."}
       >
         <Trend store={store} range={range} />
       </Panel>

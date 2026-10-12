@@ -69,6 +69,9 @@ async function onlineSummary(range: Period, prev: Period) {
       available: store.mode !== "unavailable",
       live,
       sales: live ? c.paidValue : s.sales.value,
+      salesWithVat: live ? null : s.salesWithVat.value,
+      pendingOrders: live ? c.pendingCount : s.pendingOrders.value,
+      pendingValue: live ? null : s.pendingValue.value,
       salesBefore: live ? cp.paidValue : p.sales.value,
       orders: live ? c.paidCount : s.orders.value,
       ordersBefore: live ? cp.paidCount : p.orders.value,
@@ -83,7 +86,7 @@ async function onlineSummary(range: Period, prev: Period) {
       errors: store.errors,
     };
   } catch (e) {
-    return { available: false, live: false, sales: null, salesBefore: null, orders: null, ordersBefore: null, spend: null, spendBefore: null, onlineOnly: false, physicalSpend: null, meta: null, google: null, sessions: null, conversion: null, errors: [e instanceof Error ? e.message : "Fonte indisponível"] };
+    return { available: false, live: false, sales: null, salesWithVat: null, pendingOrders: null, pendingValue: null, salesBefore: null, orders: null, ordersBefore: null, spend: null, spendBefore: null, onlineOnly: false, physicalSpend: null, meta: null, google: null, sessions: null, conversion: null, errors: [e instanceof Error ? e.message : "Fonte indisponível"] };
   }
 }
 
@@ -185,8 +188,8 @@ ${r.rows
       "Loja online",
       o.available
         ? tiles([
-            [o.live ? "Encomendas pagas (valor)" : "Vendas Shopify", eur(o.sales), change(o.sales, o.salesBefore)],
-            ["Encomendas", int(o.orders), change(o.orders, o.ordersBefore)],
+            [o.live ? "Encomendas pagas (valor)" : "Vendas pagas (sem IVA)", eur(o.sales), `${change(o.sales, o.salesBefore)}${o.live || o.salesWithVat == null ? "" : `<br>Com IVA e portes: ${eur(o.salesWithVat)}`}`],
+            [o.live ? "Encomendas" : "Encomendas pagas", int(o.orders), `${change(o.orders, o.ordersBefore)}${o.pendingOrders ? `<br>Por pagar: ${int(o.pendingOrders)}${o.pendingValue != null ? ` (${eur(o.pendingValue)} c/ IVA)` : ""}` : ""}`],
             [o.onlineOnly ? "Investimento em anúncios (online)" : "Investimento em anúncios", eur(o.spend), o.onlineOnly ? `Lojas físicas à parte: ${eur(o.physicalSpend)}` : `Meta ${eur(o.meta)} · Google ${eur(o.google)}`],
             ["Sessões", int(o.sessions), `conversão ${pct(o.conversion === null ? null : o.conversion * 100)}`],
           ])

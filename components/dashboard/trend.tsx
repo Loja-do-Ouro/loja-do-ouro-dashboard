@@ -94,7 +94,7 @@ export function Trend({ store, range }: { store: Store; range: Period }) {
       <div className="legend">
         <span>
           <i className="gold-dot" />
-          {store.mode === "live" ? "Valor das encomendas pagas recolhidas" : "Vendas totais"}
+          {store.mode === "live" ? "Valor das encomendas pagas recolhidas" : "Vendas pagas (sem IVA)"}
         </span>
         <span>
           <i className="dark-dot" />
@@ -194,7 +194,7 @@ export function Trend({ store, range }: { store: Store; range: Period }) {
                       <title>
                         {p.date} ·{" "}
                         {j === 0
-                          ? (store.mode === "live" ? "Shopify · encomendas pagas recolhidas" : "Shopify total_sales")
+                          ? (store.mode === "live" ? "Shopify · encomendas pagas recolhidas" : "Shopify · vendas pagas sem IVA")
                           : "Meta + Google spend"}
                         : {currency(a.v)}
                       </title>
@@ -215,7 +215,7 @@ export function Trend({ store, range }: { store: Store; range: Period }) {
       <details className="chart-data">
         <summary>Ver os valores do gráfico</summary>
         <Table
-          headers={["Data", store.mode === "live" ? "Encomendas pagas · valor" : "Vendas Shopify", "Meta + Google"]}
+          headers={["Data", store.mode === "live" ? "Encomendas pagas · valor" : "Vendas pagas (sem IVA)", "Meta + Google"]}
           rows={points.map((p) => [
             p.date,
             currency(p.sales),

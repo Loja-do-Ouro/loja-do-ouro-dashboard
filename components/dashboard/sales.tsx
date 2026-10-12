@@ -59,7 +59,7 @@ export function Sales({ store, range }: { store: Store; range: Period }) {
         <Panel
           title="Como se compõem as vendas"
           eyebrow="Contabilidade comercial"
-          note="Shopify Analytics. As reversões pertencem à data reconhecida em vendas; os pagamentos exigem eventos financeiros."
+          note="Contabilidade do Shopify Analytics: conta as encomendas ainda por pagar no dia em que são feitas e desconta-as (como reversões) quando são canceladas, por isso não é o valor de vendas do dashboard (vendas pagas, sem IVA, pelo dia da encomenda)."
         >
           <div className="statement">
             {s.composition.map((m, i) => (
@@ -69,8 +69,8 @@ export function Sales({ store, range }: { store: Store; range: Period }) {
               </div>
             ))}
             <div className="statement-total">
-              <span>Vendas totais</span>
-              <strong>{currency(s.sales.value)}</strong>
+              <span>Vendas totais (contabilidade Shopify)</span>
+              <strong>{currency(s.accounting.value)}</strong>
             </div>
           </div>
         </Panel>
