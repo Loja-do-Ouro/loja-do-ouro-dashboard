@@ -15,7 +15,9 @@ Copiar `.env.example` para um ficheiro de ambiente local e preencher apenas as c
 
 ## Dados
 
-O servidor lê e grava os fechos (`public.ldo_bi_*`) através das funções `ldo_bi_read`, `ldo_bi_write`, `ldo_bi_start_run`, `ldo_bi_finish_run` e `ldo_bi_close_stale_runs`, que exigem o token `BI_INGEST_TOKEN` (o hash está em `ldo_private.bi_token`). Não é precisa a chave `service_role`. Variáveis: `BI_SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `BI_INGEST_TOKEN`. Sem elas, o dashboard lê diretamente do Windsor.
+O servidor lê e grava os fechos (`public.ldo_bi_*`) através das funções `ldo_bi_read`, `ldo_bi_read_detail`, `ldo_bi_write`, `ldo_bi_start_run`, `ldo_bi_finish_run` e `ldo_bi_close_stale_runs`, que exigem o token `BI_INGEST_TOKEN` (o hash está em `ldo_private.bi_token`). Não é precisa a chave `service_role`. Variáveis: `BI_SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `BI_INGEST_TOKEN`. Sem elas, o dashboard lê diretamente do Windsor.
+
+Cada secção lê só os conjuntos que usa (`lib/bi/read-plan.ts`): `ldo_bi_read` traz diários, totais, qualidade e relatórios do intervalo; `ldo_bi_read_detail` traz o detalhe do período escolhido. Cada leitura guardada na cache do Next tem de ficar abaixo de 2 MB, ou nunca fica em cache.
 
 ### Recolha noturna
 

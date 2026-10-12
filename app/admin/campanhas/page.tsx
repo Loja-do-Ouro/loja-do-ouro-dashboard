@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { classify, DESTINATION_LABEL, type ChannelRules } from "@/lib/bi/channels";
 import { localDate, shift } from "@/lib/bi/periods";
 import { number } from "@/lib/bi/model";
-import { readStore } from "@/lib/bi/store";
+import { AD_DATASETS } from "@/lib/bi/read-plan";
+import { readDetail } from "@/lib/bi/store";
 import { homePath } from "@/lib/permissions";
 import { rpc } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
@@ -22,10 +23,13 @@ export default async function CampaignsAdminPage({ searchParams }: { searchParam
   if (!viewer.isSuper) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
   const to = shift(localDate(), -1), from = shift(to, -(DAYS - 1));
-  const [store, rules] = await Promise.all([readStore(from, to), rpc<ChannelRules>("ldo_list_campaign_channels", { p_session: viewer.session })]);
+  const [ads, rules] = await Promise.all([
+    readDetail({ from, to }, { exact: [], daily: AD_DATASETS }).catch(() => null),
+    rpc<ChannelRules>("ldo_list_campaign_channels", { p_session: viewer.session }),
+  ]);
   // Daily campaign detail only (closed-window copies would count twice).
   const totals = new Map<string, { source: string; campaign: string; spend: number; last: string }>();
-  for (const d of store.datasets) {
+  for (const d of ads || []) {
     if (d.period_start !== d.period_end || !((d.source === "meta" && d.dataset === "ads") || (d.source === "google_ads" && d.dataset === "campaigns"))) continue;
     for (const r of d.rows) {
       const campaign = String(r.campaign ?? "");
@@ -44,7 +48,7 @@ export default async function CampaignsAdminPage({ searchParams }: { searchParam
   const sum = (dest: string) => rows.filter((r) => r.c.destination === dest).reduce((a, r) => a + r.spend, 0);
   const current = (r: (typeof rows)[number]) => (r.c.rule !== "manual" ? "auto" : r.c.destination === "store" ? `store:${r.c.storeId}` : r.c.destination);
   const ok = typeof q.ok === "string" ? `Destino de “${q.ok.slice(0, 120)}” guardado.` : undefined;
-  const error = typeof q.erro === "string" ? q.erro.slice(0, 300) : undefined;
+  const error = typeof q.erro === "string" ? q.erro.slice(0, 300) : ads ? undefined : "Investimento das campanhas indisponível de momento. Tente novamente dentro de instantes.";
 
   return (
     <AppShell viewer={viewer} current="campanhas" title="Campanhas">
