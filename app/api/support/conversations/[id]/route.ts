@@ -3,7 +3,7 @@ import { sessionRpc } from "@/lib/support/db";
 import { notifyHandover } from "@/lib/support/notify";
 import { body, handle, HttpError, json, supportViewer } from "@/lib/support/http";
 import { isUuid } from "@/lib/support/rules";
-import { markNotSent, sendMessage, updateConversation, verifyMessage } from "@/lib/support/service";
+import { confirmSentInZendesk, markNotSent, sendMessage, updateConversation, verifyMessage } from "@/lib/support/service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
@@ -29,7 +29,7 @@ export async function GET(request: Request, ctx: Ctx) {
 }
 
 type Action = {
-  action: "read" | "unread" | "presence" | "reply" | "note" | "update" | "verify" | "not_sent";
+  action: "read" | "unread" | "presence" | "reply" | "note" | "update" | "verify" | "confirm_sent" | "not_sent";
   composing: boolean;
   body: string;
   clientKey: string;
@@ -75,6 +75,10 @@ export async function POST(request: Request, ctx: Ctx) {
       case "verify":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         return json(await verifyMessage(viewer, id, b.messageId));
+      case "confirm_sent":
+        if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
+        await confirmSentInZendesk(viewer, id, b.messageId);
+        return json({ ok: true });
       case "not_sent":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         await markNotSent(viewer, id, b.messageId);

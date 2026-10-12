@@ -243,6 +243,17 @@ export async function verifyMessage(viewer: Viewer, conversationId: string, mess
   return { delivery, note };
 }
 
+// Zendesk desligado: a sincronização já não reconhece um envio incerto. Quem confirmou no próprio Zendesk que a
+// mensagem lá está marca-a como Aceite.
+export async function confirmSentInZendesk(viewer: Viewer, conversationId: string, messageId: string) {
+  await sessionRpc(viewer.session, "ldo_support_conversation", { p_id: conversationId });
+  const m = await serverRpc<ServerMessage | null>("ldo_support_server_message", { p_message: messageId });
+  if (!m || m.conversation.id !== conversationId || m.conversation.source_id !== "zendesk" || !["uncertain", "sending"].includes(m.message.delivery || ""))
+    throw new Error("Só um envio incerto de um ticket Zendesk pode ser confirmado aqui.");
+  if (!(await zendeskOff())) throw new Error("Com o Zendesk ligado, use “Verificar”.");
+  await serverRpc("ldo_support_finish_send", { p_message: messageId, p_delivery: "accepted", p_detail: `Confirmado no Zendesk por ${viewer.fullName || viewer.username}.`, p_external_id: null });
+}
+
 // A pessoa confirma que uma mensagem incerta não chegou: fica "Falhou" e o texto pode voltar a ser enviado.
 export async function markNotSent(viewer: Viewer, conversationId: string, messageId: string) {
   await sessionRpc(viewer.session, "ldo_support_conversation", { p_id: conversationId });

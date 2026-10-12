@@ -358,7 +358,7 @@ export function SupportInbox({
       if (force) {
         const name = (x: { source: string }) => x.source.replace("metricool-", "");
         const failed = r.results.filter((x) => x.ran && x.ok === false);
-        const waiting = r.results.filter((x) => !x.ran && x.reason && x.reason !== "not_due");
+        const waiting = r.results.filter((x) => !x.ran && x.reason && x.reason !== "not_due" && x.reason !== "disabled");
         setSyncNote([
           failed.length ? `Falha em ${failed.map(name).join(", ")}; as restantes fontes foram atualizadas.` : "Atualizado.",
           waiting.length ? `Não correu: ${waiting.map((x) => `${name(x)} (${REASON[x.reason!] || x.reason})`).join(", ")}.` : "",
@@ -648,13 +648,14 @@ export function SupportInbox({
   const destination = useMemo(() => {
     if (!c) return "";
     const who = c.contact?.handle || c.contact?.name || c.contact?.email || "cliente";
+    if (zendeskOff) return "nada sai para o cliente por aqui (Zendesk desligado)";
     if (isZendesk) return `Resposta pública no ticket ${c.conversation.subject?.split(" · ")[0] || ""} — Zendesk notifica ${c.contact?.email || who}`;
     if (isGmail) return `Email para ${c.contact?.email || c.contact?.claimed_email || who}, de ${c.conversation.account || "apoiocliente@lojadoouro.pt"} — na mesma conversa, com a assinatura automática`;
     if (c.conversation.channel === "instagram") return `Instagram Direct · para ${who}`;
     if (c.conversation.channel === "facebook") return `Facebook Messenger · para ${who}`;
     if (c.conversation.channel === "site") return `Chat do site · para ${who} (se já tiver saído do site, recebe também por email)`;
     return `${CHANNEL_LABEL[c.conversation.channel]} · por configurar`;
-  }, [c, isZendesk, isGmail]);
+  }, [c, isZendesk, isGmail, zendeskOff]);
 
   return (
     <div className={`support-app show-${pane}`}>
@@ -821,7 +822,13 @@ export function SupportInbox({
                         {m.delivery_detail && m.delivery !== "accepted" ? ` — ${m.delivery_detail}` : ""}
                         {(m.delivery === "uncertain" || m.delivery === "sending") && (
                           <>
-                            <button type="button" onClick={() => act({ action: "verify", messageId: m.id })}>Verificar</button>
+                            {zendeskOff ? (
+                              <button type="button" onClick={() => {
+                                if (confirm("Confirma que viu no Zendesk que esta mensagem foi enviada?")) act({ action: "confirm_sent", messageId: m.id });
+                              }}>Confirmei no Zendesk</button>
+                            ) : (
+                              <button type="button" onClick={() => act({ action: "verify", messageId: m.id })}>Verificar</button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -859,6 +866,17 @@ export function SupportInbox({
                 {(mode === "reply" ? replyBlocked : noteBlocked) ? (
                   <div className="composer-blocked">
                     {mode === "reply" ? replyBlocked : noteBlocked}
+                    {zendeskOff && mode === "reply" && draft.reply.trim() && selected && (
+                      <div className="composer-draft">
+                        <textarea readOnly value={draft.reply} rows={4} aria-label="Rascunho da resposta" />
+                        <button type="button" className="secondary-button" onClick={() => navigator.clipboard?.writeText(draft.reply).catch(() => undefined)}>Copiar</button>
+                        <button type="button" className="secondary-button" onClick={() => {
+                          setDraft(selected, "note", [draft.note, draft.reply].filter((x) => x.trim()).join("\n\n"));
+                          setDraft(selected, "reply", "");
+                          setMode("note");
+                        }}>Passar para nota interna</button>
+                      </div>
+                    )}
                     {zendeskLive && !me?.zendesk && zendeskReady && (
                       <form method="post" action="/api/support/zendesk/connect"><button type="submit" className="secondary-button">Ligar Zendesk</button></form>
                     )}
@@ -1062,7 +1080,7 @@ function CustomerPanel({
   };
   const owner = conv.assignee_id
     ? `${conv.assignee_name || "—"}${conv.assignee_id === d.me ? " (eu)" : ""}`
-    : conv.external_assignee_name ? `${conv.external_assignee_name} (Zendesk, conta por ligar)` : "Sem responsável";
+    : conv.external_assignee_name ? `${conv.external_assignee_name} ${zendeskOff ? "(no Zendesk)" : "(Zendesk, conta por ligar)"}` : "Sem responsável";
   const targetName = transferTo.find((u) => u.id === target)?.name || "";
   return (
     <div className="customer-panel">
@@ -1113,7 +1131,7 @@ function CustomerPanel({
         )}
         {conv.assignee_id && !canTransfer(own) && <small className="muted">Só {conv.assignee_name || "o responsável"} (ou o Super Admin) pode responder ao cliente e transferir esta conversa. Pode deixar notas internas.</small>}
         {isZendesk && <small className="muted">Estado e responsável são gravados no Zendesk (fonte de verdade) com a sua conta. Estado no Zendesk: {conv.platform_status || "—"}.</small>}
-        {zendeskOff && <small className="muted">O Zendesk foi desligado do dashboard: estado e responsável deste ticket ficam só aqui (não mudam no Zendesk).</small>}
+        {zendeskOff && <small className="muted">O Zendesk foi desligado do dashboard: estado e responsável deste ticket ficam só aqui (não mudam no Zendesk). Se o Zendesk voltar a ser ligado, passam a vir de lá outra vez.</small>}
         {!isZendesk && !zendeskOff && <small className="muted">Estado e responsável pertencem ao dashboard; uma nova mensagem do cliente reabre uma conversa resolvida.</small>}
         <div className="customer-actions">
           <button type="button" className="secondary-button" onClick={() => onAct({ action: "unread" })}>Marcar como não lida</button>

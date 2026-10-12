@@ -511,14 +511,17 @@ export async function zendeskAttachment(userId: string, ticketId: string, attach
   return { ...meta, response: r };
 }
 
-// Revoga no Zendesk o token atual (melhor esforço) antes de o apagar no dashboard.
-export async function revokeConnection(userId: string) {
+// Revoga no Zendesk o token atual (melhor esforço) antes de o apagar no dashboard. Devolve se conseguiu.
+export async function revokeConnection(userId: string): Promise<boolean> {
+  let ok = true;
   try {
     await call(await accessToken(userId), "DELETE", "/api/v2/oauth/tokens/current.json");
   } catch {
     // A ligação é apagada na mesma; o token expira sozinho.
+    ok = false;
   }
   tokenCache.delete(userId);
+  return ok;
 }
 
 // Diagnóstico para a configuração (Super Admin): confirma o subdomínio e a ligação, sem dados de clientes.

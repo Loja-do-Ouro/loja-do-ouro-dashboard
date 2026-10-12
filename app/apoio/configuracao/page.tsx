@@ -59,6 +59,7 @@ const STATUS: Record<string, [string, string]> = {
   error: ["Erro", "warn"],
   blocked: ["Bloqueado", "warn"],
   not_configured: ["Por configurar", ""],
+  disabled: ["Desligado", "warn"],
 };
 const yes = (v: boolean) => (v ? <span className="pill ok">Configurado</span> : <span className="pill warn">Em falta</span>);
 
@@ -160,7 +161,14 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           {zendeskIsOff ? (
             <>
               <p className="panel-note">O Zendesk está desligado: não entram tickets novos, ninguém liga a conta Zendesk e os tickets já importados ficam como histórico. Nessas conversas não se responde ao cliente pelo dashboard (responda no Zendesk); notas internas, estado e responsável ficam só no dashboard. O email entra pelo Gmail.</p>
-              <form action={enableZendesk} className="inline-form">
+              {state.connections.length > 0 && (
+                <form action={disableZendesk} className="knowledge-row">
+                  <input type="hidden" name="confirm" value="on" />
+                  <button type="submit" className="secondary-button">Revogar e apagar as ligações que ficaram</button>
+                </form>
+              )}
+              <form action={enableZendesk} className="knowledge-row">
+                <label className="checkbox-label"><input type="checkbox" name="confirm" required /> Confirmo: o estado e o responsável dos tickets Zendesk voltam a vir do Zendesk, e as alterações feitas só aqui podem perder-se</label>
                 <button type="submit" className="secondary-button">Voltar a ligar o Zendesk</button>
               </form>
             </>
