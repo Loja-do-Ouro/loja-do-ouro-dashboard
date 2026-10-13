@@ -1,54 +1,29 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { closedPeriods, dates, localDate, periodLabel, previous, shift, validDate, type Period } from "@/lib/bi/periods";
+import { periodLabel } from "@/lib/bi/periods";
 import { canCompareStores, homePath, managedStores } from "@/lib/permissions";
 import { loadOptions } from "@/lib/records";
 import { missingStores, storeTable, type GoldEntry, type GoldMonthly, type ShopSale } from "@/lib/store-records";
+import { rankingPeriod, tabPeriodParams } from "@/lib/ranking-period";
 import { rpcAll } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 import { currency, integer, percent } from "@/components/dashboard/format";
 import { Change, Icon, Panel } from "@/components/dashboard/ui";
+import { RankingOrder, RankingPeriod, RankingTabs } from "@/components/ranking";
 import { AppShell, PageHeading } from "@/components/shell";
 import { BarValue } from "@/components/stores";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Ranking das lojas · Loja do Ouro" };
 
-const PRESETS = [
-  ["ontem", "Ontem"],
-  ["semana", "Semana anterior"],
-  ["mes", "Mês anterior"],
-  ["este-mes", "Este mês"],
-] as const;
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 export default async function RankingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
   if (!canCompareStores(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const today = localDate();
-  const windows = closedPeriods();
-  const custom = typeof q.from === "string" && typeof q.to === "string" && validDate(q.from) && validDate(q.to) && q.from <= q.to && q.to <= today && dates({ from: q.from, to: q.to }).length <= 366;
-  const preset = custom ? "custom" : (PRESETS.find(([k]) => k === q.periodo)?.[0] ?? "ontem");
-  let range: Period;
-  let prev: Period;
-  if (custom) {
-    range = { from: q.from as string, to: q.to as string };
-    const len = dates(range).length;
-    // A whole calendar month is compared with the whole month before it.
-    const wholeMonth = range.from.endsWith("-01") && shift(range.to, 1).endsWith("-01") && range.from.slice(0, 7) === range.to.slice(0, 7);
-    const prevStart = `${shift(range.from, -1).slice(0, 7)}-01`;
-    prev = wholeMonth ? { from: prevStart, to: shift(range.from, -1) } : { from: shift(range.from, -len), to: shift(range.from, -1) };
-  } else if (preset === "este-mes") {
-    range = { from: `${today.slice(0, 7)}-01`, to: today };
-    const len = dates(range).length;
-    const prevStart = `${shift(range.from, -1).slice(0, 7)}-01`;
-    prev = { from: prevStart, to: shift(prevStart, len - 1) };
-  } else {
-    const w = windows[preset === "semana" ? 1 : preset === "mes" ? 2 : 0];
-    range = w.range;
-    prev = previous(w.range, w.key);
-  }
+  const period = rankingPeriod(q);
+  const { today, range, prev } = period;
   const by = q.ordem === "ouro" ? "gold" : "sales";
   const stores = managedStores(viewer);
   const args = { p_session: viewer.session, p_store_id: null, p_from: prev.from < range.from ? prev.from : range.from, p_to: range.to };
@@ -64,34 +39,19 @@ export default async function RankingPage({ searchParams }: { searchParams: Prom
   const metricBefore = (r: (typeof rows)[number]) => (by === "gold" ? (r.goldBefore.customers ? r.goldBefore.totalValue : null) : r.shopBefore.served ? r.shopBefore.value : null);
   const max = Math.max(0, ...rows.map(metric));
   const total = rows.reduce((a, r) => a + metric(r), 0);
-  const link = (params: Record<string, string>) => `/lojas/ranking?${new URLSearchParams({ ...(custom ? { from: range.from, to: range.to } : { periodo: preset }), ...(by === "gold" ? { ordem: "ouro" } : {}), ...params })}`;
+  const keep: Record<string, string> = by === "gold" ? { ordem: "ouro" } : {};
 
   return (
     <AppShell viewer={viewer} current="ranking" title="Ranking das lojas">
       <PageHeading eyebrow="LOJAS FÍSICAS" title="Ranking das lojas" text={`Todas as lojas ordenadas por ${by === "gold" ? "valor de ouro comprado" : "valor vendido"} · ${periodLabel(range)}, comparado com ${periodLabel(prev)}.`} />
-      <div className="ranking-filters">
-        <nav className="chips" aria-label="Período">
-          {PRESETS.map(([k, l]) => (
-            <Link key={k} className={preset === k ? "chip active" : "chip"} href={`/lojas/ranking?${new URLSearchParams({ periodo: k, ...(by === "gold" ? { ordem: "ouro" } : {}) })}`}>{l}</Link>
-          ))}
-        </nav>
-        <nav className="chips" aria-label="Ordenar por">
-          <Link className={by === "sales" ? "chip active" : "chip"} href={link({ ordem: "vendas" })}>Por vendas</Link>
-          <Link className={by === "gold" ? "chip active" : "chip"} href={link({ ordem: "ouro" })}>Por compra de ouro</Link>
-        </nav>
-      </div>
-      <details className="calendar-panel" open={custom}>
-        <summary>
-          <Icon name="calendar" />
-          Escolher outras datas<span>{periodLabel(range)}</span>
-        </summary>
-        <form method="get">
-          {by === "gold" && <input type="hidden" name="ordem" value="ouro" />}
-          <label>Desde<input type="date" name="from" required defaultValue={range.from} max={today} /></label>
-          <label>Até<input type="date" name="to" required defaultValue={range.to} max={today} /></label>
-          <button type="submit">Ver ranking <span>→</span></button>
-        </form>
-      </details>
+      <RankingTabs current="lojas" period={tabPeriodParams(period)} />
+      <RankingPeriod path="/lojas/ranking" preset={period.preset} range={range} today={today} keep={keep} error={period.error}>
+        <RankingOrder
+          options={[["vendas", "Por vendas"], ["ouro", "Por compra de ouro"]]}
+          current={by === "gold" ? "ouro" : "vendas"}
+          link={(v) => `/lojas/ranking?${new URLSearchParams({ ...tabPeriodParams(period), ...(v === "ouro" ? { ordem: "ouro" } : {}) })}`}
+        />
+      </RankingPeriod>
       {range.from === range.to && (
         <div role="status" className={missing.length ? "notice error-notice" : "notice ok-notice"}>
           <Icon name="check" />
