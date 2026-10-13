@@ -419,3 +419,39 @@ export function listRows<T extends { sale_date: string; sold: boolean; created_a
     .filter((r) => r.sale_date >= from && r.sale_date <= to && (show === "todos" || (show === "vendas" ? r.sold : !r.sold)))
     .sort((a, b) => (a.sale_date === b.sale_date ? b.created_at.localeCompare(a.created_at) : b.sale_date.localeCompare(a.sale_date)));
 }
+
+// Ordem da lista (?ordem=coluna-asc|desc). Sem ordem escolhida: o dia mais recente primeiro.
+export type ListSortKey = "dia" | "numero" | "resultado" | "valor" | "artigos" | "cliente" | "viu" | "campanha" | "registo";
+export type ListSort = { key: ListSortKey; dir: "asc" | "desc" } | null;
+export const LIST_SORT_KEYS: ListSortKey[] = ["dia", "numero", "resultado", "valor", "artigos", "cliente", "viu", "campanha", "registo"];
+// Primeiro clique numa coluna: valores, números e quantidades do maior para o menor; texto de A a Z. O dia começa do
+// mais antigo (a ordem habitual já é do mais recente).
+const FIRST_DIR: Record<ListSortKey, "asc" | "desc"> = {
+  dia: "asc", numero: "desc", resultado: "asc", valor: "desc", artigos: "desc", cliente: "asc", viu: "asc", campanha: "asc", registo: "asc",
+};
+
+export function listSort(v: unknown): ListSort {
+  const m = typeof v === "string" ? /^([a-z]+)-(asc|desc)$/.exec(v) : null;
+  return m && (LIST_SORT_KEYS as string[]).includes(m[1]) ? { key: m[1] as ListSortKey, dir: m[2] as "asc" | "desc" } : null;
+}
+export const sortParam = (s: ListSort) => (s ? `${s.key}-${s.dir}` : null);
+// Clique num título: a mesma coluna inverte a ordem; outra coluna começa na ordem mais útil.
+export const nextSort = (current: ListSort, key: ListSortKey): ListSort =>
+  current?.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: FIRST_DIR[key] };
+
+// Ordena as linhas já filtradas. Valores em falta (ex.: valor de um atendimento sem venda) ficam sempre no fim; em
+// caso de empate mantém-se a ordem habitual. Texto e números de venda comparados como se lêem ("9003388" > "900308").
+export function sortListRows<T>(rows: T[], sort: ListSort, valueOf: (row: T, key: ListSortKey) => string | number | null): T[] {
+  if (!sort) return rows;
+  const sign = sort.dir === "asc" ? 1 : -1;
+  const collator = new Intl.Collator("pt-PT", { numeric: true, sensitivity: "base" });
+  return rows
+    .map((row, i) => ({ row, i, v: valueOf(row, sort.key) }))
+    .sort((a, b) => {
+      const na = a.v === null || a.v === "", nb = b.v === null || b.v === "";
+      if (na || nb) return na === nb ? a.i - b.i : na ? 1 : -1;
+      const c = typeof a.v === "number" && typeof b.v === "number" ? a.v - b.v : collator.compare(String(a.v), String(b.v));
+      return c ? c * sign : a.i - b.i;
+    })
+    .map((x) => x.row);
+}

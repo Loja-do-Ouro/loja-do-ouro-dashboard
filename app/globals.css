@@ -2476,6 +2476,36 @@ a.private-label.active small {
   font-weight: 600;
   color: #3d4a43;
 }
+.list-summary .sort-reset {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--gold-2);
+}
+/* Títulos da lista que ordenam (crescente/decrescente). */
+th .sort-link {
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+th .sort-link span {
+  color: var(--muted);
+  font-size: 11px;
+}
+th .sort-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--gold-2);
+}
+th .sort-link:hover span,
+th .sort-link.active span {
+  color: var(--green);
+}
+th .sort-link.active {
+  color: var(--ink);
+}
 .karat-grid {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr);
