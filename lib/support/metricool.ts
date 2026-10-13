@@ -3,7 +3,7 @@ import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/b
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
 import { sendOutcome } from "./rules";
 import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-rules";
-import { commentBrand, commentCursorAfter, commentReadPlan, threadToConversation, walkPages, type CommentThread, type PostElement } from "./comment-rules";
+import { commentAccess, commentBrand, commentCursorAfter, commentReadPlan, threadToConversation, walkPages, type CommentThread, type PostElement } from "./comment-rules";
 
 // Metricool Inbox (API v2, https://app.metricool.com/api/swagger.json), mensagens privadas do
 // Facebook Messenger e do Instagram da marca "Loja do Ouro Jericó" (blogId 2912472). Reutiliza o
@@ -410,8 +410,7 @@ export async function metricoolCommentsDiagnostics(provider: string) {
 async function commentAuthorizations(provider: string) {
   const r = await metricoolRequest("GET", "/v2/inbox/post-comments/authorizations", { provider });
   if (r.status !== 200) throw failure(r.status, r.text, `Autorizações de comentários ${provider}`, Number(r.headers?.get("retry-after")) || 0);
-  const data = (r.json as { data?: { missingScopes?: string[]; allowAccessToMessages?: boolean } })?.data || {};
-  return { allowAccessToMessages: Boolean(data.allowAccessToMessages), missingScopes: data.missingScopes || [] };
+  return commentAccess((r.json as { data?: unknown } | null)?.data);
 }
 
 // Grava os tópicos de uma página. Se a BD recusar um lote (por exemplo, um texto que não aceita), grava-os um a um:
@@ -450,7 +449,7 @@ export async function syncPostComments(source: { id: string; config: Record<stri
   const authAt = typeof cursor.auth_at === "string" ? Date.parse(cursor.auth_at) : NaN;
   if (!Number.isFinite(authAt) || Date.now() - authAt > 3_600_000) {
     const auth = await commentAuthorizations(provider);
-    if (!auth.allowAccessToMessages)
+    if (!auth.allowed)
       throw new MetricoolError(`Metricool não tem acesso aos comentários ${provider}${auth.missingScopes.length ? ` (em falta: ${auth.missingScopes.join(", ")})` : ""}. Voltar a ligar a rede na marca Metricool.`, 403, 0, true);
     cursor.auth_at = new Date().toISOString();
   }

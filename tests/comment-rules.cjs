@@ -348,3 +348,11 @@ test("Paging: only https links inside the Metricool API are followed", () => {
   for (const bad of ["https://evil.com/api/v2", "http://app.metricool.com/api/v2", "javascript:x", "", null, 3, "x".repeat(2100)])
     assert.equal(r.metricoolNext(bad), null, String(bad));
 });
+
+test("Comment authorizations: an empty missingScopes list means access (allowAccessToMessages only exists for DMs)", () => {
+  assert.deepEqual(r.commentAccess({ missingScopes: [] }), { allowed: true, missingScopes: [] });
+  assert.deepEqual(r.commentAccess({ missingScopes: [], allowAccessToMessages: true }), { allowed: true, missingScopes: [] });
+  assert.equal(r.commentAccess({ missingScopes: [], allowAccessToMessages: false }).allowed, false);
+  assert.deepEqual(r.commentAccess({ missingScopes: ["pages_manage_engagement"] }), { allowed: false, missingScopes: ["pages_manage_engagement"] });
+  for (const bad of [null, undefined, "x", 3]) assert.equal(r.commentAccess(bad).allowed, false, String(bad));
+});
