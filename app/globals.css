@@ -3804,6 +3804,84 @@ textarea:focus-visible,
   width: 44px;
 }
 
+/* ranking: separadores, lojas e produtos */
+.ranking-tabs {
+  margin: 0 0 16px;
+}
+.ranking-tabs a {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ranking-stores {
+  margin: -4px 0 18px;
+}
+.product-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 240px;
+  max-width: 380px;
+}
+.product-cell > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.product-cell b,
+.ranking-table .product-cell a {
+  font-weight: 600;
+  color: var(--petrol);
+  line-height: 1.3;
+}
+.product-cell small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.product-thumb {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.ranking-table.product-ranking td:nth-child(2) {
+  white-space: normal;
+}
+.ranking-table.product-ranking th:nth-child(3),
+.ranking-table.product-ranking td:nth-child(3),
+.ranking-table.product-ranking th:nth-child(4),
+.ranking-table.product-ranking td:nth-child(4) {
+  text-align: left;
+}
+.podium-product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 36px;
+}
+.podium-product .product-thumb {
+  flex-basis: 52px;
+  width: 52px;
+  height: 52px;
+  background: #fff;
+}
+.podium-card.product-podium h2 {
+  font-size: 16px;
+  line-height: 1.3;
+}
+.ranking-more {
+  margin: 12px 0 0;
+  text-align: center;
+}
+.ranking-more a {
+  color: var(--petrol);
+  font-weight: 600;
+}
+
 /* ---------------------------------------------------------------- Apoio ao Cliente */
 .support-app { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
 .support-flash { margin-bottom: 0; }

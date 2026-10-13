@@ -535,3 +535,60 @@ export async function supportStoreInfo(toText: (html: string) => string): Promis
   storeInfo = { value, until: Date.now() + (missing.length ? 5 : 30) * 60 * 1000 };
   return value;
 }
+
+// Peças do site pelas referências registadas nas lojas físicas (SKU das variantes), para mostrar nome, foto e preço no
+// ranking de produtos. Só entram na pesquisa referências simples (letras, números, ponto, hífen e sublinhado): a exata
+// sempre entre aspas e, para as só com letras e números (6 ou mais), também como início de SKU, porque o site junta as referências
+// de um conjunto com pontos ("50001730.50002778" é o fio 50001730 com o pendente 50002778). Assim o texto nunca é
+// interpretado como filtro. Sem resposta a tempo, o ranking mostra só a referência.
+export type SkuProduct = {
+  title: string;
+  image: string | null;
+  // Só com página visível na loja online (a mesma regra das respostas do Apoio ao Cliente).
+  url: string | null;
+  listed: boolean;
+  // Preço da variante com esta referência; sem preço quando a peça só aparece dentro de um conjunto.
+  price: number | null;
+  // A referência é uma parte de um SKU de conjunto (ex.: 50001730 em "50001730.50002778").
+  combined: boolean;
+};
+const SKU_RE = /^[A-Z0-9][A-Z0-9._-]{0,39}$/;
+export const SKU_LOOKUP_LIMIT = 300;
+
+// As referências que são de facto procuradas (válidas, sem repetições, até ao limite).
+export const skuCandidates = (refs: string[], limit = SKU_LOOKUP_LIMIT) => [...new Set(refs.map((r) => r.toUpperCase()).filter((r) => SKU_RE.test(r)))].slice(0, limit);
+
+export async function productsBySku(refs: string[], limit = SKU_LOOKUP_LIMIT): Promise<{ products: Map<string, SkuProduct>; incomplete: boolean }> {
+  const wanted = skuCandidates(refs, limit);
+  const products = new Map<string, SkuProduct>();
+  if (!wanted.length) return { products, incomplete: false };
+  type Node = { sku: string | null; price: string | null; product: { title: string; status: string; onlineStoreUrl: string | null; featuredMedia: { preview: { image: { url: string } | null } | null } | null } };
+  type Page = { productVariants: { nodes: Node[]; pageInfo: { hasNextPage: boolean } } };
+  const batches: string[][] = [];
+  for (let i = 0; i < wanted.length; i += 25) batches.push(wanted.slice(i, i + 25));
+  const set = new Set(wanted);
+  let incomplete = false;
+  const rank = (p: SkuProduct) => (p.combined ? 0 : 2) + (p.listed ? 1 : 0);
+  // Dois pedidos de cada vez, para não esgotar o limite de consultas da Shopify; um lote que falhe não apaga os outros.
+  for (let i = 0; i < batches.length; i += 2) {
+    const pages = await Promise.all(batches.slice(i, i + 2).map((b) => graphql<Page>(
+      `query Skus($q: String!) { productVariants(first: 100, query: $q) { pageInfo { hasNextPage } nodes { sku price
+        product { title status onlineStoreUrl featuredMedia { preview { image { url(transform: { maxWidth: 120, maxHeight: 120 }) } } } } } } }`,
+      { q: b.flatMap((r) => (/^[A-Z0-9]{6,}$/.test(r) ? [`sku:"${r}"`, `sku:${r}*`] : [`sku:"${r}"`])).join(" OR ") }).catch(() => null)));
+    for (const page of pages) {
+      if (!page) { incomplete = true; continue; }
+      if (page.productVariants.pageInfo.hasNextPage) incomplete = true;
+      for (const n of page.productVariants.nodes) {
+        const sku = (n.sku || "").replace(/\s+/g, "").toUpperCase();
+        const listed = Boolean(n.product.onlineStoreUrl) && ["ACTIVE", "UNLISTED"].includes(n.product.status);
+        const base = { title: n.product.title, image: n.product.featuredMedia?.preview?.image?.url || null, url: listed ? n.product.onlineStoreUrl : null, listed };
+        const matches: [string, SkuProduct][] = set.has(sku)
+          ? [[sku, { ...base, price: number(n.price), combined: false }]]
+          : sku.split(".").filter((part) => set.has(part)).map((part) => [part, { ...base, price: null, combined: true }]);
+        // A mesma referência em mais do que um produto: primeiro a exata, depois a que está à venda no site.
+        for (const [ref, p] of matches) if (!products.has(ref) || rank(p) > rank(products.get(ref)!)) products.set(ref, p);
+      }
+    }
+  }
+  return { products, incomplete };
+}

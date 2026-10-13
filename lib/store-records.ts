@@ -455,3 +455,149 @@ export function sortListRows<T>(rows: T[], sort: ListSort, valueOf: (row: T, key
     })
     .map((x) => x.row);
 }
+
+// ---------------------------------------------------------------- ranking de produtos e categorias
+// Os artigos de um atendimento não têm preço próprio. O valor de cada artigo é o valor da venda dividido pelo número
+// de artigos dessa venda: exato quando a venda tem um só artigo, estimado (partes iguais) quando tem vários. Cada
+// linha de artigo conta como uma unidade. Vendas sem valor indicado (há algumas vindas da folha) contam nas unidades,
+// mas não no valor nem no valor médio.
+export type RankBy = "valor" | "unidades";
+export const rankBy = (v: unknown): RankBy => (v === "unidades" ? "unidades" : "valor");
+
+// Referência como se escreve no catálogo: sem espaços e em maiúsculas ("5000 2606" e "50002606" são a mesma peça).
+export const normalizeRef = (ref: string | null | undefined) => String(ref ?? "").replace(/\s+/g, "").toUpperCase() || null;
+
+export type SoldItem = { saleId: string; storeId: string; ref: string | null; type: string | null; material: string | null; value: number; split: boolean; priced: boolean };
+
+// Artigos vendidos no período, só das lojas indicadas (as que a pessoa gere).
+export function soldItems(sales: ShopSale[], storeIds: Set<string>, p: Period2): SoldItem[] {
+  const out: SoldItem[] = [];
+  for (const s of sales) {
+    if (!s.sold || !storeIds.has(s.store_id) || s.sale_date < p.from || s.sale_date > p.to || !s.items?.length) continue;
+    const priced = s.total_value !== null && s.total_value !== undefined;
+    const each = priced ? Number(s.total_value) / s.items.length : 0;
+    for (const i of s.items)
+      out.push({ saleId: s.id, storeId: s.store_id, ref: normalizeRef(i.reference), type: i.product_type || null, material: i.material || null, value: each, split: s.items.length > 1, priced });
+  }
+  return out;
+}
+
+export type RankRow = {
+  key: string;
+  reference: string | null;
+  type: string | null;
+  material: string | null;
+  units: number;
+  // Unidades de vendas com valor indicado (as únicas que entram no valor médio).
+  pricedUnits: number;
+  sales: number;
+  value: number;
+  // Parte do valor que vem de vendas com vários artigos (dividida em partes iguais).
+  estimated: number;
+  stores: string[];
+  products: number;
+  before: { units: number; pricedUnits: number; value: number } | null;
+  rank: number;
+};
+
+type Acc = { units: number; pricedUnits: number; sales: Set<string>; value: number; estimated: number; stores: Set<string>; refs: Set<string>; types: Map<string, number>; materials: Map<string, number>; first: SoldItem };
+
+function accumulate(items: SoldItem[], keyOf: (i: SoldItem) => string) {
+  const out = new Map<string, Acc>();
+  for (const i of items) {
+    const k = keyOf(i);
+    let a = out.get(k);
+    if (!a) out.set(k, (a = { units: 0, pricedUnits: 0, sales: new Set(), value: 0, estimated: 0, stores: new Set(), refs: new Set(), types: new Map(), materials: new Map(), first: i }));
+    a.units += 1;
+    if (i.priced) a.pricedUnits += 1;
+    a.sales.add(i.saleId);
+    a.value += i.value;
+    if (i.split) a.estimated += i.value;
+    a.stores.add(i.storeId);
+    a.refs.add(i.ref ?? `sem:${i.type ?? ""}:${i.material ?? ""}`);
+    if (i.type) a.types.set(i.type, (a.types.get(i.type) || 0) + 1);
+    if (i.material) a.materials.set(i.material, (a.materials.get(i.material) || 0) + 1);
+  }
+  return out;
+}
+
+// O valor mais frequente (em empate, o que apareceu primeiro).
+const mostFrequent = (m: Map<string, number>) => {
+  let best: string | null = null, n = 0;
+  for (const [k, c] of m) if (c > n) [best, n] = [k, c];
+  return best;
+};
+
+const sortRank = (rows: RankRow[], by: RankBy) => {
+  const collator = new Intl.Collator("pt-PT", { numeric: true, sensitivity: "base" });
+  rows.sort((a, b) =>
+    (by === "unidades" ? b.units - a.units || b.value - a.value : b.value - a.value || b.units - a.units) || b.sales - a.sales || collator.compare(a.key, b.key));
+  rows.forEach((r, i) => (r.rank = i + 1));
+  return rows;
+};
+
+function rank(now: SoldItem[], before: SoldItem[], keyOf: (i: SoldItem) => string, by: RankBy): RankRow[] {
+  const prev = accumulate(before, keyOf);
+  const rows = [...accumulate(now, keyOf)].map(([key, a]): RankRow => {
+    const b = prev.get(key);
+    return {
+      key,
+      reference: a.first.ref,
+      type: mostFrequent(a.types),
+      material: mostFrequent(a.materials),
+      units: a.units,
+      pricedUnits: a.pricedUnits,
+      sales: a.sales.size,
+      value: round2(a.value),
+      estimated: round2(a.estimated),
+      stores: [...a.stores],
+      products: a.refs.size,
+      before: b ? { units: b.units, pricedUnits: b.pricedUnits, value: round2(b.value) } : null,
+      rank: 0,
+    };
+  });
+  return sortRank(rows, by);
+}
+
+// Uma linha por peça (referência). Sem referência, as peças agrupam-se por tipo e material.
+export const productKey = (i: Pick<SoldItem, "ref" | "type" | "material">) => (i.ref ? `ref:${i.ref}` : `sem:${i.type ?? ""}:${i.material ?? ""}`);
+
+export type CategoryDim = "tipo" | "material" | "tipo-material";
+export const categoryKey = (dim: CategoryDim) => (i: Pick<SoldItem, "type" | "material">) =>
+  dim === "tipo" ? i.type ?? "" : dim === "material" ? i.material ?? "" : `${i.type ?? ""}|${i.material ?? ""}`;
+
+export function rankingTotals(items: SoldItem[], sales: ShopSale[], storeIds: Set<string>, p: Period2) {
+  const withoutItems = sales.filter((s) => s.sold && storeIds.has(s.store_id) && s.sale_date >= p.from && s.sale_date <= p.to && !s.items?.length);
+  const unpriced = items.filter((i) => !i.priced);
+  return {
+    units: items.length,
+    value: round2(items.reduce((a, i) => a + i.value, 0)),
+    estimated: round2(items.reduce((a, i) => a + (i.split ? i.value : 0), 0)),
+    sales: new Set(items.map((i) => i.saleId)).size,
+    products: new Set(items.map(productKey)).size,
+    // Vendas registadas sem artigos: o valor não entra em nenhum produto nem categoria.
+    withoutItems: { sales: withoutItems.length, value: round2(withoutItems.reduce((a, s) => a + Number(s.total_value || 0), 0)) },
+    // Vendas com artigos mas sem valor indicado: as unidades contam, o valor não.
+    withoutValue: { sales: new Set(unpriced.map((i) => i.saleId)).size, units: unpriced.length },
+  };
+}
+
+export function productRanking(sales: ShopSale[], storeIds: Set<string>, range: Period2, prev: Period2, by: RankBy) {
+  const items = soldItems(sales, storeIds, range);
+  return { rows: rank(items, soldItems(sales, storeIds, prev), productKey, by), totals: rankingTotals(items, sales, storeIds, range) };
+}
+
+export function categoryRanking(sales: ShopSale[], storeIds: Set<string>, range: Period2, prev: Period2, dim: CategoryDim, by: RankBy) {
+  const items = soldItems(sales, storeIds, range);
+  return { rows: rank(items, soldItems(sales, storeIds, prev), categoryKey(dim), by), totals: rankingTotals(items, sales, storeIds, range) };
+}
+
+// Valor de uma linha: "—" sem nenhuma unidade com valor; "≈" quando parte vem de vendas com vários artigos.
+export const rankValue = (r: Pick<RankRow, "value" | "estimated" | "pricedUnits">, money: (n: number) => string) =>
+  r.pricedUnits ? `${r.estimated > 0 ? "≈ " : ""}${money(r.value)}` : "—";
+// Valor médio por unidade, só com as unidades que têm valor.
+export const rankAverage = (r: Pick<RankRow, "value" | "estimated" | "pricedUnits">, money: (n: number) => string) =>
+  r.pricedUnits ? `${r.estimated > 0 ? "≈ " : ""}${money(Math.round((r.value / r.pricedUnits) * 100) / 100)}` : "—";
+// Comparação com o período anterior na métrica da ordem (null quando não há termo de comparação).
+export const rankBefore = (r: Pick<RankRow, "before">, by: RankBy) =>
+  !r.before ? null : by === "unidades" ? r.before.units : r.before.pricedUnits ? r.before.value : null;
