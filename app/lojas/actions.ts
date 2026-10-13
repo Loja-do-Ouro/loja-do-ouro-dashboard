@@ -12,10 +12,12 @@ function back(path: string, form: FormData, result: { ok?: string; erro?: string
     const v = String(form.get(key) || "");
     if (v) params.set(key, v);
   }
-  // Vista e filtro da lista de atendimentos (só valores conhecidos).
+  // Vista, filtro e ordem da lista de atendimentos (só valores conhecidos).
   const vista = String(form.get("vista") || ""), mostrar = String(form.get("mostrar") || "");
   if (vista === "semana" || vista === "mes") params.set("vista", vista);
   if (mostrar === "vendas" || mostrar === "sem") params.set("mostrar", mostrar);
+  const ordem = String(form.get("ordem") || "");
+  if (/^(dia|numero|resultado|valor|artigos|cliente|viu|campanha|registo)-(asc|desc)$/.test(ordem)) params.set("ordem", ordem);
   for (const [k, v] of Object.entries(result)) if (v) params.set(k, v);
   return `${path}?${params}`;
 }

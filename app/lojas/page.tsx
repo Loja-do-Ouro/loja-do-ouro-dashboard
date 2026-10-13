@@ -4,7 +4,8 @@ import { localDate, shift, shortDate, validDate } from "@/lib/bi/periods";
 import { canEditRecord, homePath, STORE_BACKDATE_DAYS } from "@/lib/permissions";
 import { activeOptions, loadOptions, pickStore } from "@/lib/records";
 import {
-  count, ITEM_ROWS, label, listNeighbours, listPeriod, listRows, listShow, listView, MAX_ITEMS, monthRange, summarizeShop, type ListShow, type ListView, type ShopSale,
+  count, ITEM_ROWS, label, listNeighbours, listPeriod, listRows, listShow, listSort, listView, MAX_ITEMS, monthRange, nextSort, sortListRows, sortParam, summarizeShop,
+  type ListShow, type ListSort, type ListSortKey, type ListView, type ShopSale,
 } from "@/lib/store-records";
 import { rpcAll } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
@@ -13,6 +14,7 @@ import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
 import { Breakdown, inputAmount, monthLabel, MonthNav, Select, StoreChips, weekday, YesNo } from "@/components/stores";
 import { ItemRows } from "@/components/item-rows";
+import { ListScroll } from "@/components/list-scroll";
 import { removeShopSale, saveShopSale } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,8 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
   // Lista de atendimentos: o dia, a semana (de segunda a domingo, pode passar para o mês ao lado) ou o mês.
   const view = listView(q.vista);
   const show = listShow(q.mostrar);
+  // Na vista do dia não há coluna Dia: uma ordem por dia vinda de outra vista é ignorada.
+  const sort = ((o) => (o && view === "dia" && o.key === "dia" ? null : o))(listSort(q.ordem));
   const period = listPeriod(view, day, { from, to }, today);
   const [all, fetched] = await Promise.all([
     loadOptions(viewer.session),
@@ -46,18 +50,44 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
   const canEdit = !editing || canEditRecord(viewer, store.id, editing);
   const manager = store.level === "manager";
   const minDate = manager ? undefined : shift(today, -STORE_BACKDATE_DAYS);
-  // A vista e o filtro da lista mantêm-se ao mudar de loja ou de mês.
-  const keep: Record<string, string> = { ...(view !== "dia" ? { vista: view } : {}), ...(show !== "todos" ? { mostrar: show } : {}) };
-  const listed = listRows(fetched, period.from, period.to, show);
+  // A vista, o filtro e a ordem da lista mantêm-se ao mudar de loja, de mês ou de período.
+  const listParams = (v: ListView, m: ListShow, o: ListSort): Record<string, string> =>
+    ({ ...(v !== "dia" ? { vista: v } : {}), ...(m !== "todos" ? { mostrar: m } : {}), ...(o && !(v === "dia" && o.key === "dia") ? { ordem: sortParam(o)! } : {}) });
+  const keep = listParams(view, show, sort);
+  // Valor de cada coluna para ordenar (o que se vê na tabela; vazio fica no fim).
+  const sortValue = (r: ShopSale, key: ListSortKey): string | number | null => {
+    switch (key) {
+      case "dia": return `${r.sale_date}T${r.created_at}`;
+      case "numero": return r.sale_number;
+      case "resultado": return r.sold ? "0" : r.no_sale_reason ? `1 ${label(all, "no_sale_reason", r.no_sale_reason)}` : null;
+      case "valor": return r.sold && r.total_value !== null ? Number(r.total_value) : null;
+      case "artigos": return (r.items || []).length || null;
+      case "cliente": return r.client_type ? label(all, "client_type", r.client_type) : null;
+      case "viu": return r.seen_where ? label(all, "seen_where", r.seen_where) : null;
+      case "campanha": return r.campaign ? (r.campaign_code ? label(all, "campaign", r.campaign_code) : null) : r.campaign === false ? "Não" : null;
+      case "registo": return r.source === "import" || r.source === "sheet" ? "Folha" : r.created_by_name;
+    }
+  };
+  const listed = sortListRows(listRows(fetched, period.from, period.to, show), sort, sortValue);
   const listedSales = listed.filter((r) => r.sold);
   const listedValue = listedSales.reduce((t, r) => t + (Number(r.total_value) || 0), 0);
   const around = listNeighbours(view, day, month, today);
   const sum = summarizeShop(rows, all);
-  const link = (params: Record<string, string>) =>
-    `/lojas?${new URLSearchParams({ loja: store.code, mes: month, dia: day, ...(view !== "dia" ? { vista: view } : {}), ...(show !== "todos" ? { mostrar: show } : {}), ...params })}`;
+  const link = (params: Record<string, string>) => `/lojas?${new URLSearchParams({ loja: store.code, mes: month, dia: day, ...keep, ...params })}`;
   // Outro período na lista (o mês acompanha o dia escolhido).
-  const goTo = (d: string, v: ListView = view, m: ListShow = show) =>
-    `/lojas?${new URLSearchParams({ loja: store.code, mes: d.slice(0, 7), dia: d, ...(v !== "dia" ? { vista: v } : {}), ...(m !== "todos" ? { mostrar: m } : {}) })}`;
+  const goTo = (d: string, v: ListView = view, m: ListShow = show, o: ListSort = sort) =>
+    `/lojas?${new URLSearchParams({ loja: store.code, mes: d.slice(0, 7), dia: d, ...listParams(v, m, o) })}`;
+  // Colunas da lista: título, chave de ordenação e o nome da coluna nas dicas (a coluna Dia só na semana e no mês).
+  const COLUMNS: [string, ListSortKey | null, string][] = [
+    ...(view === "dia" ? [] : [["Dia", "dia", "dia"] as [string, ListSortKey, string]]),
+    ["N.º venda", "numero", "número de venda"], ["Resultado", "resultado", "resultado"], ["Valor", "valor", "valor"],
+    ["Artigos", "artigos", "número de artigos"], ["Cliente", "cliente", "tipo de cliente"], ["Viu em", "viu", "onde viu o produto"],
+    ["Campanha", "campanha", "campanha"], ["Registado por", "registo", "quem registou"], ["", null, ""],
+  ];
+  // Ordem mostrada nos títulos: sem ordem escolhida, a semana e o mês já estão por dia, do mais recente.
+  const shownSort: ListSort = sort ?? (view === "dia" ? null : { key: "dia", dir: "desc" });
+  // Com um registo aberto para corrigir, ordenar não o fecha (nem perde o que já foi escrito).
+  const sortHref = (o: ListSort) => `${goTo(day, view, show, o)}${editing ? `&editar=${encodeURIComponent(editing.id)}` : ""}`;
   const ok = typeof q.ok === "string" ? OK[q.ok] : undefined;
   const error = typeof q.erro === "string" ? q.erro.slice(0, 300) : undefined;
   const sold = rows.filter((r) => r.sold);
@@ -83,7 +113,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
       <div className="two-col sales-entry">
         <Panel title={editing ? "Corrigir atendimento" : "Registar atendimento"} eyebrow={editing ? `REGISTO DE ${shortDate(editing.sale_date)}` : "NOVO CLIENTE"}>
           {canEdit ? (
-            <form action={saveShopSale} className="form-grid" key={editing?.id || `novo-${day}-${rows.length}`}>
+            <form action={saveShopSale} className="form-grid" key={editing?.id || `novo-${newDate}-${rows.length}`}>
               <input type="hidden" name="record_id" value={editing?.id || ""} />
               <input type="hidden" name="store_id" value={store.id} />
               <input type="hidden" name="loja" value={store.code} />
@@ -91,6 +121,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
               <input type="hidden" name="dia" value={day} />
               {view !== "dia" && <input type="hidden" name="vista" value={view} />}
               {show !== "todos" && <input type="hidden" name="mostrar" value={show} />}
+              {sort && <input type="hidden" name="ordem" value={sortParam(sort)!} />}
               <label>
                 Dia
                 <input type="date" name="sale_date" required defaultValue={editing?.sale_date || newDate} max={today} min={minDate} />
@@ -182,6 +213,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
               <input type="hidden" name="dia" value={day} />
               {view !== "dia" && <input type="hidden" name="vista" value={view} />}
               {show !== "todos" && <input type="hidden" name="mostrar" value={show} />}
+              {sort && <input type="hidden" name="ordem" value={sortParam(sort)!} />}
               <button type="submit" className="danger-button">Apagar este registo</button>
               <small>Fica guardado no histórico de alterações.</small>
             </form>
@@ -205,23 +237,25 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
         <div className="list-controls">
           <nav className="segmented" aria-label="Período da lista">
             {(["dia", "semana", "mes"] as ListView[]).map((v) => (
-              <Link key={v} href={goTo(day, v)} className={v === view ? "active" : ""} aria-current={v === view ? "page" : undefined}>
+              <Link key={v} href={goTo(day, v)} scroll={false} className={v === view ? "active" : ""} aria-current={v === view ? "page" : undefined}>
                 {v === "dia" ? "Dia" : v === "semana" ? "Semana" : "Mês"}
               </Link>
             ))}
           </nav>
           <div className="period-nav">
-            <Link className="outline-button" href={goTo(around.prev)} aria-label={view === "dia" ? "Dia anterior" : view === "semana" ? "Semana anterior" : "Mês anterior"}>‹</Link>
+            <Link className="outline-button" href={goTo(around.prev)} scroll={false} aria-label={view === "dia" ? "Dia anterior" : view === "semana" ? "Semana anterior" : "Mês anterior"}>‹</Link>
             {around.next ? (
-              <Link className="outline-button" href={goTo(around.next)} aria-label={view === "dia" ? "Dia seguinte" : view === "semana" ? "Semana seguinte" : "Mês seguinte"}>›</Link>
+              <Link className="outline-button" href={goTo(around.next)} scroll={false} aria-label={view === "dia" ? "Dia seguinte" : view === "semana" ? "Semana seguinte" : "Mês seguinte"}>›</Link>
             ) : (
               <span className="outline-button disabled" aria-hidden="true">›</span>
             )}
           </div>
-          <form method="get" className="inline-form">
+          {/* key: ao mudar de período pelos botões, o campo de data acompanha o dia de referência. */}
+          <form method="get" className="inline-form" key={`ver-${view}-${day}`}>
             <input type="hidden" name="loja" value={store.code} />
             {view !== "dia" && <input type="hidden" name="vista" value={view} />}
             {show !== "todos" && <input type="hidden" name="mostrar" value={show} />}
+            {sort && <input type="hidden" name="ordem" value={sortParam(sort)!} />}
             <label>
               {view === "mes" ? "Ver o mês do dia" : view === "semana" ? "Ver a semana do dia" : "Ver outro dia"}
               <input type="date" name="dia" defaultValue={day} max={today} />
@@ -230,7 +264,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
           </form>
           <nav className="segmented small" aria-label="Mostrar">
             {(["todos", "vendas", "sem"] as ListShow[]).map((m) => (
-              <Link key={m} href={goTo(day, view, m)} className={m === show ? "active" : ""} aria-current={m === show ? "page" : undefined}>{SHOW_LABEL[m]}</Link>
+              <Link key={m} href={goTo(day, view, m)} scroll={false} className={m === show ? "active" : ""} aria-current={m === show ? "page" : undefined}>{SHOW_LABEL[m]}</Link>
             ))}
           </nav>
         </div>
@@ -238,14 +272,31 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
           {show === "sem"
             ? `${integer(listed.length)} atendimento${listed.length === 1 ? "" : "s"} sem venda`
             : `${integer(listedSales.length)} venda${listedSales.length === 1 ? "" : "s"} · ${currency(listedValue)}${show === "todos" ? ` · ${integer(listed.length - listedSales.length)} sem venda` : ""}`}
+          {sort && (
+            <>
+              {` · ordenado por ${COLUMNS.find(([, k]) => k === sort.key)?.[2] || sort.key} (${sort.dir === "asc" ? "crescente" : "decrescente"}) · `}
+              <Link href={sortHref(null)} scroll={false} className="sort-reset">Repor ordem habitual</Link>
+            </>
+          )}
         </p>
-        <div className="table-scroll" tabIndex={0} aria-label="Atendimentos do período">
+        <ListScroll listKey={`${view}-${period.from}-${show}-${sortParam(sort) || ""}`} sorted={!!sort} label="Atendimentos do período">
           <table className="left-table nums">
             <thead>
               <tr>
-                {[...(view === "dia" ? [] : ["Dia"]), "N.º venda", "Resultado", "Valor", "Artigos", "Cliente", "Viu em", "Campanha", "Registado por", ""].map((h) => (
-                  <th key={h}>{h}</th>
-                ))}
+                {COLUMNS.map(([h, key, hint]) => {
+                  const dir = key !== null && shownSort?.key === key ? shownSort.dir : null;
+                  return (
+                    <th key={h || "acoes"} aria-sort={dir ? (dir === "asc" ? "ascending" : "descending") : undefined}>
+                      {key ? (
+                        <Link href={sortHref(nextSort(shownSort, key))} scroll={false} className={`sort-link${dir ? " active" : ""}`}
+                          title={dir ? `Ordenado por ${hint}, ${dir === "asc" ? "crescente: clicar para decrescente" : "decrescente: clicar para crescente"}` : `Ordenar por ${hint}`}>
+                          {h}
+                          <span aria-hidden="true">{dir ? (dir === "asc" ? " ▲" : " ▼") : " ↕"}</span>
+                        </Link>
+                      ) : h}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -274,7 +325,7 @@ export default async function ShopSalesPage({ searchParams }: { searchParams: Pr
               ))}
             </tbody>
           </table>
-        </div>
+        </ListScroll>
         {!listed.length && (
           <p className="panel-note">
             {show === "todos" ? "Ainda não há atendimentos registados" : show === "vendas" ? "Não há vendas registadas" : "Não há atendimentos sem venda registados"}

@@ -77,3 +77,36 @@ test("The sale form reads up to 30 article rows and skips empty ones", () => {
   assert.equal(parsed.data.items[3].reference, "R4");
   assert.ok(!parsed.data.items.some((it) => it.reference === "R30"), "além do máximo não entra");
 });
+
+test("Sort parameter: known columns and directions only; a click toggles, another column starts at its most useful order", () => {
+  assert.deepEqual(rec.listSort("valor-desc"), { key: "valor", dir: "desc" });
+  assert.deepEqual(rec.listSort("numero-asc"), { key: "numero", dir: "asc" });
+  for (const bad of ["", "valor", "valor-up", "preco-desc", "valor-desc-x", null, undefined, ["valor-desc"]]) assert.equal(rec.listSort(bad), null, String(bad));
+  assert.equal(rec.sortParam({ key: "valor", dir: "asc" }), "valor-asc");
+  assert.equal(rec.sortParam(null), null);
+  assert.deepEqual(rec.nextSort(null, "valor"), { key: "valor", dir: "desc" }, "valor: do maior para o menor primeiro");
+  assert.deepEqual(rec.nextSort({ key: "valor", dir: "desc" }, "valor"), { key: "valor", dir: "asc" });
+  assert.deepEqual(rec.nextSort({ key: "valor", dir: "asc" }, "valor"), { key: "valor", dir: "desc" });
+  assert.deepEqual(rec.nextSort({ key: "valor", dir: "asc" }, "cliente"), { key: "cliente", dir: "asc" }, "texto: de A a Z primeiro");
+  assert.deepEqual(rec.nextSort(null, "dia"), { key: "dia", dir: "asc" }, "dia: do mais antigo primeiro (o habitual já é do mais recente)");
+  assert.deepEqual(rec.nextSort({ key: "dia", dir: "desc" }, "dia"), { key: "dia", dir: "asc" });
+  for (const k of rec.LIST_SORT_KEYS) assert.ok(rec.listSort(`${k}-asc`), k);
+});
+
+test("Sorting the list: numbers as numbers, sale numbers as read, empty values always last, ties keep the usual order", () => {
+  const rows = [
+    { id: "a", v: 305, n: "9102733", c: "Novo" },
+    { id: "b", v: null, n: "", c: null },
+    { id: "c", v: 74.9, n: "9003527", c: "habitual" },
+    { id: "d", v: 1649.8, n: "900308", c: "Novo" },
+    { id: "e", v: 74.9, n: "9003519", c: "Ex-cliente" },
+  ];
+  const get = (r, k) => (k === "valor" ? r.v : k === "numero" ? r.n : r.c);
+  const ids = (sort) => rec.sortListRows(rows, sort, get).map((r) => r.id).join("");
+  assert.equal(ids(null), "abcde", "sem ordem: igual");
+  assert.equal(ids({ key: "valor", dir: "desc" }), "daceb");
+  assert.equal(ids({ key: "valor", dir: "asc" }), "ceadb", "empate (74,90) mantém a ordem habitual; sem valor no fim");
+  assert.equal(ids({ key: "numero", dir: "asc" }), "decab", "900308 < 9003519 < 9003527 < 9102733; vazio no fim");
+  assert.equal(ids({ key: "cliente", dir: "asc" }), "ecadb", "sem distinguir maiúsculas; vazio no fim");
+  assert.equal(rows.map((r) => r.id).join(""), "abcde", "a lista original não é alterada");
+});
