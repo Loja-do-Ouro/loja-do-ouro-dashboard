@@ -12,6 +12,10 @@ function back(path: string, form: FormData, result: { ok?: string; erro?: string
     const v = String(form.get(key) || "");
     if (v) params.set(key, v);
   }
+  // Vista e filtro da lista de atendimentos (só valores conhecidos).
+  const vista = String(form.get("vista") || ""), mostrar = String(form.get("mostrar") || "");
+  if (vista === "semana" || vista === "mes") params.set("vista", vista);
+  if (mostrar === "vendas" || mostrar === "sem") params.set("mostrar", mostrar);
   for (const [k, v] of Object.entries(result)) if (v) params.set(k, v);
   return `${path}?${params}`;
 }
@@ -34,6 +38,8 @@ async function save(path: string, fn: string, form: FormData, parsed: { error?: 
   const day = String(parsed.data[dateKey]);
   form.set("dia", day);
   form.set("mes", day.slice(0, 7));
+  // Gravado: a lista volta a mostrar todos os atendimentos, para o registo acabado de gravar estar à vista.
+  if (!error) form.delete("mostrar");
   redirect(back(path, form, error ? { erro: error, editar } : { ok: id ? "updated" : "saved" }));
 }
 
