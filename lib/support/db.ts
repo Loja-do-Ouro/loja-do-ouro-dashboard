@@ -22,8 +22,8 @@ export function serverRpc<T>(fn: string, args: Record<string, unknown> = {}) {
 
 export type SourceRow = {
   id: string;
-  platform: "zendesk" | "metricool" | "whatsapp" | "site" | "gmail";
-  channel: "zendesk" | "facebook" | "instagram" | "whatsapp" | "site" | "email";
+  platform: "zendesk" | "metricool" | "metricool_comments" | "whatsapp" | "site" | "gmail";
+  channel: "zendesk" | "facebook" | "instagram" | "facebook_comments" | "instagram_comments" | "whatsapp" | "site" | "email";
   account: string;
   label: string;
   status: string;
@@ -55,6 +55,9 @@ export type IngestConversation = {
   external_assignee_name?: string | null;
   via?: string | null;
   external_updated_at?: string | null;
+  // Só nos comentários das publicações (a BD ignora-os nas outras fontes): estado inicial do tópico e publicação.
+  resolved?: "answered" | "stale" | null;
+  post?: Record<string, unknown> | null;
   messages: IngestMessage[];
 };
 

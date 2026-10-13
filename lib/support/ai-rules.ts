@@ -72,8 +72,9 @@ export function untrusted(s: string | null | undefined) {
   return (s || "").replace(/</g, "‹").replace(/>/g, "›");
 }
 
+// Corte sem partir um emoji ao meio (a API recusa metades de caracteres).
 export function clip(s: string, max: number) {
-  return s.length > max ? `${s.slice(0, max)} […]` : s;
+  return s.length > max ? `${s.slice(0, max).replace(/[\uD800-\uDBFF]$/, "")} […]` : s;
 }
 
 // Lê e valida a resposta estruturada da IA (formato garantido pela API, validado na mesma).

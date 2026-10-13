@@ -3,6 +3,7 @@ import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/b
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
 import { sendOutcome } from "./rules";
 import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-rules";
+import { commentBrand, commentCursorAfter, commentReadPlan, threadToConversation, walkPages, type CommentThread, type PostElement } from "./comment-rules";
 
 // Metricool Inbox (API v2, https://app.metricool.com/api/swagger.json), mensagens privadas do
 // Facebook Messenger e do Instagram da marca "Loja do Ouro Jericó" (blogId 2912472). Reutiliza o
@@ -11,7 +12,7 @@ import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-r
 //   POST /v2/inbox/conversations {provider, conversationId, recipient, text, attachment}
 //   GET  /v2/inbox/conversations/authorizations?provider=… {missingScopes, allowAccessToMessages}
 //   GET  /v2/inbox/conversations/fetch-image?provider=…&target=…
-// Comentários de publicações e anúncios ficam fora desta fase.
+// Comentários das publicações: fontes próprias (metricool-*-comments), mais abaixo.
 
 type Participant = { id?: string; name?: string; email?: string; imageProfileUrl?: string };
 type Message = {
@@ -306,16 +307,9 @@ export async function metricoolDiagnostics(provider: string) {
   return out;
 }
 
-// ---------------------------------------------------------------- comentários das publicações (diagnóstico)
+// ---------------------------------------------------------------- comentários das publicações
 // Inbox "post-comments" da Metricool: um tópico por comentário principal, com a publicação (element) e as
-// respostas. Por agora só leitura, para decidir se os comentários entram no Apoio ao Cliente: devolve contagens
-// e estrutura, nunca textos, nomes nem ligações.
-type CommentItem = { id?: string; parentId?: string; creationDate?: string; owner?: string; text?: string; mediaUrl?: string; properties?: Record<string, unknown> };
-type PostElement = { id?: string; owner?: Participant; link?: string; text?: string; mediaUrls?: string[]; commentCount?: number; reactionCount?: number; properties?: Record<string, unknown> };
-type CommentThread = {
-  id?: string; provider?: string; status?: string; creationDate?: string; lastUpdateTime?: string; participants?: Participant[];
-  root?: CommentItem & { element?: PostElement; comments?: CommentItem[] };
-};
+// respostas. O diagnóstico (Super Admin) devolve contagens e estrutura, nunca textos, nomes nem ligações.
 
 // Tipo de publicação pelo endereço (sem guardar o endereço).
 function linkKind(link?: string) {
@@ -335,28 +329,36 @@ function linkKind(link?: string) {
 const range = (values: number[]) => (values.length ? { min: Math.min(...values), max: Math.max(...values) } : null);
 const countBy = (values: (string | undefined)[]) => Object.fromEntries([...values.reduce((m, v) => m.set(v || "(vazio)", (m.get(v || "(vazio)") || 0) + 1), new Map<string, number>())]);
 
-async function readCommentThreads(provider: string, maxPages: number, deadline: number) {
-  const out: CommentThread[] = [];
-  let next: string | null = null;
-  let pages = 0;
-  do {
-    let r;
-    if (next) {
-      const u = new URL(next, "https://app.metricool.com/api/");
-      if (u.hostname !== "app.metricool.com") break;
-      const params = Object.fromEntries(u.searchParams);
-      delete params.userId;
-      delete params.blogId;
-      r = await metricoolRequest("GET", u.pathname.replace(/^\/api/, ""), params, undefined, 40_000);
-    } else r = await metricoolRequest("GET", "/v2/inbox/post-comments", { provider }, undefined, 40_000);
-    if (r.status !== 200) throw failure(r.status, r.text, `Comentários ${provider}`, Number(r.headers?.get("retry-after")) || 0);
-    const body = r.json as { data?: CommentThread[]; page?: { next?: string | null } };
-    out.push(...(body?.data || []));
-    const raw = body?.page?.next || null;
-    next = raw && /^https?:|^\//.test(raw) ? raw : null;
-    pages++;
-  } while (next && pages < maxPages && Date.now() < deadline - 45_000);
-  return { threads: out, pages, complete: !next };
+// Páginas de tópicos (regras em walkPages, comment-rules.ts): a 1.ª e, com tempo, as seguintes a partir de onde a
+// passagem anterior parou. Devolve o ponto de continuação (next) e se a lista chegou ao fim (end).
+async function readCommentThreads(provider: string, maxPages: number, deadline: number, onPage?: (page: CommentThread[]) => Promise<void>, resume?: string | null) {
+  const threads: CommentThread[] = [];
+  const last = { text: "", retryAfter: 0 };
+  const walk = await walkPages<CommentThread>({
+    maxPages, deadline, now: () => Date.now(), resume,
+    onPage: async (page) => {
+      threads.push(...page);
+      if (onPage) await onPage(page);
+    },
+    fetchPage: async (next, timeout) => {
+      let r;
+      if (next) {
+        const u = new URL(next, "https://app.metricool.com/api/");
+        const params = Object.fromEntries(u.searchParams);
+        delete params.userId;
+        delete params.blogId;
+        r = await metricoolRequest("GET", u.pathname.replace(/^\/api/, ""), params, undefined, timeout);
+      } else r = await metricoolRequest("GET", "/v2/inbox/post-comments", { provider }, undefined, timeout);
+      if (r.status !== 200) {
+        last.text = r.text || "";
+        last.retryAfter = Number(r.headers?.get("retry-after")) || 0;
+      }
+      const body = r.json as { data?: CommentThread[]; page?: { next?: string | null } } | null;
+      return { status: r.status, data: body?.data || [], next: body?.page?.next || null };
+    },
+  });
+  if (walk.error) throw failure(walk.error.status, last.text, `Comentários ${provider}`, last.retryAfter);
+  return { threads, pages: walk.pages, complete: walk.end, next: walk.next, end: walk.end };
 }
 
 export async function metricoolCommentsDiagnostics(provider: string) {
@@ -403,4 +405,100 @@ export async function metricoolCommentsDiagnostics(provider: string) {
     out.read = { error: e instanceof Error ? e.message : "indisponível" };
   }
   return out;
+}
+
+async function commentAuthorizations(provider: string) {
+  const r = await metricoolRequest("GET", "/v2/inbox/post-comments/authorizations", { provider });
+  if (r.status !== 200) throw failure(r.status, r.text, `Autorizações de comentários ${provider}`, Number(r.headers?.get("retry-after")) || 0);
+  const data = (r.json as { data?: { missingScopes?: string[]; allowAccessToMessages?: boolean } })?.data || {};
+  return { allowAccessToMessages: Boolean(data.allowAccessToMessages), missingScopes: data.missingScopes || [] };
+}
+
+// Grava os tópicos de uma página. Se a BD recusar um lote (por exemplo, um texto que não aceita), grava-os um a um:
+// um tópico com problema não trava os outros nem põe a fonte em espera. Só falha se nenhum ficar gravado.
+async function ingestThreads(sourceId: string, conversations: IngestConversation[]) {
+  const zero = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
+  try {
+    return { ...(await ingest(sourceId, conversations)), failed: 0 };
+  } catch (e) {
+    const totals = { ...zero };
+    let failed = 0;
+    for (const c of conversations) {
+      try {
+        const r = await ingest(sourceId, [c]);
+        for (const k of Object.keys(zero) as (keyof typeof zero)[]) totals[k] += r[k] || 0;
+      } catch {
+        failed++;
+      }
+    }
+    if (failed && failed === conversations.length) throw e;
+    return { ...totals, failed };
+  }
+}
+
+// Comentários das publicações (fontes metricool-*-comments): uma conversa por comentário principal. Nunca há
+// respostas automáticas nem reações tratadas aqui (as respostas são públicas). As autorizações são confirmadas no
+// máximo de hora a hora (cursor.auth_at). firstPageOnly (Verificar, Não foi enviada): só a 1.ª página, sem mexer na
+// leitura completa em curso.
+export async function syncPostComments(source: { id: string; config: Record<string, unknown>; cursor: Record<string, unknown> }, deadline = Infinity,
+  { firstPageOnly = false }: { firstPageOnly?: boolean } = {}) {
+  if (!metricoolInboxConfigured()) return { skipped: "Metricool por configurar (METRICOOL_USER_TOKEN)." };
+  const provider = String(source.config.provider || "");
+  if (provider !== "FACEBOOK" && provider !== "INSTAGRAM")
+    throw new MetricoolError(`Rede por configurar nesta fonte (${provider || "vazia"}).`, null, 0, true);
+  const cursor: Record<string, unknown> = { ...source.cursor };
+  const authAt = typeof cursor.auth_at === "string" ? Date.parse(cursor.auth_at) : NaN;
+  if (!Number.isFinite(authAt) || Date.now() - authAt > 3_600_000) {
+    const auth = await commentAuthorizations(provider);
+    if (!auth.allowAccessToMessages)
+      throw new MetricoolError(`Metricool não tem acesso aos comentários ${provider}${auth.missingScopes.length ? ` (em falta: ${auth.missingScopes.join(", ")})` : ""}. Voltar a ligar a rede na marca Metricool.`, 403, 0, true);
+    cursor.auth_at = new Date().toISOString();
+  }
+  const handles = Array.isArray(source.config.brand_handles) ? source.config.brand_handles.filter((h): h is string => typeof h === "string") : [];
+  let brand = typeof source.config.brand_id === "string" ? source.config.brand_id : typeof cursor.brand === "string" ? cursor.brand : null;
+  let totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0 };
+  let skipped = 0, failed = 0;
+  const plan = commentReadPlan(cursor, Date.now(), firstPageOnly);
+  const walk = await readCommentThreads(provider, plan.maxPages, deadline, async (page) => {
+    brand = commentBrand(page, brand);
+    if (!brand) {
+      skipped += page.length;
+      return;
+    }
+    const now = new Date();
+    const mapped = page
+      .map((t) => threadToConversation(t, { network: provider, now, brandHandles: handles, brandId: brand }))
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    skipped += page.length - mapped.length;
+    const r = await ingestThreads(source.id, mapped);
+    failed += r.failed;
+    totals = { conversations: totals.conversations + r.conversations, new_conversations: totals.new_conversations + r.new_conversations,
+      new_messages: totals.new_messages + r.new_messages, reopened: totals.reopened + r.reopened };
+  }, plan.resume);
+  const after = commentCursorAfter(cursor, plan.walking, walk, Date.now());
+  const importing = after.importing;
+  const detail = [
+    !brand && "Conta da marca por identificar nos comentários: indicar o id da conta da marca na configuração da fonte (brand_id).",
+    failed && `${failed} tópico(s) recusado(s) pela base de dados nesta passagem.`,
+    skipped && brand && `${skipped} tópico(s) por importar: sem o comentário principal, numa publicação de outra conta ou só com respostas da marca.`,
+    importing && "Leitura de todos os tópicos em curso: continua na próxima passagem.",
+  ].filter(Boolean).join(" ") || null;
+  return { cursor: { ...after.cursor, ...(brand ? { brand } : {}) }, totals, detail, more: importing };
+}
+
+// Resposta PÚBLICA a um comentário, no mesmo tópico: objectId é o id do comentário principal, lido da base de dados
+// (nunca do pedido do browser). Só texto. A resposta da API é um texto livre: não é usada como id; a
+// sincronização seguinte reconhece a resposta pelo texto.
+export async function metricoolComment(provider: string | undefined, objectId: string | null | undefined, text: string, timeoutMs = 30_000) {
+  if (!provider || !objectId || !/^[\w.:-]{1,200}$/.test(objectId))
+    return { outcome: "failed" as const, externalId: null, detail: "Comentário de destino por identificar nesta conversa: nada foi publicado." };
+  if (!text.trim()) return { outcome: "failed" as const, externalId: null, detail: "Escreva o texto da resposta (os comentários não levam anexos)." };
+  const r = await metricoolRequest("POST", "/v2/inbox/post-comments", {}, { provider, objectId, text }, timeoutMs);
+  const outcome = sendOutcome(r.status);
+  return {
+    outcome,
+    externalId: null,
+    detail: outcome === "accepted" ? null : outcome === "uncertain" ? "Sem confirmação da Metricool; confirmar na publicação antes de voltar a publicar."
+      : failure(r.status, r.text, "Resposta pública").message,
+  };
 }

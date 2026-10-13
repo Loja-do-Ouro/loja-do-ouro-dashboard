@@ -1,7 +1,7 @@
 // Apoio ao Cliente: tipos e regras partilhados entre servidor e browser (sem segredos nem I/O).
 
 export type Status = "novo" | "em_atendimento" | "aguarda_cliente" | "resolvido";
-export type Channel = "zendesk" | "facebook" | "instagram" | "whatsapp" | "site" | "email";
+export type Channel = "zendesk" | "facebook" | "instagram" | "facebook_comments" | "instagram_comments" | "whatsapp" | "site" | "email";
 export type Kind = "inbound" | "outbound" | "note";
 export type Delivery = "sending" | "accepted" | "delivered" | "read" | "failed" | "uncertain";
 
@@ -16,6 +16,8 @@ export const CHANNEL_LABEL: Record<Channel, string> = {
   zendesk: "Zendesk",
   facebook: "Facebook",
   instagram: "Instagram",
+  facebook_comments: "Comentários Facebook",
+  instagram_comments: "Comentários Instagram",
   whatsapp: "WhatsApp",
   site: "Chat do site",
   email: "Email",

@@ -1,17 +1,17 @@
 import "server-only";
 import { serverConfigured, serverRpc, type SourceRow } from "./db";
-import { MetricoolError, syncMetricool } from "./metricool";
+import { MetricoolError, syncMetricool, syncPostComments } from "./metricool";
 import { GmailError, syncGmail } from "./gmail";
 import { ZendeskError, syncZendesk } from "./zendesk";
 
-const SOURCES = ["zendesk", "metricool-facebook", "metricool-instagram", "gmail"] as const;
+const SOURCES = ["zendesk", "metricool-facebook", "metricool-instagram", "metricool-facebook-comments", "metricool-instagram-comments", "gmail"] as const;
 
 export type SyncOutcome = { source: string; ran: boolean; ok?: boolean; detail?: string; reason?: string; nextAt?: string | null; totals?: unknown; more?: boolean };
 type Claim = { claimed: true; source: SourceRow } | { claimed: false; reason: string; next_attempt_at: string | null };
 
 export const REFUSAL: Record<string, string> = {
   running: "já está a sincronizar",
-  recent: "sincronizou há menos de 15 s",
+  recent: "sincronizou há instantes",
   backoff: "em espera depois de erros",
   not_due: "ainda não é a hora",
   disabled: "desligado",
@@ -21,14 +21,15 @@ export const REFUSAL: Record<string, string> = {
 // Cada fonte é independente: uma falha numa plataforma não impede as outras. Cada passagem tem um
 // limite de tempo abaixo do da função Vercel; o progresso fica gravado e a seguinte continua.
 // Chamada pelo dashboard aberto, pelo botão Atualizar, pela configuração e pela tarefa diária.
-export async function runSync({ force = false, override = false, only, budgetMs = 40_000 }: { force?: boolean; override?: boolean; only?: string[]; budgetMs?: number } = {}): Promise<SyncOutcome[]> {
+// firstPageOnly: nos comentários, só a 1.ª página (Verificar, Não foi enviada), sem mexer na leitura completa em curso.
+export async function runSync({ force = false, override = false, only, budgetMs = 40_000, firstPageOnly = false }: { force?: boolean; override?: boolean; only?: string[]; budgetMs?: number; firstPageOnly?: boolean } = {}): Promise<SyncOutcome[]> {
   if (!serverConfigured()) return [{ source: "all", ran: false, detail: "Servidor sem ligação ao Supabase." }];
   const deadline = Date.now() + budgetMs;
   const ids = SOURCES.filter((s) => !only || only.includes(s));
-  return Promise.all(ids.map((id) => syncOne(id, force, override, deadline)));
+  return Promise.all(ids.map((id) => syncOne(id, force, override, deadline, firstPageOnly)));
 }
 
-async function syncOne(id: string, force: boolean, override: boolean, deadline: number): Promise<SyncOutcome> {
+async function syncOne(id: string, force: boolean, override: boolean, deadline: number, firstPageOnly: boolean): Promise<SyncOutcome> {
   let claim: Claim;
   try {
     claim = await serverRpc<Claim>("ldo_support_sync_claim", { p_source: id, p_force: force, p_override: override });
@@ -39,9 +40,13 @@ async function syncOne(id: string, force: boolean, override: boolean, deadline: 
   const source = claim.source;
   const progress = (cursor: unknown) => serverRpc("ldo_support_sync_progress", { p_source: id, p_cursor: cursor }).catch(() => undefined);
   try {
+    // Adaptador pela plataforma da fonte, sempre explícito: os comentários (respostas públicas) nunca passam pelas
+    // mensagens privadas nem pelas respostas automáticas, e uma plataforma sem sincronização falha em segurança.
     const r = source.platform === "zendesk" ? await syncZendesk(source.cursor, deadline, progress)
       : source.platform === "gmail" ? await syncGmail(source.cursor, deadline)
-        : await syncMetricool(source, deadline);
+        : source.platform === "metricool" ? await syncMetricool(source, deadline)
+          : source.platform === "metricool_comments" ? await syncPostComments(source, deadline, { firstPageOnly })
+            : { skipped: "Canal sem sincronização." };
     if ("skipped" in r) {
       // Gmail sem caixa ligada fica "Por configurar" (as outras fontes ficam a aguardar).
       await finish(id, "skipped", source.platform === "gmail" ? "not_configured" : "pending", r.skipped ?? null, null, null, 0);

@@ -3719,6 +3719,9 @@ textarea:focus-visible,
 .channel-badge.whatsapp { background: #ecf6ef; color: #2c6e45; }
 .channel-badge.site { background: #f6efe3; color: #8a6428; }
 .channel-badge.email { background: #eef0f6; color: #3d4a78; }
+.channel-badge.facebook_comments { background: #fff; color: #3b5590; border-color: #c9d3ea; border-style: dashed; }
+.channel-badge.instagram_comments { background: #fff; color: #9a3f68; border-color: #e7c6d6; border-style: dashed; }
+.support-item-context { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-badge.novo { background: #faf4e9; color: #957648; border-color: #eee1ca; }
 .status-badge.em_atendimento { background: #eef3ea; color: #4d6b4a; border-color: #d6e2cf; }
 .status-badge.aguarda_cliente { background: #f2f3f7; color: #5a6178; }
@@ -3819,6 +3822,47 @@ textarea:focus-visible,
 }
 .support-note { color: #4d6b4a; font-size: 12px; margin: 6px 12px; }
 .msg-deleted { font-style: italic; color: var(--muted); }
+/* Apoio ao Cliente: comentários das publicações (publicação comentada e resposta pública) */
+.public-flag { color: #3d5f8f; font-size: 10.5px; border: 1px solid #c9d6ea; border-radius: 4px; padding: 0 5px; margin-left: auto; white-space: nowrap; }
+.public-flag.failed { color: var(--red); border-color: #efc9c4; }
+/* Conversa: as mensagens nunca ficam sem espaço; o cartão da publicação e o campo de resposta encolhem e fazem
+   scroll, com os botões de envio sempre à vista. */
+.support-messages { min-height: 96px; }
+/* O campo de resposta não encolhe abaixo do conteúdo (até 65% da coluna): quem cede espaço é o cartão da
+   publicação, com scroll. Numa coluna estreita os botões ficam só com o ícone (o nome fica no texto de ajuda). */
+.support-composer { min-height: 0; max-height: 65%; overflow: hidden; flex-shrink: 0; container-type: inline-size; }
+@container (max-width: 460px) { .composer-actions .btn-label, .composer-actions .composer-hint { display: none; } }
+.composer-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.composer-scroll textarea { flex: 1 0 auto; min-height: 52px; }
+.support-composer .composer-actions { flex: none; }
+.composer-target-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.composer-actions small.over-limit { color: var(--red); font-weight: 600; }
+.support-composer.public { background: #f4f7fc; }
+.support-composer.public textarea { border-color: #b9c9e3; }
+.post-card { flex-shrink: 1; min-height: 0; max-height: 40%; overflow-y: auto; border-bottom: 1px solid var(--line); background: #fff; padding: 8px 14px; display: flex; flex-direction: column; gap: 8px; }
+.post-card-empty { margin: 0; font-size: 12px; color: var(--muted); }
+.post-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.post-thumb { position: relative; flex: none; width: 56px; height: 56px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: #f2f4ef; overflow: hidden; cursor: zoom-in; display: grid; place-items: center; font-size: 22px; }
+.post-thumb.empty { cursor: default; }
+.post-thumb.unavailable { cursor: pointer; font-size: 10px; line-height: 1.15; text-align: center; color: var(--muted); padding: 2px; font-weight: 400; overflow-wrap: anywhere; }
+.post-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.post-thumb-more { position: absolute; right: 3px; bottom: 3px; background: rgba(31, 42, 38, 0.78); color: #fff; font-size: 10.5px; border-radius: 4px; padding: 0 4px; }
+.post-card-summary { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: none; color: var(--ink); padding: 2px 0; font-weight: 400; border-radius: 0; }
+.post-card-summary:hover { background: none; }
+.post-card-title { font-size: 12.5px; }
+.post-card-title small { color: var(--muted); font-size: 11.5px; }
+.post-card-caption { font-size: 12.5px; color: #5d6a62; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.post-card.open .post-card-caption { display: none; }
+.post-card-link { flex: none; font-size: 12px; white-space: nowrap; }
+.post-card-body { display: flex; flex-direction: column; gap: 6px; max-height: min(220px, 22vh); overflow-y: auto; }
+.post-card-full { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; color: #4f5c55; }
+.post-card-media { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 760px) {
+  .post-card { padding: 6px 10px; }
+  .post-thumb { width: 40px; height: 40px; font-size: 18px; }
+  .post-card-caption { -webkit-line-clamp: 1; }
+  .post-card-body { max-height: 160px; }
+}
 /* Apoio ao Cliente: anexos, visualizador e produtos */
 .attachment-thumb { padding: 0; background: none; border: 0; border-radius: 6px; cursor: zoom-in; }
 .attachment-thumb img { max-width: 180px; max-height: 140px; border-radius: 6px; border: 1px solid var(--line); display: block; }
@@ -3870,7 +3914,7 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 }
 .attachment-audio { display: inline-flex; flex-direction: column; gap: 4px; max-width: 100%; }
 @media (max-width: 760px) {
-  .support-composer { min-height: 0; max-height: 70%; overflow-y: auto; }
+  .support-composer { min-height: 0; max-height: 70%; }
   .catalog-picker { max-height: min(300px, 32dvh); }
 }
 /* Apoio ao Cliente: separadores Cliente / Assistente IA */
