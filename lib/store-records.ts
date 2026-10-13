@@ -104,6 +104,8 @@ const yesNo = (v: FormDataEntryValue | null) => (v === "sim" ? true : v === "nao
 const str = (form: FormData, key: string) => String(form.get(key) || "").trim();
 
 export const ITEM_ROWS = 4;
+// Linhas de artigos num atendimento (o formulário acrescenta linhas até aqui; a BD aceita o mesmo máximo).
+export const MAX_ITEMS = 30;
 
 // Form → payload for ldo_save_shop_sale. Required here: result, value when sold,
 // reason when not sold, client type, where the product was seen, and the two yes/no.
@@ -121,7 +123,7 @@ export function parseShopSaleForm(form: FormData) {
   const boughtOnline = yesNo(form.get("bought_online"));
   if (boughtOnline === null) return { error: "Indique se já comprou online." };
   const items: Item[] = [];
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < MAX_ITEMS; i++) {
     const item = {
       reference: str(form, `item_${i}_reference`).slice(0, 40) || null,
       material: str(form, `item_${i}_material`) || null,
@@ -363,4 +365,57 @@ export function missingStores(stores: RankStore[], sales: Pick<ShopSale, "store_
     ...entries.filter((e) => e.entry_date === day).map((e) => e.store_id),
   ]);
   return stores.filter((s) => !(s.closed_weekdays || []).includes(weekdayOf(day)) && !reported.has(s.id));
+}
+
+// ---------------------------------------------------------------- lista de atendimentos por período
+export type ListView = "dia" | "semana" | "mes";
+export type ListShow = "todos" | "vendas" | "sem";
+export const LIST_VIEWS: ListView[] = ["dia", "semana", "mes"];
+export const listView = (v: unknown): ListView => (v === "semana" || v === "mes" ? v : "dia");
+export const listShow = (v: unknown): ListShow => (v === "vendas" || v === "sem" ? v : "todos");
+
+const addDays = (date: string, days: number) => {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+// Semana de segunda a domingo que contém o dia (até hoje, no máximo).
+export function weekRange(day: string, today: string) {
+  const monday = addDays(day, -((new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7));
+  const sunday = addDays(monday, 6);
+  return { from: monday, to: sunday < today ? sunday : today, last: sunday };
+}
+
+// Período da lista: o dia, a semana desse dia ou o mês (o mesmo do resumo).
+export function listPeriod(view: ListView, day: string, month: { from: string; to: string }, today: string) {
+  if (view === "mes") return { from: month.from, to: month.to };
+  if (view === "semana") {
+    const w = weekRange(day, today);
+    return { from: w.from, to: w.to };
+  }
+  return { from: day, to: day };
+}
+
+// Período anterior e seguinte da lista, como dia de referência (o mês acompanha o dia). Nunca depois de hoje; o
+// período que contém hoje é sempre aberto em hoje.
+export function listNeighbours(view: ListView, day: string, month: string, today: string) {
+  if (view === "mes") {
+    const prev = shiftMonth(month, -1), next = shiftMonth(month, 1);
+    return { prev: `${prev}-01`, next: next > today.slice(0, 7) ? null : next === today.slice(0, 7) ? today : `${next}-01` };
+  }
+  if (view === "semana") {
+    const monday = weekRange(day, today).from;
+    const nextMonday = addDays(monday, 7);
+    return { prev: addDays(monday, -7), next: nextMonday > today ? null : addDays(nextMonday, 6) >= today ? today : nextMonday };
+  }
+  const next = addDays(day, 1);
+  return { prev: addDays(day, -1), next: next <= today ? next : null };
+}
+
+// Registos de um período, filtrados (todos, só vendas ou só sem venda), do mais recente para o mais antigo.
+export function listRows<T extends { sale_date: string; sold: boolean; created_at: string }>(rows: T[], from: string, to: string, show: ListShow) {
+  return rows
+    .filter((r) => r.sale_date >= from && r.sale_date <= to && (show === "todos" || (show === "vendas" ? r.sold : !r.sold)))
+    .sort((a, b) => (a.sale_date === b.sale_date ? b.created_at.localeCompare(a.created_at) : b.sale_date.localeCompare(a.sale_date)));
 }
