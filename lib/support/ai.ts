@@ -8,6 +8,7 @@ import {
 } from "./ai-rules";
 import { serverRpc, sessionRpc } from "./db";
 import { CHANNEL_LABEL, STATUS_LABEL, type Channel, type Status } from "./rules";
+import { isCommentChannel, POST_KIND_LABEL, type PostKind } from "./comment-rules";
 
 // Assistente de IA do Apoio ao Cliente (Claude, da Anthropic). Só no servidor: a chave
 // ANTHROPIC_API_KEY nunca sai daqui. A IA só lê (produtos, encomendas do cliente da conversa,
@@ -42,6 +43,8 @@ type Detail = {
   conversation: { id: string; channel: Channel; subject: string | null; status: Status; assignee_name: string | null; source_label: string };
   contact: { name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; claimed_email?: string | null } | null;
   related: { channel: Channel; name: string | null; email: string | null; phone: string | null }[];
+  // Comentários: a publicação comentada (legenda escrita pela marca, mas tratada como dado).
+  post?: { kind: PostKind; caption: string | null; link: string | null } | null;
   messages: {
     kind: "inbound" | "outbound" | "note"; author_name: string | null; body: string; attachments: { name: string; type: string | null }[] | null;
     created_at: string; deleted: boolean; delivery: string | null;
@@ -81,6 +84,7 @@ Estilo da resposta ao cliente
 - Texto simples: parágrafos curtos separados por uma linha em branco e, para enumerar opções ou passos, uma linha por item começada por "- " (no chat do site aparecem como lista; nos outros canais ficam legíveis). Sem outros símbolos de Markdown (asteriscos, cardinais, tabelas): os outros canais mostram o texto tal como está.
 - Para mostrar um produto, põe a ligação do produto sozinha numa linha (no chat do site aparece como cartão com foto e preço).
 - Instagram, Facebook Messenger e chat do site: curto (duas a cinco frases), sem assinatura formal.
+- Comentários Facebook e Comentários Instagram: a resposta é PÚBLICA, por baixo da publicação, e todos a veem. Uma a três frases, cordiais, sem assinatura. Nunca escrevas dados pessoais nem dados de encomendas (nome completo, email, telefone, morada, número ou estado de encomenda, pagamentos), mesmo que o cliente os tenha escrito no comentário. Se o pedido for pessoal (uma encomenda, uma troca, um problema) ou precisar de dados, agradece e convida o cliente a enviar mensagem privada (Direct no Instagram, Messenger no Facebook). Comentários de outras pessoas no mesmo tópico também aparecem como "cliente": responde a quem fez a pergunta.
 - Email (canal Email, caixa do apoio no Gmail): saudação com o nome do cliente quando o conheces, parágrafos curtos e uma frase de despedida, SEM assinatura nem nome: o dashboard acrescenta sozinho a assinatura do apoio com o primeiro nome de quem envia.
 - Tickets Zendesk: saudação com o nome do cliente quando o conheces, parágrafos curtos e despedida, com a assinatura definida na base de conhecimento (se existir).
 - Responde ao que o cliente perguntou. Se faltar informação para ajudar (por exemplo o número da encomenda ou a medida do anel), pede-a com clareza.
@@ -203,6 +207,12 @@ function contextText(d: Detail, visitor: SiteVisitorCtx = null) {
   const lines: string[] = [
     "<contexto_da_conversa>",
     `Canal: ${CHANNEL_LABEL[c.channel]} (${c.source_label})`,
+    ...(isCommentChannel(c.channel)
+      ? [
+        "A resposta a esta conversa é PÚBLICA (comentário na publicação, visível para todos).",
+        `Publicação comentada: ${d.post ? `${POST_KIND_LABEL[d.post.kind] || "Publicação"}${d.post.caption ? `, legenda «${clip(untrusted(d.post.caption), 600)}»` : ", sem legenda"}` : "sem dados da publicação"}`,
+      ]
+      : []),
     ...(c.subject ? [`Assunto: ${untrusted(c.subject)}`] : []),
     `Estado no dashboard: ${STATUS_LABEL[c.status]} · Responsável: ${c.assignee_name || "sem responsável"}`,
     `Cliente: ${who || "sem dados"}`,

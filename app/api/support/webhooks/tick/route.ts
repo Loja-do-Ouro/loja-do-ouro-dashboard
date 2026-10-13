@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const METRICOOL = ["metricool-facebook", "metricool-instagram"];
+// Comentários das publicações: com a frequência e as esperas habituais (e o intervalo mínimo da fonte).
+const COMMENTS = ["metricool-facebook-comments", "metricool-instagram-comments"];
 
 // Verificação automática a cada 5 minutos (agendada no Supabase com pg_cron + pg_net), para as conversas do
 // Facebook e do Instagram (sem avisos da Metricool) e as respostas automáticas saírem mesmo com o dashboard
@@ -14,7 +16,7 @@ const METRICOOL = ["metricool-facebook", "metricool-instagram"];
 // Responde já e sincroniza a seguir:
 // - Facebook e Instagram em cada verificação, sem esperar pela frequência do dashboard aberto (a espera depois de
 //   erros mantém-se);
-// - as outras fontes com a frequência e as esperas habituais.
+// - as outras fontes (também os comentários das publicações) com a frequência e as esperas habituais.
 // Orçamento de 60 s contado desde o início do pedido: com a última leitura e os envios, fica abaixo dos 120 s.
 export async function POST(request: Request) {
   const start = Date.now();
@@ -27,6 +29,7 @@ export async function POST(request: Request) {
     await Promise.all([
       runSync({ only: METRICOOL, force: true, budgetMs }).catch(() => undefined),
       runSync({ only: ["zendesk", "gmail"], budgetMs }).catch(() => undefined),
+      runSync({ only: COMMENTS, budgetMs }).catch(() => undefined),
     ]);
   });
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });

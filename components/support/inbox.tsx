@@ -21,6 +21,7 @@ import {
   type Ownership,
   type Status,
 } from "@/lib/support/rules";
+import { COMMENT_MAX_CHARS, isCommentChannel, POST_KIND_LABEL, POST_KIND_TITLE, publicReplyRisks, type CommentChannel, type PostKind } from "@/lib/support/comment-rules";
 
 type Source = { id: string; platform: string; channel: Channel; label: string; status: string; status_detail: string | null; last_success_at: string | null; last_attempt_at: string | null; last_error: string | null };
 type Item = {
@@ -39,15 +40,23 @@ type Message = {
   created_at: string; inserted_at: string; deleted: boolean; delivery: Delivery | null; delivery_detail: string | null; external: boolean;
 };
 type User = { id: string; name: string; me: boolean; zendesk: boolean; zendesk_name: string | null; zendesk_status: string | null };
+// Publicação comentada (só nos comentários): as imagens chegam pelo proxy do dashboard, pela posição.
+type Post = {
+  kind: PostKind; product_type: string | null; link: string | null; caption: string | null; media: { index: number; kind: "image" | "video" }[];
+  comment_count: number | null; reaction_count: number | null; owner_name: string | null; seen_at: string;
+};
 type Detail = {
   conversation: {
     id: string; source_id: string; channel: Channel; account: string | null; external_id: string; subject: string | null; status: Status; platform_status: string | null;
     assignee_id: string | null; assignee_name: string | null; external_assignee_id: string | null; external_assignee_name: string | null;
     via: string | null; platform: string; source_label: string; source_status: string; read_at: string | null; last_inbound_at: string | null;
     last_inbound_inserted_at: string | null;
+    // Comentários: respostas públicas ligadas nesta conversa (a BD confirma de novo ao publicar).
+    public_replies?: boolean | null;
   };
   contact: { id: string; name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; linked_by_name: string | null; linked_at: string | null; claimed_email?: string | null } | null;
   related: { contact_id: string; channel: Channel; name: string | null; email: string | null; phone: string | null; conversation_id: string | null }[];
+  post?: Post | null;
   messages: Message[];
   presence: { user_id: string; name: string; composing: boolean }[];
   audit: { action: string; details: Record<string, unknown>; created_at: string; actor: string }[];
@@ -127,6 +136,10 @@ const time = (iso: string | null | undefined, withDate = true) => {
 
 const REASON: Record<string, string> = {
   running: "já está a sincronizar", recent: "sincronizou há instantes", backoff: "em espera depois de erros", not_due: "ainda não é a hora",
+};
+const SOURCE_NAME: Record<string, string> = {
+  zendesk: "Zendesk", gmail: "Email", "metricool-facebook": "Facebook", "metricool-instagram": "Instagram",
+  "metricool-facebook-comments": "comentários do Facebook", "metricool-instagram-comments": "comentários do Instagram",
 };
 
 const AUDIT: Record<string, string> = {
@@ -286,6 +299,8 @@ export function SupportInbox({
   const [aiRequest, setAiRequest] = useState<{ n: number } | null>(null);
   // Miniaturas que não carregaram (ex.: endereço da Meta expirado): mostram-se como aviso, nunca vazias.
   const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set());
+  // Cartão da publicação (comentários): aberto por omissão só em ecrãs grandes; a escolha vale para todas as conversas.
+  const [postOpen, setPostOpen] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1191px) and (min-height: 900px)").matches);
   const fileInput = useRef<HTMLInputElement>(null);
   const viewerOpener = useRef<HTMLElement | null>(null);
   // Chave de cada envio pendente, ligada ao texto exato: um pedido perdido repete-se com a mesma chave
@@ -356,7 +371,7 @@ export function SupportInbox({
     try {
       const r = await api<{ results: { source: string; ran: boolean; ok?: boolean; detail?: string; reason?: string; more?: boolean }[] }>("/api/support/sync", { method: "POST", body: { force } });
       if (force) {
-        const name = (x: { source: string }) => x.source.replace("metricool-", "");
+        const name = (x: { source: string }) => SOURCE_NAME[x.source] || x.source;
         const failed = r.results.filter((x) => x.ran && x.ok === false);
         const waiting = r.results.filter((x) => !x.ran && x.reason && x.reason !== "not_due" && x.reason !== "disabled");
         setSyncNote([
@@ -365,7 +380,8 @@ export function SupportInbox({
         ].filter(Boolean).join(" "));
       }
       // Importação longa: a passagem seguinte pode correr logo (o servidor só aceita após 15 s).
-      if (r.results.some((x) => x.more)) {
+      // (Os comentários continuam sozinhos na passagem seguinte, com o intervalo mínimo da fonte.)
+      if (r.results.some((x) => x.more && !x.source.endsWith("-comments"))) {
         if (continuation.current) clearTimeout(continuation.current);
         continuation.current = setTimeout(() => sync(false), 16000);
       }
@@ -444,6 +460,10 @@ export function SupportInbox({
   const zendeskLive = isZendesk && !zendeskOff;
   const isWhatsapp = c?.conversation.platform === "whatsapp";
   const isGmail = c?.conversation.platform === "gmail";
+  // Comentários das publicações: a resposta fica PÚBLICA por baixo da publicação.
+  const commentChannel: CommentChannel | null = c && isCommentChannel(c.conversation.channel) ? c.conversation.channel : null;
+  const isComment = !!commentChannel;
+  const publicReply = isComment && mode === "reply";
   const me = c?.users.find((u) => u.me);
   const draft = (selected && drafts[selected]) || { reply: "", note: "" };
   const text = mode === "reply" ? draft.reply : draft.note;
@@ -463,8 +483,12 @@ export function SupportInbox({
   const slotOf = (id: string, m: "reply" | "note") => `${id}:${m}`;
   const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
   // Zendesk: até 5 anexos (imagens ou PDF). Email: até 5, só em respostas. Facebook/Instagram: uma imagem por mensagem, só em respostas.
-  const maxAttachments = !c ? 0 : zendeskLive || (isGmail && mode === "reply") ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
-  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : c.conversation.platform === "site" ? "O chat do site ainda não aceita anexos. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
+  // Comentários das publicações: só texto.
+  const maxAttachments = !c || isComment ? 0 : zendeskLive || (isGmail && mode === "reply") ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
+  const maxChars = publicReply && commentChannel ? COMMENT_MAX_CHARS[commentChannel] : 20000;
+  // Texto posto por código (proposta da IA, rascunho guardado) pode passar o limite: não se publica assim.
+  const overLimit = publicReply && text.length > maxChars;
+  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : isComment ? "Os comentários levam só texto (sem anexos)." : c.conversation.platform === "site" ? "O chat do site ainda não aceita anexos. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
     if (!selected) return;
@@ -540,7 +564,11 @@ export function SupportInbox({
             ? "A caixa Gmail do apoio precisa de ser ligada de novo (Configuração do apoio → Email (Gmail))."
             : c.conversation.source_status === "blocked" && !isZendesk
               ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
-              : "";
+              : isComment && !c.conversation.public_replies
+                ? "As respostas públicas aos comentários ainda estão desligadas: falta validar a publicação num comentário de teste. Responda na própria publicação, se for preciso, ou deixe uma nota interna."
+                : "";
+  // Rascunho que já não pode seguir por aqui (Zendesk desligado, respostas públicas desligadas): fica para copiar.
+  const draftStuck = zendeskOff || (isComment && !c?.conversation.public_replies);
   const noteBlocked = !c ? "A carregar…" : zendeskLive && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
 
   // Assistente de IA: pede uma proposta (abre o separador da IA) e passa-a para o campo de resposta.
@@ -564,6 +592,15 @@ export function SupportInbox({
     const blocked = mode === "reply" ? replyBlocked : noteBlocked;
     if (blocked) return;
     const id = selected, which = mode, body = text.trim();
+    // Resposta pública: confirmar antes de publicar algo que parece um dado pessoal (fica visível para todos).
+    if (isComment && which === "reply") {
+      if (body.length > maxChars) {
+        setSendError(`Resposta demasiado longa para um comentário (máximo ${maxChars} caracteres).`);
+        return;
+      }
+      const risks = publicReplyRisks(body);
+      if (risks.length && !confirm(`Esta resposta fica PÚBLICA na publicação e parece conter ${risks.join(", ")}. Publicar mesmo assim?`)) return;
+    }
     const slot = slotOf(id, which);
     const uploads = (pending[slot] || []).map((u) => u.id);
     // A mesma chave só se reutiliza para o mesmo texto (pedido perdido): o servidor nunca envia duas vezes.
@@ -643,6 +680,21 @@ export function SupportInbox({
     return [...messages, ...events].sort((x, y) => x.at.localeCompare(y.at));
   }, [c]);
   const sources = list?.sources || [];
+  // Estado dos canais: os comentários do Facebook e do Instagram num só indicador (o pior estado dos dois), para a
+  // barra não crescer; o detalhe de cada um fica no texto de ajuda.
+  const sourceChips = useMemo(() => {
+    const comments = sources.filter((s) => s.platform === "metricool_comments");
+    const others = sources.filter((s) => s.platform !== "metricool_comments");
+    if (!comments.length) return others.map((s) => ({ ...s, title: s.last_error || s.status_detail || "" }));
+    const rank = ["blocked", "error", "pending", "not_configured", "active", "disabled"];
+    const worst = [...comments].sort((a, b) => rank.indexOf(a.status) - rank.indexOf(b.status))[0];
+    const oldest = comments.map((s) => s.last_success_at).filter(Boolean).sort()[0] || null;
+    return [
+      ...others.map((s) => ({ ...s, title: s.last_error || s.status_detail || "" })),
+      { ...worst, id: "comments", label: "Comentários", last_success_at: worst.status === "active" ? oldest : worst.last_success_at,
+        title: comments.map((s) => `${s.label}: ${s.last_error || s.status_detail || (s.status === "active" ? `sincronizado ${time(s.last_success_at)}` : s.status)}`).join(" · ") },
+    ];
+  }, [sources]);
   // Só fontes ativas contam: uma fonte por ligar não faz parecer que tudo está atualizado.
   const lastSync = sources.filter((s) => s.status === "active").map((s) => s.last_success_at).filter(Boolean).sort().at(-1) || null;
   const destination = useMemo(() => {
@@ -651,19 +703,34 @@ export function SupportInbox({
     if (zendeskOff) return "nada sai para o cliente por aqui (Zendesk desligado)";
     if (isZendesk) return `Resposta pública no ticket ${c.conversation.subject?.split(" · ")[0] || ""} — Zendesk notifica ${c.contact?.email || who}`;
     if (isGmail) return `Email para ${c.contact?.email || c.contact?.claimed_email || who}, de ${c.conversation.account || "apoiocliente@lojadoouro.pt"} — na mesma conversa, com a assinatura automática`;
+    if (commentChannel) return `Comentário público no ${commentChannel === "instagram_comments" ? "Instagram" : "Facebook"} · resposta a ${who} (todos veem)`;
     if (c.conversation.channel === "instagram") return `Instagram Direct · para ${who}`;
     if (c.conversation.channel === "facebook") return `Facebook Messenger · para ${who}`;
     if (c.conversation.channel === "site") return `Chat do site · para ${who} (se já tiver saído do site, recebe também por email)`;
     return `${CHANNEL_LABEL[c.conversation.channel]} · por configurar`;
-  }, [c, isZendesk, isGmail, zendeskOff]);
+  }, [c, isZendesk, isGmail, zendeskOff, commentChannel]);
+  // Imagens da publicação no visualizador (pelo proxy do dashboard; os vídeos abrem na própria publicação).
+  const postItems = useMemo(
+    () =>
+      (c?.post?.media || [])
+        .filter((m) => m.kind === "image")
+        .map((m, n, all) => ({
+          key: `post:${m.index}`,
+          href: `/api/support/post-media?${new URLSearchParams({ c: c!.conversation.id, i: String(m.index) })}`,
+          name: `${POST_KIND_LABEL[c!.post!.kind] || "Publicação"}${all.length > 1 ? ` — imagem ${n + 1}` : ""}`,
+          size: null,
+          kind: "image" as const,
+        })),
+    [c],
+  );
 
   return (
     <div className={`support-app show-${pane}`}>
       {flash.ok && <div role="status" className="notice ok-notice support-flash">{flash.ok}</div>}
       {flash.error && <div role="alert" className="notice error-notice support-flash">{flash.error}</div>}
       <div className="support-sources" aria-label="Estado dos canais">
-        {sources.map((s) => (
-          <span key={s.id} className={`source-chip ${s.status}`} title={s.last_error || s.status_detail || ""}>
+        {sourceChips.map((s) => (
+          <span key={s.id} className={`source-chip ${s.status}`} title={s.title}>
             <b>{s.label}</b>
             {s.status === "disabled" ? "Desligado (só histórico)" : s.status === "not_configured" ? "Por configurar" : s.status === "active" && s.platform === "site" ? "Em direto" : s.status === "active" ? `Sincronizado ${time(s.last_success_at)}` : s.status === "pending" ? s.status_detail || "A aguardar ligação" : s.status === "blocked" ? "Bloqueado" : "Erro"}
           </span>
@@ -737,6 +804,7 @@ export function SupportInbox({
                     {i.last_direction === "outbound" ? "Nós: " : ""}
                     {i.last_preview || i.subject || "Sem mensagens"}
                   </span>
+                  {isCommentChannel(i.channel) && i.subject && <span className="support-item-context">Em: {i.subject}</span>}
                   <small>{i.assignee_name ? `Responsável: ${i.assignee_name}` : "Sem responsável"}</small>
                 </button>
               </li>
@@ -773,6 +841,20 @@ export function SupportInbox({
               {detailError && <p className="support-error" role="alert">{detailError}</p>}
               {actionError && <p className="support-error" role="alert">{actionError}</p>}
               {actionNote && <p className="support-note" role="status">{actionNote}</p>}
+              {commentChannel && (
+                <PostCard
+                  key={c.conversation.id}
+                  post={c.post || null}
+                  network={commentChannel === "instagram_comments" ? "Instagram" : "Facebook"}
+                  items={postItems}
+                  open={postOpen}
+                  onToggle={() => setPostOpen((v) => !v)}
+                  onView={(items, index, opener) => {
+                    viewerOpener.current = opener;
+                    setViewer({ items, index });
+                  }}
+                />
+              )}
               <div className="support-messages" ref={messagesBox}>
                 {timeline.map((t) => {
                   if (t.event) return <p key={t.key} className="msg-event" role="note">{assignText(t.event)} · <time dateTime={t.at}>{time(t.at)}</time></p>;
@@ -781,9 +863,12 @@ export function SupportInbox({
                   <article key={m.id} className={`msg ${m.kind}`}>
                     <header>
                       <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.author_name || (m.kind === "inbound" ? "Cliente" : "Loja do Ouro")}</strong>
+                      {isComment && m.kind === "outbound" && (
+                        <small className={`public-flag${m.delivery === "failed" ? " failed" : ""}`}>{m.delivery === "failed" ? "não publicada" : "resposta pública"}</small>
+                      )}
                       <time dateTime={m.created_at}>{time(m.created_at)}</time>
                     </header>
-                    {m.deleted ? <p className="msg-deleted">Mensagem apagada pelo cliente.</p> : m.body && <p>{m.body}</p>}
+                    {m.deleted ? <p className="msg-deleted">{isComment ? "Comentário apagado." : "Mensagem apagada pelo cliente."}</p> : m.body && <p>{m.body}</p>}
                     {m.attachments.length > 0 && (
                       <div className="msg-attachments">
                         {m.attachments.map((a, i) => {
@@ -854,19 +939,23 @@ export function SupportInbox({
                 {!c.messages.length && <p className="support-empty">Sem mensagens sincronizadas.</p>}
               </div>
 
-              <div className={`support-composer ${mode}`}>
+              <div className={`support-composer ${mode}${publicReply ? " public" : ""}`}>
+                {/* Parte de cima com scroll; os botões ficam sempre à vista por baixo (nunca por cima do texto). */}
+                <div className="composer-scroll">
                 <div className="composer-tabs" role="tablist">
-                  <button type="button" role="tab" aria-selected={mode === "reply"} className={mode === "reply" ? "active" : ""} onClick={() => setMode("reply")}>Responder ao cliente</button>
+                  <button type="button" role="tab" aria-selected={mode === "reply"} className={mode === "reply" ? "active" : ""} onClick={() => setMode("reply")}>{isComment ? "Resposta pública" : "Responder ao cliente"}</button>
                   <button type="button" role="tab" aria-selected={mode === "note"} className={mode === "note" ? "active" : ""} onClick={() => setMode("note")}>Nota interna</button>
                 </div>
                 <p className="composer-target">
-                  {mode === "reply" ? <>Envia por: <strong>{destination}</strong></> : <>Nota interna — <strong>visível só para a equipa</strong>{zendeskLive ? " (comentário privado no Zendesk)" : ""}.</>}
+                  {publicReply ? (
+                    <span className="composer-target-line" title={`${destination}. Sem email, telefone, morada nem n.º de encomenda: para isso, mensagem privada.`}>🌐 <strong>{destination}</strong></span>
+                  ) : mode === "reply" ? <>Envia por: <strong>{destination}</strong></> : <>Nota interna — <strong>visível só para a equipa</strong>{zendeskLive ? " (comentário privado no Zendesk)" : isComment ? " (nunca é publicada)" : ""}.</>}
                   {mode === "reply" && !c.conversation.assignee_id && !c.conversation.external_assignee_id && !replyBlocked && <small className="block muted">Ao responder fica responsável por esta conversa.</small>}
                 </p>
                 {(mode === "reply" ? replyBlocked : noteBlocked) ? (
                   <div className="composer-blocked">
                     {mode === "reply" ? replyBlocked : noteBlocked}
-                    {zendeskOff && mode === "reply" && draft.reply.trim() && selected && (
+                    {draftStuck && mode === "reply" && draft.reply.trim() && selected && (
                       <div className="composer-draft">
                         <textarea readOnly value={draft.reply} rows={4} aria-label="Rascunho da resposta" />
                         <button type="button" className="secondary-button" onClick={() => navigator.clipboard?.writeText(draft.reply).catch(() => undefined)}>Copiar</button>
@@ -888,6 +977,15 @@ export function SupportInbox({
                     )}
                     <textarea
                       onPaste={(e) => {
+                        // Resposta pública: um texto colado acima do limite do comentário não é cortado sem aviso.
+                        if (publicReply) {
+                          const el = e.currentTarget, pasted = e.clipboardData.getData("text/plain");
+                          if (pasted.length > maxChars - (text.length - (el.selectionEnd - el.selectionStart))) {
+                            e.preventDefault();
+                            setSendError(`Texto demasiado longo para um comentário (máximo ${maxChars} caracteres): encurte-o antes de colar.`);
+                            return;
+                          }
+                        }
                         const files = [...e.clipboardData.files];
                         if (!files.length || !maxAttachments) return;
                         // Excel/Word põem texto e uma imagem da seleção: fica o texto.
@@ -899,9 +997,9 @@ export function SupportInbox({
                       onChange={(e) => typed(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(); }}
                       rows={4}
-                      maxLength={20000}
-                      placeholder={mode === "reply" ? "Escreva a resposta ao cliente…" : "Nota para a equipa (o cliente não a vê)…"}
-                      aria-label={mode === "reply" ? "Resposta ao cliente" : "Nota interna"}
+                      maxLength={maxChars}
+                      placeholder={publicReply ? "Resposta pública (todos a veem): sem email, telefone, morada nem n.º de encomenda…" : mode === "reply" ? "Escreva a resposta ao cliente…" : "Nota para a equipa (o cliente não a vê)…"}
+                      aria-label={publicReply ? "Resposta pública ao comentário" : mode === "reply" ? "Resposta ao cliente" : "Nota interna"}
                     />
                     {pendingHere.length > 0 && (
                       <ul className="pending-uploads" aria-label="Anexos por enviar">
@@ -918,6 +1016,10 @@ export function SupportInbox({
                         ))}
                       </ul>
                     )}
+                  </>
+                )}
+                </div>
+                {!(mode === "reply" ? replyBlocked : noteBlocked) && (
                     <div className="composer-actions">
                       {sendError && <span className="support-error" role="alert">{sendError}</span>}
                       <input
@@ -931,21 +1033,28 @@ export function SupportInbox({
                           e.target.value = "";
                         }}
                       />
-                      <button type="button" className="secondary-button" disabled={!maxAttachments || uploading || pendingHere.length >= maxAttachments} title={attachHint} onClick={() => fileInput.current?.click()}>
-                        {uploading ? "A anexar…" : "📎 Anexar"}
-                      </button>
-                      {mode === "reply" && (
-                        <button type="button" className="secondary-button" onClick={() => setShowCatalog((v) => !v)} aria-expanded={showCatalog}>🛍 Produto</button>
+                      {!isComment && (
+                        <button type="button" className="secondary-button" disabled={!maxAttachments || uploading || pendingHere.length >= maxAttachments} title={attachHint} onClick={() => fileInput.current?.click()}>
+                          {uploading ? "A anexar…" : <><span aria-hidden="true">📎</span><span className="btn-label"> Anexar</span></>}
+                        </button>
                       )}
                       {mode === "reply" && (
-                        <button type="button" className="secondary-button" onClick={suggestReply} title="A IA propõe uma resposta (não envia nada).">✨ Sugerir resposta</button>
+                        <button type="button" className="secondary-button" onClick={() => setShowCatalog((v) => !v)} aria-expanded={showCatalog} aria-label="Produto da loja" title="Produto da loja"><span aria-hidden="true">🛍</span><span className="btn-label"> Produto</span></button>
                       )}
-                      <small>Ctrl+Enter para enviar</small>
-                      <button type="button" onClick={send} disabled={sending || uploading || (!text.trim() && !pendingHere.length)}>
-                        {sending ? "A enviar…" : mode === "reply" ? "Enviar ao cliente" : "Guardar nota"}
+                      {mode === "reply" && (
+                        <button type="button" className="secondary-button" onClick={suggestReply} title="A IA propõe uma resposta (não envia nada)." aria-label="Sugerir resposta com a IA"><span aria-hidden="true">✨</span><span className="btn-label"> Sugerir resposta</span></button>
+                      )}
+                      {publicReply ? (
+                        <small className={overLimit ? "over-limit" : ""} title={overLimit ? "Acima do limite de um comentário" : "Caracteres usados / limite do comentário"}>
+                          {text.length}/{maxChars}{overLimit ? " — acima do limite" : ""}
+                        </small>
+                      ) : (
+                        <small className="composer-hint">Ctrl+Enter para enviar</small>
+                      )}
+                      <button type="button" onClick={send} title={publicReply ? "Ctrl+Enter para publicar" : "Ctrl+Enter para enviar"} disabled={sending || uploading || overLimit || (!text.trim() && !pendingHere.length)}>
+                        {sending ? (publicReply ? "A publicar…" : "A enviar…") : publicReply ? "Publicar resposta" : mode === "reply" ? "Enviar ao cliente" : "Guardar nota"}
                       </button>
                     </div>
-                  </>
                 )}
               </div>
             </>
@@ -990,6 +1099,7 @@ export function SupportInbox({
                   visible={infoTab === "ia" && (pane === "info" || !sideOverlays())}
                   request={aiRequest}
                   replyBlocked={replyBlocked}
+                  publicReply={isComment}
                   onUseDraft={useAiDraft}
                   onBack={() => setPane("conversation")}
                 />
@@ -1001,6 +1111,84 @@ export function SupportInbox({
         </aside>
       </div>
     </div>
+  );
+}
+
+// Publicação comentada, por cima das mensagens: miniatura, tipo, legenda e ligação para a publicação. Fica numa
+// linha (abre ao tocar) e só abre por omissão em ecrãs grandes; a escolha mantém-se ao mudar de conversa. A legenda
+// é texto simples (nunca HTML) e as imagens chegam pelo proxy do dashboard.
+function PostCard({ post, network, items, open, onToggle, onView }: {
+  post: Post | null;
+  network: "Instagram" | "Facebook";
+  items: ViewerItem[];
+  open: boolean;
+  onToggle: () => void;
+  onView: (items: ViewerItem[], index: number, opener: HTMLElement) => void;
+}) {
+  // Imagens que não carregaram (endereço da Meta expirado): voltam a ser pedidas quando a sincronização atualiza a
+  // publicação, ou ao tocar em "Sem imagem" (o cartão não é recriado: o scroll e o foco mantêm-se).
+  const [broken, setBroken] = useState<Set<string>>(new Set());
+  const [retry, setRetry] = useState(0);
+  const brokenRef = useRef(broken);
+  brokenRef.current = broken;
+  const seenAt = post?.seen_at;
+  useEffect(() => {
+    if (!brokenRef.current.size) return;
+    setBroken(new Set());
+    setRetry((n) => n + 1);
+  }, [seenAt]);
+  const src = (href: string) => (retry ? `${href}&r=${retry}` : href);
+  if (!post) return <section className="post-card" aria-label="Publicação comentada"><p className="post-card-empty">Publicação comentada ainda por sincronizar.</p></section>;
+  const title = POST_KIND_TITLE[post.kind] || "Publicação comentada";
+  const shown = items.filter((it) => !broken.has(it.href));
+  const first = shown[0];
+  const unavailable = items.length > 0 && !shown.length;
+  const video = post.kind === "reel" || post.kind === "video" || post.media.some((m) => m.kind === "video");
+  const counts = [
+    post.comment_count !== null && `${post.comment_count} comentário${post.comment_count === 1 ? "" : "s"}`,
+    post.reaction_count !== null && `${post.reaction_count} reaç${post.reaction_count === 1 ? "ão" : "ões"}`,
+  ].filter(Boolean).join(" · ");
+  const fail = (href: string) => setBroken((b) => new Set(b).add(href));
+  return (
+    <section className={`post-card${open ? " open" : ""}`} aria-label="Publicação comentada">
+      <div className="post-card-head">
+        {first ? (
+          <button type="button" className="post-thumb" onClick={(e) => onView(shown, 0, e.currentTarget)} title="Ver imagem da publicação">
+            <img src={src(first.href)} alt={title} loading="lazy" decoding="async" onError={() => fail(first.href)} />
+            {shown.length > 1 && <span className="post-thumb-more">+{shown.length - 1}</span>}
+          </button>
+        ) : unavailable ? (
+          <button type="button" className="post-thumb empty unavailable" title="A imagem não carregou (o endereço da Meta pode ter expirado). Tocar para tentar de novo."
+            onClick={() => { setBroken(new Set()); setRetry((n) => n + 1); }}>Sem imagem</button>
+        ) : (
+          <span className="post-thumb empty" aria-hidden="true">{video ? "🎬" : "🖼"}</span>
+        )}
+        <button type="button" className="post-card-summary" aria-expanded={open} onClick={onToggle}>
+          <span className="post-card-title">
+            <b>{title}</b>
+            {counts && <small> · {counts}</small>}
+          </span>
+          <span className="post-card-caption">{post.caption || "Sem legenda."}</span>
+        </button>
+        {post.link && <a className="post-card-link" href={post.link} target="_blank" rel="noopener noreferrer">Abrir no {network} ↗</a>}
+      </div>
+      {open && (
+        <div className="post-card-body">
+          {post.caption && <p className="post-card-full">{post.caption}</p>}
+          {shown.length > 1 && (
+            <div className="post-card-media">
+              {shown.map((it, n) => (
+                <button key={it.href} type="button" className="post-thumb" onClick={(e) => onView(shown, n, e.currentTarget)} title={`Ver ${it.name}`}>
+                  <img src={src(it.href)} alt={it.name} loading="lazy" decoding="async" onError={() => fail(it.href)} />
+                </button>
+              ))}
+            </div>
+          )}
+          {video && <small className="muted">Vídeo: veja-o na própria publicação.</small>}
+          <small className="muted block">Dados da publicação na última sincronização ({time(post.seen_at)}).</small>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1132,7 +1320,7 @@ function CustomerPanel({
         {conv.assignee_id && !canTransfer(own) && <small className="muted">Só {conv.assignee_name || "o responsável"} (ou o Super Admin) pode responder ao cliente e transferir esta conversa. Pode deixar notas internas.</small>}
         {isZendesk && <small className="muted">Estado e responsável são gravados no Zendesk (fonte de verdade) com a sua conta. Estado no Zendesk: {conv.platform_status || "—"}.</small>}
         {zendeskOff && <small className="muted">O Zendesk foi desligado do dashboard: estado e responsável deste ticket ficam só aqui (não mudam no Zendesk). Se o Zendesk voltar a ser ligado, passam a vir de lá outra vez.</small>}
-        {!isZendesk && !zendeskOff && <small className="muted">Estado e responsável pertencem ao dashboard; uma nova mensagem do cliente reabre uma conversa resolvida.</small>}
+        {!isZendesk && !zendeskOff && <small className="muted">Estado e responsável pertencem ao dashboard; uma nova mensagem do cliente reabre uma conversa resolvida.{isCommentChannel(conv.channel) ? " Um comentário em Novo, sem responsável, a que a marca respondeu fora do dashboard passa sozinho a Resolvido." : ""}</small>}
         <div className="customer-actions">
           <button type="button" className="secondary-button" onClick={() => onAct({ action: "unread" })}>Marcar como não lida</button>
           {(isZendesk || zendeskOff) && (
@@ -1140,6 +1328,9 @@ function CustomerPanel({
           )}
           {conv.platform === "gmail" && conv.account && (
             <a className="outline-button" href={gmailThreadLink(conv.account, conv.external_id)} target="_blank" rel="noopener noreferrer">Abrir no Gmail</a>
+          )}
+          {isCommentChannel(conv.channel) && d.post?.link && (
+            <a className="outline-button" href={d.post.link} target="_blank" rel="noopener noreferrer">Abrir a publicação</a>
           )}
         </div>
         {actionError && <p className="support-error" role="alert">{actionError}</p>}
@@ -1164,12 +1355,20 @@ function CustomerPanel({
 
       <section>
         <span className="eyebrow">Cliente da loja online</span>
-        <p className="muted small">A associação é manual, por email. Nunca se juntam clientes pelo nome.</p>
-        <form className="link-form" onSubmit={(e) => { e.preventDefault(); link(email); }}>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={contact?.email || contact?.claimed_email || "email do cliente na loja"} aria-label="Email do cliente na loja online" />
-          <button type="submit" className="secondary-button">Associar</button>
-          {contact?.linked_email && <button type="button" className="secondary-button" onClick={() => { setEmail(""); link(""); }}>Remover</button>}
-        </form>
+        {isCommentChannel(conv.channel) ? (
+          // Comentários públicos: quem comenta não se associa a um cliente da loja (no Instagram é identificado pelo nome
+          // de utilizador, que pode passar para outra pessoa, e a resposta é pública).
+          <p className="muted small">Nos comentários públicos não se associa o cliente da loja. Para tratar de encomendas, convide-o a enviar mensagem privada.</p>
+        ) : (
+          <>
+            <p className="muted small">A associação é manual, por email. Nunca se juntam clientes pelo nome.</p>
+            <form className="link-form" onSubmit={(e) => { e.preventDefault(); link(email); }}>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={contact?.email || contact?.claimed_email || "email do cliente na loja"} aria-label="Email do cliente na loja online" />
+              <button type="submit" className="secondary-button">Associar</button>
+              {contact?.linked_email && <button type="button" className="secondary-button" onClick={() => { setEmail(""); link(""); }}>Remover</button>}
+            </form>
+          </>
+        )}
         {contact?.linked_email && <small className="muted">Associado por {contact.linked_by_name || "—"} em {time(contact.linked_at)}.</small>}
         {linkError && <p className="support-error" role="alert">{linkError}</p>}
         {d.related.length > 0 && (

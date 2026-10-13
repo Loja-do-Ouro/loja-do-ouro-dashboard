@@ -23,7 +23,7 @@ const QUICK = [
 const usd = (v: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "USD", minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
 
 export function AiPanel({
-  conversationId, visible, request, replyBlocked, onUseDraft, onBack,
+  conversationId, visible, request, replyBlocked, publicReply = false, onUseDraft, onBack,
 }: {
   conversationId: string;
   // Separador à vista (o scroll para a última resposta só funciona com o painel visível).
@@ -31,6 +31,8 @@ export function AiPanel({
   // Pedido vindo do botão "Sugerir resposta" do campo de resposta (n muda a cada clique).
   request: { n: number } | null;
   replyBlocked: string;
+  // Comentário numa publicação: a resposta proposta fica PÚBLICA.
+  publicReply?: boolean;
   onUseDraft: (text: string, how: "replace" | "append") => void;
   onBack: () => void;
 }) {
@@ -197,7 +199,7 @@ export function AiPanel({
               {i.answer && <p className="ai-text">{i.answer}</p>}
               {i.draft && (
                 <div className="ai-draft">
-                  <span className="eyebrow">Proposta de resposta ao cliente</span>
+                  <span className="eyebrow">{publicReply ? "Proposta de resposta PÚBLICA (comentário na publicação)" : "Proposta de resposta ao cliente"}</span>
                   <p className="ai-text">{i.draft}</p>
                   <div className="ai-draft-actions">
                     <button type="button" onClick={() => onUseDraft(i.draft!, "replace")} disabled={Boolean(replyBlocked)} title={replyBlocked || "Coloca a proposta no campo de resposta (não envia)."}>Usar na resposta</button>
@@ -259,7 +261,7 @@ export function AiPanel({
             </div>
           </>
         )}
-        <small className="ai-disclaimer">A IA pode errar: confirme antes de enviar. Nada é enviado ao cliente sem carregar em “Enviar ao cliente”. A conversa e os dados consultados são processados pela Anthropic (Claude).</small>
+        <small className="ai-disclaimer">A IA pode errar: confirme antes de enviar. {publicReply ? "Nada é publicado sem carregar em “Publicar resposta”, e a resposta fica visível para todos." : "Nada é enviado ao cliente sem carregar em “Enviar ao cliente”."} A conversa e os dados consultados são processados pela Anthropic (Claude).</small>
       </div>
     </div>
   );

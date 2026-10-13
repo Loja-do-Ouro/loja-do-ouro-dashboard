@@ -1,6 +1,7 @@
 import "server-only";
 import { ingest, serverRpc, sessionRpc } from "./db";
-import { metricoolSend } from "./metricool";
+import { metricoolComment, metricoolSend } from "./metricool";
+import { commentReplyProblem } from "./comment-rules";
 import { REFUSAL, runSync } from "./sync";
 import { HttpError } from "./http";
 import { assignmentChange, canChangeStatus, isStatus, isUuid, zendeskReplyWarning, type Channel, type Status } from "./rules";
@@ -17,7 +18,7 @@ type Begin = {
   existing: boolean;
   // Zendesk desligado: a BD recusa respostas; as notas internas ficam só no dashboard.
   zendesk_off?: boolean;
-  platform: "zendesk" | "metricool" | "whatsapp" | "site" | "gmail";
+  platform: "zendesk" | "metricool" | "metricool_comments" | "whatsapp" | "site" | "gmail";
   message: { id: string; kind: "outbound" | "note"; delivery: string | null; body: string };
   uploads: string[];
   conversation: {
@@ -28,6 +29,8 @@ type Begin = {
 type Result = { outcome: "accepted" | "failed" | "uncertain"; externalId: string | null; detail: string | null };
 
 const PROVIDER: Record<string, string> = { "metricool-facebook": "FACEBOOK", "metricool-instagram": "INSTAGRAM" };
+// Comentários das publicações: resposta PÚBLICA no tópico (nunca por mensagem privada).
+const COMMENT_PROVIDER: Record<string, string> = { "metricool-facebook-comments": "FACEBOOK", "metricool-instagram-comments": "INSTAGRAM" };
 
 // Resposta pública ou nota interna. O servidor escolhe o adaptador pela conversa, nunca pelo pedido.
 // Uma nota interna nunca segue por um caminho de envio ao cliente: no Zendesk é um comentário
@@ -63,6 +66,15 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
   } catch (e) {
     prepared = { outcome: "failed", externalId: null, detail: e instanceof Error ? e.message : "Anexo indisponível." };
   }
+  // Comentário: só texto, dentro do limite da rede, para o comentário principal guardado na BD (a BD já recusa
+  // anexos e respostas enquanto as respostas públicas não estiverem ligadas).
+  if (!prepared && begin.platform === "metricool_comments") {
+    const problem = commentReplyProblem({
+      kind, channel: begin.conversation.channel, provider: COMMENT_PROVIDER[begin.conversation.source_id], objectId: begin.conversation.external_id,
+      body: begin.message.body, uploads: (begin.uploads || []).length,
+    });
+    if (problem) prepared = { outcome: "failed", externalId: null, detail: problem };
+  }
 
   // Zendesk: quem responde primeiro a um ticket sem responsável fica com ele (no mesmo pedido ao Zendesk,
   // para a resposta e a atribuição não se separarem). Nos outros canais trata disto a BD.
@@ -81,6 +93,12 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
       r = await sendGmail(viewer, begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.id, begin.message.body, files);
     else if (begin.platform === "metricool")
       r = await metricoolSend(PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.conversation.contact_external_id, begin.message.body, image);
+    // Resposta pública no tópico: o alvo é o comentário principal (id externo da conversa, da BD). Uma nota interna
+    // nunca chega aqui (sai antes, acima); a verificação repete-se por segurança.
+    else if (begin.platform === "metricool_comments")
+      r = kind === "outbound"
+        ? await metricoolComment(COMMENT_PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.message.body)
+        : { outcome: "failed", externalId: null, detail: "Nota interna: nunca é publicada." };
     // Chat do site: a resposta fica guardada e o widget vai buscá-la (o dashboard é a fonte de verdade).
     else if (begin.platform === "site") r = { outcome: "accepted", externalId: null, detail: null };
     else r = await whatsappSend();
@@ -98,7 +116,9 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
           ? "No chat do site: passa a Entregue quando o chat do cliente a recebe e a Lida com o chat aberto."
           : begin.platform === "gmail"
             ? `Enviado pelo Gmail (${gmailMailbox()}), na mesma conversa e com a assinatura automática.`
-            : "Aceite pela Metricool. Entrega no Messenger/Instagram sem confirmação pela API."
+            : begin.platform === "metricool_comments"
+              ? "Publicada pela Metricool como resposta pública ao comentário (visível para todos na publicação)."
+              : "Aceite pela Metricool. Entrega no Messenger/Instagram sem confirmação pela API."
       : r.detail;
   await serverRpc("ldo_support_finish_send", { p_message: begin.message.id, p_delivery: r.outcome, p_detail: detail, p_external_id: r.externalId });
   // Chat do site: a resposta já está visível no chat; se o cliente saiu do site (há mais de 45 s), segue
@@ -231,7 +251,9 @@ export async function verifyMessage(viewer: Viewer, conversationId: string, mess
   else if (m.conversation.source_id === "site-chat")
     await serverRpc("ldo_support_finish_send", { p_message: messageId, p_delivery: "accepted", p_detail: "Disponível no chat do site (confirmado em Verificar).", p_external_id: null });
   else {
-    const [r] = await runSync({ force: true, only: [m.conversation.source_id] });
+    // Comentários: o Verificar corre mesmo dentro do intervalo mínimo da fonte (só não repete uma leitura de há 15 s).
+    const comments = Boolean(COMMENT_PROVIDER[m.conversation.source_id]);
+    const [r] = await runSync({ force: true, override: comments, firstPageOnly: comments, only: [m.conversation.source_id] });
     if (!r) note = "Este canal não tem sincronização.";
     else if (!r.ran) note = `A verificação não correu agora (${REFUSAL[r.reason || ""] || "indisponível"}); tente dentro de momentos.`;
     else if (r.ok === false) note = `A verificação falhou: ${r.detail}`;
@@ -260,5 +282,14 @@ export async function markNotSent(viewer: Viewer, conversationId: string, messag
   const m = await serverRpc<ServerMessage | null>("ldo_support_server_message", { p_message: messageId });
   if (!m || m.conversation.id !== conversationId || !["uncertain", "sending"].includes(m.message.delivery || "")) throw new Error("Só um envio incerto pode ser marcado como não enviado.");
   if (Date.now() - Date.parse(m.message.created_at) < 60_000) throw new Error("Aguarde um minuto e use primeiro “Verificar”.");
+  // Resposta pública: antes de a dar como não publicada (e permitir publicar outra vez), volta a ler a publicação.
+  // Se a resposta lá estiver, fica Aceite; se a leitura não correr agora, não se marca nada.
+  if (COMMENT_PROVIDER[m.conversation.source_id]) {
+    const [r] = await runSync({ force: true, override: true, firstPageOnly: true, only: [m.conversation.source_id] });
+    if (!r?.ran || r.ok === false)
+      throw new Error(`Não foi possível voltar a ler a publicação agora (${r?.ran ? r.detail : REFUSAL[r?.reason || ""] || "indisponível"}). Tente dentro de momentos.`);
+    const again = await serverRpc<ServerMessage | null>("ldo_support_server_message", { p_message: messageId });
+    if (!["uncertain", "sending"].includes(again?.message.delivery || "")) throw new Error("A resposta foi encontrada na publicação: ficou como publicada.");
+  }
   await serverRpc("ldo_support_finish_send", { p_message: messageId, p_delivery: "failed", p_detail: `Marcado como não enviado por ${viewer.fullName || viewer.username} depois de verificar.`, p_external_id: null });
 }
