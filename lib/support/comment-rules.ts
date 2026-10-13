@@ -138,6 +138,16 @@ export type CommentIngest = {
 
 const STALE_MS = 7 * 24 * 3600 * 1000;
 
+// Autorizações dos comentários (GET /v2/inbox/post-comments/authorizations): a Metricool devolve só missingScopes
+// (vazio = com acesso); allowAccessToMessages só existe nas mensagens privadas. Sem acesso: permissões em falta ou
+// allowAccessToMessages explicitamente falso.
+export function commentAccess(data: unknown): { allowed: boolean; missingScopes: string[] } {
+  const d = data && typeof data === "object" ? (data as { missingScopes?: unknown; allowAccessToMessages?: unknown }) : null;
+  if (!d) return { allowed: false, missingScopes: [] };
+  const missingScopes = Array.isArray(d.missingScopes) ? d.missingScopes.filter((s): s is string => typeof s === "string").slice(0, 20) : [];
+  return { allowed: missingScopes.length === 0 && d.allowAccessToMessages !== false, missingScopes };
+}
+
 // Conta da marca nos comentários de uma página: a configurada ou já conhecida, ou o dono de mais de metade das
 // publicações da página. Sem certeza, null (e nenhum tópico é interpretado).
 export function commentBrand(threads: CommentThread[], known: string | null): string | null {
