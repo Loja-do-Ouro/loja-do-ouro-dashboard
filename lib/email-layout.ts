@@ -53,8 +53,9 @@ export function emailParagraph(html: string) {
 }
 
 // Texto escapado com as ligações http(s) clicáveis (cada parte é escapada antes de entrar no HTML).
+// Um emoji encostado ao fim da ligação fica de fora dela (senão a ligação ficava partida).
 export function linkedText(raw: string) {
-  const re = /https?:\/\/[^\s<>"']+/g;
+  const re = /https?:\/\/[^\s<>"'\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u200D\uFE0F\u20E3]+/gu;
   let out = "";
   let last = 0;
   for (let m = re.exec(raw); m; m = re.exec(raw)) {

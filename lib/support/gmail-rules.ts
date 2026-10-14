@@ -561,7 +561,8 @@ export function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-const URL_RE = /https?:\/\/[^\s<>"'«»]+/gi;
+// Termina antes de um emoji encostado à ligação (senão o emoji entrava no endereço e partia-o).
+const URL_RE = /https?:\/\/[^\s<>"'«»\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u200D\uFE0F\u20E3]+/giu;
 const count = (s: string, c: string) => s.split(c).length - 1;
 
 // Texto com as ligações http(s) clicáveis; a pontuação final ("veja https://x.pt/a." ou "(https://x.pt)") fica de fora.

@@ -1,5 +1,6 @@
 // Emojis do apoio ao cliente: lista curta e escolhida para conversas com clientes de uma joalharia.
 // Só emojis até à versão Unicode 12 (2019), para aparecerem bem em Windows 10, Android e iPhone mais antigos.
+// Sem bandeiras: o Windows mostra-as como duas letras ("PT").
 // Cada emoji: [carácter, nome (lido pelo leitor de ecrã e mostrado ao passar o rato), palavras para a pesquisa].
 
 export type Emoji = { char: string; name: string; words: string };
@@ -11,7 +12,7 @@ const g = (id: string, label: string, icon: string, list: [string, string, strin
 
 export const EMOJI_GROUPS: EmojiGroup[] = [
   g("caras", "Caras", "😊", [
-    ["😊", "sorriso simpático", "feliz corado obrigado"],
+    ["😊", "sorriso simpático", "feliz corado obrigado obrigada"],
     ["🙂", "sorriso leve", "feliz"],
     ["😀", "sorriso", "feliz contente"],
     ["😃", "sorriso alegre", "feliz contente"],
@@ -25,9 +26,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["🥰", "apaixonado", "amor corações adoro"],
     ["😍", "olhos de coração", "adoro amor lindo"],
     ["🤩", "deslumbrado", "estrelas uau incrível"],
-    ["😘", "beijinho", "beijo amor"],
+    ["😘", "beijinho", "beijo beijos beijinhos amor"],
     ["😋", "delicioso", "gostoso"],
-    ["😎", "óculos de sol", "fixe"],
+    ["😎", "cara com óculos de sol", "fixe"],
     ["🤗", "abraço", "abraços carinho"],
     ["🤔", "a pensar", "dúvida hmm"],
     ["🤭", "ups", "mão boca"],
@@ -36,7 +37,7 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["😐", "neutro", "sem expressão"],
     ["🙄", "revirar os olhos", "aborrecido"],
     ["😏", "sorriso maroto", "malandro"],
-    ["😔", "pensativo", "triste"],
+    ["😔", "pensativo", "triste desculpa desculpe lamento"],
     ["😕", "confuso", "dúvida"],
     ["😟", "preocupado", "aflito"],
     ["🙁", "triste", "chateado"],
@@ -48,7 +49,7 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["😭", "a chorar", "choro triste"],
     ["😴", "a dormir", "sono"],
     ["🤯", "cabeça a explodir", "surpresa choque"],
-    ["🥳", "festa", "celebrar parabéns aniversário"],
+    ["🥳", "cara de festa", "celebrar parabéns aniversário"],
     ["🤦", "mão na testa", "facepalm erro"],
     ["🤷", "encolher os ombros", "não sei"],
     ["🙈", "macaco a tapar os olhos", "vergonha ups"],
@@ -56,14 +57,14 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
   g("gestos", "Gestos", "👍", [
     ["👍", "polegar para cima", "ok gosto certo combinado"],
     ["👎", "polegar para baixo", "não gosto"],
-    ["👌", "ok", "perfeito"],
+    ["👌", "mão a fazer ok", "perfeito"],
     ["✌️", "vitória", "paz"],
     ["🤞", "dedos cruzados", "sorte"],
     ["🤙", "liga-me", "telefone"],
     ["👋", "olá", "adeus acenar"],
     ["🙌", "viva", "mãos no ar celebrar"],
     ["👏", "palmas", "parabéns aplausos"],
-    ["🙏", "obrigado", "por favor agradecer mãos"],
+    ["🙏", "obrigado", "obrigada por favor agradecer mãos desculpa desculpe lamento"],
     ["🤝", "aperto de mão", "acordo combinado"],
     ["💪", "força", "músculo"],
     ["👉", "apontar para a direita", "ver aqui"],
@@ -78,7 +79,7 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["🤳", "selfie", "fotografia"],
   ]),
   g("coracoes", "Corações", "❤️", [
-    ["❤️", "coração vermelho", "amor"],
+    ["❤️", "coração vermelho", "amor corações"],
     ["🧡", "coração laranja", "amor"],
     ["💛", "coração amarelo", "amor dourado ouro"],
     ["💚", "coração verde", "amor"],
@@ -87,7 +88,7 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["🖤", "coração preto", "amor"],
     ["🤍", "coração branco", "amor"],
     ["🤎", "coração castanho", "amor"],
-    ["💕", "dois corações", "amor"],
+    ["💕", "dois corações", "amor coração"],
     ["💞", "corações a girar", "amor"],
     ["💓", "coração a bater", "amor"],
     ["💗", "coração a crescer", "amor"],
@@ -95,7 +96,7 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["💘", "coração com flecha", "cupido amor namorados"],
     ["💝", "coração com laço", "presente amor oferta"],
     ["💌", "carta de amor", "envelope"],
-    ["💋", "beijo", "lábios batom"],
+    ["💋", "beijo", "beijos beijinhos lábios batom"],
     ["😻", "gato apaixonado", "amor"],
     ["💔", "coração partido", "triste"],
   ]),
@@ -156,7 +157,7 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["✈️", "avião", "envio internacional viagem"],
     ["📬", "caixa de correio", "correio carta"],
     ["✉️", "envelope", "carta correio"],
-    ["📧", "email", "correio eletrónico"],
+    ["📧", "email", "e-mail mail correio eletrónico"],
     ["📞", "telefone", "ligar chamada"],
     ["📱", "telemóvel", "telefone mensagem"],
     ["💬", "mensagem", "conversa chat"],
@@ -191,12 +192,11 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
     ["⬆️", "seta para cima", ""],
     ["⬇️", "seta para baixo", ""],
     ["🔜", "em breve", "brevemente"],
-    ["🆗", "OK", "combinado"],
+    ["🆗", "botão OK", "ok combinado"],
     ["🟢", "círculo verde", "disponível"],
     ["🟡", "círculo amarelo", "pendente"],
     ["🔴", "círculo vermelho", "indisponível"],
     ["🔵", "círculo azul", ""],
-    ["🇵🇹", "bandeira de Portugal", "portugal"],
   ]),
 ];
 
@@ -205,17 +205,29 @@ const BY_CHAR = new Map(ALL.map((e) => [e.char, e]));
 
 export const emojiByChar = (char: string) => BY_CHAR.get(char);
 
-// Sem acentos e em minúsculas: "coracao" encontra "coração".
-const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+// Sem acentos, em minúsculas e sem pontuação: "coracao" encontra "coração", "arco iris" encontra "arco-íris".
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ");
 const INDEX = ALL.map((e) => ({ e, name: ` ${fold(e.name)}`, text: ` ${fold(`${e.name} ${e.words}`)}` }));
+
+// Plural e feminino: "obrigada" encontra "obrigado", "beijinhos" encontra "beijinho", "flores" encontra "flor".
+function variants(t: string) {
+  if (t.length < 4) return [t];
+  const out = [t];
+  if (t.endsWith("es")) out.push(t.slice(0, -2));
+  const one = t.endsWith("s") ? t.slice(0, -1) : t;
+  out.push(one);
+  if (one.length > 3 && /[ao]$/.test(one)) out.push(one.slice(0, -1));
+  return out;
+}
+const has = (hay: string, t: string) => variants(t).some((v) => hay.includes(` ${v}`));
 
 // Pesquisa por início de palavra (todas as palavras escritas têm de aparecer). Primeiro os emojis cujo
 // nome começa pela pesquisa ("coração" → ❤️), depois os que a têm no nome e por fim só nas palavras.
 export function searchEmoji(query: string, limit = 60): Emoji[] {
-  const terms = fold(query).split(/\s+/).filter(Boolean);
+  const terms = fold(query).split(" ").filter(Boolean);
   if (!terms.length) return [];
-  const rank = (name: string) => (name.startsWith(` ${terms[0]}`) ? 0 : terms.every((t) => name.includes(` ${t}`)) ? 1 : 2);
-  return INDEX.filter(({ text }) => terms.every((t) => text.includes(` ${t}`)))
+  const rank = (name: string) => (variants(terms[0]).some((v) => name.startsWith(` ${v}`)) ? 0 : terms.every((t) => has(name, t)) ? 1 : 2);
+  return INDEX.filter(({ text }) => terms.every((t) => has(text, t)))
     .map((x, i) => ({ x, i, r: rank(x.name) }))
     .sort((a, b) => a.r - b.r || a.i - b.i)
     .slice(0, limit)
@@ -225,6 +237,12 @@ export function searchEmoji(query: string, limit = 60): Emoji[] {
 // Recentes: o último escolhido à frente, sem repetidos, só emojis que existem na lista.
 export function pushRecent(recent: string[], char: string, max = 24): string[] {
   return [char, ...recent.filter((c) => c !== char && BY_CHAR.has(c))].slice(0, max);
+}
+
+// Um emoji colado ao fim de uma ligação passaria a fazer parte dela (ligação partida e, no chat do site,
+// sem o cartão do produto): nesse caso leva um espaço antes.
+export function emojiAfter(before: string, char: string) {
+  return /https?:\/\/\S+$/i.test(before) ? ` ${char}` : char;
 }
 
 // Insere no lugar do cursor (ou substitui a seleção) e devolve a nova posição do cursor.

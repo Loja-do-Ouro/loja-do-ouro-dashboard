@@ -21,6 +21,12 @@ test("Only http(s) addresses become links", () => {
   assert.equal(mail.linkedText("a & b"), "a &amp; b");
 });
 
+test("An emoji right after a link stays outside it", () => {
+  assert.match(mail.linkedText("https://x.pt/a😍"), /^<a href="https:\/\/x\.pt\/a"[^>]*>https:\/\/x\.pt\/a<\/a>😍$/u);
+  for (const e of ["👍🏼", "❤️", "👩‍💼", "🇵🇹", "✨"]) assert.match(mail.linkedText(`Veja https://x.pt/anel${e} obrigado`), new RegExp(`href="https://x\\.pt/anel"[^>]*>https://x\\.pt/anel</a>${e}`, "u"), e);
+  assert.match(mail.linkedText("https://pt.wikipedia.org/wiki/Coração"), /href="https:\/\/pt\.wikipedia\.org\/wiki\/Coração"/);
+});
+
 test("Text written by customers never becomes clickable links in our emails", () => {
   const row = mail.emailQuote("Ana", "Confirme em https://evil.example/pt <b>já</b>", { links: false });
   assert.doesNotMatch(row, /<a /);

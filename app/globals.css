@@ -4034,7 +4034,15 @@ textarea:focus-visible,
 /* O campo de resposta não encolhe abaixo do conteúdo (até 65% da coluna): quem cede espaço é o cartão da
    publicação, com scroll. Numa coluna estreita os botões ficam só com o ícone (o nome fica no texto de ajuda). */
 .support-composer { min-height: 0; max-height: 65%; overflow: hidden; flex-shrink: 0; container-type: inline-size; }
-@container (max-width: 460px) { .composer-actions .btn-label, .composer-actions .composer-hint { display: none; } }
+@container (max-width: 720px) { .composer-actions .composer-hint { display: none; } }
+@container (max-width: 460px) {
+  .composer-actions .btn-label { display: none; }
+  /* Só ícones: cabem numa linha com o botão de enviar. */
+  .composer-actions { gap: 6px; }
+  .composer-actions .secondary-button { padding: 8px 9px; }
+}
+/* Sem espaço na coluna, a caixa encolhe (o texto tem scroll) e o botão de enviar fica sempre à vista. */
+.support-conversation > .support-composer { flex-shrink: 1; }
 .composer-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .composer-scroll textarea { flex: 1 0 auto; min-height: 52px; }
 .support-composer .composer-actions { flex: none; }
@@ -4112,13 +4120,19 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .catalog-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .catalog-actions .secondary-button { padding: 5px 8px; font-size: 11.5px; }
 /* Apoio ao Cliente: emojis na caixa de resposta */
-.emoji-picker { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; flex-shrink: 0; }
+/* Painel entre as mensagens e a caixa de resposta: encolhe antes da caixa de texto e só a grelha tem scroll. */
+.emoji-picker { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px; margin: 0 14px 4px; display: flex; flex-direction: column; gap: 6px; max-height: 230px; min-height: 120px; overflow: hidden; flex: 0 10 auto; box-shadow: 0 -4px 14px rgba(29, 62, 71, 0.06); }
+.emoji-picker > * { flex: none; }
+.emoji-picker > .emoji-grid { flex: 1 1 auto; min-height: 38px; overflow-y: auto; }
+/* Enquanto escolhe emojis, as mensagens dão o lugar ao painel (voltam ao fechar). */
+.support-conversation:has(> .emoji-picker) > .support-messages { min-height: 0; }
 .emoji-tabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
 .emoji-tabs button { background: none; color: inherit; padding: 4px 7px; border-radius: 6px; font-size: 17px; line-height: 1.2; border-bottom: 2px solid transparent; }
 .emoji-tabs button:hover { background: var(--gold-soft); }
 .emoji-tabs button.active { border-bottom-color: var(--gold); background: var(--gold-soft); }
 .emoji-caption { margin: 0; font-size: 11.5px; color: var(--muted); }
-.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; }
+.emoji-caption:empty { display: none; }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; align-content: start; }
 .emoji-grid button, .emoji-tabs button { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; box-shadow: none; border-radius: 6px; }
 .emoji-grid button { background: none; color: inherit; padding: 5px 0; border-radius: 6px; font-size: 22px; line-height: 1.2; }
 .emoji-grid button:hover, .emoji-grid button:focus-visible { background: var(--gold-soft); }
@@ -4129,8 +4143,12 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .attachment-audio { display: inline-flex; flex-direction: column; gap: 4px; max-width: 100%; }
 @media (max-width: 760px) {
   .support-composer { min-height: 0; max-height: 70%; }
+  /* No telemóvel: sem pesquisa (o teclado tapava tudo) e sem mensagens enquanto o painel está aberto;
+     fecha-se no próprio botão 😊. */
+  .emoji-caption, .emoji-picker > .catalog-head { display: none; }
+  .support-conversation:has(> .emoji-picker) > .support-messages { display: none; }
+  .emoji-picker { margin-top: 6px; min-height: 136px; }
   .catalog-picker { max-height: min(300px, 32dvh); }
-  .emoji-picker { max-height: min(280px, 34dvh); }
 }
 /* Apoio ao Cliente: separadores Cliente / Assistente IA */
 .info-tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); flex-shrink: 0; }
