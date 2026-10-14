@@ -401,6 +401,11 @@ test("Plain text becomes safe HTML: escaping, paragraphs, line breaks, lists and
   assert.ok(!evil.includes("<script>") && !evil.includes('href="javascript') && !/"onmouseover/.test(evil));
   assert.ok(evil.includes('<a href="https://x.pt/">https://x.pt/</a>&quot;onmouseover'));
   assert.equal(g.textToHtml(""), wrap(""));
+  // Emoji encostado ao fim da ligação: fica fora do endereço (e a pontuação antes dele também).
+  assert.equal(g.textToHtml("Veja https://www.lojadoouro.pt/products/anel😍"),
+    wrap('<p style="margin:0 0 12px">Veja <a href="https://www.lojadoouro.pt/products/anel">https://www.lojadoouro.pt/products/anel</a>😍</p>'));
+  assert.ok(g.textToHtml("(https://x.pt/anel)👩‍💼").includes('(<a href="https://x.pt/anel">https://x.pt/anel</a>)👩‍💼'));
+  assert.ok(g.textToHtml("https://x.pt/anel.👍🏼").includes('<a href="https://x.pt/anel">https://x.pt/anel</a>.👍🏼'));
 });
 
 test("The signature block is empty when blank, otherwise text and escaped HTML", () => {

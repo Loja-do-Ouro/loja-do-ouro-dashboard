@@ -532,9 +532,12 @@
   var timeFmt = new Intl.DateTimeFormat("pt-PT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Lisbon" });
   var dayFmt = new Intl.DateTimeFormat("pt-PT", { day: "numeric", month: "short", timeZone: "Europe/Lisbon" });
 
+  // Ligações: terminam num espaço ou num emoji encostado (senão o emoji entrava no endereço e partia-o).
+  // Sem a flag "u", para funcionar também em navegadores antigos: pares substitutos, símbolos e variação.
+  var URL_SRC = "https?:\\/\\/[^\\s<>\"'\\uD800-\\uDFFF\\u2100-\\u2BFF\\uFE0F\\u200D\\u20E3]+";
   function richText(text) {
     var frag = document.createDocumentFragment();
-    var re = /https?:\/\/[^\s<>"']+/g;
+    var re = new RegExp(URL_SRC, "g");
     var last = 0, m;
     while ((m = re.exec(text))) {
       var url = m[0].replace(/[.,;:!?)]+$/, "");
@@ -579,8 +582,11 @@
       var line = lines[i];
       var trimmed = line.trim();
       if (!trimmed) { closeAll(); continue; }
-      var url = trimmed.replace(/[.,;:!?)]+$/, "");
-      var link = /^https?:\/\/\S+$/.test(trimmed) ? productLink(url) : null;
+      // Linha só com a ligação de um produto (pode acabar em emojis, ex.: "https://…/products/anel 😍").
+      var lead = new RegExp("^(" + URL_SRC + ")(.*)$").exec(trimmed);
+      var rest = lead ? lead[2].trim() : "";
+      var url = lead ? lead[1].replace(/[.,;:!?)]+$/, "") : "";
+      var link = lead && !/[0-9A-Za-z\u00C0-\u024F]/.test(rest) ? productLink(url) : null;
       if (link) {
         // Legenda do cartão: só a linha "Nome — preço" que o botão "Produto" do dashboard põe por cima da
         // ligação (sozinha no parágrafo). Qualquer outro texto fica no chat tal como foi escrito.
@@ -591,6 +597,13 @@
         }
         box.appendChild(productCard(url, link, caption));
         closeAll();
+        if (rest) {
+          para = el("p", {});
+          box.appendChild(para);
+          para.appendChild(inline(rest, el("span", {})));
+          paraLines = 1;
+          lastLine = rest;
+        }
         continue;
       }
       var li = LIST_RE.exec(line);

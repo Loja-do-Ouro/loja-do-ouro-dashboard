@@ -7,6 +7,7 @@ import { serverRpc } from "./db";
 import { supportEmailFrom, supportReplyTo } from "./notify";
 import { brandEmail, emailParagraph, emailQuote, esc } from "@/lib/email-layout";
 import { allowedOrigin, decodeIdentity, ipPrefix, parseOrigins, verifyIdentity } from "./site-rules";
+import { cut } from "./comment-rules";
 
 // Chat do site: rotas públicas (sem sessão do dashboard) usadas pelo botão do tema Shopify.
 // O browser só fala com o servidor; as funções da BD são chamadas com o token do servidor.
@@ -147,7 +148,8 @@ async function sendReplies(p: Pending): Promise<{ ok: boolean; detail: string }>
     baseUrl: baseUrl(),
     eyebrow: "Chat da Loja do Ouro",
     title: many ? "Tem novas respostas nossas" : "Respondemos à sua mensagem",
-    preheader: (items[0]?.body || "").replace(/\s+/g, " ").slice(0, 120),
+    // Cortado sem partir um emoji ao meio (metade de um emoji estraga o email).
+    preheader: cut((items[0]?.body || "").replace(/\s+/g, " "), 120),
     body: emailParagraph(esc(hello)) + emailParagraph(esc(intro))
       + items.map((r) => emailQuote(r.author ? `${r.author} · Loja do Ouro` : "Loja do Ouro", r.body)).join("")
       + emailParagraph(esc(outro)),
