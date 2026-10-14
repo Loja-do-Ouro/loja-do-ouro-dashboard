@@ -209,11 +209,14 @@ export const emojiByChar = (char: string) => BY_CHAR.get(char);
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ");
 const INDEX = ALL.map((e) => ({ e, name: ` ${fold(e.name)}`, text: ` ${fold(`${e.name} ${e.words}`)}` }));
 
-// Plural e feminino: "obrigada" encontra "obrigado", "beijinhos" encontra "beijinho", "flores" encontra "flor".
+// Plural e feminino: "obrigada" encontra "obrigado", "beijinhos" encontra "beijinho", "flores" encontra "flor",
+// "anéis" encontra "anel", "cartões" encontra "cartão".
 function variants(t: string) {
   if (t.length < 4) return [t];
   const out = [t];
-  if (t.endsWith("es")) out.push(t.slice(0, -2));
+  const irregular = t.replace(/oes$/, "ao").replace(/eis$/, "el").replace(/ais$/, "al").replace(/ois$/, "ol");
+  if (irregular !== t) out.push(irregular);
+  if (t.length >= 5 && t.endsWith("es")) out.push(t.slice(0, -2));
   const one = t.endsWith("s") ? t.slice(0, -1) : t;
   out.push(one);
   if (one.length > 3 && /[ao]$/.test(one)) out.push(one.slice(0, -1));

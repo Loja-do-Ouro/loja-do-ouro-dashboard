@@ -533,8 +533,9 @@
   var dayFmt = new Intl.DateTimeFormat("pt-PT", { day: "numeric", month: "short", timeZone: "Europe/Lisbon" });
 
   // Ligações: terminam num espaço ou num emoji encostado (senão o emoji entrava no endereço e partia-o).
-  // Sem a flag "u", para funcionar também em navegadores antigos: pares substitutos, símbolos e variação.
-  var URL_SRC = "https?:\\/\\/[^\\s<>\"'\\uD800-\\uDFFF\\u2100-\\u2BFF\\uFE0F\\u200D\\u20E3]+";
+  // Sem a flag "u", para funcionar também em navegadores antigos: os mesmos emojis que \p{Extended_Pictographic}
+  // (pares substitutos, os do plano básico e os símbolos), mais variação, ZWJ e tecla.
+  var URL_SRC = "https?:\\/\\/[^\\s<>\"'\\u00A9\\u00AE\\u203C\\u2049\\u3030\\u303D\\u3297\\u3299\\uD800-\\uDFFF\\u2100-\\u2BFF\\uFE0F\\u200D\\u20E3]+";
   function richText(text) {
     var frag = document.createDocumentFragment();
     var re = new RegExp(URL_SRC, "g");
