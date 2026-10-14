@@ -265,6 +265,32 @@ export function overview(store: Store, p: Period) {
     ].map((field) => get("shopify_sales", field)),
   };
 }
+// Detail datasets whose stored close keeps only the `rows` rows with most of `field`. GA4 geography brings every
+// city (5439 in the week of 5–11 Oct 2026, ~1 MB) and Audience shows the 30 with most sessions; a month of it could
+// pass the 2 MB limit of Next's data cache, and the section's detail would never be cached (store.ts).
+export const STORED_LIMITS: Record<string, { field: string; rows: number }> = {
+  "ga4/geography": { field: "sessions", rows: 200 },
+};
+const FIELD_LABELS: Record<string, string> = { sessions: "sessões" };
+// Rows and metadata the ingestion stores for a dataset. The rows kept stay in the source's order (ties go to the
+// first), so any top 30 by `field` is the same as over every row. The metadata records the limit and how many rows
+// the source returned; truncated is true only when rows were dropped.
+export function storedRows(source: string, dataset: string, rows: Row[]): { rows: Row[]; metadata: Row } {
+  const limit = STORED_LIMITS[`${source}/${dataset}`];
+  if (!limit) return { rows, metadata: {} };
+  const metadata = { limit: limit.rows, order_by: limit.field, row_count: rows.length, truncated: rows.length > limit.rows };
+  if (!metadata.truncated) return { rows, metadata };
+  const kept = new Set(
+    rows
+      .map((r, i) => [number(r[limit.field]) || 0, i] as const)
+      .sort((a, b) => b[0] - a[0] || a[1] - b[1])
+      .slice(0, limit.rows)
+      .map(([, i]) => i),
+  );
+  return { rows: rows.filter((_, i) => kept.has(i)), metadata };
+}
+// complete: the whole period is covered and its metadata is valid. It does not mean every row the source has: a close
+// with metadata.truncated keeps only its top rows (STORED_LIMITS), so its rows must not be added up as a total.
 export type Detail = {
   rows: Row[];
   complete: boolean;
@@ -287,14 +313,21 @@ export function detail(
       d.metadata.timezone === "Europe/Lisbon");
   const paginationComplete = (d: Dataset) =>
     !["orders", "abandoned"].includes(dataset) || d.metadata.complete === true;
+  // A close that kept only its top rows says so, with how many the source returned (storedRows).
+  const limited = (d: Dataset) => {
+    if (d.metadata.truncated !== true) return "";
+    const total = number(d.metadata.row_count),
+      field = String(d.metadata.order_by);
+    return ` · fecho só com as ${d.rows.length}${total === null ? "" : ` de ${total}`} linhas com mais ${FIELD_LABELS[field] || field}`;
+  };
   if (ds)
     return {
       rows: ds.rows,
       complete: valid(ds) && paginationComplete(ds),
       note:
-        valid(ds) && paginationComplete(ds)
+        (valid(ds) && paginationComplete(ds)
           ? "Período completo · dados provisórios"
-          : "Cobertura ou metadados incompletos",
+          : "Cobertura ou metadados incompletos") + limited(ds),
       fetchedAt: ds.fetched_at,
       datasets: [ds],
     };
@@ -308,7 +341,11 @@ export function detail(
       complete:
         found.length === each.length &&
         found.every((d) => valid(d) && paginationComplete(d)),
-      note: `${found.length}/${each.length} dias recolhidos · versões diárias`,
+      note:
+        `${found.length}/${each.length} dias recolhidos · versões diárias` +
+        (found.some((d) => d.metadata.truncated === true)
+          ? " · dias com fecho só das linhas principais"
+          : ""),
       fetchedAt:
         found
           .map((d) => d.fetched_at)

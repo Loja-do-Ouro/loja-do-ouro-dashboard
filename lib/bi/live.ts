@@ -7,7 +7,8 @@ import { readWindsor, windsorConfigured, type WindsorResult } from "./windsor";
 
 const orderFields = ["order_id", "order_name", "order_count", "order_created_at", "order_updated_at", "order_cancelled_at", "order_financial_status", "order_fulfillment_status", "order_current_total_price", "order_net_payment", "order_currency", "order_shipping_address_city", "order_shipping_address_country", "order_source_name", "order_customer_last_visit_utm_campaign", "order_customer_last_visit_utm_source", "order_customer_last_visit_utm_medium"];
 
-// Detail datasets per dashboard section. The nightly ingestion stores the same set.
+// Detail datasets per dashboard section. The nightly ingestion stores the same set (ga4/geography only with its
+// cities of most sessions: STORED_LIMITS in model.ts).
 export const DETAILS: { connector: string; source: string; dataset: string; fields: string[]; sections: string[] }[] = [
   { connector: "facebook", source: "meta", dataset: "ads", fields: ["date", "campaign", "campaign_id", "ad_id", "ad_name", ...meta], sections: ["marketing", "quality"] },
   { connector: "google_ads", source: "google_ads", dataset: "campaigns", fields: ["date", "campaign", "campaign_id", "campaign_type", ...google], sections: ["marketing", "quality"] },
