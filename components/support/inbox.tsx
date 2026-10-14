@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiPanel } from "./ai-panel";
 import { AttachmentViewer, sizeLabel, type ViewerItem } from "./attachment-viewer";
 import { CatalogPicker } from "./catalog-picker";
+import { EmojiPicker } from "./emoji-picker";
+import { insertAt } from "@/lib/support/emoji";
 import {
   canChangeStatus,
   canReply,
@@ -295,6 +297,10 @@ export function SupportInbox({
   const [uploading, setUploading] = useState(false);
   const uploadingRef = useRef(false);
   const [showCatalog, setShowCatalog] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const composerText = useRef<HTMLTextAreaElement>(null);
+  // Onde estava o cursor da caixa de texto (por conversa e separador), para o emoji entrar nesse lugar.
+  const caret = useRef<{ slot: string; start: number; end: number; text: string } | null>(null);
   const [infoTab, setInfoTab] = useState<"cliente" | "ia">("cliente");
   const [aiRequest, setAiRequest] = useState<{ n: number } | null>(null);
   // Miniaturas que não carregaram (ex.: endereço da Meta expirado): mostram-se como aviso, nunca vazias.
@@ -446,6 +452,7 @@ export function SupportInbox({
       setActionNote("");
       setMode("reply");
       setShowCatalog(false);
+      setShowEmoji(false);
       setAiRequest(null);
     }
     keepUnread.current.delete(id);
@@ -521,6 +528,31 @@ export function SupportInbox({
       uploadingRef.current = false;
       setUploading(false);
     }
+  }
+
+  const keepCaret = (el: HTMLTextAreaElement) => {
+    if (selected) caret.current = { slot: slotOf(selected, mode), start: el.selectionStart, end: el.selectionEnd, text: el.value };
+  };
+
+  function insertEmoji(char: string) {
+    if (!selected) return;
+    const slot = slotOf(selected, mode);
+    const at = caret.current && caret.current.slot === slot && caret.current.text === text ? caret.current : { start: text.length, end: text.length };
+    const next = insertAt(text, at.start, at.end, char);
+    if (next.text.length > maxChars) {
+      setSendError(`Limite de ${maxChars} caracteres atingido: o emoji não foi inserido.`);
+      return;
+    }
+    typed(next.text);
+    caret.current = { slot, start: next.caret, end: next.caret, text: next.text };
+    // Com rato, o cursor volta ao texto logo a seguir ao emoji. No telemóvel não se abre o teclado.
+    if (window.matchMedia("(pointer: fine)").matches)
+      requestAnimationFrame(() => {
+        const el = composerText.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(next.caret, next.caret);
+      });
   }
 
   async function insertCatalog(item: { title: string; url: string; image: string | null; photo: string | null; price: string | null }, withImage: boolean) {
@@ -975,7 +1007,13 @@ export function SupportInbox({
                     {showCatalog && (
                       <CatalogPicker canAttach={maxAttachments > pendingHere.length} onClose={() => setShowCatalog(false)} onInsert={insertCatalog} />
                     )}
+                    {showEmoji && (
+                      <EmojiPicker onPick={insertEmoji} onClose={() => { setShowEmoji(false); composerText.current?.focus(); }} />
+                    )}
                     <textarea
+                      ref={composerText}
+                      onSelect={(e) => keepCaret(e.currentTarget)}
+                      onBlur={(e) => keepCaret(e.currentTarget)}
                       onPaste={(e) => {
                         // Resposta pública: um texto colado acima do limite do comentário não é cortado sem aviso.
                         if (publicReply) {
@@ -1038,8 +1076,9 @@ export function SupportInbox({
                           {uploading ? "A anexar…" : <><span aria-hidden="true">📎</span><span className="btn-label"> Anexar</span></>}
                         </button>
                       )}
+                      <button type="button" className="secondary-button" onClick={() => { setShowEmoji((v) => !v); setShowCatalog(false); }} aria-expanded={showEmoji} aria-label="Emojis" title="Inserir emoji"><span aria-hidden="true">😊</span><span className="btn-label"> Emojis</span></button>
                       {mode === "reply" && (
-                        <button type="button" className="secondary-button" onClick={() => setShowCatalog((v) => !v)} aria-expanded={showCatalog} aria-label="Produto da loja" title="Produto da loja"><span aria-hidden="true">🛍</span><span className="btn-label"> Produto</span></button>
+                        <button type="button" className="secondary-button" onClick={() => { setShowCatalog((v) => !v); setShowEmoji(false); }} aria-expanded={showCatalog} aria-label="Produto da loja" title="Produto da loja"><span aria-hidden="true">🛍</span><span className="btn-label"> Produto</span></button>
                       )}
                       {mode === "reply" && (
                         <button type="button" className="secondary-button" onClick={suggestReply} title="A IA propõe uma resposta (não envia nada)." aria-label="Sugerir resposta com a IA"><span aria-hidden="true">✨</span><span className="btn-label"> Sugerir resposta</span></button>

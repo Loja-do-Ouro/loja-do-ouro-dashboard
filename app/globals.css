@@ -4111,6 +4111,17 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .catalog-text small { font-size: 11.5px; color: var(--muted); }
 .catalog-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .catalog-actions .secondary-button { padding: 5px 8px; font-size: 11.5px; }
+/* Apoio ao Cliente: emojis na caixa de resposta */
+.emoji-picker { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; flex-shrink: 0; }
+.emoji-tabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.emoji-tabs button { background: none; color: inherit; padding: 4px 7px; border-radius: 6px; font-size: 17px; line-height: 1.2; border-bottom: 2px solid transparent; }
+.emoji-tabs button:hover { background: var(--gold-soft); }
+.emoji-tabs button.active { border-bottom-color: var(--gold); background: var(--gold-soft); }
+.emoji-caption { margin: 0; font-size: 11.5px; color: var(--muted); }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; }
+.emoji-grid button, .emoji-tabs button { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; box-shadow: none; border-radius: 6px; }
+.emoji-grid button { background: none; color: inherit; padding: 5px 0; border-radius: 6px; font-size: 22px; line-height: 1.2; }
+.emoji-grid button:hover, .emoji-grid button:focus-visible { background: var(--gold-soft); }
 @media (max-width: 760px) {
   dialog.viewer { width: 100vw; height: 100dvh; border-radius: 0; }
   .catalog-picker li { flex-wrap: wrap; }
@@ -4119,6 +4130,7 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 @media (max-width: 760px) {
   .support-composer { min-height: 0; max-height: 70%; }
   .catalog-picker { max-height: min(300px, 32dvh); }
+  .emoji-picker { max-height: min(280px, 34dvh); }
 }
 /* Apoio ao Cliente: separadores Cliente / Assistente IA */
 .info-tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); flex-shrink: 0; }
