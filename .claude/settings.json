@@ -8,7 +8,17 @@
       "mcp__Vercel__filter_project_envs",
       "mcp__Metricool_Social_Media_Management__getBrandSettings",
       "mcp__Metricool_Social_Media_Management__getAnalyticsAvailableMetrics",
-      "mcp__Shopify__search_docs_chunks"
+      "mcp__Shopify__search_docs_chunks",
+      "Bash",
+      "WebFetch",
+      "mcp__Shopify",
+      "mcp__Supabase",
+      "mcp__Vercel",
+      "mcp__Metricool_Social_Media_Management",
+      "mcp__Windsor_ai",
+      "mcp__Klaviyo",
+      "mcp__github",
+      "mcp__claude-code-remote"
     ]
   }
 }
