@@ -6,7 +6,9 @@ import type { Row } from "./model";
 // Windsor connector. Values reports allow ~2 requests per minute, so calls run
 // one at a time and wait when Klaviyo asks to.
 const BASE = "https://a.klaviyo.com/api";
-const REVISION = "2024-10-15";
+// Klaviyo keeps a revision for 2 years (stable 1, deprecated 1). 2026-07-15 is
+// deprecated from 2027-07-15 and retired on 2028-07-15: move on before then.
+export const REVISION = "2026-07-15";
 const MAX_WAIT_MS = 65_000;
 
 export function klaviyoConfigured() {

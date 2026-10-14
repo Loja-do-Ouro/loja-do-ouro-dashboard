@@ -6,7 +6,7 @@ import { DAILY_SOURCES, DETAILS, sourceMetadata } from "./live";
 import { gaFields } from "./accounts";
 import { BI_CACHE_TAG, readWindsor } from "./windsor";
 import { FULFILLMENT_FIELDS, SALES_FIELDS, SESSION_FIELDS, dailyQuery, ordersByDay, paidSalesByDay, productsQuery, shopSettings, shopifyConfigured, shopifyql, totalsQuery } from "./shopify";
-import { klaviyoCampaigns, klaviyoConfigured, klaviyoFlows } from "./klaviyo";
+import { REVISION as KLAVIYO_REVISION, klaviyoCampaigns, klaviyoConfigured, klaviyoFlows } from "./klaviyo";
 import { metricoolAccount, metricoolConfigured, metricoolDaily, metricoolPosts } from "./metricool";
 import { closeStaleRuns, finishRun, startRun, upsert } from "./supabase-write";
 import { readDetail, readStore } from "./store";
@@ -81,8 +81,8 @@ export async function ingest(range: Period, trigger: string) {
   if (klaviyoConfigured())
     tasks.push(job("Klaviyo", async () => {
       for (const w of windows) {
-        await job(`Klaviyo campanhas ${w.key}`, async () => { pushDataset("klaviyo", "campaigns", w.range, await klaviyoCampaigns(w.range), { ...direct, transport: "Klaviyo API" }); })();
-        await job(`Klaviyo fluxos ${w.key}`, async () => { pushDataset("klaviyo", "flows", w.range, await klaviyoFlows(w.range), { ...direct, transport: "Klaviyo API" }); })();
+        await job(`Klaviyo campanhas ${w.key}`, async () => { pushDataset("klaviyo", "campaigns", w.range, await klaviyoCampaigns(w.range), { ...direct, transport: "Klaviyo API", revision: KLAVIYO_REVISION }); })();
+        await job(`Klaviyo fluxos ${w.key}`, async () => { pushDataset("klaviyo", "flows", w.range, await klaviyoFlows(w.range), { ...direct, transport: "Klaviyo API", revision: KLAVIYO_REVISION }); })();
       }
     }));
   else errors.push("Klaviyo: KLAVIYO_API_KEY por configurar.");
