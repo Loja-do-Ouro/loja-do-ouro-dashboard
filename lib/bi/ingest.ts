@@ -1,7 +1,7 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
 import { closedPeriods, dates, localDate, previous, shift, type Period } from "./periods";
-import { calculatedChecks, type Daily, type Dataset, type Row } from "./model";
+import { calculatedChecks, storedRows, type Daily, type Dataset, type Row } from "./model";
 import { DAILY_SOURCES, DETAILS, sourceMetadata } from "./live";
 import { gaFields } from "./accounts";
 import { BI_CACHE_TAG, readWindsor } from "./windsor";
@@ -48,8 +48,11 @@ export async function ingest(range: Period, trigger: string) {
     const missing = days.filter(d => !found.has(d));
     if (missing.length) errors.push(`${source}: sem dados para ${missing.join(", ")}.`);
   };
-  const pushDataset = (source: string, dataset: string, p: Period, rows: Row[], metadata: Record<string, unknown>) =>
-    datasets.push({ source, dataset, period_start: p.from, period_end: p.to, rows, metadata, fetched_at: stamp(), status: "provisional", run_id: runId });
+  // Long datasets keep only their top rows (STORED_LIMITS in model.ts); the metadata says how many the source had.
+  const pushDataset = (source: string, dataset: string, p: Period, rows: Row[], metadata: Record<string, unknown>) => {
+    const kept = storedRows(source, dataset, rows);
+    datasets.push({ source, dataset, period_start: p.from, period_end: p.to, rows: kept.rows, metadata: { ...metadata, ...kept.metadata }, fetched_at: stamp(), status: "provisional", run_id: runId });
+  };
 
   const tasks: (() => Promise<void>)[] = [];
   for (const d of DAILY_SOURCES)
