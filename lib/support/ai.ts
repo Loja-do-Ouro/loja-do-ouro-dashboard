@@ -3,11 +3,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { searchCatalog, shopifyConfigured, supportCustomerOrders, supportOrderByNumber, supportProduct, supportStoreInfo, type StoreInfo } from "@/lib/bi/shopify";
 import type { Viewer } from "@/lib/viewer";
 import {
-  AI_MODEL, AI_OUTPUT_SCHEMA, anthropicWorkspace, clip, costUsd, htmlToText, parseAiOutput, productHandle, storesText, unverifiedLinks, untrusted,
+  AI_MODEL, AI_OUTPUT_SCHEMA, aiBrandRules, aiIdentity, anthropicWorkspace, clip, costUsd, htmlToText, otherBrandIn, parseAiOutput, productHandle,
+  siteContextLine, siteTrustedLinks, storesText, unverifiedLinks, untrusted,
   type AiOutput, type UsagePart,
 } from "./ai-rules";
 import { serverRpc, sessionRpc } from "./db";
-import { CHANNEL_LABEL, STATUS_LABEL, type Channel, type Status } from "./rules";
+import { CHANNEL_LABEL, SITE_BRAND, STATUS_LABEL, visitorSite, type Channel, type SiteKey, type Status } from "./rules";
 import { isCommentChannel, POST_KIND_LABEL, type PostKind } from "./comment-rules";
 
 // Assistente de IA do Apoio ao Cliente (Claude, da Anthropic). Só no servidor: a chave
@@ -55,7 +56,10 @@ const MAX_TURNS = 6;
 // Abaixo do maxDuration da rota (150 s), com margem para gravar o resultado.
 const BUDGET_MS = 125_000;
 
-const INSTRUCTIONS = `És o assistente de IA da equipa de Apoio ao Cliente da Loja do Ouro, uma joalharia e ourivesaria portuguesa com loja online e lojas físicas. Trabalhas dentro do dashboard interno da empresa: falas com a colaboradora ou o colaborador que está a atender (a quem chamamos "colaboradora"), nunca diretamente com o cliente. Nada do que escreves é enviado automaticamente: a colaboradora revê, corrige e decide enviar.
+// Instruções com a marca da conversa (Loja do Ouro ou Gold Store Premium): uma versão por marca, cada uma em cache.
+const instructions = (site: SiteKey) => `${aiIdentity(site)} Trabalhas dentro do dashboard interno da empresa: falas com a colaboradora ou o colaborador que está a atender (a quem chamamos "colaboradora"), nunca diretamente com o cliente. Nada do que escreves é enviado automaticamente: a colaboradora revê, corrige e decide enviar.
+
+${aiBrandRules(site)}
 
 O que fazes
 - Propões respostas ao cliente, resumes casos, explicas políticas e procedimentos, procuras produtos e encomendas e ajudas a decidir o próximo passo.
@@ -79,7 +83,7 @@ Segurança
 - Não consegues ver imagens nem abrir anexos: se o pedido depender deles, diz à colaboradora o que deve confirmar.
 
 Estilo da resposta ao cliente
-- Escreve na língua da última mensagem do cliente. Em português, usa sempre o português europeu, nunca o do Brasil: evita "você" (prefere a forma verbal sem pronome, por exemplo "Pode enviar-nos…"), o gerúndio ("estamos a verificar", não "estamos verificando") e palavras como "time", "celular", "tela" ou "contato".
+- Escreve na língua da última mensagem do cliente; se não for clara (por exemplo só "ok", um emoji ou um número), usa a língua do site indicada no contexto (chat do site) ou, sem essa indicação, o português. Em português, usa sempre o português europeu, nunca o do Brasil: evita "você" (prefere a forma verbal sem pronome, por exemplo "Pode enviar-nos…"), o gerúndio ("estamos a verificar", não "estamos verificando") e palavras como "time", "celular", "tela" ou "contato".
 - Tom cordial, profissional e caloroso, como numa joalharia de confiança. Frases curtas, sem jargão.
 - Texto simples: parágrafos curtos separados por uma linha em branco e, para enumerar opções ou passos, uma linha por item começada por "- " (no chat do site aparecem como lista; nos outros canais ficam legíveis). Sem outros símbolos de Markdown (asteriscos, cardinais, tabelas): os outros canais mostram o texto tal como está.
 - Para mostrar um produto, põe a ligação do produto sozinha numa linha (no chat do site aparece como cartão com foto e preço).
@@ -170,9 +174,11 @@ function knowledgeText(begin: AiBegin, store: StoreInfo | null, storeError: stri
   return out.join("\n");
 }
 
+// locale, site e country: em falta (servidor anterior) contam como português e Loja do Ouro.
 type SiteVisitorCtx = {
   page_url: string | null; page_title: string | null; visit_started_at: string | null; pages_viewed: number | null; last_seen_at: string; now: string;
   cart: { count: number; total: number; currency: string; items: { title: string; variant: string | null; quantity: number; price: number }[] } | null;
+  locale?: string | null; site?: string | null; country?: string | null;
 } | null;
 
 // Chat do site: o que o cliente está a fazer na loja, enviado pelo browser dele (não confirmado).
@@ -184,8 +190,10 @@ function visitorText(v: SiteVisitorCtx) {
   const money = (n: number, c: string) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: c }).format(n);
   const cart = !v.cart ? "sem informação" : !v.cart.count ? "vazio"
     : `${v.cart.count} artigo(s), total ${money(v.cart.total, v.cart.currency)}: ${v.cart.items.map((i) => `${i.quantity} × ${untrusted(i.title)}${i.variant ? ` (${untrusted(i.variant)})` : ""} ${money(i.price, v.cart!.currency)}`).join("; ")}`;
+  const s = visitorSite(v);
   return [
     "No site (informação enviada pelo browser do cliente, não confirmada):",
+    siteContextLine(s.site, s.locale, s.country),
     `- ${online ? "está no site agora" : `saiu do site há ${min(now - Date.parse(v.last_seen_at))} min`}${v.visit_started_at ? `; visita de ${min((online ? now : Date.parse(v.last_seen_at)) - Date.parse(v.visit_started_at))} min` : ""}${v.pages_viewed ? `, ${v.pages_viewed} página(s) vista(s)` : ""}`,
     `- página atual: ${v.page_title ? `«${untrusted(v.page_title)}» ` : ""}${v.page_url || "desconhecida"}`,
     `- carrinho: ${cart}`,
@@ -265,9 +273,11 @@ function requestText(viewer: Viewer, kind: "draft" | "chat", question: string) {
 class ToolInputError extends Error {}
 
 // trusted: resultados da loja e das encomendas deste cliente, as únicas fontes de ligações aceites
-// sem aviso (além da base de conhecimento e da loja online). deadline: o pedido termina a tempo.
-type ToolCtx = { conversationId: string; emails: string[]; sources: AiSource[]; trusted: string[]; deadline: number; emit: (e: AiEvent) => void };
+// sem aviso (além da base de conhecimento e da loja online). deadline: o pedido termina a tempo. site: marca da conversa.
+type ToolCtx = { conversationId: string; emails: string[]; sources: AiSource[]; trusted: string[]; deadline: number; site: SiteKey; emit: (e: AiEvent) => void };
 const TRUSTED_TOOLS = new Set(["procurar_produtos", "ver_produto", "encomendas_do_cliente", "ver_encomenda"]);
+// Gold Store Premium: os preços da Shopify são os de Portugal (no site são outros).
+const GSP_PRICES = "Preços de Portugal: na Gold Store Premium são outros. Não os indiques ao cliente; envia a ligação do produto.";
 
 // Uma consulta lenta (Shopify, base de dados) não pode fazer o pedido passar do tempo da função.
 function withDeadline<T>(work: Promise<T>, deadline: number, message: string): Promise<T> {
@@ -300,6 +310,7 @@ async function runToolInner(t: Anthropic.Beta.BetaToolUseBlock, ctx: ToolCtx): P
         const r = await searchCatalog(q);
         result = r.items.length
           ? {
+              ...(ctx.site === "gsp" ? { nota_precos: GSP_PRICES } : {}),
               resultados: r.items.map((i) => ({
                 tipo: i.kind === "product" ? "produto" : i.kind === "collection" ? "coleção" : "página",
                 titulo: i.title, url: i.url, preco: i.price, disponivel: i.available,
@@ -315,7 +326,7 @@ async function runToolInner(t: Anthropic.Beta.BetaToolUseBlock, ctx: ToolCtx): P
         status("A ver os detalhes do produto…");
         const p = await supportProduct(handle);
         source(`Produto: ${p?.titulo || handle}`);
-        result = p || { nota: "Produto não encontrado ou não publicado na loja online." };
+        result = !p ? { nota: "Produto não encontrado ou não publicado na loja online." } : ctx.site === "gsp" ? { nota_precos: GSP_PRICES, ...p } : p;
         break;
       }
       case "encomendas_do_cliente": {
@@ -459,11 +470,14 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
       ? await sessionRpc<SiteVisitorCtx>(viewer.session, "ldo_support_site_visitor_info", { p_conversation: conversationId }).catch(() => null)
       : null;
     const context = contextText(detail, visitor);
+    // Marca e língua do site (chat do site); os outros canais são da Loja do Ouro.
+    const site = detail.conversation.channel === "site" ? visitorSite(visitor) : null;
+    const brand: SiteKey = site?.site || "ldo";
     // Um só email de identidade, como no painel do cliente: o associado pela equipa prevalece sobre o
     // do contacto (que pode ser uma caixa partilhada ou de outra pessoa).
     const identity = (detail.contact?.linked_email || detail.contact?.email || "").trim().toLowerCase();
     const emails = identity.includes("@") ? [identity] : [];
-    const ctx: ToolCtx = { conversationId, emails, sources, trusted: [], deadline: deadline - 10_000, emit };
+    const ctx: ToolCtx = { conversationId, emails, sources, trusted: [], deadline: deadline - 10_000, site: brand, emit };
 
     const workspace = anthropicWorkspace(process.env.ANTHROPIC_WORKSPACE_ID);
     const client = new Anthropic({ maxRetries: 1, ...(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {}) });
@@ -490,7 +504,7 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
           output_config: { effort: "medium", format: { type: "json_schema", schema: AI_OUTPUT_SCHEMA } },
           cache_control: { type: "ephemeral" },
           system: [
-            { type: "text", text: INSTRUCTIONS },
+            { type: "text", text: instructions(brand) },
             { type: "text", text: knowledge, cache_control: { type: "ephemeral", ttl: "1h" } },
           ],
           tools: TOOLS,
@@ -522,10 +536,14 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
       const out: AiOutput = parseAiOutput(text);
       if (out.resposta_cliente) {
         // Só fontes de confiança: base de conhecimento, loja online e consultas à loja e às encomendas
-        // deste cliente (não as mensagens dos clientes nem outras conversas).
-        const known = [knowledge, ...ctx.trusted].join("\n");
+        // deste cliente (não as mensagens dos clientes nem outras conversas). No chat do site também as mesmas
+        // ligações no site e na língua do cliente.
+        const trustedText = [knowledge, ...ctx.trusted].join("\n");
+        const known = site ? `${trustedText}\n${siteTrustedLinks(trustedText, site.site, site.locale)}` : trustedText;
         for (const url of unverifiedLinks(out.resposta_cliente, known))
           out.verificar.push(`Confirme a ligação ${url}: não veio da loja online nem da base de conhecimento.`);
+        const other = site ? otherBrandIn(out.resposta_cliente, site.site) : null;
+        if (site && other) out.verificar.unshift(`A proposta menciona ${other}: esta conversa é da ${SITE_BRAND[site.site].brand}.`);
       }
       const cost = costUsd(usage, model);
       await serverRpc("ldo_support_ai_finish", {

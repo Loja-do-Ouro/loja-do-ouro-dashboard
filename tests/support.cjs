@@ -161,3 +161,26 @@ test("Meta #551 becomes a clear explanation and blocks retries until the custome
   assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), failed("2026-10-15T08:51:42+00:00", fb), accepted("2026-10-16T08:00:00+00:00")]), false);
   assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), accepted("2026-10-15T08:00:00+00:00"), failed("2026-10-15T08:51:42+00:00", fb)]), true);
 });
+
+test("Site chat visitors carry the brand of the domain and the language of the site", () => {
+  // Dados da BD: língua vazia conta como português; país só com duas maiúsculas.
+  assert.deepEqual(r.visitorSite({ site: "gsp", locale: "es", country: "ES" }), { site: "gsp", locale: "es", country: "ES" });
+  assert.deepEqual(r.visitorSite({ site: "ldo", locale: null, country: "pt" }), { site: "ldo", locale: "pt", country: null });
+  assert.deepEqual(r.visitorSite({ site: "gsp", locale: "it", country: null, page_url: "https://www.goldstorepremium.com/" }), { site: "gsp", locale: "pt", country: null });
+  // Sem marca (servidor anterior às línguas): pela página.
+  assert.deepEqual(r.visitorSite({ page_url: "https://www.goldstorepremium.com/products/anel" }), { site: "gsp", locale: "en", country: null });
+  assert.deepEqual(r.visitorSite({ page_url: "https://www.goldstorepremium.com/pt-pt/products/anel" }), { site: "gsp", locale: "pt", country: null });
+  assert.deepEqual(r.visitorSite({ page_url: "https://www.lojadoouro.pt/es/products/anel" }), { site: "ldo", locale: "es", country: null });
+  assert.deepEqual(r.visitorSite({ page_url: "https://www.lojadoouro.pt/" }), { site: "ldo", locale: "pt", country: null });
+  assert.deepEqual(r.visitorSite({ page_url: "https://www.goldstorepremium.com.evil.example/" }), { site: "ldo", locale: "pt", country: null });
+  assert.deepEqual(r.visitorSite({ page_url: "não é url" }), { site: "ldo", locale: "pt", country: null });
+  assert.deepEqual(r.visitorSite(null), { site: "ldo", locale: "pt", country: null });
+
+  assert.equal(r.siteRootUrl("ldo", "pt"), "https://www.lojadoouro.pt/");
+  assert.equal(r.siteRootUrl("ldo", "de"), "https://www.lojadoouro.pt/de/");
+  assert.equal(r.siteRootUrl("gsp", "en"), "https://www.goldstorepremium.com/");
+  assert.equal(r.siteRootUrl("gsp", "pt"), "https://www.goldstorepremium.com/pt-pt/");
+  // A Gold Store Premium não tem francês nem alemão: fica a raiz.
+  assert.equal(r.siteRootUrl("gsp", "fr"), "https://www.goldstorepremium.com/");
+  assert.deepEqual(r.SITE_LOCALES.map((l) => r.LOCALE_LABEL[l]), ["português", "inglês", "espanhol", "francês", "alemão"]);
+});

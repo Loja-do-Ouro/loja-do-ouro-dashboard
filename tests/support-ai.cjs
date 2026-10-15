@@ -76,3 +76,48 @@ test("The Anthropic workspace ID is only sent when it is a plain identifier", ()
   assert.equal(ai.anthropicWorkspace("wrkspc_1\r\nx-other: 1"), null);
   assert.equal(ai.anthropicWorkspace("wrkspc 01"), null);
 });
+
+test("The assistant uses only the brand and domain of the conversation's site", () => {
+  const ldo = `${ai.aiIdentity("ldo")}\n${ai.aiBrandRules("ldo")}`;
+  const gsp = `${ai.aiIdentity("gsp")}\n${ai.aiBrandRules("gsp")}`;
+  assert.match(ai.aiIdentity("ldo"), /Loja do Ouro/);
+  assert.doesNotMatch(ldo, /Gold Store Premium|goldstorepremium/i);
+  assert.match(ai.aiIdentity("gsp"), /^És o assistente de IA da equipa de Apoio ao Cliente da Gold Store Premium \(www\.goldstorepremium\.com\)/);
+  assert.doesNotMatch(ai.aiIdentity("gsp"), /Loja do Ouro|lojadoouro/i);
+  // Na GSP: nunca a outra marca, nunca preços (são os de Portugal), ligações no site e na língua do cliente.
+  assert.match(gsp, /nunca menciones a Loja do Ouro nem o site lojadoouro\.pt/);
+  assert.match(gsp, /Nunca indiques ao cliente o preço de um produto: envia a ligação do produto/);
+  assert.match(gsp, /https:\/\/www\.goldstorepremium\.com\/es\/products\/anel/);
+  assert.match(ldo, /https:\/\/www\.lojadoouro\.pt\/en\/products\/anel/);
+  assert.match(ai.AI_OUTPUT_SCHEMA.properties.resposta_cliente.description, /na língua do cliente e com a marca do site/);
+});
+
+test("The visitor context names the site, its language and the customer's country", () => {
+  assert.equal(ai.siteContextLine("gsp", "es", "ES"), "- site: Gold Store Premium (https://www.goldstorepremium.com/es/), língua do site: espanhol, país: ES");
+  assert.equal(ai.siteContextLine("ldo", "pt", null), "- site: Loja do Ouro (https://www.lojadoouro.pt/), língua do site: português, país: desconhecido");
+  assert.equal(ai.siteContextLine("gsp", "de", "DE"), "- site: Gold Store Premium (https://www.goldstorepremium.com/), língua do site: alemão, país: DE");
+});
+
+test("Store links moved to the conversation's site and language are not flagged", () => {
+  const known = "Produto: https://www.lojadoouro.pt/products/anel-ouro e política https://www.lojadoouro.pt/policies/refund-policy";
+  const check = (draft, site, locale) => ai.unverifiedLinks(draft, `${known}\n${ai.siteTrustedLinks(known, site, locale)}`);
+  // Gold Store Premium: as páginas iniciais e as mesmas ligações em todas as línguas do site.
+  assert.deepEqual(check("Veja https://www.goldstorepremium.com/es/products/anel-ouro ou goldstorepremium.com.", "gsp", "es"), []);
+  assert.deepEqual(check("https://www.goldstorepremium.com/policies/refund-policy e https://www.goldstorepremium.com/pt-pt/", "gsp", "en"), []);
+  assert.deepEqual(check("https://www.goldstorepremium.com/products/outro", "gsp", "en"), ["https://www.goldstorepremium.com/products/outro"]);
+  // Loja do Ouro noutra língua: a raiz dessa língua.
+  assert.deepEqual(check("https://www.lojadoouro.pt/en/products/anel-ouro e https://www.lojadoouro.pt/en/", "ldo", "en"), []);
+  assert.deepEqual(check("https://www.goldstorepremium.com/products/anel-ouro", "ldo", "en"), ["https://www.goldstorepremium.com/products/anel-ouro"]);
+  // Sem a marca do site, a GSP continua por confirmar.
+  assert.deepEqual(ai.unverifiedLinks("https://www.goldstorepremium.com/es/products/anel-ouro", known), ["https://www.goldstorepremium.com/es/products/anel-ouro"]);
+});
+
+test("A proposal that mentions the other brand is caught", () => {
+  assert.equal(ai.otherBrandIn("Obrigado por escolher a Loja do Ouro!", "gsp"), "Loja do Ouro (lojadoouro.pt)");
+  assert.equal(ai.otherBrandIn("See https://www.lojadoouro.pt/products/anel", "gsp"), "Loja do Ouro (lojadoouro.pt)");
+  // O email do apoio é o mesmo nas duas marcas.
+  assert.equal(ai.otherBrandIn("Write to apoiocliente@lojadoouro.pt. Gold Store Premium", "gsp"), null);
+  assert.equal(ai.otherBrandIn("Thank you for choosing Gold Store Premium: https://www.goldstorepremium.com/products/anel", "gsp"), null);
+  assert.equal(ai.otherBrandIn("Obrigado! Veja goldstorepremium.com", "ldo"), "Gold Store Premium (goldstorepremium.com)");
+  assert.equal(ai.otherBrandIn("Obrigado pela preferência pela Loja do Ouro.", "ldo"), null);
+});

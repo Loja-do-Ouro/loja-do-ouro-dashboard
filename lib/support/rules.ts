@@ -209,3 +209,44 @@ export function orderNumbersIn(texts: string[]) {
   for (const t of texts) for (let m = re.exec(t); m; m = re.exec(t)) found.add(m[1]);
   return [...found].slice(0, 6);
 }
+
+// Chat do site: a marca segue o domínio, que a Shopify escolhe pelo país do cliente (Loja do Ouro em lojadoouro.pt,
+// mercado Portugal; Gold Store Premium em goldstorepremium.com, mercados Internacional e Espanha), em qualquer
+// língua. Visitantes sem estes dados (anteriores às línguas) contam como Loja do Ouro, em português.
+export type SiteKey = "ldo" | "gsp";
+export type SiteLocale = "pt" | "en" | "es" | "fr" | "de";
+export const SITE_LOCALES: SiteLocale[] = ["pt", "en", "es", "fr", "de"];
+export const SITE_BRAND: Record<SiteKey, { brand: string; domain: string; origin: string; roots: Partial<Record<SiteLocale, string>> }> = {
+  ldo: { brand: "Loja do Ouro", domain: "lojadoouro.pt", origin: "https://www.lojadoouro.pt", roots: { pt: "/", en: "/en/", es: "/es/", fr: "/fr/", de: "/de/" } },
+  // Inglês na raiz; sem francês nem alemão publicados (ficam na raiz).
+  gsp: { brand: "Gold Store Premium", domain: "goldstorepremium.com", origin: "https://www.goldstorepremium.com", roots: { en: "/", es: "/es/", pt: "/pt-pt/" } },
+};
+export const LOCALE_LABEL: Record<SiteLocale, string> = { pt: "português", en: "inglês", es: "espanhol", fr: "francês", de: "alemão" };
+
+// Página inicial do site na língua do cliente (ex.: https://www.goldstorepremium.com/es/).
+export function siteRootUrl(site: SiteKey, locale: SiteLocale) {
+  return SITE_BRAND[site].origin + (SITE_BRAND[site].roots[locale] || "/");
+}
+
+const asLocale = (v: unknown) => {
+  const l = typeof v === "string" ? v.trim().toLowerCase().slice(0, 2) : "";
+  return SITE_LOCALES.includes(l as SiteLocale) ? (l as SiteLocale) : null;
+};
+
+// Marca, língua e país do visitante. Com o servidor atualizado vêm da BD (língua vazia = português); sem eles
+// (servidor anterior) deduzem-se da página: domínio para a marca, prefixo do endereço para a língua.
+export function visitorSite(v: { site?: unknown; locale?: unknown; country?: unknown; page_url?: string | null } | null | undefined): {
+  site: SiteKey; locale: SiteLocale; country: string | null;
+} {
+  const country = typeof v?.country === "string" && /^[A-Z]{2}$/.test(v.country) ? v.country : null;
+  if (v?.site === "ldo" || v?.site === "gsp") return { site: v.site, locale: asLocale(v.locale) || "pt", country };
+  let url: URL | null = null;
+  try {
+    url = v?.page_url ? new URL(v.page_url) : null;
+  } catch {
+    url = null;
+  }
+  const site: SiteKey = url && /(^|\.)goldstorepremium\.com$/i.test(url.hostname) ? "gsp" : "ldo";
+  const prefix = url && /^\/(en|es|fr|de|pt-pt)(\/|$)/i.exec(url.pathname)?.[1];
+  return { site, locale: asLocale(v?.locale) || asLocale(prefix) || (site === "gsp" ? "en" : "pt"), country };
+}
