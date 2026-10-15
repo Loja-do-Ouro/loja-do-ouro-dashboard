@@ -45,14 +45,19 @@ export function EmojiPicker({ onPick, onClose }: { onPick: (char: string, viaMou
   const [tab, setTab] = useState(EMOJI_GROUPS[0].id);
   const [active, setActive] = useState(0);
   const search = useRef<HTMLInputElement>(null);
+  const grid = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const saved = loadRecent();
     stored.current = saved;
     setRecent(saved);
     if (saved.length) setTab("recentes");
-    // Com rato e teclado, pode escrever logo a pesquisa. No telemóvel não se abre o teclado.
-    if (finePointer()) search.current?.focus();
+    // Com rato e teclado, pode escrever logo a pesquisa (ou, se a pesquisa não se mostra, usar as setas na
+    // grelha). No telemóvel não se abre o teclado.
+    if (!finePointer()) return;
+    const input = search.current;
+    if (input && input.getClientRects().length) input.focus();
+    else grid.current?.querySelector<HTMLButtonElement>('button[tabindex="0"]')?.focus();
   }, []);
 
   const results = useMemo(() => searchEmoji(q), [q]);
@@ -125,6 +130,7 @@ export function EmojiPicker({ onPick, onClose }: { onPick: (char: string, viaMou
       )}
       <p className="emoji-caption" aria-live="polite">{searching ? (results.length ? `${results.length} ${results.length === 1 ? "resultado" : "resultados"} para “${q.trim()}” · Enter insere o primeiro` : `Sem emojis para “${q.trim()}”.`) : ""}</p>
       <div
+        ref={grid}
         className="emoji-grid"
         {...(searching ? { role: "group", "aria-label": "Resultados da pesquisa" } : { role: "tabpanel", "aria-labelledby": `emoji-tab-${current.id}` })}
         onKeyDown={(e) => {

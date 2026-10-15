@@ -288,6 +288,8 @@ export function SupportInbox({
   const [drafts, setDrafts] = useState<Record<string, { reply: string; note: string }>>({});
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendError, setSendError] = useState("");
+  // O aviso "emoji não inserido" deixa de valer quando o texto muda ou se troca de conversa ou separador.
+  const clearEmojiLimit = () => setSendError((e) => (/^Limite de \d+ caracteres atingido: o emoji/.test(e) ? "" : e));
   const [actionError, setActionError] = useState("");
   const [actionNote, setActionNote] = useState("");
   const [syncing, setSyncing] = useState(false);
@@ -301,9 +303,11 @@ export function SupportInbox({
   const composerText = useRef<HTMLTextAreaElement>(null);
   // Onde estava o cursor da caixa de texto (por conversa e separador), para o emoji entrar nesse lugar.
   const caret = useRef<{ slot: string; start: number; end: number; text: string } | null>(null);
-  // Outra conversa ou outro separador: a seleção guardada já não está à vista, o emoji vai para o fim.
+  // Outra conversa ou outro separador: a seleção guardada já não está à vista, o emoji vai para o fim,
+  // e o aviso de limite de um emoji já não se aplica.
   useEffect(() => {
     caret.current = null;
+    clearEmojiLimit();
   }, [selected, mode]);
   const [infoTab, setInfoTab] = useState<"cliente" | "ia">("cliente");
   const [aiRequest, setAiRequest] = useState<{ n: number } | null>(null);
@@ -487,6 +491,7 @@ export function SupportInbox({
   // no chat do site o cliente vê "A equipa está a escrever…".
   const typed = (v: string) => {
     if (!selected) return;
+    clearEmojiLimit();
     if (mode === "reply") lastTyped.current = { id: selected, at: Date.now() };
     setText(v);
   };
@@ -538,18 +543,16 @@ export function SupportInbox({
     if (selected) caret.current = { slot: slotOf(selected, mode), start: el.selectionStart, end: el.selectionEnd, text: el.value };
   };
 
-  const emojiLimit = `Limite de ${maxChars} caracteres atingido: o emoji não foi inserido.`;
   function insertEmoji(char: string, viaMouse: boolean) {
     if (!selected) return;
     const slot = slotOf(selected, mode);
     const at = caret.current && caret.current.slot === slot && caret.current.text === text ? caret.current : { start: text.length, end: text.length };
     const next = insertAt(text, at.start, at.end, emojiAfter(text.slice(0, Math.min(at.start, at.end)), char));
     if (next.text.length > maxChars) {
-      setSendError(emojiLimit);
+      setSendError(`Limite de ${maxChars} caracteres atingido: o emoji não foi inserido.`);
       return;
     }
     typed(next.text);
-    setSendError((e) => (e === emojiLimit ? "" : e));
     caret.current = { slot, start: next.caret, end: next.caret, text: next.text };
     // Escolha com o rato: o cursor volta ao texto logo a seguir ao emoji. Com o teclado o foco fica no painel,
     // e no telemóvel não se abre o teclado; se a caixa de texto já tinha o foco (iPhone), o cursor também lá fica.
@@ -616,6 +619,11 @@ export function SupportInbox({
   // Rascunho que já não pode seguir por aqui (Zendesk desligado, respostas públicas desligadas): fica para copiar.
   const draftStuck = zendeskOff || (isComment && !c?.conversation.public_replies);
   const noteBlocked = !c ? "A carregar…" : zendeskLive && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
+  // Sem caixa de resposta neste separador, o painel dos emojis fecha (não volta a abrir sozinho mais tarde).
+  const composerBlocked = Boolean(mode === "reply" ? replyBlocked : noteBlocked);
+  useEffect(() => {
+    if (composerBlocked) setShowEmoji(false);
+  }, [composerBlocked]);
 
   // Assistente de IA: pede uma proposta (abre o separador da IA) e passa-a para o campo de resposta.
   // A proposta nunca é enviada sozinha: fica no rascunho para rever e enviar.
@@ -1110,7 +1118,7 @@ export function SupportInbox({
                         <small className="composer-hint">Ctrl+Enter para enviar</small>
                       )}
                       <button type="button" onClick={send} title={publicReply ? "Ctrl+Enter para publicar" : "Ctrl+Enter para enviar"} disabled={sending || uploading || overLimit || (!text.trim() && !pendingHere.length)}>
-                        {sending ? (publicReply ? "A publicar…" : "A enviar…") : publicReply ? "Publicar resposta" : mode === "reply" ? "Enviar ao cliente" : "Guardar nota"}
+                        {sending ? (publicReply ? "A publicar…" : "A enviar…") : publicReply ? <>Publicar<span className="btn-label"> resposta</span></> : mode === "reply" ? <>Enviar<span className="btn-label"> ao cliente</span></> : "Guardar nota"}
                       </button>
                     </div>
                 )}

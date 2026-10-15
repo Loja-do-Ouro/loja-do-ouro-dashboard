@@ -38,6 +38,11 @@ test("search finds feminine, plural and hyphenated forms and ignores punctuation
   assert.ok(chars("parabéns!").includes("🎉"));
   assert.ok(chars("coração, azul").includes("💙"));
   assert.deepEqual(chars("!!!"), []);
+  assert.ok(chars("anéis").includes("💍"));
+  assert.ok(chars("cartões").includes("💳"));
+  assert.ok(chars("corações").includes("❤️"));
+  assert.notEqual(chars("mães")[0], "🤦");
+  assert.notEqual(chars("três")[0], "🙁");
 });
 
 test("every emoji has its own name, and no flags (Windows shows them as letters)", () => {
