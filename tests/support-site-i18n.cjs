@@ -119,8 +119,9 @@ test("Transcript emails translate transfer notices and dates, and never link cus
   assert.match(es.html, /La conversación se ha transferido a Ana\./);
   assert.match(es.html, /La conversación se ha transferido a otra persona del equipo\./);
   assert.doesNotMatch(all(es), /A conversa foi transferida/);
-  assert.match(es.html, /María · 15 de octubre de 2026, 12:00/, "Spain is on Central European time");
-  assert.match(es.html, /Ana · Gold Store Premium · 15 de octubre de 2026, 12:02/);
+  // O separador entre data e hora muda com a versão do ICU do Node (", " no 22, " a las " no 24).
+  assert.match(es.html, /María · 15 de octubre de 2026(?:,| a las) 12:00/, "Spain is on Central European time");
+  assert.match(es.html, /Ana · Gold Store Premium · 15 de octubre de 2026(?:,| a las) 12:02/);
   assert.doesNotMatch(es.html, /<a href="https:\/\/evil\.example/);
   assert.match(es.html, /href="https:\/\/www\.goldstorepremium\.com\/es\/products\/anel-ouro\?variant=1"/);
   assert.match(es.html, /href="https:\/\/www\.goldstorepremium\.com\/es\/"/, "back to the shop in Spanish");
