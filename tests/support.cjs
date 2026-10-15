@@ -134,3 +134,26 @@ test("Order numbers the customer typed are found for a quick lookup", () => {
   assert.deepEqual(r.orderNumbersIn(["Encomenda 54321 por favor", "encomenda número 1234"]), ["54321", "1234"]);
   assert.deepEqual(r.orderNumbersIn(["Ligue-me para 912345678", "Custa 1999 euros", "#12"]), []);
 });
+
+test("Meta #551 becomes a clear explanation and blocks retries until the customer writes again", () => {
+  // Texto exato guardado em produção (cortado aos 160 caracteres pela mensagem genérica).
+  const raw = '{"status":"BAD_REQUEST","code":"400","title":"es.bewwweb.blogsportal.restClient.InvalidTokenException: (#551) This person isn\'t available right now. [providerCo';
+  const fb = r.metaSendRefusal(raw, "Messenger");
+  assert.match(fb, /^Não enviada: o Messenger não aceita mensagens nossas para esta pessoa \(Meta #551\)\./);
+  assert.ok(fb.length <= 500, "cabe em delivery_detail");
+  assert.match(r.metaSendRefusal("This person isn’t receiving messages from you right now.", "Instagram"), /o Instagram/);
+  assert.equal(r.metaSendRefusal('{"status":"BAD_REQUEST","title":"(#100) Invalid parameter"}', "Messenger"), null);
+  assert.equal(r.metaSendRefusal("", "Messenger"), null);
+  assert.equal(r.metaSendRefusal(null, "Messenger"), null);
+
+  const inbound = (at) => ({ kind: "inbound", delivery: null, delivery_detail: null, created_at: at });
+  const failed = (at, detail) => ({ kind: "outbound", delivery: "failed", delivery_detail: detail, created_at: at });
+  const legacy = `Envio: Metricool recusou o pedido (HTTP 400 · ${raw}).`;
+  assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), failed("2026-10-15T08:51:42.964+00:00", legacy)]), true);
+  assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), failed("2026-10-15T08:51:42.964+00:00", fb)]), true);
+  // O cliente voltou a escrever depois da recusa: pode tentar outra vez.
+  assert.equal(r.metaUnreachable([failed("2026-10-15T08:51:42+00:00", fb), inbound("2026-10-15T10:00:00+00:00")]), false);
+  // Outra falha qualquer não bloqueia.
+  assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), failed("2026-10-15T08:51:42+00:00", "Envio: Metricool recusou o pedido (HTTP 400 · (#100) x).")]), false);
+  assert.equal(r.metaUnreachable([]), false);
+});
