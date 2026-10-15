@@ -568,7 +568,7 @@
     var u;
     try { u = new URL(url); } catch (e) { return null; }
     var host = u.hostname.toLowerCase();
-    if (host !== location.hostname.toLowerCase() && !/(^|\.)lojadoouro\.pt$/.test(host) && !/\.myshopify\.com$/.test(host)) return null;
+    if (host !== location.hostname.toLowerCase() && !/(^|\.)(lojadoouro\.pt|goldstorepremium\.com)$/.test(host) && !/\.myshopify\.com$/.test(host)) return null;
     var m = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?products\/([a-z0-9][a-z0-9-]{0,200})\/?$/i.exec(u.pathname);
     if (!m) return null;
     var variant = u.searchParams.get("variant");

@@ -2,9 +2,14 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 // Regras do chat do site que não dependem do servidor (testadas em tests/support-site.cjs).
 
-// Sites que podem usar o chat: a loja (domínio principal e myshopify, onde corre a pré-visualização do
-// tema). SITE_CHAT_ORIGINS substitui a lista (separada por vírgulas).
-export const DEFAULT_ORIGINS = ["https://www.lojadoouro.pt", "https://lojadoouro.pt", "https://lojadoouro-online.myshopify.com"];
+// Sites que podem usar o chat: a loja em Portugal (lojadoouro.pt), a loja fora de Portugal (Gold Store Premium,
+// goldstorepremium.com) e o myshopify, onde corre a pré-visualização do tema. SITE_CHAT_ORIGINS substitui a lista
+// (separada por vírgulas).
+export const DEFAULT_ORIGINS = [
+  "https://www.lojadoouro.pt", "https://lojadoouro.pt",
+  "https://www.goldstorepremium.com", "https://goldstorepremium.com",
+  "https://lojadoouro-online.myshopify.com",
+];
 
 export function parseOrigins(value: string | undefined) {
   const list = (value || "").split(",").map((s) => s.trim().replace(/\/+$/, "").toLowerCase()).filter((s) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(s));

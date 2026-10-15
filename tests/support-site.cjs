@@ -10,6 +10,10 @@ test("Only the store sites (and the dashboard itself) may use the chat", () => {
   assert.equal(site.allowedOrigin("https://dash.example", allowed, "https://dash.example"), "https://dash.example");
   assert.equal(site.allowedOrigin("https://evil.example", allowed, "https://dash.example"), null);
   assert.equal(site.allowedOrigin("https://www.lojadoouro.pt.evil.example", allowed, "https://dash.example"), null);
+  // Fora de Portugal a loja é a Gold Store Premium (goldstorepremium.com): o chat também funciona lá.
+  assert.equal(site.allowedOrigin("https://www.goldstorepremium.com", allowed, "https://dash.example"), "https://www.goldstorepremium.com");
+  assert.equal(site.allowedOrigin("https://goldstorepremium.com", allowed, "https://dash.example"), "https://goldstorepremium.com");
+  assert.equal(site.allowedOrigin("https://www.goldstorepremium.com.evil.example", allowed, "https://dash.example"), null);
   assert.equal(site.allowedOrigin(null, allowed, "https://dash.example"), null);
   // Lista própria: só https, sem barras finais; valores inválidos são ignorados.
   assert.deepEqual(site.parseOrigins("https://a.pt/, http://b.pt, javascript:x, https://c.pt:8443"), ["https://a.pt", "https://c.pt:8443"]);
@@ -42,6 +46,7 @@ test("Emails and pages from the widget are validated", () => {
   assert.equal(site.isEmail(42), false);
   const allowed = site.DEFAULT_ORIGINS;
   assert.equal(site.cleanPage("https://www.lojadoouro.pt/products/anel?utm_source=x#y", allowed), "https://www.lojadoouro.pt/products/anel");
+  assert.equal(site.cleanPage("https://www.goldstorepremium.com/es/products/anel?utm_source=x", allowed), "https://www.goldstorepremium.com/es/products/anel");
   assert.equal(site.cleanPage("https://evil.example/x", allowed), null);
   assert.equal(site.cleanPage("não é url", allowed), null);
 });
