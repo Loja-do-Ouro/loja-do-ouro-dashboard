@@ -674,3 +674,27 @@ test("Auto-replies never go to the shop domain, system addresses or the form rel
   assert.equal(g.recipientAllowed("mailer@shopify.com", own), false);
   assert.equal(g.recipientAllowed("nao-e-email", own), false);
 });
+
+test("A Gmail reply finds the customer's message even if it was trashed or marked as spam", () => {
+  const m = (id, from, labelIds, subject = "Orçamento Alianças") => ({ id, threadId: "t", labelIds, payload: { headers: [h("From", from), h("Subject", subject), h("Message-ID", `<${id}@x>`)] } });
+  const ours = "Loja do Ouro <apoiocliente@lojadoouro.pt>";
+  const ana = "Ana <ana@cliente.pt>";
+  // Normal: a última mensagem visível do cliente.
+  let r = g.replyReference([m("a", ana, ["INBOX"]), m("b", ours, ["SENT"]), m("c", ana, ["INBOX"]), m("d", ours, ["SENT"])], "ana@cliente.pt");
+  assert.equal(r.ref.id, "c");
+  assert.equal(r.first.id, "a");
+  // As mensagens do cliente foram para o lixo depois de chegarem ao dashboard: continua a responder-lhes.
+  r = g.replyReference([m("a", ana, ["TRASH"]), m("b", ours, ["SENT"]), m("c", ana, ["TRASH"]), m("d", ours, ["SENT"])], "ana@cliente.pt");
+  assert.equal(r.ref.id, "c");
+  assert.equal(r.first.id, "b", "assunto da primeira mensagem ainda visível");
+  // Uma visível do cliente ganha a uma mais recente no spam; rascunhos nunca contam.
+  r = g.replyReference([m("a", ana, ["INBOX"]), m("c", ana, ["SPAM"]), m("e", ana, ["DRAFT"])], "ana@cliente.pt");
+  assert.equal(r.ref.id, "a");
+  // Mensagens do cliente apagadas de vez: liga-se à última da conversa (a nossa).
+  r = g.replyReference([m("b", ours, ["SENT"]), m("d", ours, ["SENT"])], "ana@cliente.pt");
+  assert.equal(r.ref.id, "d");
+  // Conversa só com rascunhos: nada a que responder.
+  r = g.replyReference([m("e", ana, ["DRAFT"])], "ana@cliente.pt");
+  assert.equal(r.ref, null);
+  assert.equal(r.first, null);
+});

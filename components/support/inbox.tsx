@@ -9,6 +9,7 @@ import { emojiAfter, insertAt } from "@/lib/support/emoji";
 import {
   canChangeStatus,
   canReply,
+  metaUnreachable,
   canTransfer,
   CHANNEL_LABEL,
   gmailThreadLink,
@@ -599,6 +600,13 @@ export function SupportInbox({
   // Responsável: só ele responde ao cliente (a BD confirma). Os colegas podem deixar notas internas.
   const own: Ownership | null = c ? { assigneeId: c.conversation.assignee_id, me: c.me, isSuper: Boolean(c.super) } : null;
   const ownerName = c?.conversation.assignee_name || "outra pessoa";
+  // Mensagem privada que a Meta recusou com #551 depois da última mensagem do cliente: reenviar não resolve.
+  const unreachable = !!c && c.conversation.platform === "metricool" && !isComment && metaUnreachable(c.messages);
+  // O aviso de uma recusa #551 deixa de valer noutra conversa ou separador, ou quando a caixa bloqueia (o aviso
+  // fixo explica) ou desbloqueia (a pessoa voltou a estar contactável).
+  useEffect(() => {
+    setSendError((e) => (/\(Meta #551\)/.test(e) ? "" : e));
+  }, [selected, mode, unreachable]);
   const replyBlocked = !c
     ? "A carregar…"
     : isWhatsapp
@@ -613,11 +621,14 @@ export function SupportInbox({
             ? "A caixa Gmail do apoio precisa de ser ligada de novo (Configuração do apoio → Email (Gmail))."
             : c.conversation.source_status === "blocked" && !isZendesk
               ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
+              : unreachable
+                ? `O ${c.conversation.channel === "instagram" ? "Instagram" : "Messenger"} não aceita mensagens nossas para esta pessoa (Meta #551): pode ter bloqueado a página, deixado de aceitar as nossas mensagens ou desativado a conta. Só será possível responder quando o cliente voltar a escrever. Se deixou telefone ou email na conversa, contacte-o por aí; pode deixar uma nota interna.`
               : isComment && !c.conversation.public_replies
                 ? "As respostas públicas aos comentários ainda estão desligadas: falta validar a publicação num comentário de teste. Responda na própria publicação, se for preciso, ou deixe uma nota interna."
                 : "";
-  // Rascunho que já não pode seguir por aqui (Zendesk desligado, respostas públicas desligadas): fica para copiar.
-  const draftStuck = zendeskOff || (isComment && !c?.conversation.public_replies);
+  // Rascunho que já não pode seguir por aqui (Zendesk desligado, respostas públicas desligadas, pessoa que a Meta
+  // não deixa contactar): fica para copiar ou passar para nota interna.
+  const draftStuck = zendeskOff || (isComment && !c?.conversation.public_replies) || unreachable;
   const noteBlocked = !c ? "A carregar…" : zendeskLive && !me?.zendesk ? "Ligue a sua conta Zendesk para escrever notas internas no ticket." : "";
   // Sem caixa de resposta neste separador, o painel dos emojis fecha (não volta a abrir sozinho mais tarde).
   const composerBlocked = Boolean(mode === "reply" ? replyBlocked : noteBlocked);
@@ -983,7 +994,7 @@ export function SupportInbox({
                           </>
                         )}
                         {m.delivery === "failed" && m.author_user_id === c.me && (
-                          <button type="button" onClick={() => { setMode(m.kind === "note" ? "note" : "reply"); setText(m.body); }}>Copiar para o rascunho</button>
+                          <button type="button" onClick={() => { const which = m.kind === "note" ? "note" : "reply"; setMode(which); setDraft(selected!, which, m.body); }}>Copiar para o rascunho</button>
                         )}
                       </footer>
                     )}

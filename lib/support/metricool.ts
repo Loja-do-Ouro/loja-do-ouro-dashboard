@@ -1,7 +1,7 @@
 import "server-only";
 import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/bi/metricool";
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
-import { sendOutcome } from "./rules";
+import { metaSendRefusal, sendOutcome } from "./rules";
 import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-rules";
 import { commentAccess, commentBrand, commentCursorAfter, commentReadPlan, threadToConversation, walkPages, type CommentThread, type PostElement } from "./comment-rules";
 
@@ -222,12 +222,14 @@ export async function metricoolSend(provider: string, conversationId: string, re
   const outcome = sendOutcome(r.status);
   // A Meta recusa imagens que não consegue ir buscar (endereço protegido, expirado) ou em formato não suportado.
   const imageRefused = outcome === "failed" && attachment && /attachment format|attachment.*not supported|#100/i.test(r.text || "");
+  // Pessoa que já não recebe mensagens da página (Meta #551): explicação em vez do erro técnico da Metricool.
+  const unreachable = outcome === "failed" ? metaSendRefusal(r.text, provider === "INSTAGRAM" ? "Instagram" : "Messenger") : null;
   return {
     outcome,
     externalId: null,
     detail: outcome === "accepted" ? null : outcome === "uncertain" ? "Sem confirmação da Metricool; verificar antes de reenviar."
       : imageRefused ? "A Meta recusou a imagem (não a conseguiu obter ou o formato não é suportado). Nada foi enviado ao cliente; pode enviar só o texto ou outra imagem JPEG/PNG."
-      : failure(r.status, r.text, "Envio").message,
+      : unreachable ?? failure(r.status, r.text, "Envio").message,
   };
 }
 

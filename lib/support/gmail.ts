@@ -5,7 +5,7 @@ import { open, randomToken, seal } from "./crypto";
 import { gmailThreadLink } from "./rules";
 import {
   autoReplyAllowed, buildMime, cleanSubject, cleanText, contactExternalId, dashboardMessageId, formatAddress, header, isAutoSubmitted,
-  labelExcluded, messageAttachments, messageText, recipientAllowed, replySubject, senderOf, signatureBlock, textToHtml, validEmail, withinHours,
+  labelExcluded, messageAttachments, messageText, recipientAllowed, replyReference, replySubject, senderOf, signatureBlock, textToHtml, validEmail, withinHours,
   type GmailMessage, type GmailPart,
 } from "./gmail-rules";
 
@@ -587,17 +587,23 @@ export async function gmailSendReply(o: {
   const to = (o.to || "").trim().toLowerCase();
   if (!validEmail(to) || to === mailbox) throw new GmailError("Esta conversa não tem um email de cliente válido.", 400);
   const q = new URLSearchParams([["format", "metadata"], ...HEADERS_FOR_REPLY.map((h) => ["metadataHeaders", h])]);
-  const t = await call<Thread>(`/threads/${encodeURIComponent(o.threadId)}?${q}`);
-  const msgs = visible(t);
-  const inbound = msgs.filter((m) => !isOwn(m));
-  // Responde à última mensagem deste cliente (para o Gmail manter a conversa); sem nenhuma, à última recebida.
-  const ref = [...inbound].reverse().find((m) => senderOf(m).email === to) || inbound[inbound.length - 1];
-  if (!ref) throw new GmailError("Esta conversa não tem mensagens do cliente para responder.", 400);
+  let t: Thread;
+  try {
+    t = await call<Thread>(`/threads/${encodeURIComponent(o.threadId)}?${q}`);
+  } catch (e) {
+    // Conversa apagada de vez no Gmail: o Gmail já não a encontra.
+    if (e instanceof GmailError && e.status === 404)
+      throw new GmailError("Esta conversa já não existe no Gmail (foi apagada de vez): responda num email novo ao cliente.", 400);
+    throw e;
+  }
+  // Responde à última mensagem deste cliente (para o Gmail manter a conversa), mesmo que já esteja no lixo ou no spam.
+  const { ref, first } = replyReference(t.messages || [], to);
+  if (!ref || !first) throw new GmailError("Esta conversa já não tem mensagens no Gmail (foram apagadas): responda num email novo ao cliente.", 400);
   const messageId = header(ref.payload, "Message-ID");
   const references = [header(ref.payload, "References"), messageId].filter(Boolean).join(" ");
   const sig = signatureBlock(personalise(o.signature, o.senderFirstName));
   const mime = buildMime({
-    from: formatAddress("Loja do Ouro", mailbox), to, subject: replySubject(header(msgs[0].payload, "Subject")),
+    from: formatAddress("Loja do Ouro", mailbox), to, subject: replySubject(header(first.payload, "Subject")),
     inReplyTo: messageId, references: references || null,
     text: o.body + sig.text, html: textToHtml(o.body) + sig.html, attachments: o.files,
     dashboardId: o.dashboardId, autoSubmitted: o.autoSubmitted,

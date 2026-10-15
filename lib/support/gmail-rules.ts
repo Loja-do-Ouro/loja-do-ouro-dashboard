@@ -422,6 +422,20 @@ export function labelExcluded(labels: string[] | undefined): boolean {
   return (labels || []).some((l) => EXCLUDED_LABELS.includes(l));
 }
 
+// A mensagem a que a resposta se liga (In-Reply-To/References) e a que dá o assunto. Prefere a última deste cliente,
+// depois a última recebida, mesmo que alguém a tenha apagado ou marcado como spam no Gmail depois de chegar ao
+// dashboard; sem nenhuma recebida, a última da conversa. Rascunhos nunca contam. O destinatário não muda: é sempre o
+// cliente da conversa.
+export function replyReference(messages: GmailMessage[], to: string): { ref: GmailMessage | null; first: GmailMessage | null } {
+  const all = messages.filter((m) => !(m.labelIds || []).includes("DRAFT"));
+  const shown = all.filter((m) => !labelExcluded(m.labelIds));
+  const received = (list: GmailMessage[]) => list.filter((m) => !(m.labelIds || []).includes("SENT"));
+  const last = <T,>(list: T[]) => list[list.length - 1];
+  const fromCustomer = (list: GmailMessage[]) => last(received(list).filter((m) => senderOf(m).email === to));
+  const ref = fromCustomer(shown) || fromCustomer(all) || last(received(shown)) || last(received(all)) || last(all) || null;
+  return { ref, first: shown[0] || all[0] || null };
+}
+
 // Remetentes de sistemas (também os da RFC 3834: MAILER-DAEMON, owner-*, *-request); "info@" é uma pessoa.
 const AUTO_LOCAL = /(?:^|[._+-])(?:no[._-]?reply|do[._-]?not[._-]?reply|nao[._-]?respond(?:a|er)|mailer[._-]?daemon|postmaster|bounces?|notifications?|notificac(?:ao|oes)|alerts?|newsletters?)(?:$|[._+-])|^owner-|-request$/;
 
