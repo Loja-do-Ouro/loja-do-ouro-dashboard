@@ -693,7 +693,7 @@ test("A Gmail reply finds the customer's message even if it was trashed or marke
   // Mensagens do cliente apagadas de vez: liga-se à última da conversa (a nossa).
   r = g.replyReference([m("b", ours, ["SENT"]), m("d", ours, ["SENT"])], "ana@cliente.pt");
   assert.equal(r.ref.id, "d");
-  // Conversa vazia (apagada): nada a que responder.
+  // Conversa só com rascunhos: nada a que responder.
   r = g.replyReference([m("e", ana, ["DRAFT"])], "ana@cliente.pt");
   assert.equal(r.ref, null);
   assert.equal(r.first, null);

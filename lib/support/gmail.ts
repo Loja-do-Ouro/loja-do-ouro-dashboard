@@ -587,7 +587,15 @@ export async function gmailSendReply(o: {
   const to = (o.to || "").trim().toLowerCase();
   if (!validEmail(to) || to === mailbox) throw new GmailError("Esta conversa não tem um email de cliente válido.", 400);
   const q = new URLSearchParams([["format", "metadata"], ...HEADERS_FOR_REPLY.map((h) => ["metadataHeaders", h])]);
-  const t = await call<Thread>(`/threads/${encodeURIComponent(o.threadId)}?${q}`);
+  let t: Thread;
+  try {
+    t = await call<Thread>(`/threads/${encodeURIComponent(o.threadId)}?${q}`);
+  } catch (e) {
+    // Conversa apagada de vez no Gmail: o Gmail já não a encontra.
+    if (e instanceof GmailError && e.status === 404)
+      throw new GmailError("Esta conversa já não existe no Gmail (foi apagada de vez): responda num email novo ao cliente.", 400);
+    throw e;
+  }
   // Responde à última mensagem deste cliente (para o Gmail manter a conversa), mesmo que já esteja no lixo ou no spam.
   const { ref, first } = replyReference(t.messages || [], to);
   if (!ref || !first) throw new GmailError("Esta conversa já não tem mensagens no Gmail (foram apagadas): responda num email novo ao cliente.", 400);

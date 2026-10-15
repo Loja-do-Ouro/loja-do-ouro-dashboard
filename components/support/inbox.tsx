@@ -602,6 +602,11 @@ export function SupportInbox({
   const ownerName = c?.conversation.assignee_name || "outra pessoa";
   // Mensagem privada que a Meta recusou com #551 depois da última mensagem do cliente: reenviar não resolve.
   const unreachable = !!c && c.conversation.platform === "metricool" && !isComment && metaUnreachable(c.messages);
+  // O aviso de uma recusa #551 deixa de valer noutra conversa ou separador, ou quando a caixa bloqueia (o aviso
+  // fixo explica) ou desbloqueia (a pessoa voltou a estar contactável).
+  useEffect(() => {
+    setSendError((e) => (/\(Meta #551\)/.test(e) ? "" : e));
+  }, [selected, mode, unreachable]);
   const replyBlocked = !c
     ? "A carregar…"
     : isWhatsapp
@@ -989,7 +994,7 @@ export function SupportInbox({
                           </>
                         )}
                         {m.delivery === "failed" && m.author_user_id === c.me && (
-                          <button type="button" onClick={() => { setMode(m.kind === "note" ? "note" : "reply"); setText(m.body); }}>Copiar para o rascunho</button>
+                          <button type="button" onClick={() => { const which = m.kind === "note" ? "note" : "reply"; setMode(which); setDraft(selected!, which, m.body); }}>Copiar para o rascunho</button>
                         )}
                       </footer>
                     )}

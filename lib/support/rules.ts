@@ -90,11 +90,13 @@ export function metaSendRefusal(raw: string | null | undefined, network: "Messen
     + "deixou telefone ou email na conversa, contacte-o por aí (o endereço …@facebook.com do perfil não é um email real). Se não, "
     + "só é possível responder quando voltar a escrever.";
 }
-// A Meta recusou uma resposta com #551 depois da última mensagem do cliente: não vale a pena tentar outra vez.
+// A Meta recusou uma resposta com #551 e, desde então, nada mostra que a pessoa voltou a estar contactável (uma
+// mensagem dela, ou uma nossa que passou, por exemplo enviada no Meta Business Suite): não vale a pena tentar outra vez.
 export function metaUnreachable(messages: { kind: string; delivery: string | null; delivery_detail: string | null; created_at: string }[]): boolean {
-  const lastIn = Math.max(0, ...messages.filter((m) => m.kind === "inbound").map((m) => Date.parse(m.created_at) || 0));
-  return messages.some((m) => m.kind === "outbound" && m.delivery === "failed" && (Date.parse(m.created_at) || 0) > lastIn
-    && META_UNREACHABLE.test(m.delivery_detail || ""));
+  const t = (m: { created_at: string }) => Date.parse(m.created_at) || 0;
+  const reached = Math.max(0, ...messages.filter((m) => m.kind === "inbound"
+    || (m.kind === "outbound" && (m.delivery == null || m.delivery === "accepted" || m.delivery === "delivered" || m.delivery === "read"))).map(t));
+  return messages.some((m) => m.kind === "outbound" && m.delivery === "failed" && t(m) > reached && META_UNREACHABLE.test(m.delivery_detail || ""));
 }
 
 // Canais do Zendesk em que uma resposta pública pela API segue por email (notificações do Zendesk).

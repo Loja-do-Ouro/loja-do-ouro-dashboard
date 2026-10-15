@@ -156,4 +156,8 @@ test("Meta #551 becomes a clear explanation and blocks retries until the custome
   // Outra falha qualquer não bloqueia.
   assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), failed("2026-10-15T08:51:42+00:00", "Envio: Metricool recusou o pedido (HTTP 400 · (#100) x).")]), false);
   assert.equal(r.metaUnreachable([]), false);
+  // Depois da recusa, uma mensagem nossa passou (por exemplo, no Meta Business Suite): a pessoa voltou a estar contactável.
+  const accepted = (at) => ({ kind: "outbound", delivery: "accepted", delivery_detail: null, created_at: at });
+  assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), failed("2026-10-15T08:51:42+00:00", fb), accepted("2026-10-16T08:00:00+00:00")]), false);
+  assert.equal(r.metaUnreachable([inbound("2026-10-14T21:39:09+00:00"), accepted("2026-10-15T08:00:00+00:00"), failed("2026-10-15T08:51:42+00:00", fb)]), true);
 });
