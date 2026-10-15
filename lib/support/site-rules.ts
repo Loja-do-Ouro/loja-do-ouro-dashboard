@@ -23,6 +23,100 @@ export function allowedOrigin(origin: string | null, allowed: string[], self: st
   return allowed.includes(o) || o === self.toLowerCase() ? origin : null;
 }
 
+// Marca e língua. A marca segue o domínio, que a Shopify escolhe pelo país do cliente: lojadoouro.pt (mercado
+// Portugal) é a Loja do Ouro em qualquer língua; goldstorepremium.com (mercados Internacional e Espanha) é a Gold
+// Store Premium. A língua vem do widget (<html lang> do tema) ou, sem ela, do prefixo do endereço da página.
+export const SITE_LOCALES = ["pt", "en", "es", "fr", "de"] as const;
+export type SiteLocale = (typeof SITE_LOCALES)[number];
+export type Site = "ldo" | "gsp";
+
+type SiteInfo = {
+  brand: string; origin: string; domain: string; logo: string; // logótipo dos emails (ficheiro em public/)
+  locale: SiteLocale; // língua da raiz do domínio
+  roots: Partial<Record<SiteLocale, string>>; // início da loja em cada língua publicada no domínio
+};
+export const SITES: Record<Site, SiteInfo> = {
+  ldo: {
+    brand: "Loja do Ouro", origin: "https://www.lojadoouro.pt", domain: "lojadoouro.pt", logo: "/logo-loja-do-ouro.png", locale: "pt",
+    roots: { pt: "/", en: "/en/", es: "/es/", fr: "/fr/", de: "/de/" },
+  },
+  // Sem francês nem alemão neste domínio: ficam na raiz (inglês).
+  gsp: {
+    brand: "Gold Store Premium", origin: "https://www.goldstorepremium.com", domain: "goldstorepremium.com", logo: "/logo-gold-store-premium.png", locale: "en",
+    roots: { en: "/", es: "/es/", pt: "/pt-pt/" },
+  },
+};
+
+export const isSite = (v: unknown): v is Site => v === "ldo" || v === "gsp";
+
+// "pt-PT", "EN", "es_ES" → pt, en, es. Outra língua → en; o que não é um código de língua → null.
+export function normLocale(v: unknown): SiteLocale | null {
+  if (typeof v !== "string" || !/^[a-z]{2,3}([-_][a-z0-9]{2,8})*$/i.test(v.trim())) return null;
+  const k = v.trim().toLowerCase().split(/[-_]/)[0];
+  return (SITE_LOCALES as readonly string[]).includes(k) ? (k as SiteLocale) : "en";
+}
+
+// País da loja (Shopify.country): só duas maiúsculas.
+export function cleanCountry(v: unknown) {
+  return typeof v === "string" && /^[A-Z]{2}$/.test(v) ? v : null;
+}
+
+// Site pelo domínio (aceita também uma origem, "https://…"). A pré-visualização no myshopify é a Loja do Ouro, a não
+// ser que o país da loja não seja Portugal.
+export function siteFor({ host, country }: { host: string | null | undefined; country?: string | null }): Site {
+  const h = (host || "").trim().toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/[:/].*$/, "");
+  if (/(^|\.)goldstorepremium\.com$/.test(h)) return "gsp";
+  const c = cleanCountry(country);
+  if (/\.myshopify\.com$/.test(h) && c && c !== "PT") return "gsp";
+  return "ldo";
+}
+
+// Língua pelo endereço da página: prefixo /en/, /es/, /fr/, /de/ ou /pt-pt/; sem prefixo, a língua da raiz do
+// site. Endereço inválido → null.
+export function localeFromPage(url: unknown, site: Site): SiteLocale | null {
+  if (typeof url !== "string" || !url) return null;
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return null;
+  }
+  const m = /^\/(pt|en|es|fr|de)(?:-[a-z]{2})?(?:\/|$)/i.exec(path);
+  return m ? normLocale(m[1]) : SITES[site].locale;
+}
+
+// Início da loja na língua do cliente, com barra final (ex.: https://www.goldstorepremium.com/es/). Língua que o
+// domínio não tem: a raiz. origin substitui o domínio (SITE_CHAT_URL, só na Loja do Ouro).
+export function siteRoot(site: Site, locale: string | null | undefined, origin = SITES[site].origin) {
+  const l = normLocale(locale) || SITES[site].locale;
+  return `${origin.replace(/\/+$/, "")}${SITES[site].roots[l] || "/"}`;
+}
+
+// Erros para o visitante: o texto (em português) segue em "error" e um código estável em "code", que o widget
+// traduz. Inclui as mensagens das funções do chat na BD, que o servidor passa tal e qual.
+export const CHAT_UNAVAILABLE = "O chat está indisponível de momento. Tente novamente dentro de instantes.";
+const CHAT_ERRORS = new Map<string, string>([
+  ["Origem não autorizada.", "origin_not_allowed"],
+  ["Sessão do chat inválida. Inicie uma nova conversa.", "session_invalid"],
+  ["Esta conversa já não está disponível. Inicie uma nova.", "conversation_unavailable"],
+  ["Pedido demasiado grande.", "request_too_large"],
+  ["Pedido inválido.", "invalid_request"],
+  ["Indique o seu nome.", "name_required"],
+  ["Indique um email válido.", "email_invalid"],
+  ["Escreva a sua mensagem.", "message_required"],
+  ["Mensagem demasiado longa (máximo 2000 caracteres).", "message_too_long"],
+  ["Demasiadas conversas iniciadas. Tente novamente mais tarde.", "too_many_chats"],
+  ["Enviou muitas mensagens seguidas. Aguarde um pouco.", "too_many_messages"],
+  ["O chat está indisponível de momento.", "chat_unavailable"],
+  [CHAT_UNAVAILABLE, "chat_unavailable"],
+  ["Sem permissão.", "chat_unavailable"], // token do servidor recusado (ldo_private.bi_check)
+]);
+export const CHAT_ERROR_CODES = [...new Set(CHAT_ERRORS.values()), "unknown"];
+
+export function errorCode(message: unknown) {
+  return (typeof message === "string" && CHAT_ERRORS.get(message.trim())) || "unknown";
+}
+
 export function isEmail(v: unknown): v is string {
   return typeof v === "string" && v.length <= 254 && /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v.trim());
 }

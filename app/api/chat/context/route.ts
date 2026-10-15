@@ -1,6 +1,6 @@
 import { serverRpc } from "@/lib/support/db";
 import { chatHandle, chatJson, checkOrigin, identityEmail, preflight, readJson, siteOrigins, visitorTokenHash } from "@/lib/support/site-chat";
-import { cleanCart, cleanPage } from "@/lib/support/site-rules";
+import { cleanCart, cleanPage, normLocale } from "@/lib/support/site-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,8 @@ export function OPTIONS(request: Request) {
 }
 
 // O que o cliente está a fazer na loja (só depois de iniciar o chat): página atual, carrinho e início da
-// visita. Enviado pelo browser do cliente; para ajudar a equipa, não é informação confirmada.
+// visita. Enviado pelo browser do cliente; para ajudar a equipa, não é informação confirmada. A língua só muda
+// quando o widget envia uma (o cliente mudou de língua na loja).
 export async function POST(request: Request) {
   return chatHandle(request, async () => {
     checkOrigin(request);
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
       p_token_hash: tokenHash, p_identity_email: identityEmail(request),
       p_page: cleanPage(b.page, [...siteOrigins(), new URL(request.url).origin]), p_title: typeof b.title === "string" ? b.title.slice(0, 200) : null,
       p_cart: b.cart === undefined ? null : cleanCart(b.cart), p_visit_started_at: started, p_pages: pages,
+      p_locale: normLocale(b.locale),
     });
     return chatJson(request, { ok: true });
   });

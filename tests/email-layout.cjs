@@ -16,6 +16,27 @@ test("Branded emails escape every text and keep links clickable but safe", () =>
   assert.match(html, /https:\/\/dash\.example\/logo-loja-do-ouro\.png/);
 });
 
+test("By default the email is in Portuguese with the Loja do Ouro logo (reports and staff emails unchanged)", () => {
+  const html = mail.brandEmail({ baseUrl: "https://dash.example", eyebrow: "Relatório", title: "Fecho", body: "", footer: "Rodapé" });
+  assert.match(html, /^<!doctype html><html lang="pt-PT">/);
+  assert.ok(html.includes('<tr><td align="center" style="padding:24px 24px 12px"><img src="https://dash.example/logo-loja-do-ouro.png" alt="Loja do Ouro" width="170" style="display:block;width:170px;height:auto;border:0"></td></tr>'));
+});
+
+test("Emails for Gold Store Premium customers carry their language, logo and brand", () => {
+  const html = mail.brandEmail({
+    baseUrl: "https://dash.example", eyebrow: "Chat", title: "Hi", body: "", footer: "x",
+    lang: "en-GB", logo: "https://dash.example/logo-gold-store-premium.png", logoAlt: "Gold Store Premium", logoWidth: 200,
+  });
+  assert.match(html, /<html lang="en-GB">/);
+  assert.ok(html.includes('<img src="https://dash.example/logo-gold-store-premium.png" alt="Gold Store Premium" width="200" style="display:block;width:200px;'));
+  assert.doesNotMatch(html, /Loja do Ouro|logo-loja-do-ouro/);
+  // Sem imagem: o nome da marca em texto.
+  const word = mail.brandEmail({ baseUrl: "https://dash.example", eyebrow: "Chat", title: "Hi", body: "", footer: "x", logo: null, logoAlt: "Gold <Store>", lang: "\"de" });
+  assert.doesNotMatch(word, /<img /);
+  assert.match(word, /Gold &lt;Store&gt;<\/div>/);
+  assert.match(word, /<html lang="&quot;de">/);
+});
+
 test("Only http(s) addresses become links", () => {
   assert.equal(mail.linkedText("javascript:alert(1) e ftp://x"), "javascript:alert(1) e ftp://x");
   assert.equal(mail.linkedText("a & b"), "a &amp; b");
