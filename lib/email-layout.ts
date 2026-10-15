@@ -24,6 +24,11 @@ export type BrandEmail = {
   button?: { label: string; url: string };
   after?: string; // linhas <tr> já em HTML, depois do botão
   footer: string;
+  // Emails para clientes da Gold Store Premium ou noutra língua; por omissão, pt-PT e o logótipo da Loja do Ouro.
+  lang?: string;
+  logo?: string | null; // endereço da imagem; null = só o nome (logoAlt) em texto
+  logoAlt?: string;
+  logoWidth?: number;
 };
 
 export function brandEmail(e: BrandEmail) {
@@ -33,11 +38,16 @@ export function brandEmail(e: BrandEmail) {
   const button = e.button
     ? `<tr><td align="center" style="padding:8px 24px 26px"><a href="${esc(e.button.url)}" style="display:inline-block;background:${BRAND.petrol};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:bold;font-size:14px">${esc(e.button.label)}</a></td></tr>`
     : "";
-  return `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(e.title)}</title></head>
+  const alt = e.logoAlt || "Loja do Ouro";
+  const width = e.logoWidth || 170;
+  const logo = e.logo === null
+    ? `<div style="font-family:Georgia,'Times New Roman',serif;font-size:24px;letter-spacing:3px;text-transform:uppercase;color:${BRAND.gold}">${esc(alt)}</div>`
+    : `<img src="${esc(e.logo || `${e.baseUrl}/logo-loja-do-ouro.png`)}" alt="${esc(alt)}" width="${width}" style="display:block;width:${width}px;height:auto;border:0">`;
+  return `<!doctype html><html lang="${esc(e.lang || "pt-PT")}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(e.title)}</title></head>
 <body style="margin:0;padding:0;background:${BRAND.page};font-family:Arial,Helvetica,sans-serif;color:${BRAND.text}">${pre}
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${BRAND.page};padding:24px 0"><tr><td align="center">
 <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BRAND.line}">
-<tr><td align="center" style="padding:24px 24px 12px"><img src="${esc(e.baseUrl)}/logo-loja-do-ouro.png" alt="Loja do Ouro" width="170" style="display:block;width:170px;height:auto;border:0"></td></tr>
+<tr><td align="center" style="padding:24px 24px 12px">${logo}</td></tr>
 <tr><td style="padding:0 24px 20px"><table role="presentation" width="100%" style="background:${BRAND.petrol};border-radius:12px"><tr><td style="padding:20px 22px">
 <div style="font-size:11px;letter-spacing:2px;color:${BRAND.goldLight};font-weight:bold;text-transform:uppercase">${esc(e.eyebrow)}</div>
 <div style="font-size:22px;color:#ffffff;font-weight:bold;margin-top:6px">${esc(e.title)}</div></td></tr></table></td></tr>
