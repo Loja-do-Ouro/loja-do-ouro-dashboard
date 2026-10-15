@@ -3937,6 +3937,7 @@ textarea:focus-visible,
 .support-conv-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .support-conv-head strong { font-size: 15px; }
 .support-conv-head small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.support-conv-head .site-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; background: #f6efe3; color: #8a6428; font-size: 11px; line-height: 16px; }
 .support-back, .support-info-toggle { display: none; }
 .support-back { background: none; color: var(--ink); padding: 6px 8px; }
 .support-presence { margin: 8px 14px 0; }

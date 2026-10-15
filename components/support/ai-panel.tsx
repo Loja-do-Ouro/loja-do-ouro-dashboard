@@ -18,6 +18,8 @@ const QUICK = [
   ["Mais curta", "Reescreve a última proposta de resposta, mais curta."],
   ["Mais formal", "Reescreve a última proposta de resposta num tom mais formal."],
   ["Em inglês", "Traduz a última proposta de resposta para inglês."],
+  // Clientes do site noutras línguas (inglês, espanhol, francês, alemão): a tradução é só para a equipa.
+  ["Traduzir as mensagens do cliente para português", "Traduz para português de Portugal as mensagens do cliente nesta conversa, pela ordem, sem resumir. É só para a equipa: deixa a resposta ao cliente a null."],
 ] as const;
 
 const usd = (v: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "USD", minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
