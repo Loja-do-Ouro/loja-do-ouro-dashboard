@@ -200,7 +200,7 @@ function visitorText(v: SiteVisitorCtx) {
   ];
 }
 
-function contextText(d: Detail, visitor: SiteVisitorCtx = null) {
+function contextText(d: Detail, visitor: SiteVisitorCtx = null, site: ReturnType<typeof visitorSite> | null = null) {
   const c = d.conversation, k = d.contact;
   const who = [
     k?.name && `nome ${untrusted(k.name)}`,
@@ -227,7 +227,8 @@ function contextText(d: Detail, visitor: SiteVisitorCtx = null) {
     ...(d.related.length
       ? [`Outros contactos do mesmo cliente (mesmo email ou telefone): ${d.related.map((r) => `${CHANNEL_LABEL[r.channel]} ${untrusted(r.name || r.email || r.phone || "")}`).join("; ")}`]
       : []),
-    ...visitorText(visitor),
+    // Sem os dados do visitante, a marca e a língua do site (pela conta da conversa) seguem na mesma.
+    ...(visitor ? visitorText(visitor) : site ? ["No site (sem dados do visitante):", siteContextLine(site.site, site.locale, null)] : []),
     "",
     "Mensagens (da mais antiga para a mais recente):",
   ];
@@ -469,10 +470,10 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
     const visitor = detail.conversation.channel === "site"
       ? await sessionRpc<SiteVisitorCtx>(viewer.session, "ldo_support_site_visitor_info", { p_conversation: conversationId }).catch(() => null)
       : null;
-    const context = contextText(detail, visitor);
     // Marca e língua do site (chat do site); os outros canais são da Loja do Ouro. Sem os dados do visitante, a
     // conta da conversa ('goldstorepremium.com') diz a marca.
     const site = detail.conversation.channel === "site" ? visitorSite(visitor, detail.conversation.account) : null;
+    const context = contextText(detail, visitor, site);
     const brand: SiteKey = site?.site || "ldo";
     // Um só email de identidade, como no painel do cliente: o associado pela equipa prevalece sobre o
     // do contacto (que pode ser uma caixa partilhada ou de outra pessoa).

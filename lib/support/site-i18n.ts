@@ -173,9 +173,11 @@ export function rebrandLinks(body: string, site: Site, locale: string | null | u
 
 // Fuso das horas na cópia da conversa: o do país da loja do cliente (Europa Central por omissão na Gold Store
 // Premium, que vende sobretudo para lá; Lisboa na Loja do Ouro).
-const WESTERN = new Set(["PT", "GB", "IE", "IS", "FO"]);
+const WESTERN = new Set(["PT", "GB", "IE", "FO"]);
 const EASTERN = new Set(["FI", "EE", "LV", "LT", "RO", "BG", "GR", "CY", "UA", "MD"]);
 export function emailTimeZone(site: Site, country: string | null | undefined) {
+  // A Islândia não muda a hora no verão (a hora de Lisboa ficava uma hora à frente).
+  if (country === "IS") return "Atlantic/Reykjavik";
   if (country && WESTERN.has(country)) return "Europe/Lisbon";
   if (country && EASTERN.has(country)) return "Europe/Helsinki";
   return site === "gsp" || country ? "Europe/Paris" : "Europe/Lisbon";

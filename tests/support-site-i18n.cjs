@@ -148,6 +148,7 @@ test("Transfer notices, time zones and the visitor's site and language", () => {
   assert.equal(i18n.emailTimeZone("ldo", null), "Europe/Lisbon");
   assert.equal(i18n.emailTimeZone("ldo", "PT"), "Europe/Lisbon");
   assert.equal(i18n.emailTimeZone("gsp", null), "Europe/Paris");
+  assert.equal(i18n.emailTimeZone("gsp", "IS"), "Atlantic/Reykjavik");
   assert.equal(i18n.emailTimeZone("gsp", "ES"), "Europe/Paris");
   assert.equal(i18n.emailTimeZone("gsp", "IE"), "Europe/Lisbon");
   assert.equal(i18n.emailTimeZone("gsp", "FI"), "Europe/Helsinki");
