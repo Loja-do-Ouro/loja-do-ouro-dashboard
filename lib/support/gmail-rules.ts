@@ -37,6 +37,54 @@ function decoder(charset: string | null | undefined) {
   }
 }
 
+// Alguns remetentes (formulários do Shopify, por exemplo) declaram iso-8859-1/windows-1252 mas enviam UTF-8: lido
+// à letra, "ç" (C3 A7) vira "Ã§". Bytes não ASCII que formam UTF-8 válido quase nunca são Latin-1 genuíno, por
+// isso, com um charset de um só byte, UTF-8 válido lê-se como UTF-8.
+const SINGLE_BYTE = /^(?:iso[-_]?8859-\d+|iso8859-?\d+|latin-?1|l1|cp819|windows-125\d|cp125\d|us-ascii|ascii)$/;
+const strictUtf8 = () => new TextDecoder("utf-8", { fatal: true });
+
+function decodeBytes(bytes: Buffer, charset: string | null | undefined): string {
+  const label = (charset || "").trim().replace(/^["']|["']$/g, "").toLowerCase();
+  if (SINGLE_BYTE.test(label) && bytes.some((b) => b >= 0x80)) {
+    try {
+      return repairMojibake(strictUtf8().decode(bytes));
+    } catch {
+      // Não é UTF-8: o charset declarado está certo.
+    }
+  }
+  return repairMojibake(decoder(label).decode(bytes));
+}
+
+// Texto já estragado na origem (UTF-8 lido como windows-1252 e voltado a gravar em UTF-8): "OrÃ§amento".
+// Só se repara quando todo o texto volta a bytes windows-1252 e esses bytes são UTF-8 válido.
+const MOJIBAKE = /[ÃÂ][\u0080-¿ŒœŠšŸŽžƒˆ˜–—‘-„†-•…‰‹›€™]/;
+let cp1252: Map<string, number> | null = null;
+function toCp1252(text: string): Buffer | null {
+  if (!cp1252) {
+    cp1252 = new Map();
+    const dec = new TextDecoder("windows-1252");
+    for (let b = 0; b < 256; b++) cp1252.set(dec.decode(Uint8Array.of(b)), b);
+  }
+  const out: number[] = [];
+  for (const ch of text) {
+    const b = cp1252.get(ch);
+    if (b === undefined) return null;
+    out.push(b);
+  }
+  return Buffer.from(out);
+}
+export function repairMojibake(text: string): string {
+  if (!MOJIBAKE.test(text)) return text;
+  const bytes = toCp1252(text);
+  if (!bytes) return text;
+  try {
+    const fixed = strictUtf8().decode(bytes);
+    return MOJIBAKE.test(fixed) ? text : fixed;
+  } catch {
+    return text;
+  }
+}
+
 function qBytes(text: string) {
   const out: number[] = [];
   for (let i = 0; i < text.length; i++) {
@@ -63,7 +111,7 @@ export function decodeWords(value: string): string {
   let charset: string | null = null;
   let chunks: Buffer[] = [];
   const flush = () => {
-    if (charset !== null) out += decoder(charset).decode(Buffer.concat(chunks)).replace(CONTROL, " ");
+    if (charset !== null) out += decodeBytes(Buffer.concat(chunks), charset).replace(CONTROL, " ");
   };
   for (const m of value.matchAll(ENCODED_WORD)) {
     const between = value.slice(last, m.index);
@@ -163,7 +211,7 @@ export function base64UrlDecode(data: string): Buffer {
 }
 
 export function decodeBody(data: string | undefined, charset: string | null): string {
-  return data ? decoder(charset).decode(base64UrlDecode(data)) : "";
+  return data ? decodeBytes(base64UrlDecode(data), charset) : "";
 }
 
 export function charsetOf(part: GmailPart | undefined): string | null {
