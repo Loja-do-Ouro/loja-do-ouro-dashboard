@@ -5,9 +5,8 @@ import { SupabaseError } from "@/lib/supabase";
 import { sha256Hex } from "./crypto";
 import { serverRpc } from "./db";
 import { supportEmailFrom, supportReplyTo } from "./notify";
-import { brandEmail, emailParagraph, emailQuote, esc } from "@/lib/email-layout";
-import { allowedOrigin, decodeIdentity, ipPrefix, parseOrigins, verifyIdentity } from "./site-rules";
-import { cut } from "./comment-rules";
+import { replyEmail, transcriptEmail, visitorLang, type TranscriptMessage } from "./site-i18n";
+import { allowedOrigin, CHAT_UNAVAILABLE, decodeIdentity, errorCode, ipPrefix, parseOrigins, verifyIdentity } from "./site-rules";
 
 // Chat do site: rotas públicas (sem sessão do dashboard) usadas pelo botão do tema Shopify.
 // O browser só fala com o servidor; as funções da BD são chamadas com o token do servidor.
@@ -15,8 +14,9 @@ import { cut } from "./comment-rules";
 export const SITE_SOURCE = "site-chat";
 export const siteOrigins = () => parseOrigins(process.env.SITE_CHAT_ORIGINS);
 
+// Erro para o visitante: texto em português e código estável (code) que o widget traduz.
 export class ChatError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public code = errorCode(message)) {
     super(message);
   }
 }
@@ -54,15 +54,16 @@ export function chatJson(request: Request, data: unknown, status = 200) {
   return Response.json(data, { status, headers: corsHeaders(request) });
 }
 
-// Erros para o visitante: só as mensagens próprias das funções do chat; nunca detalhes internos.
+// Erros para o visitante: só as mensagens próprias das funções do chat; nunca detalhes internos. "error" fica em
+// português (widgets antigos); "code" é o que o widget traduz.
 export function chatFailure(request: Request, e: unknown) {
-  if (e instanceof ChatError) return chatJson(request, { error: e.message, ...(e.status === 401 ? { restart: true } : {}) }, e.status);
+  if (e instanceof ChatError) return chatJson(request, { error: e.message, code: e.code, ...(e.status === 401 ? { restart: true } : {}) }, e.status);
   if (e instanceof SupabaseError) {
     const status = e.code === "P0429" ? 429 : e.code === "P0401" ? 401 : e.code === "22023" ? 400 : e.code === "42501" ? 403 : 0;
-    if (status) return chatJson(request, { error: e.message, ...(status === 401 ? { restart: true } : {}) }, status);
+    if (status) return chatJson(request, { error: e.message, code: errorCode(e.message), ...(status === 401 ? { restart: true } : {}) }, status);
   }
   console.error("site-chat", e instanceof Error ? e.message : e);
-  return chatJson(request, { error: "O chat está indisponível de momento. Tente novamente dentro de instantes." }, 503);
+  return chatJson(request, { error: CHAT_UNAVAILABLE, code: errorCode(CHAT_UNAVAILABLE) }, 503);
 }
 
 export async function chatHandle(request: Request, fn: () => Promise<Response>) {
@@ -114,6 +115,7 @@ export async function readJson(request: Request): Promise<Record<string, unknown
 type Pending = {
   visitor: string; conversation: string; email: string; name: string; until: string; replies: string[];
   items?: { body: string; author: string | null }[];
+  locale?: string | null; site?: string | null; country?: string | null; // língua, loja e país do visitante
 };
 
 // Respostas que o cliente ainda não viu, por email: só quando está fora do site há algum tempo e reunindo
@@ -134,67 +136,33 @@ export async function notifySiteVisitors(opts: { conversation: string | null; id
   return detail;
 }
 
+// Endereço da loja nas ligações dos emails: SITE_CHAT_URL substitui o da Loja do Ouro (nunca o da Gold Store Premium).
+const chatOrigin = () => process.env.SITE_CHAT_URL || null;
+
+// Na língua e com a marca do site do visitante (quem respondeu aparece só com o primeiro nome, como no chat).
 async function sendReplies(p: Pending): Promise<{ ok: boolean; detail: string }> {
   if (!emailConfigured()) return { ok: false, detail: "RESEND_API_KEY por configurar" };
-  const site = (process.env.SITE_CHAT_URL || "https://www.lojadoouro.pt").replace(/\/+$/, "");
-  const first = p.name.split(/\s+/)[0] || "";
-  // Quem respondeu (só o primeiro nome), como no chat.
   const items = p.items?.length ? p.items : (p.replies || []).map((body) => ({ body, author: null as string | null }));
-  const many = items.length > 1;
-  const hello = `Olá${first ? ` ${first}` : ""},`;
-  const intro = many ? "Deixámos-lhe estas respostas no chat da Loja do Ouro:" : "Respondemos à sua mensagem no chat da Loja do Ouro:";
-  const outro = "Pode continuar a conversa no site ou responder diretamente a este email.";
-  const html = brandEmail({
-    baseUrl: baseUrl(),
-    eyebrow: "Chat da Loja do Ouro",
-    title: many ? "Tem novas respostas nossas" : "Respondemos à sua mensagem",
-    // Cortado sem partir um emoji ao meio (metade de um emoji estraga o email).
-    preheader: cut((items[0]?.body || "").replace(/\s+/g, " "), 120),
-    body: emailParagraph(esc(hello)) + emailParagraph(esc(intro))
-      + items.map((r) => emailQuote(r.author ? `${r.author} · Loja do Ouro` : "Loja do Ouro", r.body)).join("")
-      + emailParagraph(esc(outro)),
-    button: { label: "Continuar a conversa", url: `${site}/?chat=abrir` },
-    footer: "Recebeu este email porque falou connosco no chat de lojadoouro.pt · Loja do Ouro",
-  });
-  const text = [hello, "", intro, "", ...items.flatMap((r) => [`${r.author ? `${r.author} · ` : ""}Loja do Ouro:`, r.body, ""]), outro,
-    `Continuar a conversa: ${site}/?chat=abrir`].join("\n");
-  return sendEmail([p.email], many ? "Novas respostas da Loja do Ouro" : "Resposta da Loja do Ouro à sua mensagem", html, {
-    from: supportEmailFrom(), replyTo: supportReplyTo(), text, timeoutMs: 8000,
+  const mail = replyEmail({ site: p.site, locale: p.locale, country: p.country, name: p.name, items }, baseUrl(), chatOrigin());
+  return sendEmail([p.email], mail.subject, mail.html, {
+    from: supportEmailFrom(visitorLang(p.site, p.locale).site), replyTo: supportReplyTo(), text: mail.text, timeoutMs: 8000,
   });
 }
 
 export type Transcript = {
   email: string | null; name: string; transcript: boolean;
-  messages: { from: "visitor" | "team" | "notice"; author: string | null; body: string; at: string }[];
+  messages: TranscriptMessage[];
+  locale?: string | null; site?: string | null; country?: string | null;
 };
 
-// Cópia da conversa para o cliente que a terminou e a pediu (só para o email que ele próprio indicou).
+// Cópia da conversa para o cliente que a terminou e a pediu (só para o email que ele próprio indicou), na língua
+// e com a marca do site dele.
 export async function sendTranscript(t: Transcript): Promise<{ ok: boolean; detail: string }> {
   if (!t.email || !emailConfigured()) return { ok: false, detail: "Email indisponível." };
-  const site = (process.env.SITE_CHAT_URL || "https://www.lojadoouro.pt").replace(/\/+$/, "");
-  const first = (t.name || "").trim().split(/\s+/)[0] || "";
-  const when = new Intl.DateTimeFormat("pt-PT", { timeZone: "Europe/Lisbon", dateStyle: "long", timeStyle: "short" });
-  const label = (m: Transcript["messages"][number]) =>
-    m.from === "visitor" ? `${first || "Você"} · ${when.format(new Date(m.at))}` : `${m.author ? `${m.author} · ` : ""}Loja do Ouro · ${when.format(new Date(m.at))}`;
-  const rows = t.messages.map((m) => m.from === "notice"
-    ? emailParagraph(`<span style="color:#9a917f;font-size:13px">${esc(m.body)}</span>`)
-    : emailQuote(label(m), m.body, { links: m.from !== "visitor" })).join("");
-  const html = brandEmail({
-    baseUrl: baseUrl(),
-    eyebrow: "Chat da Loja do Ouro",
-    title: "A sua conversa connosco",
-    preheader: "Cópia da conversa que teve no chat de lojadoouro.pt.",
-    body: emailParagraph(esc(`Olá${first ? ` ${first}` : ""},`))
-      + emailParagraph(esc("Obrigado por falar connosco. Segue a cópia da conversa que teve no chat de lojadoouro.pt."))
-      + rows
-      + emailParagraph(esc("Se precisar de mais alguma coisa, responda a este email ou fale connosco no site.")),
-    button: { label: "Voltar à loja", url: site },
-    footer: "Recebeu esta cópia porque a pediu ao terminar a conversa no chat de lojadoouro.pt · Loja do Ouro",
+  const mail = transcriptEmail({ site: t.site, locale: t.locale, country: t.country, name: t.name, messages: t.messages }, baseUrl(), chatOrigin());
+  return sendEmail([t.email], mail.subject, mail.html, {
+    from: supportEmailFrom(visitorLang(t.site, t.locale).site), replyTo: supportReplyTo(), text: mail.text, timeoutMs: 8000,
   });
-  const text = [`Olá${first ? ` ${first}` : ""},`, "", "Segue a cópia da conversa que teve no chat de lojadoouro.pt.", "",
-    ...t.messages.flatMap((m) => m.from === "notice" ? [`— ${m.body}`, ""] : [`${label(m)}:`, m.body, ""]),
-    `Loja do Ouro · ${site}`].join("\n");
-  return sendEmail([t.email], "A sua conversa com a Loja do Ouro", html, { from: supportEmailFrom(), replyTo: supportReplyTo(), text, timeoutMs: 8000 });
 }
 
 // Passagem pelos avisos pendentes (no máximo uma vez por minuto, decidido na BD). Corre quando a equipa tem

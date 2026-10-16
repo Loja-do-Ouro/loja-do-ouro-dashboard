@@ -2,7 +2,7 @@ import { randomToken, sha256Hex } from "@/lib/support/crypto";
 import { serverRpc } from "@/lib/support/db";
 import { isUuid } from "@/lib/support/rules";
 import { ChatError, chatHandle, chatJson, checkOrigin, identityEmail, ipHash, ipPrefixHash, preflight, readJson, siteOrigins } from "@/lib/support/site-chat";
-import { cleanPage, isEmail } from "@/lib/support/site-rules";
+import { cleanCountry, cleanPage, isEmail, isSite, localeFromPage, normLocale, siteFor, SITES } from "@/lib/support/site-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,8 @@ export function OPTIONS(request: Request) {
 // Início de uma conversa no chat do site: nome, email (obrigatório) e a primeira mensagem.
 // Devolve o token do visitante, que o widget guarda no browser e envia nos pedidos seguintes. Repetir o
 // mesmo pedido (a mesma chave) não cria outra conversa.
+// A loja (Loja do Ouro ou Gold Store Premium) é a do domínio do pedido; só a página de teste do próprio dashboard
+// a pode escolher. A língua vem do widget, senão do endereço da página, senão a da raiz do domínio.
 export async function POST(request: Request) {
   return chatHandle(request, async () => {
     checkOrigin(request);
@@ -29,11 +31,19 @@ export async function POST(request: Request) {
     const verified = identityEmail(request, b.identity);
     const email = verified || (typeof b.email === "string" ? b.email.trim().toLowerCase() : "");
     if (!isEmail(email)) throw new ChatError(400, "Indique um email válido.");
+    const self = new URL(request.url).origin;
+    const page = cleanPage(b.page, [...siteOrigins(), self]);
+    const origin = request.headers.get("origin");
+    const country = cleanCountry(b.country);
+    const site = origin && origin.toLowerCase() === self.toLowerCase() && isSite(b.site)
+      ? b.site
+      : siteFor({ host: origin || page, country });
     const token = randomToken(32);
     await serverRpc("ldo_support_site_start", {
       p_token_hash: sha256Hex(token), p_name: name, p_email: email, p_verified: Boolean(verified), p_message: message,
-      p_client_key: b.clientKey, p_page: cleanPage(b.page, [...siteOrigins(), new URL(request.url).origin]), p_ip_hash: ipHash(request), p_ip_prefix_hash: ipPrefixHash(request),
+      p_client_key: b.clientKey, p_page: page, p_ip_hash: ipHash(request), p_ip_prefix_hash: ipPrefixHash(request),
       p_user_agent: (request.headers.get("user-agent") || "").slice(0, 300),
+      p_locale: normLocale(b.locale) || localeFromPage(page, site) || SITES[site].locale, p_site: site, p_country: country,
     });
     return chatJson(request, { token, verified: verified || null });
   });

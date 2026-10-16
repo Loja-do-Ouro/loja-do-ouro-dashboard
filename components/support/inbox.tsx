@@ -14,10 +14,15 @@ import {
   CHANNEL_LABEL,
   gmailThreadLink,
   DELIVERY_LABEL,
+  LOCALE_LABEL,
   orderNumbersIn,
   previewKind,
+  SITE_BRAND,
+  siteLink,
+  siteRootUrl,
   STATUSES,
   STATUS_LABEL,
+  visitorSite,
   type Channel,
   type Delivery,
   type Kind,
@@ -431,6 +436,25 @@ export function SupportInbox({
     return () => clearInterval(t);
   }, [selected, loadDetail]);
 
+  // Chat do site: o que o cliente está a fazer na loja e em que site e língua (painel do cliente, cabeçalho, destino
+  // da resposta). Enviado pelo browser do cliente (não confirmado); atualiza a cada 15 s com a conversa aberta.
+  const [visitor, setVisitor] = useState<SiteVisitorState | null>(null);
+  const siteChat = detail?.conversation.id === selected && detail?.conversation.channel === "site" ? selected : null;
+  useEffect(() => {
+    if (!siteChat) return;
+    let alive = true;
+    const load = () =>
+      api<{ visitor: SiteVisitorInfo | null }>(`/api/support/site-visitor?conversa=${siteChat}`)
+        .then((r) => alive && setVisitor({ id: siteChat, info: r.visitor, error: "" }))
+        .catch((e) => alive && setVisitor((v) => ({ id: siteChat, info: v?.id === siteChat ? v.info : undefined, error: e instanceof Error ? e.message : "Indisponível." })));
+    load();
+    const t = setInterval(() => visible() && load(), 15000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [siteChat]);
+
   // Presença: quem tem a conversa aberta e se está a escrever (últimos 60 s).
   useEffect(() => {
     if (!selected) return;
@@ -470,6 +494,13 @@ export function SupportInbox({
   };
 
   const c = detail?.conversation.id === selected ? detail : null;
+  // Chat do site: visitante desta conversa e marca e língua do site (sem dados: Loja do Ouro, sem destaque).
+  const siteVisitor = c?.conversation.channel === "site" && visitor?.id === c.conversation.id ? visitor : null;
+  // Sem os dados do visitante (a carregar ou falhou), a conta da conversa já diz se é da Gold Store Premium.
+  const site = c?.conversation.channel === "site" && (siteVisitor?.info || c.conversation.account === "goldstorepremium.com")
+    ? visitorSite(siteVisitor?.info, c.conversation.account)
+    : null;
+  const brand = SITE_BRAND[site?.site || "ldo"].brand;
   const isZendesk = c?.conversation.platform === "zendesk";
   // Zendesk desligado no dashboard: os tickets ficam como histórico (notas, estado e responsável só aqui).
   const zendeskOff = isZendesk && c?.conversation.source_status === "disabled";
@@ -577,7 +608,12 @@ export function SupportInbox({
     if (!selected) return;
     const id = selected;
     const slot = slotOf(id, mode);
-    const line = `${item.title}${item.price ? ` — ${item.price}` : ""}\n${item.url}`;
+    // Chat do site: a ligação abre no site e na língua do cliente (a do catálogo é a da Loja do Ouro, em português).
+    const url = site ? siteLink(item.url, site.site, site.locale) : item.url;
+    // Gold Store Premium: produto só com a ligação. O cartão no chat mostra o nome, a foto e o preço do próprio site,
+    // na língua do cliente (o preço do catálogo é o de Portugal e o nome, em português, ficava repetido por cima).
+    const gsp = site?.site === "gsp";
+    const line = gsp && item.price ? url : `${item.title}${!gsp && item.price ? ` — ${item.price}` : ""}\n${url}`;
     const current = drafts[id]?.[mode] || "";
     setDraft(id, mode, current ? `${current.replace(/\s+$/, "")}\n\n${line}` : line);
     setShowCatalog(false);
@@ -771,9 +807,10 @@ export function SupportInbox({
     if (commentChannel) return `Comentário público no ${commentChannel === "instagram_comments" ? "Instagram" : "Facebook"} · resposta a ${who} (todos veem)`;
     if (c.conversation.channel === "instagram") return `Instagram Direct · para ${who}`;
     if (c.conversation.channel === "facebook") return `Facebook Messenger · para ${who}`;
-    if (c.conversation.channel === "site") return `Chat do site · para ${who} (se já tiver saído do site, recebe também por email)`;
+    if (c.conversation.channel === "site")
+      return `Chat do site${site ? ` · ${SITE_BRAND[site.site].brand} · em ${LOCALE_LABEL[site.locale]}` : ""} · para ${who} (se já tiver saído do site, recebe também por email)`;
     return `${CHANNEL_LABEL[c.conversation.channel]} · por configurar`;
-  }, [c, isZendesk, isGmail, zendeskOff, commentChannel]);
+  }, [c, isZendesk, isGmail, zendeskOff, commentChannel, site?.site, site?.locale]);
   // Imagens da publicação no visualizador (pelo proxy do dashboard; os vídeos abrem na própria publicação).
   const postItems = useMemo(
     () =>
@@ -892,6 +929,12 @@ export function SupportInbox({
                   <small>
                     {c.conversation.source_label}
                     {c.conversation.subject ? ` · ${c.conversation.subject}` : ""}
+                    {/* Chat do site noutra língua ou na Gold Store Premium (Loja do Ouro em português fica sem destaque). */}
+                    {site && (site.site !== "ldo" || site.locale !== "pt") && (
+                      <span className="site-chip" title={`Site ${SITE_BRAND[site.site].brand} (${SITE_BRAND[site.site].domain}) · cliente em ${LOCALE_LABEL[site.locale]}${site.country ? ` · país ${countryName(site.country)}` : ""}`}>
+                        {site.locale.toUpperCase()} · {SITE_BRAND[site.site].brand}
+                      </span>
+                    )}
                   </small>
                 </div>
                 <span className={`status-badge ${c.conversation.status}`}>{STATUS_LABEL[c.conversation.status]}</span>
@@ -927,7 +970,7 @@ export function SupportInbox({
                   return (
                   <article key={m.id} className={`msg ${m.kind}`}>
                     <header>
-                      <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.author_name || (m.kind === "inbound" ? "Cliente" : "Loja do Ouro")}</strong>
+                      <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.author_name || (m.kind === "inbound" ? "Cliente" : brand)}</strong>
                       {isComment && m.kind === "outbound" && (
                         <small className={`public-flag${m.delivery === "failed" ? " failed" : ""}`}>{m.delivery === "failed" ? "não publicada" : "resposta pública"}</small>
                       )}
@@ -1161,6 +1204,7 @@ export function SupportInbox({
                 <CustomerPanel
                   key={c.conversation.id}
                   d={c}
+                  visitor={siteVisitor}
                   zendeskSubdomain={zendeskSubdomain}
                   actionError={actionError}
                   onBack={() => setPane("conversation")}
@@ -1270,9 +1314,10 @@ function PostCard({ post, network, items, open, onToggle, onView }: {
 }
 
 function CustomerPanel({
-  d, zendeskSubdomain, actionError, onBack, onAct, onReload, onOpen,
+  d, visitor, zendeskSubdomain, actionError, onBack, onAct, onReload, onOpen,
 }: {
   d: Detail;
+  visitor: SiteVisitorState | null;
   zendeskSubdomain: string;
   actionError: string;
   onBack: () => void;
@@ -1413,7 +1458,7 @@ function CustomerPanel({
         {actionError && <p className="support-error" role="alert">{actionError}</p>}
       </section>
 
-      {conv.channel === "site" && <SiteVisitor conversationId={conv.id} />}
+      {conv.channel === "site" && <SiteVisitor state={visitor} />}
 
       <section>
         <span className="eyebrow">Contactos conhecidos</span>
@@ -1521,11 +1566,25 @@ function CustomerPanel({
   );
 }
 
+// locale, site e country: vazios ou em falta (visitantes antigos, servidor anterior) contam como português e Loja do Ouro.
 type SiteVisitorInfo = {
   page_url: string | null; page_title: string | null; visit_started_at: string | null; pages_viewed: number | null;
   context_at: string | null; last_seen_at: string; created_at: string; verified: boolean; now: string;
   cart: { count: number; total: number; currency: string; items: { title: string; variant: string | null; quantity: number; price: number; url: string | null }[] } | null;
+  locale: string | null; site: "ldo" | "gsp"; country: string | null;
 };
+// Visitante da conversa aberta (info undefined enquanto carrega; null sem dados do visitante).
+type SiteVisitorState = { id: string; info?: SiteVisitorInfo | null; error: string };
+
+// País pelo nome em português ("Espanha (ES)"); só o código se o browser não o souber.
+function countryName(code: string) {
+  try {
+    const name = new Intl.DisplayNames(["pt-PT"], { type: "region" }).of(code);
+    return name && name !== code ? `${name} (${code})` : code;
+  } catch {
+    return code;
+  }
+}
 
 // Duração legível ("4 min", "1 h 20 min").
 function duration(ms: number) {
@@ -1536,37 +1595,21 @@ function duration(ms: number) {
   return `${h} h${min % 60 ? ` ${min % 60} min` : ""}`;
 }
 
-// Chat do site: o que o cliente está a fazer na loja. Enviado pelo browser do cliente (não confirmado);
-// atualiza a cada 15 s enquanto a conversa está aberta.
-function SiteVisitor({ conversationId }: { conversationId: string }) {
-  const [info, setInfo] = useState<SiteVisitorInfo | null | undefined>(undefined);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      api<{ visitor: SiteVisitorInfo | null }>(`/api/support/site-visitor?conversa=${conversationId}`)
-        .then((r) => {
-          if (!alive) return;
-          setInfo(r.visitor);
-          setError("");
-        })
-        .catch((e) => alive && setError(e instanceof Error ? e.message : "Indisponível."));
-    load();
-    const t = setInterval(() => visible() && load(), 15000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, [conversationId]);
-
+// Chat do site: o que o cliente está a fazer na loja e em que site e língua. Enviado pelo browser do cliente (não
+// confirmado); lido pela conversa (a cada 15 s enquanto está aberta).
+function SiteVisitor({ state }: { state: SiteVisitorState | null }) {
+  const info = state?.info;
+  const error = state?.error || "";
   if (info === undefined && !error) return null;
   const now = info ? Date.parse(info.now) : 0;
   const online = Boolean(info && now - Date.parse(info.last_seen_at) < 75_000);
+  const site = info ? visitorSite(info) : null;
   const origin = (() => {
+    const fallback = SITE_BRAND[site?.site || "ldo"].origin;
     try {
-      return info?.page_url ? new URL(info.page_url).origin : "https://www.lojadoouro.pt";
+      return info?.page_url ? new URL(info.page_url).origin : fallback;
     } catch {
-      return "https://www.lojadoouro.pt";
+      return fallback;
     }
   })();
   const money = (v: number, currency: string) => new Intl.NumberFormat("pt-PT", { style: "currency", currency }).format(v);
@@ -1582,6 +1625,19 @@ function SiteVisitor({ conversationId }: { conversationId: string }) {
             {online ? "No site agora" : `Saiu do site · visto há ${duration(now - Date.parse(info.last_seen_at))}`}
           </p>
           <dl>
+            {site && (
+              <>
+                <dt>Site / Marca</dt>
+                <dd>
+                  {SITE_BRAND[site.site].brand} ·{" "}
+                  <a href={siteRootUrl(site.site, site.locale)} target="_blank" rel="noopener noreferrer">{SITE_BRAND[site.site].domain}</a>
+                </dd>
+                <dt>Língua / País</dt>
+                <dd>
+                  {LOCALE_LABEL[site.locale].charAt(0).toUpperCase() + LOCALE_LABEL[site.locale].slice(1)} · {site.country ? countryName(site.country) : "país desconhecido"}
+                </dd>
+              </>
+            )}
             <dt>Página</dt>
             <dd>
               {info.page_url ? (

@@ -1,5 +1,7 @@
 // Regras do assistente de IA do apoio que não dependem do servidor (testadas em tests/support.cjs).
 
+import { LOCALE_LABEL, SITE_BRAND, siteRootUrl, type SiteKey, type SiteLocale } from "./rules";
+
 export const AI_MODEL = "claude-opus-5-5";
 
 // Workspace da Anthropic (ANTHROPIC_WORKSPACE_ID): as chaves que não pertencem a um workspace têm de o
@@ -18,11 +20,11 @@ export const AI_OUTPUT_SCHEMA = {
   properties: {
     mensagem: {
       type: "string",
-      description: "Para a colaboradora, em português de Portugal: o que encontraste, de onde veio e o que não foi possível confirmar. Curto.",
+      description: "Para a colaboradora, em português de Portugal: o que encontraste, de onde veio e o que não foi possível confirmar. Curto, exceto quando a colaboradora pede uma tradução ou um texto completo.",
     },
     resposta_cliente: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      description: "Texto pronto a enviar ao cliente, em texto simples (sem Markdown), ou null se o pedido não era uma resposta ao cliente.",
+      description: "Texto pronto a enviar ao cliente, na língua do cliente e com a marca do site, em texto simples (sem Markdown), ou null se o pedido não era uma resposta ao cliente.",
     },
     verificar: {
       type: "array",
@@ -90,7 +92,8 @@ export function parseAiOutput(text: string): AiOutput {
     throw new Error("A IA devolveu uma resposta incompleta. Tente outra vez.");
   const draft = typeof o.resposta_cliente === "string" ? o.resposta_cliente.trim() : "";
   return {
-    mensagem: o.mensagem.trim().slice(0, 6000),
+    // Abaixo do limite da BD (8000), com o corte à vista (uma tradução longa não acaba a meio sem aviso).
+    mensagem: clip(o.mensagem.trim(), 7900),
     resposta_cliente: draft ? draft.slice(0, 8000) : null,
     verificar: o.verificar.filter((x): x is string => typeof x === "string" && Boolean(x.trim())).map((x) => x.trim().slice(0, 300)).slice(0, 10),
   };
@@ -121,6 +124,52 @@ export function unverifiedLinks(draft: string, trusted: string) {
 export function productHandle(url: string) {
   const m = /\/products\/([a-z0-9][a-z0-9-]{0,254})(?:[/?#]|$)/i.exec(url.trim());
   return m ? m[1].toLowerCase() : null;
+}
+
+// Marca da conversa: no chat do site, a do domínio onde o cliente está; nos outros canais, a Loja do Ouro. A IA
+// apresenta-se e responde só com essa marca e esse domínio, e nunca menciona a outra.
+export function aiIdentity(site: SiteKey) {
+  return site === "gsp"
+    ? "És o assistente de IA da equipa de Apoio ao Cliente da Gold Store Premium (www.goldstorepremium.com), a loja online de joalharia e ourivesaria portuguesa para clientes fora de Portugal."
+    : "És o assistente de IA da equipa de Apoio ao Cliente da Loja do Ouro (www.lojadoouro.pt), uma joalharia e ourivesaria portuguesa com loja online e lojas físicas.";
+}
+
+export function aiBrandRules(site: SiteKey) {
+  const lines = site === "gsp"
+    ? [
+        "- Esta conversa é da Gold Store Premium (www.goldstorepremium.com). Na resposta ao cliente usa só este nome e este domínio; nunca menciones a Loja do Ouro nem o site lojadoouro.pt.",
+        "- A base de conhecimento, as políticas, as páginas e os resultados das ferramentas são da mesma empresa, com o nome e o domínio do site para Portugal (Loja do Ouro). Usa-os como fonte, lembrando que o cliente está fora de Portugal: se envios, prazos ou custos não forem claros para o país dele, indica-o em \"verificar\".",
+        "- Preços: os dos produtos nas ferramentas são os de Portugal; na Gold Store Premium são outros. Nunca indiques ao cliente o preço de um produto: envia a ligação do produto (no chat do site aparece com o preço do site).",
+      ]
+    : ["- Esta conversa é da Loja do Ouro (www.lojadoouro.pt). Na resposta ao cliente usa só este nome e este domínio."];
+  const example = siteRootUrl(site, site === "gsp" ? "es" : "en");
+  lines.push(`- Ligações para o cliente: as das fontes começam por https://www.lojadoouro.pt/ (em português). No chat do site troca esse início pela página do site na língua do cliente (linha "site" do contexto) e mantém o resto do caminho; por exemplo, para um cliente em ${site === "gsp" ? "espanhol" : "inglês"}, https://www.lojadoouro.pt/products/anel passa a ${example}products/anel (o site abre a página traduzida).`);
+  return ["Marca e site", ...lines].join("\n");
+}
+
+// Chat do site: linha do contexto com a marca, a página inicial e a língua do site, e o país do cliente.
+export function siteContextLine(site: SiteKey, locale: SiteLocale, country: string | null) {
+  return `- site: ${SITE_BRAND[site].brand} (${siteRootUrl(site, locale)}), língua do site: ${LOCALE_LABEL[locale]}, país: ${country || "desconhecido"}`;
+}
+
+const STORE_LINK = /^(?:https?:\/\/)?(?:www\.)?lojadoouro\.pt\/(?:(?:en|es|fr|de|pt-pt)\/)?(.*)$/i;
+
+// Chat do site: ligações aceites sem aviso além das das fontes. As páginas iniciais do site da conversa (na Gold Store
+// Premium, as de todas as línguas) e as ligações da loja das fontes com esse início (mesmo caminho noutro site ou língua).
+export function siteTrustedLinks(trusted: string, site: SiteKey, locale: SiteLocale) {
+  const roots = site === "gsp"
+    ? [...new Set(Object.values(SITE_BRAND.gsp.roots).map((r) => SITE_BRAND.gsp.origin + r))]
+    : [siteRootUrl(site, locale)];
+  const paths = linksIn(trusted).map((u) => STORE_LINK.exec(u)?.[1]).filter((p): p is string => Boolean(p));
+  return [...roots, ...paths.flatMap((p) => roots.map((r) => r + p))].join("\n");
+}
+
+// Proposta que menciona a outra marca ou uma ligação do outro site (o email do apoio não conta).
+export function otherBrandIn(draft: string, site: SiteKey) {
+  const other: SiteKey = site === "gsp" ? "ldo" : "gsp";
+  const name = other === "ldo" ? /\bloja\s+do\s+ouro\b/i : /\bgold\s*store\s*premium\b/i;
+  const domain = other === "ldo" ? /^(?:https?:\/\/)?(?:[a-z0-9-]+\.)*lojadoouro\.pt(?:[:/?#]|$)/i : /^(?:https?:\/\/)?(?:[a-z0-9-]+\.)*goldstorepremium\.com(?:[:/?#]|$)/i;
+  return name.test(draft) || linksIn(draft).some((u) => domain.test(u)) ? `${SITE_BRAND[other].brand} (${SITE_BRAND[other].domain})` : null;
 }
 
 // Preços por milhão de tokens (US$): entrada, saída, leitura de cache, escrita de cache 5 min e 1 h.

@@ -3,8 +3,12 @@
  *
  * As conversas entram no Apoio ao Cliente do dashboard (canal "Chat do site") e as respostas da equipa
  * aparecem aqui. Sem bibliotecas; isolado do CSS do tema (Shadow DOM). A configuração vem do bloco
- * <script id="ldo-chat-config" type="application/json"> gerado pela secção sections/ldo-chat.liquid do tema
- * (ou de window.LDO_CHAT_CONFIG) e muda-se em Loja online → Personalizar tema → Rodapé → Chat Loja do Ouro.
+ * <script id="ldo-chat-config" type="application/json"> gerado pela secção do tema (sections/lod-chat.liquid na
+ * loja; cópia em shopify/sections/ldo-chat.liquid) ou de window.LDO_CHAT_CONFIG, e muda-se em Loja online →
+ * Personalizar tema → Rodapé → Chat Loja do Ouro.
+ *
+ * Línguas: pt, en, es, fr e de (tabela I18N abaixo). Marca: Loja do Ouro em lojadoouro.pt e Gold Store Premium
+ * em goldstorepremium.com (a loja fora de Portugal), em qualquer língua.
  *
  * Privacidade: guarda no browser só o token da conversa e a hora de início da visita (localStorage).
  * Depois de o cliente iniciar o chat, envia à equipa a página em que está e o carrinho da loja.
@@ -15,13 +19,439 @@
   if (window.__ldoChatLoaded) return;
   window.__ldoChatLoaded = true;
 
-  var cfg = readConfig();
+  /* I18N:start */
+  // Textos do chat nas 5 línguas (testados em tests/site-chat-widget.cjs: as mesmas chaves e marcadores em todas).
+  // Marcadores: {brand}, {name}, {email}, {n}, {price}, {status}, {hours}. Francês com espaço inseparável
+  // ( ) antes de ? ! : ;. Os erros "err_<código>" correspondem ao "code" das respostas da API.
+  var I18N = {
+    pt: {
+      title: "Fale connosco",
+      subtitle: "A equipa da {brand} responde aqui.",
+      welcome: "Olá! Em que podemos ajudar?",
+      button: "Fale connosco",
+      privacyText: "Ao iniciar a conversa aceita a nossa Política de privacidade. Para o podermos ajudar, a equipa vê a página em que está e o seu carrinho.",
+      privacyLink: "Ler a política",
+      offlineMessage: "Neste momento estamos fora do horário de atendimento. Deixe a sua mensagem: respondemos assim que possível e enviamos também a resposta para o seu email.",
+      name: "Nome",
+      email: "Email",
+      message: "Mensagem",
+      start: "Iniciar conversa",
+      sending: "A enviar…",
+      close: "Fechar o chat",
+      messages: "Mensagens",
+      typingTeam: "A equipa está a escrever…",
+      typingAgent: "{name} está a escrever…",
+      placeholder: "Escreva a sua mensagem…",
+      send: "Enviar",
+      end: "Terminar conversa",
+      endDialog: "Terminar a conversa",
+      endTitle: "Terminar a conversa?",
+      endText: "A conversa fica guardada. Se lhe respondermos depois, enviamos a resposta para o seu email.",
+      endCopy: "Enviar-me uma cópia desta conversa por email",
+      endCancel: "Continuar a conversar",
+      ending: "A terminar…",
+      thanks: "Obrigado por falar connosco!",
+      emailed: "Enviámos uma cópia da conversa para {email}.",
+      emailFailed: "Não foi possível enviar a cópia por email neste momento.",
+      anythingElse: "Se precisar de mais alguma coisa, estamos aqui.",
+      newChat: "Iniciar nova conversa",
+      fromPrice: "desde {price}",
+      soldOut: "Esgotado",
+      viewProduct: "Ver produto",
+      failed: "Não enviada",
+      retry: "Tentar de novo",
+      unreadOne: "1 mensagem nova",
+      unreadMany: "{n} mensagens novas",
+      offHours: "Fora do horário de atendimento",
+      talkingTo: "A falar com {name}",
+      hours: "Horário: {hours}",
+      lisbonTime: "(hora de Lisboa)",
+      weekdays: "Seg. a sex.",
+      saturday: "Sáb.",
+      sunday: "Dom.",
+      transferred: "A conversa foi transferida para {name}.",
+      someoneElse: "outra pessoa da equipa",
+      err_network: "Sem ligação. Verifique a internet e tente novamente.",
+      err_status: "O chat está indisponível de momento (erro {status}). Tente novamente dentro de instantes.",
+      err_chat_unavailable: "O chat está indisponível de momento. Tente novamente dentro de instantes.",
+      err_origin_not_allowed: "O chat não está disponível neste site.",
+      err_invalid_request: "Pedido inválido.",
+      err_request_too_large: "Pedido demasiado grande.",
+      err_name_required: "Indique o seu nome.",
+      err_email_invalid: "Indique um email válido (para lhe podermos responder).",
+      err_message_required: "Escreva a sua mensagem.",
+      err_message_too_long: "Mensagem demasiado longa (máximo 2000 caracteres).",
+      err_session_invalid: "Sessão do chat inválida. Inicie uma nova conversa.",
+      err_conversation_unavailable: "Esta conversa já não está disponível. Inicie uma nova.",
+      err_too_many_chats: "Demasiadas conversas iniciadas. Tente novamente mais tarde.",
+      err_too_many_messages: "Enviou muitas mensagens seguidas. Aguarde um pouco.",
+    },
+    en: {
+      title: "Chat with us",
+      subtitle: "The {brand} team replies here.",
+      welcome: "Hello! How can we help you?",
+      button: "Chat with us",
+      privacyText: "By starting the chat, you accept our Privacy Policy. To help you, our team can see the page you are on and your cart.",
+      privacyLink: "Read the policy",
+      offlineMessage: "We are currently outside our opening hours. Please leave us a message: we will reply as soon as possible and also send our reply to your email address.",
+      name: "Name",
+      email: "Email",
+      message: "Message",
+      start: "Start chat",
+      sending: "Sending…",
+      close: "Close chat",
+      messages: "Messages",
+      typingTeam: "The team is typing…",
+      typingAgent: "{name} is typing…",
+      placeholder: "Type your message…",
+      send: "Send",
+      end: "End chat",
+      endDialog: "End the chat",
+      endTitle: "End the chat?",
+      endText: "The conversation will be saved. If we reply later, we will send our reply to your email address.",
+      endCopy: "Email me a copy of this conversation",
+      endCancel: "Keep chatting",
+      ending: "Ending…",
+      thanks: "Thank you for chatting with us!",
+      emailed: "We have sent a copy of the conversation to {email}.",
+      emailFailed: "We couldn’t email you a copy right now.",
+      anythingElse: "If you need anything else, we’re here to help.",
+      newChat: "Start a new chat",
+      fromPrice: "from {price}",
+      soldOut: "Sold out",
+      viewProduct: "View product",
+      failed: "Not sent",
+      retry: "Try again",
+      unreadOne: "1 new message",
+      unreadMany: "{n} new messages",
+      offHours: "Outside opening hours",
+      talkingTo: "Chatting with {name}",
+      hours: "Opening hours: {hours}",
+      lisbonTime: "(Lisbon time)",
+      weekdays: "Mon–Fri",
+      saturday: "Sat",
+      sunday: "Sun",
+      transferred: "Your conversation has been transferred to {name}.",
+      someoneElse: "another member of our team",
+      err_network: "No connection. Please check your internet connection and try again.",
+      err_status: "The chat is unavailable at the moment (error {status}). Please try again shortly.",
+      err_chat_unavailable: "The chat is unavailable at the moment. Please try again shortly.",
+      err_origin_not_allowed: "The chat is not available on this site.",
+      err_invalid_request: "Invalid request. Please try again.",
+      err_request_too_large: "The request is too large.",
+      err_name_required: "Please enter your name.",
+      err_email_invalid: "Please enter a valid email address so that we can reply to you.",
+      err_message_required: "Please write your message.",
+      err_message_too_long: "Your message is too long (maximum 2,000 characters).",
+      err_session_invalid: "This chat session is no longer valid. Please start a new chat.",
+      err_conversation_unavailable: "This conversation is no longer available. Please start a new one.",
+      err_too_many_chats: "Too many chats have been started. Please try again later.",
+      err_too_many_messages: "You have sent several messages in a row. Please wait a moment.",
+    },
+    es: {
+      title: "Hable con nosotros",
+      subtitle: "El equipo de {brand} le responde aquí.",
+      welcome: "¡Hola! ¿En qué podemos ayudarle?",
+      button: "Hable con nosotros",
+      privacyText: "Al iniciar la conversación, acepta nuestra Política de privacidad. Para poder ayudarle, nuestro equipo ve la página en la que se encuentra y su carrito.",
+      privacyLink: "Leer la política",
+      offlineMessage: "En este momento estamos fuera del horario de atención. Déjenos su mensaje: le responderemos lo antes posible y también le enviaremos la respuesta a su correo electrónico.",
+      name: "Nombre",
+      email: "Correo electrónico",
+      message: "Mensaje",
+      start: "Iniciar conversación",
+      sending: "Enviando…",
+      close: "Cerrar el chat",
+      messages: "Mensajes",
+      typingTeam: "El equipo está escribiendo…",
+      typingAgent: "{name} está escribiendo…",
+      placeholder: "Escriba su mensaje…",
+      send: "Enviar",
+      end: "Finalizar conversación",
+      endDialog: "Finalizar la conversación",
+      endTitle: "¿Finalizar la conversación?",
+      endText: "La conversación quedará guardada. Si le respondemos más tarde, le enviaremos la respuesta a su correo electrónico.",
+      endCopy: "Enviarme una copia de esta conversación por correo electrónico",
+      endCancel: "Seguir conversando",
+      ending: "Finalizando…",
+      thanks: "¡Gracias por contactar con nosotros!",
+      emailed: "Hemos enviado una copia de la conversación a {email}.",
+      emailFailed: "No ha sido posible enviar la copia por correo electrónico en este momento.",
+      anythingElse: "Si necesita algo más, aquí estamos.",
+      newChat: "Iniciar una nueva conversación",
+      fromPrice: "desde {price}",
+      soldOut: "Agotado",
+      viewProduct: "Ver producto",
+      failed: "No enviado",
+      retry: "Reintentar",
+      unreadOne: "1 mensaje nuevo",
+      unreadMany: "{n} mensajes nuevos",
+      offHours: "Fuera del horario de atención",
+      talkingTo: "Le atiende {name}",
+      hours: "Horario: {hours}",
+      lisbonTime: "(hora de Lisboa)",
+      weekdays: "Lun. a vie.",
+      saturday: "Sáb.",
+      sunday: "Dom.",
+      transferred: "Su conversación se ha transferido a {name}.",
+      someoneElse: "otra persona del equipo",
+      err_network: "Sin conexión. Compruebe su conexión a internet e inténtelo de nuevo.",
+      err_status: "El chat no está disponible en este momento (error {status}). Inténtelo de nuevo en unos instantes.",
+      err_chat_unavailable: "El chat no está disponible en este momento. Inténtelo de nuevo en unos instantes.",
+      err_origin_not_allowed: "El chat no está disponible en este sitio web.",
+      err_invalid_request: "Solicitud no válida. Inténtelo de nuevo.",
+      err_request_too_large: "La solicitud es demasiado grande.",
+      err_name_required: "Indique su nombre.",
+      err_email_invalid: "Indique un correo electrónico válido para que podamos responderle.",
+      err_message_required: "Escriba su mensaje.",
+      err_message_too_long: "El mensaje es demasiado largo (máximo 2000 caracteres).",
+      err_session_invalid: "La sesión del chat ya no es válida. Inicie una nueva conversación.",
+      err_conversation_unavailable: "Esta conversación ya no está disponible. Inicie una nueva.",
+      err_too_many_chats: "Se han iniciado demasiadas conversaciones. Inténtelo de nuevo más tarde.",
+      err_too_many_messages: "Ha enviado muchos mensajes seguidos. Espere un momento, por favor.",
+    },
+    fr: {
+      title: "Contactez-nous",
+      subtitle: "L’équipe {brand} vous répond ici.",
+      welcome: "Bonjour ! Comment pouvons-nous vous aider ?",
+      button: "Contactez-nous",
+      privacyText: "En démarrant la conversation, vous acceptez notre Politique de confidentialité. Pour mieux vous aider, notre équipe voit la page que vous consultez et votre panier.",
+      privacyLink: "Lire la politique",
+      offlineMessage: "Nous sommes actuellement en dehors de nos horaires d’ouverture. Laissez-nous votre message : nous vous répondrons dès que possible et vous enverrons aussi notre réponse par e-mail.",
+      name: "Nom",
+      email: "E-mail",
+      message: "Message",
+      start: "Démarrer la conversation",
+      sending: "Envoi en cours…",
+      close: "Fermer le chat",
+      messages: "Messages",
+      typingTeam: "L’équipe est en train d’écrire…",
+      typingAgent: "{name} est en train d’écrire…",
+      placeholder: "Écrivez votre message…",
+      send: "Envoyer",
+      end: "Terminer la conversation",
+      endDialog: "Terminer la conversation",
+      endTitle: "Terminer la conversation ?",
+      endText: "La conversation reste enregistrée. Si nous vous répondons plus tard, nous vous enverrons notre réponse par e-mail.",
+      endCopy: "M’envoyer une copie de cette conversation par e-mail",
+      endCancel: "Continuer la conversation",
+      ending: "Fermeture en cours…",
+      thanks: "Merci de nous avoir contactés !",
+      emailed: "Nous avons envoyé une copie de la conversation à {email}.",
+      emailFailed: "Nous n’avons pas pu envoyer la copie par e-mail pour le moment.",
+      anythingElse: "Si vous avez besoin d’autre chose, nous sommes là.",
+      newChat: "Démarrer une nouvelle conversation",
+      fromPrice: "à partir de {price}",
+      soldOut: "Épuisé",
+      viewProduct: "Voir le produit",
+      failed: "Non envoyé",
+      retry: "Réessayer",
+      unreadOne: "1 nouveau message",
+      unreadMany: "{n} nouveaux messages",
+      offHours: "En dehors des horaires d’ouverture",
+      talkingTo: "En conversation avec {name}",
+      hours: "Horaires : {hours}",
+      lisbonTime: "(heure de Lisbonne)",
+      weekdays: "Lun. au ven.",
+      saturday: "Sam.",
+      sunday: "Dim.",
+      transferred: "Votre conversation a été transférée à {name}.",
+      someoneElse: "un autre membre de l’équipe",
+      err_network: "Pas de connexion. Veuillez vérifier votre connexion Internet et réessayer.",
+      err_status: "Le chat est momentanément indisponible (erreur {status}). Veuillez réessayer dans quelques instants.",
+      err_chat_unavailable: "Le chat est momentanément indisponible. Veuillez réessayer dans quelques instants.",
+      err_origin_not_allowed: "Le chat n’est pas disponible sur ce site.",
+      err_invalid_request: "Requête non valide. Veuillez réessayer.",
+      err_request_too_large: "La requête est trop volumineuse.",
+      err_name_required: "Veuillez indiquer votre nom.",
+      err_email_invalid: "Veuillez indiquer une adresse e-mail valide afin que nous puissions vous répondre.",
+      err_message_required: "Veuillez écrire votre message.",
+      err_message_too_long: "Votre message est trop long (2 000 caractères maximum).",
+      err_session_invalid: "Cette session de chat n’est plus valide. Veuillez démarrer une nouvelle conversation.",
+      err_conversation_unavailable: "Cette conversation n’est plus disponible. Veuillez en démarrer une nouvelle.",
+      err_too_many_chats: "Trop de conversations ont été démarrées. Veuillez réessayer plus tard.",
+      err_too_many_messages: "Vous avez envoyé plusieurs messages à la suite. Veuillez patienter un instant.",
+    },
+    de: {
+      title: "Schreiben Sie uns",
+      subtitle: "Das Team von {brand} antwortet Ihnen hier.",
+      welcome: "Guten Tag! Wie können wir Ihnen helfen?",
+      button: "Schreiben Sie uns",
+      privacyText: "Mit dem Start des Chats akzeptieren Sie unsere Datenschutzerklärung. Damit wir Ihnen helfen können, sieht unser Team die Seite, auf der Sie sich befinden, und Ihren Warenkorb.",
+      privacyLink: "Datenschutzerklärung lesen",
+      offlineMessage: "Wir sind gerade außerhalb unserer Servicezeiten. Hinterlassen Sie uns gerne eine Nachricht: Wir antworten so schnell wie möglich und senden Ihnen die Antwort auch per E-Mail.",
+      name: "Name",
+      email: "E-Mail",
+      message: "Nachricht",
+      start: "Chat starten",
+      sending: "Wird gesendet…",
+      close: "Chat schließen",
+      messages: "Nachrichten",
+      typingTeam: "Das Team schreibt…",
+      typingAgent: "{name} schreibt…",
+      placeholder: "Schreiben Sie Ihre Nachricht…",
+      send: "Senden",
+      end: "Chat beenden",
+      endDialog: "Chat beenden",
+      endTitle: "Chat beenden?",
+      endText: "Der Chat bleibt gespeichert. Wenn wir Ihnen später antworten, senden wir Ihnen die Antwort per E-Mail.",
+      endCopy: "Eine Kopie dieses Chats per E-Mail erhalten",
+      endCancel: "Weiter chatten",
+      ending: "Wird beendet…",
+      thanks: "Vielen Dank, dass Sie uns kontaktiert haben!",
+      emailed: "Wir haben eine Kopie des Chats an {email} gesendet.",
+      emailFailed: "Die Kopie konnte gerade nicht per E-Mail gesendet werden.",
+      anythingElse: "Wenn Sie noch etwas brauchen, sind wir gerne für Sie da.",
+      newChat: "Neuen Chat starten",
+      fromPrice: "ab {price}",
+      soldOut: "Ausverkauft",
+      viewProduct: "Produkt ansehen",
+      failed: "Nicht gesendet",
+      retry: "Erneut versuchen",
+      unreadOne: "1 neue Nachricht",
+      unreadMany: "{n} neue Nachrichten",
+      offHours: "Außerhalb der Servicezeiten",
+      talkingTo: "Sie chatten mit {name}",
+      hours: "Servicezeiten: {hours}",
+      lisbonTime: "(Lissabonner Zeit)",
+      weekdays: "Mo.–Fr.",
+      saturday: "Sa.",
+      sunday: "So.",
+      transferred: "Ihr Chat wurde an {name} übergeben.",
+      someoneElse: "eine andere Person aus unserem Team",
+      err_network: "Keine Verbindung. Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
+      err_status: "Der Chat ist im Moment nicht verfügbar (Fehler {status}). Bitte versuchen Sie es gleich noch einmal.",
+      err_chat_unavailable: "Der Chat ist im Moment nicht verfügbar. Bitte versuchen Sie es gleich noch einmal.",
+      err_origin_not_allowed: "Der Chat ist auf dieser Website nicht verfügbar.",
+      err_invalid_request: "Ungültige Anfrage. Bitte versuchen Sie es erneut.",
+      err_request_too_large: "Die Anfrage ist zu groß.",
+      err_name_required: "Bitte geben Sie Ihren Namen ein.",
+      err_email_invalid: "Bitte geben Sie eine gültige E-Mail-Adresse ein, damit wir Ihnen antworten können.",
+      err_message_required: "Bitte schreiben Sie Ihre Nachricht.",
+      err_message_too_long: "Ihre Nachricht ist zu lang (maximal 2000 Zeichen).",
+      err_session_invalid: "Diese Chat-Sitzung ist nicht mehr gültig. Bitte starten Sie einen neuen Chat.",
+      err_conversation_unavailable: "Dieser Chat ist nicht mehr verfügbar. Bitte starten Sie einen neuen.",
+      err_too_many_chats: "Es wurden zu viele Chats gestartet. Bitte versuchen Sie es später erneut.",
+      err_too_many_messages: "Sie haben viele Nachrichten hintereinander gesendet. Bitte warten Sie einen Moment.",
+    },
+  };
+  var INTL = { pt: "pt-PT", en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" };
+  var BRANDS = { ldo: "Loja do Ouro", gsp: "Gold Store Premium" };
+  // Respostas de um servidor sem "code" (versões antigas): o texto em português dá o código.
+  var SERVER_ERRORS = {
+    "Pedido inválido.": "invalid_request",
+    "Pedido demasiado grande.": "request_too_large",
+    "Origem não autorizada.": "origin_not_allowed",
+    "Indique o seu nome.": "name_required",
+    "Indique um email válido.": "email_invalid",
+    "Escreva a sua mensagem.": "message_required",
+    "Mensagem demasiado longa.": "message_too_long",
+    "Mensagem demasiado longa (máximo 2000 caracteres).": "message_too_long",
+    "Sessão do chat inválida. Inicie uma nova conversa.": "session_invalid",
+    "Esta conversa já não está disponível. Inicie uma nova.": "conversation_unavailable",
+    "O chat está indisponível de momento.": "chat_unavailable",
+    "O chat está indisponível de momento. Tente novamente dentro de instantes.": "chat_unavailable",
+    "Demasiadas conversas iniciadas. Tente novamente mais tarde.": "too_many_chats",
+    "Enviou muitas mensagens seguidas. Aguarde um pouco.": "too_many_messages",
+  };
+
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+
+  // Site: o domínio decide (a Shopify manda cada cliente para o domínio do seu país). lojadoouro.pt é a Loja do
+  // Ouro e goldstorepremium.com a Gold Store Premium, em qualquer língua; na pré-visualização do tema (myshopify)
+  // e noutros endereços, conta o país do cliente. A configuração (página de teste) pode fixar o site.
+  function pickSite(c) {
+    c = c || {};
+    if (c.site === "ldo" || c.site === "gsp") return c.site;
+    if (c.brand === BRANDS.gsp) return "gsp";
+    if (c.brand === BRANDS.ldo) return "ldo";
+    var h = String(location.hostname || "").toLowerCase();
+    if (/(^|\.)goldstorepremium\.com$/.test(h)) return "gsp";
+    if (/(^|\.)lojadoouro\.pt$/.test(h)) return "ldo";
+    var country = pickCountry(c);
+    return country && country !== "PT" ? "gsp" : "ldo";
+  }
+  function pickBrand(c) { return BRANDS[pickSite(c)]; }
+  function pickCountry(c) {
+    var list = [window.Shopify && window.Shopify.country, c && c.country];
+    for (var i = 0; i < list.length; i++) if (typeof list[i] === "string" && /^[A-Z]{2}$/.test(list[i])) return list[i];
+    return null;
+  }
+  // "pt-PT" → pt, "EN" → en; outra língua → en; vazio ou lixo → null (passa ao sinal seguinte).
+  function langOf(v) {
+    var m = /^([a-z]{2,3})(?:[-_][a-z0-9]{1,8})*$/.exec(String(v || "").trim().toLowerCase());
+    return !m ? null : has(I18N, m[1]) ? m[1] : "en";
+  }
+  // Língua: a da configuração (página de teste), a da página (<html lang>, que o tema preenche com a língua da
+  // loja), a da Shopify, o prefixo do endereço (/en/, /es/, /fr/, /de/, /pt-pt/) e, por fim, a do site.
+  function pickLang(c, site) {
+    var S = window.Shopify || {};
+    var prefix = /^\/([a-z]{2})(?:-[a-z]{2})?(?:\/|$)/i.exec(location.pathname || "");
+    var list = [c && c.lang, document.documentElement && document.documentElement.lang, S.locale,
+      prefix && has(I18N, prefix[1].toLowerCase()) ? prefix[1] : null];
+    for (var i = 0; i < list.length; i++) {
+      var lang = langOf(list[i]);
+      if (lang) return lang;
+    }
+    return site === "gsp" ? "en" : "pt";
+  }
+
+  // Cartão de produto: abre na loja onde o cliente está (domínio e língua), como o nome e o preço que mostra; as
+  // ligações do catálogo da equipa são as da Loja do Ouro, em português. Fora da loja (página de teste), a original.
+  function productHref(url, link) {
+    var S = window.Shopify;
+    if (!S || !location.origin) return url;
+    var root = (S.routes && typeof S.routes.root === "string" && /^\/[a-z0-9/-]*$/i.test(S.routes.root) ? S.routes.root : "/").replace(/\/?$/, "/");
+    return location.origin + root + "products/" + link.handle + (link.variant ? "?variant=" + link.variant : "");
+  }
+
+  function t(key, vars) {
+    var table = I18N[LANG] || I18N.en;
+    var s = has(table, key) ? table[key] : has(I18N.en, key) ? I18N.en[key] : "";
+    return s.replace(/\{(\w+)\}/g, function (all, k) {
+      return k === "brand" ? BRAND : vars && vars[k] != null ? String(vars[k]) : "";
+    });
+  }
+  // Textos do tema (escritos em português): só em português, com a marca do site; nas outras línguas, os da tabela.
+  function themeText(value, key) {
+    return LANG === "pt" && typeof value === "string" && value.trim() ? value.replace(/Loja do Ouro/g, BRAND) : t(key);
+  }
+  // Erro da API: o "code" (servidor novo), o texto em português conhecido (servidor antigo) ou, noutras línguas,
+  // o aviso genérico (o cliente nunca vê português quando a página não está em português).
+  function errorText(data, status) {
+    var code = data && typeof data.code === "string" && /^[a-z0-9_]{1,40}$/.test(data.code) ? data.code : "";
+    var message = data && typeof data.error === "string" ? data.error : "";
+    if (!code || !has(I18N.pt, "err_" + code)) code = has(SERVER_ERRORS, message) ? SERVER_ERRORS[message] : "";
+    if (code) return t("err_" + code);
+    if (message) return LANG === "pt" ? message : t("err_chat_unavailable");
+    return status ? t("err_status", { status: status }) : "";
+  }
+  // Aviso de transferência: { kind: "transfer", to_first } ou, num servidor antigo, só o texto em português.
+  function noticeText(m) {
+    var body = String(m.body || "");
+    if (m.kind === "transfer") {
+      return t("transferred", { name: typeof m.to_first === "string" && m.to_first.trim() ? m.to_first.trim().slice(0, 40) : t("someoneElse") });
+    }
+    var x = /^A conversa foi transferida para (.+)\.$/.exec(body);
+    if (x) return t("transferred", { name: x[1] === I18N.pt.someoneElse ? t("someoneElse") : x[1] });
+    return body;
+  }
+  /* I18N:end */
+
+  var raw = rawConfig();
+  var SITE = pickSite(raw);
+  var LANG = pickLang(raw, SITE);
+  var BRAND = BRANDS[SITE];
+  var COUNTRY = pickCountry(raw);
+  var cfg = readConfig(raw);
   if (!cfg || cfg.enabled === false) return;
   // Chatbot antigo (Bluedot): a secção do tema impede-o de carregar, mas se o cliente mexer na página antes de
   // o rodapé chegar ao browser ele ainda carrega; nesse caso fica escondido.
   if (cfg.hideOld) hideOldChatbot();
+  // Também sem o prefixo da língua (/en/, /pt-pt/…): "/cart" esconde o chat em /cart, /en/cart e /pt-pt/cart.
   var path = location.pathname || "/";
-  if (cfg.hideOn.some(function (p) { return p && path.indexOf(p) === 0; })) return;
+  var barePath = path.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/|$)/i, "") || "/";
+  if (cfg.hideOn.some(function (p) { return p && (path.indexOf(p) === 0 || barePath.indexOf(p) === 0); })) return;
   if (cfg.mobile === false && window.matchMedia("(max-width: 749px)").matches) return;
 
   var API = String(cfg.api || "").replace(/\/+$/, "");
@@ -59,20 +489,23 @@
 
   // ------------------------------------------------------------ configuração e armazenamento
 
-  function readConfig() {
+  function rawConfig() {
     var el = document.getElementById("ldo-chat-config");
     var c = window.LDO_CHAT_CONFIG || null;
     if (el) {
       try { c = JSON.parse(el.textContent || "{}"); } catch (e) { c = null; }
     }
+    return c && typeof c === "object" ? c : null;
+  }
+  function readConfig(c) {
     if (!c) return null;
     return {
       enabled: c.enabled !== false,
       api: c.api || "",
-      title: c.title || "Fale connosco",
-      subtitle: c.subtitle || "A equipa da Loja do Ouro responde aqui.",
-      welcome: c.welcome || "Olá! Em que podemos ajudar?",
-      button: c.button || "",
+      title: themeText(c.title, "title"),
+      subtitle: themeText(c.subtitle, "subtitle"),
+      welcome: themeText(c.welcome, "welcome"),
+      button: c.button ? themeText(c.button, "button") : "",
       color: safeColor(c.color, "#a47a37"),
       textColor: safeColor(c.textColor, "#ffffff"),
       logo: typeof c.logo === "string" && /^(https:)?\/\//.test(c.logo) ? c.logo : "",
@@ -80,14 +513,16 @@
       offset: clampNum(c.offset, 8, 200, 20),
       offsetSide: clampNum(c.offsetSide, 8, 200, 20),
       privacyUrl: typeof c.privacyUrl === "string" ? c.privacyUrl : "",
-      privacyText: c.privacyText || "Ao iniciar a conversa aceita a nossa Política de privacidade. Para o podermos ajudar, a equipa vê a página em que está e o seu carrinho.",
-      offlineMessage: c.offlineMessage || "Neste momento estamos fora do horário de atendimento. Deixe a sua mensagem: respondemos assim que possível e enviamos também a resposta para o seu email.",
+      privacyText: themeText(c.privacyText, "privacyText"),
+      offlineMessage: themeText(c.offlineMessage, "offlineMessage"),
       hours: c.hours || {},
       hideOn: Array.isArray(c.hideOn) ? c.hideOn : String(c.hideOn || "").split(/[\n,]/).map(function (s) { return s.trim(); }).filter(Boolean),
       mobile: c.mobile !== false,
       identity: c.identity && c.identity.sig ? c.identity : null,
       customer: c.customer || null,
       hideOld: c.hideOld === true,
+      // Só a página de teste do dashboard fixa o site; na loja, o servidor vê-o pelo domínio.
+      site: c.site === "ldo" || c.site === "gsp" ? c.site : "",
     };
   }
   function hideOldChatbot() {
@@ -163,9 +598,11 @@
   function scheduleText() {
     var h = cfg.hours || {};
     var parts = [];
-    if (h.weekdays) parts.push("Seg. a sex. " + h.weekdays);
-    if (h.saturday) parts.push("Sáb. " + h.saturday);
-    if (h.sunday) parts.push("Dom. " + h.sunday);
+    if (h.weekdays) parts.push(t("weekdays") + " " + h.weekdays);
+    if (h.saturday) parts.push(t("saturday") + " " + h.saturday);
+    if (h.sunday) parts.push(t("sunday") + " " + h.sunday);
+    // O horário é sempre o de Lisboa: fora da loja portuguesa (ou noutra língua) diz-se qual é o fuso.
+    if (parts.length && (SITE === "gsp" || LANG !== "pt")) return parts.join(" · ") + " " + t("lisbonTime");
     return parts.join(" · ");
   }
 
@@ -181,12 +618,11 @@
     if (cfg.identity) headers["X-LDO-Identity"] = identityHeader();
     // Cookies só no mesmo site (página de teste no dashboard); na loja, o servidor do chat é outro.
     return fetch(API + url, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store", credentials: "same-origin" })
-      .catch(function () { throw new Error("Sem ligação. Verifique a internet e tente novamente."); })
+      .catch(function () { throw new Error(t("err_network")); })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (data) {
-          var message = data && typeof data.error === "string" ? data.error : "";
-          if (r.status === 401 && data && data.restart) { restart(message); throw new Error(message); }
-          if (!r.ok) throw new Error(message || "O chat está indisponível de momento (erro " + r.status + "). Tente novamente dentro de instantes.");
+          if (r.status === 401 && data && data.restart) { var message = errorText(data, 0); restart(message); throw new Error(message); }
+          if (!r.ok) throw new Error(errorText(data, r.status));
           return data;
         });
       });
@@ -291,6 +727,7 @@
       state.cartSig = sig;
       return request("POST", "/api/chat/context", {
         page: location.href, title: document.title, visitStartedAt: new Date(visit.start).toISOString(), pages: visit.pages, cart: cart,
+        locale: LANG, country: COUNTRY || undefined,
       }).catch(function () { state.cartSig = null; });
     });
   }
@@ -310,6 +747,8 @@
     return request("POST", "/api/chat/start", {
       name: name, email: email, message: message, clientKey: state.startKey, page: location.href,
       identity: cfg.identity, website: website,
+      // Língua e país do cliente (no corpo: o CORS da API não aceita cabeçalhos novos).
+      locale: LANG, country: COUNTRY || undefined, site: cfg.site || undefined,
     }).then(function (r) {
       state.startKey = null;
       form.querySelector("[name=message]").value = "";
@@ -359,6 +798,7 @@
   var host = document.createElement("ldo-chat-root");
   host.id = "ldo-chat";
   host.setAttribute("data-nosnippet", "");
+  host.setAttribute("lang", INTL[LANG]);
   host.style.setProperty("display", "block", "important");
   var root = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
   document.body.appendChild(host);
@@ -393,7 +833,7 @@
   statusLine.appendChild(statusText);
   titles.appendChild(statusLine);
   head.appendChild(titles);
-  var closeBtn = el("button", { class: "close", type: "button", "aria-label": "Fechar o chat" }, "×");
+  var closeBtn = el("button", { class: "close", type: "button", "aria-label": t("close") }, "×");
   head.appendChild(closeBtn);
   panel.appendChild(head);
   var offline = el("p", { class: "offline", hidden: "" });
@@ -408,30 +848,30 @@
   var form = el("form", { class: "start", novalidate: "" });
   form.appendChild(el("p", { class: "welcome" }, cfg.welcome));
   var known = cfg.identity || cfg.customer || {};
-  form.appendChild(field("Nome", "name", "text", known.name || "", { autocomplete: "name", maxlength: "80", required: "" }));
-  var emailField = field("Email", "email", "email", known.email || "", { autocomplete: "email", maxlength: "254", required: "" });
+  form.appendChild(field(t("name"), "name", "text", known.name || "", { autocomplete: "name", maxlength: "80", required: "" }));
+  var emailField = field(t("email"), "email", "email", known.email || "", { autocomplete: "email", maxlength: "254", required: "" });
   if (cfg.identity) emailField.querySelector("input").setAttribute("readonly", "");
   form.appendChild(emailField);
   var msgLabel = el("label", { class: "field" });
-  msgLabel.appendChild(el("span", {}, "Mensagem"));
+  msgLabel.appendChild(el("span", {}, t("message")));
   msgLabel.appendChild(el("textarea", { name: "message", rows: "3", maxlength: "2000", required: "" }));
   form.appendChild(msgLabel);
   form.appendChild(el("input", { name: "website", tabindex: "-1", autocomplete: "off", class: "trap", "aria-hidden": "true" }));
   var privacy = el("p", { class: "privacy" });
   if (cfg.privacyUrl) {
     privacy.appendChild(document.createTextNode(cfg.privacyText + " "));
-    privacy.appendChild(el("a", { href: cfg.privacyUrl, target: "_blank", rel: "noopener" }, "Ler a política"));
+    privacy.appendChild(el("a", { href: cfg.privacyUrl, target: "_blank", rel: "noopener" }, t("privacyLink")));
   } else privacy.textContent = cfg.privacyText;
   form.appendChild(privacy);
-  var startBtn = el("button", { type: "submit", class: "primary" }, "Iniciar conversa");
+  var startBtn = el("button", { type: "submit", class: "primary" }, t("start"));
   form.appendChild(startBtn);
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var val = function (n) { var f = form.querySelector("[name=" + n + "]"); return f ? f.value.trim() : ""; };
     var name = val("name"), mail = val("email"), text = val("message");
-    if (!name) return invalid("name", "Indique o seu nome.");
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(mail)) return invalid("email", "Indique um email válido (para lhe podermos responder).");
-    if (!text) return invalid("message", "Escreva a sua mensagem.");
+    if (!name) return invalid("name", t("err_name_required"));
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(mail)) return invalid("email", t("err_email_invalid"));
+    if (!text) return invalid("message", t("err_message_required"));
     start(name, mail, text);
   });
   function field(label, name, type, value, attrs) {
@@ -450,18 +890,18 @@
 
   // Conversa: lista (atualizada aos poucos), indicador de escrita e caixa de texto que nunca é recriada.
   var chat = el("div", { class: "chat" });
-  var list = el("div", { class: "messages", role: "log", "aria-live": "polite", "aria-label": "Mensagens" });
-  var typingEl = el("div", { class: "typing", hidden: "" }, "A equipa está a escrever…");
+  var list = el("div", { class: "messages", role: "log", "aria-live": "polite", "aria-label": t("messages") });
+  var typingEl = el("div", { class: "typing", hidden: "" }, t("typingTeam"));
   chat.appendChild(list);
   chat.appendChild(typingEl);
   var compose = el("form", { class: "compose" });
-  var input = el("textarea", { name: "body", rows: "1", maxlength: "2000", placeholder: "Escreva a sua mensagem…", "aria-label": "Mensagem" });
+  var input = el("textarea", { name: "body", rows: "1", maxlength: "2000", placeholder: t("placeholder"), "aria-label": t("message") });
   compose.appendChild(input);
-  var sendBtn = el("button", { type: "submit", class: "send", "aria-label": "Enviar" });
+  var sendBtn = el("button", { type: "submit", class: "send", "aria-label": t("send") });
   sendBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3 20.5l18-8.5L3 3.5v6.6l12 1.9-12 1.9z"/></svg>';
   compose.appendChild(sendBtn);
   chat.appendChild(compose);
-  var endBtn = el("button", { type: "button", class: "end" }, "Terminar conversa");
+  var endBtn = el("button", { type: "button", class: "end" }, t("end"));
   chat.appendChild(endBtn);
   input.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
@@ -474,27 +914,27 @@
     send(text);
   }
   // Terminar a conversa: confirmação dentro do chat (não a janela do browser) e, no fim, um agradecimento.
-  var sheet = el("div", { class: "sheet", hidden: "", role: "dialog", "aria-modal": "true", "aria-label": "Terminar a conversa" });
+  var sheet = el("div", { class: "sheet", hidden: "", role: "dialog", "aria-modal": "true", "aria-label": t("endDialog") });
   var sheetBox = el("div", { class: "sheet-box" });
-  sheetBox.appendChild(el("strong", { class: "sheet-title" }, "Terminar a conversa?"));
-  sheetBox.appendChild(el("p", {}, "A conversa fica guardada. Se lhe respondermos depois, enviamos a resposta para o seu email."));
+  sheetBox.appendChild(el("strong", { class: "sheet-title" }, t("endTitle")));
+  sheetBox.appendChild(el("p", {}, t("endText")));
   var copyLabel = el("label", { class: "sheet-check" });
   var copyBox = el("input", { type: "checkbox" });
   copyLabel.appendChild(copyBox);
-  copyLabel.appendChild(el("span", {}, "Enviar-me uma cópia desta conversa por email"));
+  copyLabel.appendChild(el("span", {}, t("endCopy")));
   sheetBox.appendChild(copyLabel);
-  var endConfirm = el("button", { type: "button", class: "primary" }, "Terminar conversa");
-  var endCancel = el("button", { type: "button", class: "secondary" }, "Continuar a conversar");
+  var endConfirm = el("button", { type: "button", class: "primary" }, t("end"));
+  var endCancel = el("button", { type: "button", class: "secondary" }, t("endCancel"));
   sheetBox.appendChild(endConfirm);
   sheetBox.appendChild(endCancel);
   sheet.appendChild(sheetBox);
   panel.appendChild(sheet);
 
   var endedView = el("div", { class: "ended" });
-  endedView.appendChild(el("strong", { class: "ended-title" }, "Obrigado por falar connosco!"));
+  endedView.appendChild(el("strong", { class: "ended-title" }, t("thanks")));
   var endedText = el("p", {});
   endedView.appendChild(endedText);
-  var newChatBtn = el("button", { type: "button", class: "primary" }, "Iniciar nova conversa");
+  var newChatBtn = el("button", { type: "button", class: "primary" }, t("newChat"));
   endedView.appendChild(newChatBtn);
   newChatBtn.addEventListener("click", function () { state.ended = null; showMode(); focusInput(); });
 
@@ -504,7 +944,7 @@
     // A cópia só existe depois de a equipa responder (o servidor confirma a mesma regra).
     copyLabel.hidden = !state.messages.some(function (m) { return m.from === "team"; });
     endConfirm.removeAttribute("disabled");
-    endConfirm.textContent = "Terminar conversa";
+    endConfirm.textContent = t("end");
     sheet.hidden = false;
     endCancel.focus();
   });
@@ -512,15 +952,15 @@
   endConfirm.addEventListener("click", function () {
     var wanted = copyBox.checked && !copyLabel.hidden;
     endConfirm.setAttribute("disabled", "");
-    endConfirm.textContent = "A terminar…";
+    endConfirm.textContent = t("ending");
     clearTimeout(state.timer);
     // Mesmo sem resposta do servidor a conversa termina neste dispositivo.
     request("POST", "/api/chat/end", { transcript: wanted }).catch(function () { return null; }).then(function (r) {
       restart("");
       state.ended = { wanted: wanted, emailed: Boolean(r && r.emailed), email: r && typeof r.email === "string" ? r.email : "" };
       endedText.textContent = state.ended.emailed
-        ? "Enviámos uma cópia da conversa para " + state.ended.email + "."
-        : wanted ? "Não foi possível enviar a cópia por email neste momento." : "Se precisar de mais alguma coisa, estamos aqui.";
+        ? t("emailed", { email: state.ended.email })
+        : wanted ? t("emailFailed") : t("anythingElse");
       closeSheet();
       showMode();
       newChatBtn.focus();
@@ -529,8 +969,9 @@
 
   // ------------------------------------------------------------ atualizações
 
-  var timeFmt = new Intl.DateTimeFormat("pt-PT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Lisbon" });
-  var dayFmt = new Intl.DateTimeFormat("pt-PT", { day: "numeric", month: "short", timeZone: "Europe/Lisbon" });
+  // Horas das mensagens na língua e no fuso do cliente (o horário de atendimento é que fica em hora de Lisboa).
+  var timeFmt = new Intl.DateTimeFormat(INTL[LANG], { hour: "2-digit", minute: "2-digit" });
+  var dayFmt = new Intl.DateTimeFormat(INTL[LANG], { day: "numeric", month: "short" });
 
   // Ligações: terminam num espaço ou num emoji encostado (senão o emoji entrava no endereço e partia-o).
   // Sem a flag "u", para funcionar também em navegadores antigos: os mesmos emojis que \p{Extended_Pictographic}
@@ -568,7 +1009,7 @@
     var u;
     try { u = new URL(url); } catch (e) { return null; }
     var host = u.hostname.toLowerCase();
-    if (host !== location.hostname.toLowerCase() && !/(^|\.)lojadoouro\.pt$/.test(host) && !/\.myshopify\.com$/.test(host)) return null;
+    if (host !== location.hostname.toLowerCase() && !/(^|\.)(lojadoouro\.pt|goldstorepremium\.com)$/.test(host) && !/\.myshopify\.com$/.test(host)) return null;
     var m = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?products\/([a-z0-9][a-z0-9-]{0,200})\/?$/i.exec(u.pathname);
     if (!m) return null;
     var variant = u.searchParams.get("variant");
@@ -637,7 +1078,7 @@
   function money(cents) {
     try {
       var cur = (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) || "EUR";
-      priceFmt = priceFmt || new Intl.NumberFormat("pt-PT", { style: "currency", currency: cur });
+      priceFmt = priceFmt || new Intl.NumberFormat(INTL[LANG], { style: "currency", currency: cur });
       return priceFmt.format(cents / 100);
     } catch (e) { return ""; }
   }
@@ -674,7 +1115,7 @@
     loadProduct(link.handle);
     var p = typeof products[link.handle] === "object" ? products[link.handle] : null;
     var v = p && link.variant ? p.variants.filter(function (x) { return x.id === link.variant; })[0] : null;
-    var card = el("a", { class: "product", href: url, target: "_blank", rel: "noopener" });
+    var card = el("a", { class: "product", href: productHref(url, link), target: "_blank", rel: "noopener" });
     var image = p ? (v && v.image) || p.image : "";
     if (image) card.appendChild(el("img", { src: image, alt: "", loading: "lazy" }));
     var info = el("span", { class: "pinfo" });
@@ -682,11 +1123,11 @@
     info.appendChild(el("strong", {}, p ? p.title : fallback.split(" — ")[0]));
     var price = !p ? (caption.split(" — ")[1] || "")
       : v && v.price != null ? money(v.price)
-      : p.varies && p.priceMin != null ? "desde " + money(p.priceMin)
+      : p.varies && p.priceMin != null ? t("fromPrice", { price: money(p.priceMin) })
       : p.price != null ? money(p.price) : "";
     if (price) info.appendChild(el("span", { class: "price" }, price));
-    if (p && !(v ? v.available : p.available)) info.appendChild(el("span", { class: "soldout" }, "Esgotado"));
-    info.appendChild(el("span", { class: "cta" }, "Ver produto"));
+    if (p && !(v ? v.available : p.available)) info.appendChild(el("span", { class: "soldout" }, t("soldOut")));
+    info.appendChild(el("span", { class: "cta" }, t("viewProduct")));
     card.appendChild(info);
     return card;
   }
@@ -694,18 +1135,18 @@
   function messageNode(m) {
     var d = new Date(m.created_at);
     // Aviso (ex.: a conversa foi transferida): linha centrada, sem balão.
-    if (m.from === "notice") return el("div", { class: "msg notice", "data-id": m.id, role: "note" }, String(m.body || ""));
+    if (m.from === "notice") return el("div", { class: "msg notice", "data-id": m.id, role: "note" }, noticeText(m));
     var bubble = el("div", { class: "msg " + (m.from === "visitor" ? "me" : "team") + (m.failed ? " failed" : ""), "data-id": m.id });
-    if (m.from === "team") bubble.appendChild(el("span", { class: "who" }, "Loja do Ouro" + (m.author ? " · " + m.author : "")));
+    if (m.from === "team") bubble.appendChild(el("span", { class: "who" }, BRAND + (m.author ? " · " + m.author : "")));
     if (m.from === "team") bubble.appendChild(formatTeam(m.body || ""));
     else {
       var p = el("p", {});
       p.appendChild(richText(m.body || ""));
       bubble.appendChild(p);
     }
-    var meta = el("span", { class: "meta" }, m.pending ? "A enviar…" : m.failed ? "Não enviada" : timeFmt.format(d));
+    var meta = el("span", { class: "meta" }, m.pending ? t("sending") : m.failed ? t("failed") : timeFmt.format(d));
     if (m.failed) {
-      var retry = el("button", { type: "button", class: "retry" }, "Tentar de novo");
+      var retry = el("button", { type: "button", class: "retry" }, t("retry"));
       retry.addEventListener("click", function () { setError(""); send(m.body, m); });
       meta.appendChild(retry);
     }
@@ -736,28 +1177,28 @@
     list.scrollTop = atBottom ? list.scrollHeight : prevTop;
   }
   function renderTyping() {
-    typingEl.textContent = state.agent ? state.agent + " está a escrever…" : "A equipa está a escrever…";
+    typingEl.textContent = state.agent ? t("typingAgent", { name: state.agent }) : t("typingTeam");
     typingEl.hidden = !state.typing;
   }
   function renderBadge() {
     var n = state.open ? 0 : unread();
     badge.hidden = !n;
     badge.textContent = n > 9 ? "9+" : String(n);
-    launcher.setAttribute("aria-label", n ? cfg.title + " (" + (n === 1 ? "1 mensagem nova" : n + " mensagens novas") + ")" : cfg.title);
+    launcher.setAttribute("aria-label", n ? cfg.title + " (" + (n === 1 ? t("unreadOne") : t("unreadMany", { n: n })) + ")" : cfg.title);
   }
   function renderStatus() {
     var online = isOpenNow();
     statusDot.className = "dot " + (online ? "on" : "off");
-    statusText.textContent = !online ? "Fora do horário de atendimento" : state.session && state.agent ? "A falar com " + state.agent : cfg.subtitle;
+    statusText.textContent = !online ? t("offHours") : state.session && state.agent ? t("talkingTo", { name: state.agent }) : cfg.subtitle;
     offline.hidden = online;
     if (!online) {
       offline.textContent = cfg.offlineMessage;
       var sched = scheduleText();
-      if (sched) offline.appendChild(el("span", { class: "hours" }, "Horário: " + sched));
+      if (sched) offline.appendChild(el("span", { class: "hours" }, t("hours", { hours: sched })));
     }
   }
   function renderForm() {
-    startBtn.textContent = state.busy ? "A enviar…" : "Iniciar conversa";
+    startBtn.textContent = state.busy ? t("sending") : t("start");
     if (state.busy) startBtn.setAttribute("disabled", ""); else startBtn.removeAttribute("disabled");
   }
   function setError(message) {

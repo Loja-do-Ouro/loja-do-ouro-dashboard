@@ -4,10 +4,13 @@ import { brandEmail, emailParagraph, esc } from "@/lib/email-layout";
 import { serverRpc } from "./db";
 import { CHANNEL_LABEL } from "./rules";
 import type { Handover } from "./service";
+import type { Site } from "./site-rules";
 
 // Remetente dos emails do Apoio ao Cliente (clientes do chat e avisos à equipa). O domínio lojadoouro.pt
-// está verificado no Resend; as respostas vão para a caixa do apoio (SITE_CHAT_REPLY_TO).
-export function supportEmailFrom() {
+// está verificado no Resend; as respostas vão para a caixa do apoio (SITE_CHAT_REPLY_TO). Clientes da Gold Store
+// Premium: o mesmo endereço com o nome da marca deles (SUPPORT_EMAIL_FROM_GSP substitui).
+export function supportEmailFrom(site: Site = "ldo") {
+  if (site === "gsp") return process.env.SUPPORT_EMAIL_FROM_GSP || "Gold Store Premium <apoiocliente@lojadoouro.pt>";
   return process.env.SUPPORT_EMAIL_FROM || process.env.SITE_CHAT_FROM || "Loja do Ouro <apoiocliente@lojadoouro.pt>";
 }
 export function supportReplyTo() {

@@ -10,6 +10,7 @@ export const metadata = { title: "Testar o chat do site · Loja do Ouro" };
 
 // O mesmo botão que vai para o tema Shopify, a falar com este dashboard. Serve para experimentar como
 // cliente (noutro separador, responder em Apoio ao Cliente → Chat do site) antes de mexer no site.
+// ?lang=en|es|fr|de mostra outra língua e ?marca=gsp a Gold Store Premium (a loja fora de Portugal).
 const CONFIG = {
   enabled: true,
   api: "",
@@ -32,9 +33,23 @@ const CONFIG = {
   identity: null,
 };
 
-export default async function ChatTestPage() {
+const LANGS = [["pt", "português"], ["en", "inglês"], ["es", "espanhol"], ["fr", "francês"], ["de", "alemão"]] as const;
+const SITES = [["ldo", "Loja do Ouro"], ["gsp", "Gold Store Premium"]] as const;
+type Lang = (typeof LANGS)[number][0];
+type Site = (typeof SITES)[number][0];
+
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || "";
+const testHref = (lang: Lang, site: Site) => `/apoio/chat-teste?lang=${lang}${site === "gsp" ? "&marca=gsp" : ""}`;
+
+export default async function ChatTestPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
   if (!canSupport(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
+  const q = await searchParams;
+  const site: Site = one(q.marca) === "gsp" ? "gsp" : "ldo";
+  // Sem ?lang=, a língua por omissão de cada site (como na raiz de lojadoouro.pt e de goldstorepremium.com).
+  const lang: Lang = LANGS.find(([k]) => k === one(q.lang).toLowerCase())?.[0] ?? (site === "gsp" ? "en" : "pt");
+  const brand = SITES.find(([k]) => k === site)![1];
+  const config = { ...CONFIG, lang, site, brand };
   return (
     <AppShell viewer={viewer} current="apoio" title="Testar o chat do site">
       <PageHeading eyebrow="APOIO AO CLIENTE" title="Testar o chat do site" text="O botão no canto inferior direito é o mesmo que vai para o site. Fale como se fosse um cliente e responda noutro separador, em Apoio ao Cliente (canal Chat do site)." />
@@ -46,9 +61,21 @@ export default async function ChatTestPage() {
           <li>A resposta aparece aqui em poucos segundos. Se fechar este separador e esperar 1 minuto antes de responder, a resposta segue também por email (quando o envio de emails estiver configurado).</li>
         </ol>
         <ChatTestTools />
+        <p className="panel-note">
+          A ver: <strong>{brand}</strong> em <strong>{LANGS.find(([k]) => k === lang)![1]}</strong>. Outras combinações (a página recarrega):{" "}
+          {SITES.map(([s, name], i) => (
+            <span key={s}>
+              {i ? " · " : ""}{name}:{" "}
+              {LANGS.map(([l], j) => (
+                <span key={l}>{j ? " " : ""}{l === lang && s === site ? <strong>{l.toUpperCase()}</strong> : <a href={testHref(l, s)}>{l.toUpperCase()}</a>}</span>
+              ))}
+            </span>
+          ))}
+          . Os textos do tema (título, boas-vindas, fora de horas) só valem em português; nas outras línguas o chat usa as traduções próprias.
+        </p>
         <p className="panel-note">No site, cores, textos, posição e horário mudam-se em Loja online → Personalizar tema → Rodapé → secção Chat Loja do Ouro. Esta página usa os valores por omissão.</p>
       </Panel>
-      <script id="ldo-chat-config" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(CONFIG).replace(/</g, "\\u003c") }} />
+      <script id="ldo-chat-config" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(config).replace(/</g, "\\u003c") }} />
     </AppShell>
   );
 }
