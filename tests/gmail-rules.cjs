@@ -99,6 +99,30 @@ test("Gmail bodies are base64url; charsets come from Content-Type, unknown ones 
   assert.equal(g.charsetOf(undefined), null);
 });
 
+test("UTF-8 declared as iso-8859-1/windows-1252 reads as UTF-8; genuine Latin-1 stays Latin-1", () => {
+  // Formulário de contacto do Shopify: bytes UTF-8 com charset iso-8859-1 (antes: "OrÃ§amento de AlianÃ§as").
+  const form = "Recebeu uma nova mensagem do formulário de contacto\nTipo De Pedido:\nOrçamento de Alianças\nGravação Aliança 1:";
+  for (const cs of ["iso-8859-1", "ISO-8859-1", "windows-1252", "latin1", "us-ascii"])
+    assert.equal(g.decodeBody(b64u(form, "utf8"), cs.toLowerCase()), form, cs);
+  // Latin-1 verdadeiro (C3 sozinho não forma UTF-8 válido aqui) continua a ler-se pelo charset declarado.
+  assert.equal(g.decodeBody(b64u("Não recebi a encomenda, é urgente", "latin1"), "iso-8859-1"), "Não recebi a encomenda, é urgente");
+  assert.equal(g.decodeBody(b64u("Ação", "latin1"), "windows-1252"), "Ação");
+  // Assuntos RFC 2047 com o mesmo problema.
+  const word = `=?iso-8859-1?B?${Buffer.from("Orçamento Alianças", "utf8").toString("base64")}?=`;
+  assert.equal(g.decodeWords(word), "Orçamento Alianças");
+  assert.equal(g.decodeWords("=?ISO-8859-1?Q?Or=E7amento?="), "Orçamento");
+});
+
+test("Text already garbled by the sender (UTF-8 read as windows-1252) is repaired, and nothing else changes", () => {
+  const garbled = Buffer.from("Orçamento de Alianças — Gravação ‘nós’ €", "utf8").toString("latin1")
+    .replace(/[\u0080-\u009f]/g, (c) => new TextDecoder("windows-1252").decode(Buffer.from([c.charCodeAt(0)])));
+  assert.notEqual(garbled, "Orçamento de Alianças — Gravação ‘nós’ €");
+  assert.equal(g.repairMojibake(garbled), "Orçamento de Alianças — Gravação ‘nós’ €");
+  assert.equal(g.decodeBody(b64u(garbled, "utf8"), "utf-8"), "Orçamento de Alianças — Gravação ‘nós’ €");
+  for (const fine of ["Olá, quero vender ouro", "São José Rocha", "ÃO maiúsculo e Âmbar", "Preço 3,5 mm · 19,2K", "日本語 😀"])
+    assert.equal(g.repairMojibake(fine), fine);
+});
+
 test("Plain text bodies: latin1 accents, CRLF, quoted history and blank lines are handled", () => {
   const body = "Bom dia,\r\n\r\nNão recebi a encomenda nº 1234.   \r\n\r\n\r\n\r\n\r\nObrigado,\r\nJoão\r\n\r\nEm qua., 7/10/2026 às 10:12, Loja do Ouro <apoio@lojadoouro.pt> escreveu:\r\n> Olá João,\r\n> a sua encomenda foi enviada.\r\n";
   const payload = textPart("", "text/plain", body, "ISO-8859-1");
