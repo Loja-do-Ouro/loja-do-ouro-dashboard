@@ -228,14 +228,22 @@ export function siteRootUrl(site: SiteKey, locale: SiteLocale) {
   return SITE_BRAND[site].origin + (SITE_BRAND[site].roots[locale] || "/");
 }
 
+// Ligação da loja no site e na língua do cliente (o catálogo dá sempre www.lojadoouro.pt, em português): o
+// prefixo de língua do endereço original sai. Outras ligações ficam iguais.
+export function siteLink(url: string, site: SiteKey, locale: SiteLocale) {
+  const m = /^https?:\/\/(?:www\.)?lojadoouro\.pt(?=[/?#]|$)\/?(?:(?:pt|en|es|fr|de)(?:-[a-z]{2})?(?=[/?#]|$)\/?)?/i.exec(url);
+  return m ? siteRootUrl(site, locale) + url.slice(m[0].length) : url;
+}
+
 const asLocale = (v: unknown) => {
   const l = typeof v === "string" ? v.trim().toLowerCase().slice(0, 2) : "";
   return SITE_LOCALES.includes(l as SiteLocale) ? (l as SiteLocale) : null;
 };
 
 // Marca, língua e país do visitante. Com o servidor atualizado vêm da BD (língua vazia = português); sem eles
-// (servidor anterior) deduzem-se da página: domínio para a marca, prefixo do endereço para a língua.
-export function visitorSite(v: { site?: unknown; locale?: unknown; country?: unknown; page_url?: string | null } | null | undefined): {
+// (servidor anterior, ou dados do visitante indisponíveis) deduzem-se da página e da conta da conversa
+// ('goldstorepremium.com' na Gold Store Premium): domínio para a marca, prefixo do endereço para a língua.
+export function visitorSite(v: { site?: unknown; locale?: unknown; country?: unknown; page_url?: string | null } | null | undefined, account?: string | null): {
   site: SiteKey; locale: SiteLocale; country: string | null;
 } {
   const country = typeof v?.country === "string" && /^[A-Z]{2}$/.test(v.country) ? v.country : null;
@@ -246,7 +254,7 @@ export function visitorSite(v: { site?: unknown; locale?: unknown; country?: unk
   } catch {
     url = null;
   }
-  const site: SiteKey = url && /(^|\.)goldstorepremium\.com$/i.test(url.hostname) ? "gsp" : "ldo";
+  const site: SiteKey = (url && /(^|\.)goldstorepremium\.com$/i.test(url.hostname)) || account === "goldstorepremium.com" ? "gsp" : "ldo";
   const prefix = url && /^\/(en|es|fr|de|pt-pt)(\/|$)/i.exec(url.pathname)?.[1];
   return { site, locale: asLocale(v?.locale) || asLocale(prefix) || (site === "gsp" ? "en" : "pt"), country };
 }

@@ -15,7 +15,7 @@ const PLACEHOLDERS = ["brand", "name", "email", "n", "price", "status", "hours"]
 
 function load({ host = "www.lojadoouro.pt", pathname = "/", htmlLang = "", shopify } = {}) {
   const window = shopify === undefined ? {} : { Shopify: shopify };
-  const location = { hostname: host, pathname };
+  const location = { hostname: host, pathname, origin: `https://${host}` };
   const document = { documentElement: { lang: htmlLang } };
   const make = new Function("window", "location", "document", `"use strict";
     var LANG = "pt", SITE = "ldo", BRAND = "";
@@ -24,7 +24,7 @@ function load({ host = "www.lojadoouro.pt", pathname = "/", htmlLang = "", shopi
     return {
       I18N: I18N, INTL: INTL, BRANDS: BRANDS, SERVER_ERRORS: SERVER_ERRORS,
       pickSite: pickSite, pickBrand: pickBrand, pickLang: pickLang, pickCountry: pickCountry,
-      t: t, themeText: themeText, errorText: errorText, noticeText: noticeText,
+      t: t, themeText: themeText, errorText: errorText, noticeText: noticeText, productHref: productHref,
       use: function (lang, site) { LANG = lang; SITE = site || "ldo"; BRAND = BRANDS[SITE]; },
     };`);
   return make(window, location, document);
@@ -207,4 +207,18 @@ test("Transfer notices are translated (new and old server)", () => {
   assert.equal(w.noticeText({ from: "notice", body: "Outro aviso." }), "Outro aviso.");
   w.use("pt", "ldo");
   assert.equal(w.noticeText({ from: "notice", kind: "transfer", to_first: "Diana" }), "A conversa foi transferida para Diana.");
+});
+
+test("Product cards open in the shop and language the customer is on", () => {
+  const ldo = "https://www.lojadoouro.pt/products/anel-ouro?variant=7";
+  const link = { handle: "anel-ouro", variant: "7" };
+  const es = load({ host: "www.goldstorepremium.com", pathname: "/es/", shopify: { routes: { root: "/es/" } } });
+  assert.equal(es.productHref(ldo, link), "https://www.goldstorepremium.com/es/products/anel-ouro?variant=7");
+  const en = load({ host: "www.lojadoouro.pt", pathname: "/en/", shopify: { routes: { root: "/en" } } });
+  assert.equal(en.productHref(ldo, { handle: "anel-ouro", variant: null }), "https://www.lojadoouro.pt/en/products/anel-ouro");
+  // Raiz estranha: a da loja.
+  const odd = load({ host: "www.goldstorepremium.com", shopify: { routes: { root: "//evil.example/" } } });
+  assert.equal(odd.productHref(ldo, link), "https://www.goldstorepremium.com/products/anel-ouro?variant=7");
+  // Fora da loja (página de teste do dashboard): a ligação original.
+  assert.equal(load({ host: "loja-do-ouro-dashboard.vercel.app" }).productHref(ldo, link), ldo);
 });

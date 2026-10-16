@@ -17,20 +17,34 @@ alter table public.ldo_support_site_visitors
   add column site text not null default 'ldo' check (site in ('ldo', 'gsp')),
   add column country text check (country is null or country ~ '^[A-Z]{2}$');
 
+-- Visitantes que já existiam em goldstorepremium.com (a página diz o site): Gold Store Premium, na língua do
+-- endereço (inglês na raiz). A conta da conversa acompanha (a chave é channel/account/external_id, com o uuid
+-- do visitante: não há colisões).
+update public.ldo_support_site_visitors set site = 'gsp',
+  locale = coalesce(locale, case when page_url ~* '^https://[^/]+/es(/|$)' then 'es'
+    when page_url ~* '^https://[^/]+/pt-pt(/|$)' then 'pt' else 'en' end)
+where page_url ~* '^https://([a-z0-9-]+\.)*goldstorepremium\.com(/|$)';
+update public.ldo_support_conversations c set account = 'goldstorepremium.com'
+from public.ldo_support_site_visitors v
+where v.conversation_id = c.id and v.site = 'gsp' and c.channel = 'site' and c.account = 'lojadoouro.pt';
+
 drop function public.ldo_support_site_start(text, text, text, text, boolean, text, uuid, text, text, text, text);
 drop function public.ldo_support_site_context(text, text, text, text, text, jsonb, timestamptz, integer);
 
 -- Novo visitante com a primeira mensagem (como em 20261008150000, mais a língua, o site e o país).
 create function public.ldo_support_site_start(p_token text, p_token_hash text, p_name text, p_email text, p_verified boolean,
   p_message text, p_client_key uuid, p_page text, p_ip_hash text, p_ip_prefix_hash text, p_user_agent text,
-  p_locale text default null, p_site text default 'ldo', p_country text default null) returns jsonb
+  p_locale text default null, p_site text default null, p_country text default null) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
   v_name text := ldo_private.site_clean(p_name, 80);
   v_email text := lower(btrim(coalesce(p_email, '')));
   v_body text := ldo_private.site_clean(p_message, 2000);
-  v_locale text := case when p_locale in ('pt', 'en', 'es', 'fr', 'de') then p_locale end;
-  v_site text := case when p_site = 'gsp' then 'gsp' else 'ldo' end;
+  -- Sem site (versão anterior do dashboard, entre a migração e a publicação): a página diz o site e a língua.
+  v_gsp_page boolean := p_site is null and coalesce(p_page, '') ~* '^https://([a-z0-9-]+\.)*goldstorepremium\.com(/|$)';
+  v_locale text := case when p_locale in ('pt', 'en', 'es', 'fr', 'de') then p_locale
+    when v_gsp_page then case when p_page ~* '^https://[^/]+/es(/|$)' then 'es' when p_page ~* '^https://[^/]+/pt-pt(/|$)' then 'pt' else 'en' end end;
+  v_site text := case when p_site = 'gsp' or v_gsp_page then 'gsp' else 'ldo' end;
   v_country text := case when p_country ~ '^[A-Z]{2}$' then p_country end;
   v_id uuid := gen_random_uuid();
   v_contact uuid;

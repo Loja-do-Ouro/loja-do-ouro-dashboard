@@ -24,6 +24,9 @@ test("The AI output is validated and normalised before reaching the screen", () 
   assert.deepEqual(ok, { mensagem: "Encontrei.", resposta_cliente: "Olá!", verificar: ["Prazo"] });
   assert.equal(ai.parseAiOutput(JSON.stringify({ mensagem: "Só para a equipa", resposta_cliente: "   ", verificar: [] })).resposta_cliente, null);
   assert.equal(ai.parseAiOutput(JSON.stringify({ mensagem: "x", resposta_cliente: null, verificar: [] })).resposta_cliente, null);
+  // Uma tradução longa fica abaixo do limite da BD (8000) e o corte vê-se.
+  const long = ai.parseAiOutput(JSON.stringify({ mensagem: "a".repeat(9000), resposta_cliente: null, verificar: [] })).mensagem;
+  assert.ok(long.length <= 8000 && long.endsWith(" […]"));
   assert.throws(() => ai.parseAiOutput("não é json"), /formato inesperado/);
   assert.throws(() => ai.parseAiOutput(JSON.stringify({ mensagem: "x" })), /incompleta/);
 });

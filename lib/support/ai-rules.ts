@@ -20,7 +20,7 @@ export const AI_OUTPUT_SCHEMA = {
   properties: {
     mensagem: {
       type: "string",
-      description: "Para a colaboradora, em português de Portugal: o que encontraste, de onde veio e o que não foi possível confirmar. Curto.",
+      description: "Para a colaboradora, em português de Portugal: o que encontraste, de onde veio e o que não foi possível confirmar. Curto, exceto quando a colaboradora pede uma tradução ou um texto completo.",
     },
     resposta_cliente: {
       anyOf: [{ type: "string" }, { type: "null" }],
@@ -92,7 +92,8 @@ export function parseAiOutput(text: string): AiOutput {
     throw new Error("A IA devolveu uma resposta incompleta. Tente outra vez.");
   const draft = typeof o.resposta_cliente === "string" ? o.resposta_cliente.trim() : "";
   return {
-    mensagem: o.mensagem.trim().slice(0, 6000),
+    // Abaixo do limite da BD (8000), com o corte à vista (uma tradução longa não acaba a meio sem aviso).
+    mensagem: clip(o.mensagem.trim(), 7900),
     resposta_cliente: draft ? draft.slice(0, 8000) : null,
     verificar: o.verificar.filter((x): x is string => typeof x === "string" && Boolean(x.trim())).map((x) => x.trim().slice(0, 300)).slice(0, 10),
   };

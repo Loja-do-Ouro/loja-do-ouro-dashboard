@@ -175,6 +175,22 @@ test("Site chat visitors carry the brand of the domain and the language of the s
   assert.deepEqual(r.visitorSite({ page_url: "https://www.goldstorepremium.com.evil.example/" }), { site: "ldo", locale: "pt", country: null });
   assert.deepEqual(r.visitorSite({ page_url: "não é url" }), { site: "ldo", locale: "pt", country: null });
   assert.deepEqual(r.visitorSite(null), { site: "ldo", locale: "pt", country: null });
+  // Sem os dados do visitante, a conta da conversa diz a marca; os dados da BD prevalecem.
+  assert.deepEqual(r.visitorSite(null, "goldstorepremium.com"), { site: "gsp", locale: "en", country: null });
+  assert.deepEqual(r.visitorSite(undefined, "lojadoouro.pt"), { site: "ldo", locale: "pt", country: null });
+  assert.deepEqual(r.visitorSite({ site: "ldo", locale: "en" }, "goldstorepremium.com"), { site: "ldo", locale: "en", country: null });
+
+  // Ligações do catálogo (www.lojadoouro.pt, em português) no site e na língua do cliente.
+  const anel = "https://www.lojadoouro.pt/products/anel?variant=1";
+  assert.equal(r.siteLink(anel, "gsp", "es"), "https://www.goldstorepremium.com/es/products/anel?variant=1");
+  assert.equal(r.siteLink(anel, "gsp", "en"), "https://www.goldstorepremium.com/products/anel?variant=1");
+  assert.equal(r.siteLink(anel, "ldo", "de"), "https://www.lojadoouro.pt/de/products/anel?variant=1");
+  assert.equal(r.siteLink(anel, "ldo", "pt"), anel);
+  assert.equal(r.siteLink("https://lojadoouro.pt/en/collections/aneis", "gsp", "pt"), "https://www.goldstorepremium.com/pt-pt/collections/aneis");
+  assert.equal(r.siteLink("https://www.lojadoouro.pt", "gsp", "es"), "https://www.goldstorepremium.com/es/");
+  assert.equal(r.siteLink("https://www.lojadoouro.pt/es-tudo", "ldo", "en"), "https://www.lojadoouro.pt/en/es-tudo");
+  assert.equal(r.siteLink("https://www.lojadoouro.pt.evil.example/products/anel", "gsp", "en"), "https://www.lojadoouro.pt.evil.example/products/anel");
+  assert.equal(r.siteLink("https://exemplo.com/products/anel", "gsp", "en"), "https://exemplo.com/products/anel");
 
   assert.equal(r.siteRootUrl("ldo", "pt"), "https://www.lojadoouro.pt/");
   assert.equal(r.siteRootUrl("ldo", "de"), "https://www.lojadoouro.pt/de/");

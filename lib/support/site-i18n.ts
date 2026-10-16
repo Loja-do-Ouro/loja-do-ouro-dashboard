@@ -73,7 +73,7 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     replySubjectOne: "{brand} ha respondido a su mensaje",
     replySubjectMany: "Nuevas respuestas de {brand}",
     replyTitleOne: "Hemos respondido a su mensaje",
-    replyTitleMany: "Tiene nuevas respuestas nuestras",
+    replyTitleMany: "Tiene nuevas respuestas de nuestro equipo",
     replyIntroOne: "Hemos respondido a su mensaje en el chat de {brand}:",
     replyIntroMany: "Le hemos dejado estas respuestas en el chat de {brand}:",
     replyOutro: "Puede continuar la conversación en nuestra web o responder directamente a este correo.",
@@ -128,12 +128,12 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     replyTitleMany: "Sie haben neue Antworten von uns",
     replyIntroOne: "wir haben im Chat von {brand} auf Ihre Nachricht geantwortet:",
     replyIntroMany: "wir haben Ihnen im Chat von {brand} folgende Antworten hinterlassen:",
-    replyOutro: "Sie können das Gespräch auf unserer Website fortsetzen oder direkt auf diese E-Mail antworten.",
-    replyButton: "Gespräch fortsetzen",
-    replyLink: "Gespräch fortsetzen: {url}",
+    replyOutro: "Sie können den Chat auf unserer Website fortsetzen oder direkt auf diese E-Mail antworten.",
+    replyButton: "Chat fortsetzen",
+    replyLink: "Chat fortsetzen: {url}",
     replyFooter: "Sie erhalten diese E-Mail, weil Sie mit uns im Chat auf {domain} geschrieben haben · {brand}",
-    transcriptSubject: "Ihr Gespräch mit {brand}",
-    transcriptTitle: "Ihr Gespräch mit uns",
+    transcriptSubject: "Ihr Chat mit {brand}",
+    transcriptTitle: "Ihr Chat mit uns",
     transcriptPreheader: "Kopie Ihres Chats auf {domain}.",
     transcriptIntro: "vielen Dank für Ihre Nachricht. Hier ist die Kopie Ihres Chats auf {domain}.",
     transcriptOutro: "Wenn Sie noch etwas brauchen, antworten Sie einfach auf diese E-Mail oder schreiben Sie uns im Chat auf unserer Website.",
@@ -231,7 +231,11 @@ export type TranscriptMessage = {
 // Cópia da conversa para o cliente que a terminou e a pediu.
 export function transcriptEmail(v: Visitor & { messages: TranscriptMessage[] }, baseUrl: string, origin?: string | null): Mail {
   const s = setup(v, baseUrl, origin);
-  const when = new Intl.DateTimeFormat(INTL[s.locale], { timeZone: emailTimeZone(s.site, v.country), dateStyle: "long", timeStyle: "short" });
+  // Fora da hora de Lisboa, o fuso é deduzido do país (no chat o cliente viu as horas dele): a hora leva o fuso.
+  const zone = emailTimeZone(s.site, v.country);
+  const when = new Intl.DateTimeFormat(INTL[s.locale], zone === "Europe/Lisbon"
+    ? { timeZone: zone, dateStyle: "long", timeStyle: "short" }
+    : { timeZone: zone, day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
   const label = (m: TranscriptMessage) => m.from === "visitor"
     ? `${s.first || s.t.you} · ${when.format(new Date(m.at))}`
     : `${m.author ? `${m.author} · ` : ""}${s.info.brand} · ${when.format(new Date(m.at))}`;

@@ -91,7 +91,7 @@
       subtitle: "The {brand} team replies here.",
       welcome: "Hello! How can we help you?",
       button: "Chat with us",
-      privacyText: "By starting the chat, you accept our Privacy Policy. To help you, our team can see the page you are on and your basket.",
+      privacyText: "By starting the chat, you accept our Privacy Policy. To help you, our team can see the page you are on and your cart.",
       privacyLink: "Read the policy",
       offlineMessage: "We are currently outside our opening hours. Please leave us a message: we will reply as soon as possible and also send our reply to your email address.",
       name: "Name",
@@ -394,6 +394,15 @@
       if (lang) return lang;
     }
     return site === "gsp" ? "en" : "pt";
+  }
+
+  // Cartão de produto: abre na loja onde o cliente está (domínio e língua), como o nome e o preço que mostra; as
+  // ligações do catálogo da equipa são as da Loja do Ouro, em português. Fora da loja (página de teste), a original.
+  function productHref(url, link) {
+    var S = window.Shopify;
+    if (!S || !location.origin) return url;
+    var root = (S.routes && typeof S.routes.root === "string" && /^\/[a-z0-9/-]*$/i.test(S.routes.root) ? S.routes.root : "/").replace(/\/?$/, "/");
+    return location.origin + root + "products/" + link.handle + (link.variant ? "?variant=" + link.variant : "");
   }
 
   function t(key, vars) {
@@ -1106,7 +1115,7 @@
     loadProduct(link.handle);
     var p = typeof products[link.handle] === "object" ? products[link.handle] : null;
     var v = p && link.variant ? p.variants.filter(function (x) { return x.id === link.variant; })[0] : null;
-    var card = el("a", { class: "product", href: url, target: "_blank", rel: "noopener" });
+    var card = el("a", { class: "product", href: productHref(url, link), target: "_blank", rel: "noopener" });
     var image = p ? (v && v.image) || p.image : "";
     if (image) card.appendChild(el("img", { src: image, alt: "", loading: "lazy" }));
     var info = el("span", { class: "pinfo" });

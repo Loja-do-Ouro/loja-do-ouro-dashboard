@@ -18,6 +18,7 @@ import {
   orderNumbersIn,
   previewKind,
   SITE_BRAND,
+  siteLink,
   siteRootUrl,
   STATUSES,
   STATUS_LABEL,
@@ -495,7 +496,10 @@ export function SupportInbox({
   const c = detail?.conversation.id === selected ? detail : null;
   // Chat do site: visitante desta conversa e marca e língua do site (sem dados: Loja do Ouro, sem destaque).
   const siteVisitor = c?.conversation.channel === "site" && visitor?.id === c.conversation.id ? visitor : null;
-  const site = siteVisitor?.info ? visitorSite(siteVisitor.info) : null;
+  // Sem os dados do visitante (a carregar ou falhou), a conta da conversa já diz se é da Gold Store Premium.
+  const site = c?.conversation.channel === "site" && (siteVisitor?.info || c.conversation.account === "goldstorepremium.com")
+    ? visitorSite(siteVisitor?.info, c.conversation.account)
+    : null;
   const brand = SITE_BRAND[site?.site || "ldo"].brand;
   const isZendesk = c?.conversation.platform === "zendesk";
   // Zendesk desligado no dashboard: os tickets ficam como histórico (notas, estado e responsável só aqui).
@@ -604,9 +608,12 @@ export function SupportInbox({
     if (!selected) return;
     const id = selected;
     const slot = slotOf(id, mode);
-    // Gold Store Premium: o preço do catálogo é o de Portugal (o do site é outro); o cartão no chat mostra o do site.
-    const price = site?.site === "gsp" ? null : item.price;
-    const line = `${item.title}${price ? ` — ${price}` : ""}\n${item.url}`;
+    // Chat do site: a ligação abre no site e na língua do cliente (a do catálogo é a da Loja do Ouro, em português).
+    const url = site ? siteLink(item.url, site.site, site.locale) : item.url;
+    // Gold Store Premium: produto só com a ligação. O cartão no chat mostra o nome, a foto e o preço do próprio site,
+    // na língua do cliente (o preço do catálogo é o de Portugal e o nome, em português, ficava repetido por cima).
+    const gsp = site?.site === "gsp";
+    const line = gsp && item.price ? url : `${item.title}${!gsp && item.price ? ` — ${item.price}` : ""}\n${url}`;
     const current = drafts[id]?.[mode] || "";
     setDraft(id, mode, current ? `${current.replace(/\s+$/, "")}\n\n${line}` : line);
     setShowCatalog(false);

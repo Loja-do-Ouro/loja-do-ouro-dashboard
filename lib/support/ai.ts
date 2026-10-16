@@ -41,7 +41,7 @@ export type AiItem = {
 export type AiEvent = { type: "status"; text: string } | { type: "done"; item: AiItem } | { type: "error"; error: string };
 
 type Detail = {
-  conversation: { id: string; channel: Channel; subject: string | null; status: Status; assignee_name: string | null; source_label: string };
+  conversation: { id: string; channel: Channel; account: string | null; subject: string | null; status: Status; assignee_name: string | null; source_label: string };
   contact: { name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; claimed_email?: string | null } | null;
   related: { channel: Channel; name: string | null; email: string | null; phone: string | null }[];
   // Comentários: a publicação comentada (legenda escrita pela marca, mas tratada como dado).
@@ -64,7 +64,7 @@ ${aiBrandRules(site)}
 O que fazes
 - Propões respostas ao cliente, resumes casos, explicas políticas e procedimentos, procuras produtos e encomendas e ajudas a decidir o próximo passo.
 - Quando te pedem uma resposta ao cliente (ou uma nova versão: mais curta, mais formal, noutra língua), escreve-a em "resposta_cliente". Quando a pergunta é só para a equipa (por exemplo "o que quer este cliente?" ou "qual é a política de trocas?"), responde em "mensagem" e deixa "resposta_cliente" a null.
-- "mensagem" é para a colaboradora: curta e direta, em português de Portugal. Diz o que encontraste e de onde veio (base de conhecimento, política ou página da loja, produto, encomenda, resposta anterior) e o que não conseguiste confirmar.
+- "mensagem" é para a colaboradora: curta e direta (completa quando te pedem uma tradução), em português de Portugal. Diz o que encontraste e de onde veio (base de conhecimento, política ou página da loja, produto, encomenda, resposta anterior) e o que não conseguiste confirmar.
 - "verificar" lista o que a colaboradora tem de confirmar antes de enviar (por exemplo um prazo que não está nas fontes, uma encomenda que não está associada a este cliente, um preço que pode ter mudado). Lista vazia quando não há nada a confirmar.
 
 Fontes e rigor
@@ -470,8 +470,9 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
       ? await sessionRpc<SiteVisitorCtx>(viewer.session, "ldo_support_site_visitor_info", { p_conversation: conversationId }).catch(() => null)
       : null;
     const context = contextText(detail, visitor);
-    // Marca e língua do site (chat do site); os outros canais são da Loja do Ouro.
-    const site = detail.conversation.channel === "site" ? visitorSite(visitor) : null;
+    // Marca e língua do site (chat do site); os outros canais são da Loja do Ouro. Sem os dados do visitante, a
+    // conta da conversa ('goldstorepremium.com') diz a marca.
+    const site = detail.conversation.channel === "site" ? visitorSite(visitor, detail.conversation.account) : null;
     const brand: SiteKey = site?.site || "ldo";
     // Um só email de identidade, como no painel do cliente: o associado pela equipa prevalece sobre o
     // do contacto (que pode ser uma caixa partilhada ou de outra pessoa).
