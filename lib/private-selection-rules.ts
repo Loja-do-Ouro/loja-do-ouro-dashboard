@@ -32,6 +32,15 @@ export const PS_BRANDS: Record<PsBrand, BrandInfo> = {
 export const isLocale = (v: unknown): v is PsLocale => typeof v === "string" && (PS_LOCALES as readonly string[]).includes(v);
 export const isBrand = (v: unknown): v is PsBrand => v === "ldo" || v === "gsp";
 
+// Porque é que um pedido ficou à espera da equipa (ldo_ps_blocked.reason), com o membro removido que o bloqueia.
+export function blockedReasonText(reason: string, removedEmail: string | null): string {
+  const who = removedEmail ? ` (${removedEmail})` : "";
+  if (reason === "removed_email") return "Este email foi removido da Private Selection.";
+  if (reason === "removed_mailbox") return `Outra forma deste email foi removida${who}.`;
+  if (reason === "removed_phone") return `O telemóvel é o de um membro removido${who}.`;
+  return "Pedido de uma pessoa removida.";
+}
+
 // "pt-PT", "IT", "es_ES" → pt, it, es. Outra língua ou valor inválido → fallback.
 export function pickLocale(v: unknown, fallback: PsLocale = "en"): PsLocale {
   if (typeof v !== "string") return fallback;

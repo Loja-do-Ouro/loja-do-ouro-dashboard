@@ -4,15 +4,15 @@ import { redirect } from "next/navigation";
 import { emailConfigured } from "@/lib/email";
 import { klaviyoWriteConfigured } from "@/lib/klaviyo-write";
 import { canManagePrivateSelection, homePath } from "@/lib/permissions";
-import { psList, type PsMember } from "@/lib/private-selection/db";
+import { psBlockedList, psList, type PsMember } from "@/lib/private-selection/db";
 import { sweepPrivateSelection } from "@/lib/private-selection/send";
-import { entryUrl, PS_BRANDS, PS_LOCALES, type PsLocale } from "@/lib/private-selection-rules";
+import { blockedReasonText, entryUrl, PS_BRANDS, PS_LOCALES, type PsLocale } from "@/lib/private-selection-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { addMember, removeMember, resendEmail, retryKlaviyo, saveEntryPath, savePassword } from "./actions";
+import { addMember, removeMember, resendEmail, resolveBlocked, retryKlaviyo, saveEntryPath, savePassword } from "./actions";
 import { PasswordForm } from "./password-form";
 
 export const dynamic = "force-dynamic";
@@ -23,14 +23,16 @@ const OK: Record<string, string> = {
   added: "Pessoa adicionada.",
   readded: "Pessoa adicionada de novo (estava removida).",
   resent: "Email com a senha de novo na fila.",
-  removed: "Pessoa removida: as sessões dela na loja terminaram, o email por enviar foi cancelado e sai da lista da Klaviyo. Novos pedidos com o mesmo email (ou o mesmo telemóvel) não recebem a senha. Como a senha é partilhada, quem a sabe ainda entra com o email de outro membro: para cortar esse acesso, mude a senha.",
+  removed: "Pessoa removida: as sessões dela na loja terminaram, o email por enviar foi cancelado e sai da lista da Klaviyo. Novos pedidos com o mesmo email (ou o mesmo telemóvel) ficam em «Pedidos bloqueados» à espera de decisão; se foi removida na primeira hora depois de se registar (um engano), não bloqueia ninguém. Como a senha é partilhada, quem a sabe ainda entra com o email de outro membro: para cortar esse acesso, mude a senha.",
+  blocked_accepted: "Pedido aceite: a pessoa passou a membro.",
+  blocked_dismissed: "Pedido ignorado: sai da lista, sem email. Se a pessoa pedir de novo, volta a aparecer.",
   password: "Senha guardada. Todas as sessões abertas na loja terminaram; os membros só voltam a entrar depois de receberem a nova senha (use Reenviar ou guarde de novo com a opção de a enviar a todos).",
   password_sent: "Senha guardada e enviada de novo a todos os membros ativos (nos próximos minutos). Todas as sessões abertas na loja terminaram.",
   settings: "Página guardada.",
   klaviyo: "Klaviyo de novo na fila.",
 };
 // Mensagens que acabam com o envio do email (já, ou só quando houver senha).
-const QUEUED = new Set(["added", "readded", "resent"]);
+const QUEUED = new Set(["added", "readded", "resent", "blocked_accepted"]);
 const LANG: Record<PsLocale, string> = { pt: "Português", en: "Inglês", es: "Espanhol", fr: "Francês", de: "Alemão", it: "Italiano" };
 
 // Horas de Lisboa: "às 15:30" hoje, "a 21/10 às 15:30" noutro dia; "21/10 15:30" para o que já aconteceu.
@@ -92,7 +94,11 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
   const viewer = await requireViewer();
   if (!canManagePrivateSelection(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const list = await psList(viewer.session).catch(() => null);
+  const [list, blocked] = await Promise.all([
+    psList(viewer.session).catch(() => null),
+    // Sem a atualização da BD (20261021160000_ldo_ps_blocked) a lista não existe: a página continua sem este painel.
+    psBlockedList(viewer.session).catch(() => null),
+  ]);
   // De passagem, depois da resposta: o que já está na hora sai sem esperar pela verificação de 5 em 5 minutos.
   after(() => sweepPrivateSelection().catch(() => undefined));
   const removedView = q.ver === "removidos";
@@ -230,10 +236,70 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
             </div>
           </div>
 
+          {blocked && blocked.length > 0 && (
+            <Panel
+              title={`${blocked.length} ${blocked.length === 1 ? "pedido bloqueado" : "pedidos bloqueados"}`}
+              eyebrow="À ESPERA DE DECISÃO"
+              note="Pedidos feitos no formulário da loja por pessoas removidas (mesmo email, outra forma do mesmo endereço ou o mesmo telemóvel). A pessoa viu «pedido recebido» mas não recebeu a senha. Aceitar torna-a membro e envia a senha já; Ignorar tira o pedido desta lista, sem email."
+            >
+              <div className="table-scroll" tabIndex={0} aria-label="Pedidos bloqueados da Private Selection">
+                <table className="left-table">
+                  <thead>
+                    <tr>
+                      <th>Pessoa</th>
+                      <th>Língua e marca</th>
+                      <th>Pedido</th>
+                      <th>Motivo</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {blocked.map((b) => (
+                      <tr key={b.id}>
+                        <td>
+                          {b.name}
+                          <small className="muted block">{b.email}</small>
+                          <small className="muted block">{b.phone}</small>
+                        </td>
+                        <td>
+                          {LANG[b.locale] || b.locale}
+                          <small className="muted block">{PS_BRANDS[b.brand]?.store || b.brand}</small>
+                        </td>
+                        <td>
+                          {timestamp(b.last_at)}
+                          {b.attempts > 1 && <small className="muted block">{b.attempts} pedidos desde {timestamp(b.created_at)}</small>}
+                          {b.consent_marketing && <span className="tag gold">Aceitou marketing</span>}
+                        </td>
+                        <td>
+                          {blockedReasonText(b.reason, b.removed_email)}
+                          {b.removed_at && <small className="muted block">Removido {timestamp(b.removed_at)}{b.removed_by_name ? ` · ${b.removed_by_name}` : ""}</small>}
+                        </td>
+                        <td>
+                          <form action={resolveBlocked} className="row-action">
+                            <input type="hidden" name="id" value={b.id} />
+                            <input type="hidden" name="decision" value="accept" />
+                            {keepView}
+                            <button type="submit" title={`Aceitar ${b.email} e enviar a senha`}>Aceitar</button>
+                          </form>
+                          <form action={resolveBlocked} className="row-action">
+                            <input type="hidden" name="id" value={b.id} />
+                            <input type="hidden" name="decision" value="dismiss" />
+                            {keepView}
+                            <button type="submit" className="secondary-button" title={`Ignorar o pedido de ${b.email}`}>Ignorar</button>
+                          </form>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          )}
+
           <Panel
             title={`${shown.length} ${removedView ? (shown.length === 1 ? "membro removido" : "membros removidos") : shown.length === 1 ? "membro ativo" : "membros ativos"}`}
             eyebrow="MEMBROS"
-            note="Remover é uma marca: termina as sessões da pessoa na loja e, se pedir acesso de novo com o mesmo email (ou o mesmo telemóvel), recebe a mesma resposta sem email. Só a equipa a pode adicionar outra vez. A senha é partilhada: quem a sabe ainda entra com o email de outro membro, e um pedido com outro email e outro telemóvel conta como pessoa nova. Para cortar o acesso de quem já sabe a senha, mude-a."
+            note="Remover é uma marca: termina as sessões da pessoa na loja e, se pedir acesso de novo com o mesmo email (ou o mesmo telemóvel), o pedido fica em «Pedidos bloqueados» até a equipa decidir. Quem foi removido na primeira hora depois de se registar (um engano, como um email mal escrito) não bloqueia ninguém. A senha é partilhada: quem a sabe ainda entra com o email de outro membro, e um pedido com outro email e outro telemóvel conta como pessoa nova. Para cortar o acesso de quem já sabe a senha, mude-a."
           >
             <div className="list-controls">
               <nav className="segmented" aria-label="Mostrar">

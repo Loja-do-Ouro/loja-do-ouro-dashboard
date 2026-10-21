@@ -3,7 +3,7 @@
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { canManagePrivateSelection, homePath } from "@/lib/permissions";
-import { psAdd, psKlaviyoRetry, psRemove, psResend, psSetPassword, psSetSettings } from "@/lib/private-selection/db";
+import { psAdd, psBlockedResolve, psKlaviyoRetry, psRemove, psResend, psSetPassword, psSetSettings } from "@/lib/private-selection/db";
 import { sweepPrivateSelection } from "@/lib/private-selection/send";
 import { cleanEmail, isBrand, isLocale, normalizePhone, PS_PASSWORD_MAX, PS_PASSWORD_MIN, validPassword } from "@/lib/private-selection-rules";
 import { userMessage } from "@/lib/supabase";
@@ -53,6 +53,20 @@ export async function addMember(form: FormData) {
   if (error) back(form, { ...(/^[0-9a-f-]{36}$/i.test(id) ? { id } : {}), erro: error });
   sweep();
   redirect(`/private-selection?${new URLSearchParams({ ok: reactivated ? "readded" : "added" })}`);
+}
+
+// Pedido bloqueado (pessoa removida que pediu de novo): "Aceitar" torna-a membro e envia a senha já; "Ignorar" tira o
+// pedido da lista sem email.
+export async function resolveBlocked(form: FormData) {
+  const viewer = await adminViewer();
+  const accept = form.get("decision") === "accept";
+  try {
+    await psBlockedResolve(viewer.session, String(form.get("id") || ""), accept);
+  } catch (e) {
+    back(form, { erro: userMessage(e) });
+  }
+  if (accept) sweep();
+  back(form, { ok: accept ? "blocked_accepted" : "blocked_dismissed" });
 }
 
 // "Reenviar": o email com a senha volta a sair já (só membros ativos; as tentativas recomeçam).

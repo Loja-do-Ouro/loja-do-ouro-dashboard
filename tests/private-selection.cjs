@@ -197,3 +197,11 @@ test("The password form alerts before saving: under 8 characters, spaces at the 
     assert.equal(ps.validPassword(bad), false, JSON.stringify(bad));
   }
 });
+
+test("Blocked requests explain which removed member blocks them", () => {
+  assert.equal(ps.blockedReasonText("removed_email", "a@b.pt"), "Este email foi removido da Private Selection.");
+  assert.equal(ps.blockedReasonText("removed_mailbox", "ana.silva+x@gmail.com"), "Outra forma deste email foi removida (ana.silva+x@gmail.com).");
+  assert.equal(ps.blockedReasonText("removed_phone", "diana@lojadfoouro.pt"), "O telemóvel é o de um membro removido (diana@lojadfoouro.pt).");
+  assert.equal(ps.blockedReasonText("removed_phone", null), "O telemóvel é o de um membro removido.");
+  assert.equal(ps.blockedReasonText("other", null), "Pedido de uma pessoa removida.");
+});
