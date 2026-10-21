@@ -118,7 +118,12 @@
   if lpc_collection == blank
     assign lpc_collection = collections['private-selection']
   endif
-  assign lpc_url = section.settings.link | default: lpc_collection.url | default: routes.all_products_collection_url
+  comment ----- A coleção abre no modelo «private-selection» (porta de acesso + peças), como as peças com ?view= -----
+  endcomment
+  assign lpc_url = lpc_collection.url | default: routes.all_products_collection_url | append: '?view=private-selection'
+  if section.settings.link != blank
+    assign lpc_url = section.settings.link
+  endif
 
   assign lpc_total = lpc_collection.products_count | default: 0
   assign lpc_tens = lpc_total | divided_by: 10 | times: 10
@@ -330,7 +335,7 @@
   "settings": [
     { "type": "paragraph", "content": "Convite para a zona exclusiva Private Selection (peças restritas e descontos para membros). O botão abre a coleção Private Selection, onde a pessoa pede acesso ou entra. Textos vazios = textos incluídos, já traduzidos em PT, EN, ES, FR, DE e IT." },
     { "type": "collection", "id": "collection", "label": "Coleção", "info": "Vazio = coleção «Private Selection». Dá o número de peças e as peças desfocadas." },
-    { "type": "url", "id": "link", "label": "Para onde vai o botão", "info": "Vazio = página da coleção (com a porta de acesso)." },
+    { "type": "url", "id": "link", "label": "Para onde vai o botão", "info": "Vazio = coleção no modelo Private Selection (porta de acesso e todas as peças)." },
     { "type": "image_picker", "id": "image", "label": "Imagem (opcional)", "info": "Vazio = as três peças de maior valor da coleção, desfocadas." },
     { "type": "range", "id": "blur", "label": "Desfoque das peças", "min": 0, "max": 20, "step": 1, "unit": "px", "default": 9 },
     { "type": "checkbox", "id": "show_count", "label": "Mostrar o número de peças", "info": "Arredondado às dezenas, por exemplo «+140 peças reservadas».", "default": true },
