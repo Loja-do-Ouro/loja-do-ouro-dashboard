@@ -119,6 +119,21 @@ export function validPassword(v: unknown): v is string {
   return typeof v === "string" && v.length >= PS_PASSWORD_MIN && v.length <= PS_PASSWORD_MAX && v === v.trim() && !/[\u0000-\u001f\u007f]/.test(v);
 }
 
+// Alerta do formulário da senha no dashboard, antes de guardar (a mesma regra de validPassword, mais a confirmação).
+// "" = pode guardar. Também diz qual dos dois campos corrigir.
+export function passwordAlert(password: string, confirm: string): { message: string; field: "password" | "confirm" | null } {
+  const fail = (message: string, field: "password" | "confirm" = "password") => ({ message: `${message} Não foi guardada.`, field });
+  if (password.length < PS_PASSWORD_MIN) {
+    const missing = PS_PASSWORD_MIN - password.length;
+    return fail(`A senha tem de ter pelo menos ${PS_PASSWORD_MIN} caracteres${password ? ` (faltam ${missing})` : ""}.`);
+  }
+  if (password.length > PS_PASSWORD_MAX) return fail(`A senha pode ter no máximo ${PS_PASSWORD_MAX} caracteres.`);
+  if (password !== password.trim()) return fail("A senha não pode começar nem acabar com um espaço.");
+  if (/[\u0000-\u001f\u007f]/.test(password)) return fail("A senha tem caracteres que não se podem usar.");
+  if (password !== confirm) return fail("As duas senhas não coincidem.", "confirm");
+  return { message: "", field: null };
+}
+
 // Klaviyo (lib/klaviyo-write.ts). Todos os membros ficam na lista "Clientes Private Selection"; só quem marcou a
 // caixa do marketing é também inscrito nos emails de marketing (a lista tem de ter double opt-in, e as campanhas vão
 // para um segmento com consentimento, nunca para a lista inteira). O telemóvel vai como propriedade e não como

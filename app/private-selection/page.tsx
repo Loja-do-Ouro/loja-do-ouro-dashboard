@@ -6,13 +6,14 @@ import { klaviyoWriteConfigured } from "@/lib/klaviyo-write";
 import { canManagePrivateSelection, homePath } from "@/lib/permissions";
 import { psList, type PsMember } from "@/lib/private-selection/db";
 import { sweepPrivateSelection } from "@/lib/private-selection/send";
-import { entryUrl, PS_BRANDS, PS_LOCALES, PS_PASSWORD_MAX, PS_PASSWORD_MIN, type PsLocale } from "@/lib/private-selection-rules";
+import { entryUrl, PS_BRANDS, PS_LOCALES, type PsLocale } from "@/lib/private-selection-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
 import { addMember, removeMember, resendEmail, retryKlaviyo, saveEntryPath, savePassword } from "./actions";
+import { PasswordForm } from "./password-form";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -186,25 +187,9 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
                     {!s.has_password && <small className="block error-text">Sem senha ninguém consegue entrar e os emails ficam à espera.</small>}
                   </dd>
                 </dl>
-                <form action={savePassword} className="form-grid">
+                <PasswordForm action={savePassword} activeCount={active.length} disabled={Boolean(keyProblem)}>
                   {keepView}
-                  <label>
-                    Nova senha
-                    <input name="password" type="password" required minLength={PS_PASSWORD_MIN} maxLength={PS_PASSWORD_MAX} autoComplete="new-password" spellCheck={false} />
-                  </label>
-                  <label>
-                    Repetir a nova senha
-                    <input name="confirm_password" type="password" required minLength={PS_PASSWORD_MIN} maxLength={PS_PASSWORD_MAX} autoComplete="new-password" spellCheck={false} />
-                  </label>
-                  <label className="check wide">
-                    <input type="checkbox" name="notify_all" />
-                    <span>Enviar a nova senha a todos os membros ativos ({active.length})</span>
-                  </label>
-                  <div className="wide form-actions">
-                    <button type="submit" disabled={Boolean(keyProblem)}>Guardar senha</button>
-                    <small>Pelo menos {PS_PASSWORD_MIN} caracteres. Mudar a senha termina todas as sessões abertas na loja; sem a opção acima, ninguém recebe a nova senha e os membros só voltam a entrar com Reenviar. A senha nunca é mostrada aqui.</small>
-                  </div>
-                </form>
+                </PasswordForm>
               </Panel>
 
               <Panel title="Email e página na loja" eyebrow="CONFIGURAÇÃO">
