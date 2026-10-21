@@ -493,7 +493,7 @@ $$;
 -- * 5 falhas do mesmo email a partir da mesma rede em 15 minutos bloqueiam esse email nessa rede; quem está noutra
 --   rede (o próprio membro, por exemplo) continua a entrar;
 -- * com 20 falhas numa hora, a rede só entra com a senha certa de um membro: as outras tentativas respondem
---   'locked' (um email que não é membro sem bcrypt nem registo).
+--   'locked' (um email que não é membro faz o mesmo bcrypt, mas sem registo).
 -- A configuração fica bloqueada para leitura (for share): uma senha mudada ao mesmo tempo ou espera por esta entrada
 -- e termina a sessão nova, ou fica gravada antes e a entrada já usa a senha nova.
 -- Só devolve o primeiro nome (para a saudação da página): a senha é partilhada, por isso entrar só prova que se
