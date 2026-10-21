@@ -13,7 +13,7 @@ export function OPTIONS(request: Request) {
 
 // Pedido de acesso pelo formulário da página reservada: nome, email e telemóvel. Quem pede fica logo membro e
 // recebe a senha por email cerca de 30 minutos depois (fila na BD). A resposta é sempre a mesma, "pedido
-// recebido": membro novo, membro que já existe, membro removido (fica bloqueado, sem email) ou robô (campo escondido
+// recebido": membro novo, membro que já existe, membro removido (sem email; o pedido fica em ldo_ps_blocked para a equipa decidir) ou robô (campo escondido
 // preenchido). Só os dados mal preenchidos têm resposta própria.
 export async function POST(request: Request) {
   return psHandle(request, async () => {

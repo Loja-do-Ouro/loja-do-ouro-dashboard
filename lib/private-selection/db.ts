@@ -37,6 +37,24 @@ export function psAdd(session: string, m: { name: string; email: string; phone: 
   });
 }
 
+// Pedidos de pessoas removidas (mesmo email, outra forma do endereço ou mesmo telemóvel) que esperam pela equipa
+// (supabase/migrations/20261021160000_ldo_ps_blocked.sql).
+export type PsBlockedReason = "removed_email" | "removed_mailbox" | "removed_phone";
+export type PsBlocked = {
+  id: string; email: string; name: string; phone: string; locale: PsLocale; brand: PsBrand; consent_marketing: boolean;
+  reason: PsBlockedReason; attempts: number; created_at: string; last_at: string;
+  removed_email: string | null; removed_name: string | null; removed_at: string | null; removed_by_name: string | null;
+};
+
+export function psBlockedList(session: string) {
+  return sessionRpc<PsBlocked[]>(session, "ldo_ps_blocked_list");
+}
+
+// Aceitar: membro ativo e email com a senha já (como "Adicionar pessoa"). Ignorar: o pedido sai da lista.
+export function psBlockedResolve(session: string, id: string, accept: boolean) {
+  return sessionRpc<{ accepted: boolean; member_id: string | null }>(session, "ldo_ps_blocked_resolve", { p_id: id, p_accept: accept });
+}
+
 export function psRemove(session: string, id: string) {
   return sessionRpc<null>(session, "ldo_ps_remove", { p_id: id });
 }
