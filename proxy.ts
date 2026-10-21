@@ -27,6 +27,9 @@ export function proxy(request: NextRequest) {
   if (path.startsWith("/api/chat/")) return NextResponse.next();
   // Código do widget do chat, carregado pelo tema da loja (ficheiro público, sem dados).
   if (path.startsWith("/site-chat/")) return NextResponse.next();
+  // Private Selection (página reservada no tema Shopify): pedido de acesso, entrada e sessão da loja; origens,
+  // senha e limites verificados nas rotas e na BD. A página da equipa (/private-selection) continua protegida.
+  if (path.startsWith("/api/private-selection/")) return NextResponse.next();
   if (request.cookies.get(SESSION_COOKIE)?.value) return NextResponse.next();
 
   const login = new URL("/login", request.url);

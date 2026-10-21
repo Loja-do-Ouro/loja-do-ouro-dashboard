@@ -28,6 +28,16 @@ test("Only the Super Admin and Gestores manage users; only the Super Admin manag
   assert.equal(perm.canManageStores(superAdmin), true);
 });
 
+test("Only the Super Admin and Loja Online users manage the Private Selection", () => {
+  assert.equal(perm.canManagePrivateSelection(superAdmin), true);
+  assert.equal(perm.canManagePrivateSelection(online), true);
+  assert.equal(perm.canManagePrivateSelection({ ...superAdmin, online: false, stores: [] }), true);
+  assert.equal(perm.canManagePrivateSelection(manager), false);
+  assert.equal(perm.canManagePrivateSelection(shop), false);
+  assert.equal(perm.canManagePrivateSelection({ ...nobody, support: true }), false);
+  assert.equal(perm.canManagePrivateSelection(nobody), false);
+});
+
 test("A Gestor grants only the Loja level, and only in the stores they manage", () => {
   assert.deepEqual(perm.grantableLevels(superAdmin, "z"), ["store", "manager"]);
   assert.deepEqual(perm.grantableLevels(manager, "a"), ["store"]);

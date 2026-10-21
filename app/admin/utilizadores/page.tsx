@@ -206,7 +206,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                 </label>
                 <label className="check">
                   <input type="checkbox" name="online_access" defaultChecked={editing?.online_access} />
-                  <span><strong>Loja Online</strong> — Shopify, campanhas, redes sociais, públicos e qualidade dos dados.</span>
+                  <span><strong>Loja Online</strong> — Shopify, campanhas, redes sociais, públicos e qualidade dos dados, e a Private Selection (membros e senha).</span>
                 </label>
                 <label className="check">
                   <input type="checkbox" name="support_access" defaultChecked={editing?.support_access} />

@@ -18,10 +18,11 @@ export function dashboardUrl() {
   return "https://loja-do-ouro-dashboard.vercel.app";
 }
 
+// status: estado HTTP quando o Resend recusa (ex.: 429, demasiados pedidos por segundo).
 export async function sendEmail(
   to: string[], subject: string, html: string,
   opts: { from?: string; replyTo?: string; timeoutMs?: number; text?: string } = {},
-): Promise<{ ok: boolean; detail: string }> {
+): Promise<{ ok: boolean; detail: string; status?: number }> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { ok: false, detail: "RESEND_API_KEY por configurar." };
   if (!to.length) return { ok: false, detail: "Sem destinatários (Super Admins com email e relatórios ativos)." };
@@ -38,7 +39,7 @@ export async function sendEmail(
       }),
     });
     const body = (await r.json().catch(() => ({}))) as { id?: string; message?: string };
-    return r.ok ? { ok: true, detail: body.id || "enviado" } : { ok: false, detail: body.message || `Resend recusou (${r.status}).` };
+    return r.ok ? { ok: true, detail: body.id || "enviado" } : { ok: false, detail: body.message || `Resend recusou (${r.status}).`, status: r.status };
   } catch {
     return { ok: false, detail: "Resend indisponível." };
   }

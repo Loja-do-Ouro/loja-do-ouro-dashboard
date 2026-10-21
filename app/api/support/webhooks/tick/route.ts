@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { sendDuePrivateSelectionEmails, syncPrivateSelectionKlaviyo } from "@/lib/private-selection/send";
 import { serverConfigured, serverRpc } from "@/lib/support/db";
 import { runSync } from "@/lib/support/sync";
 
@@ -16,7 +17,9 @@ const COMMENTS = ["metricool-facebook-comments", "metricool-instagram-comments"]
 // Responde já e sincroniza a seguir:
 // - Facebook e Instagram em cada verificação, sem esperar pela frequência do dashboard aberto (a espera depois de
 //   erros mantém-se);
-// - as outras fontes (também os comentários das publicações) com a frequência e as esperas habituais.
+// - as outras fontes (também os comentários das publicações) com a frequência e as esperas habituais;
+// - Private Selection: os emails com a senha que já estão na hora (cerca de 30 minutos depois do pedido) e a lista
+//   do Klaviyo, ao mesmo tempo que as fontes e com o mesmo orçamento.
 // Orçamento de 60 s contado desde o início do pedido: com a última leitura e os envios, fica abaixo dos 120 s.
 export async function POST(request: Request) {
   const start = Date.now();
@@ -30,6 +33,8 @@ export async function POST(request: Request) {
       runSync({ only: METRICOOL, force: true, budgetMs }).catch(() => undefined),
       runSync({ only: ["zendesk", "gmail"], budgetMs }).catch(() => undefined),
       runSync({ only: COMMENTS, budgetMs }).catch(() => undefined),
+      sendDuePrivateSelectionEmails({ budgetMs }).catch(() => undefined),
+      syncPrivateSelectionKlaviyo({ budgetMs }).catch(() => undefined),
     ]);
   });
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
