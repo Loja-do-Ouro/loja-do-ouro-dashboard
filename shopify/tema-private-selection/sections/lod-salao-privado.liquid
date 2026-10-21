@@ -1,0 +1,1003 @@
+{%- comment -%}
+  LOJA DO OURO — PRIVATE SELECTION (uma peça em destaque na homepage) / v5
+  - Escolha a peça nas definições. Fotografias, preço, stock, toque, peso e contraste vêm do produto.
+  - Usa os snippets lod-product-copy e lod-product-facts (os mesmos da ficha de produto).
+  - Cupão: código + % nas definições (os dois juntos). Se o código ficar vazio, usa os metafields
+    custom.cupao_codigo + custom.cupao_percentagem da própria peça (também os dois juntos).
+  - Textos: PT nas definições; EN, ES, FR, DE e IT opcionais (vazio = tradução incluída).
+  - Peça vendida ou indisponível: a secção esconde-se sozinha (ou mostra «Peça vendida», conforme a definição).
+  - O botão principal abre a peça na Private Selection (?view=private-selection, + &cupao= com o código).
+  - «Private Selection» fica sempre em inglês (é o nome). Nome completo na mensagem de WhatsApp:
+    Loja do Ouro Private Selection só em português E com o país Portugal; senão Gold Store Premium Private Selection.
+{%- endcomment -%}
+
+{%- liquid
+  assign lsp_product = section.settings.product
+  assign lsp_id = 'lsp-' | append: section.id
+
+  assign lsp_lang = localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+  assign lsp_lang = lsp_lang | downcase | slice: 0, 2
+  assign lsp_unit = 'K'
+  assign lsp_dec = ','
+  if lsp_lang == 'pt'
+    assign lsp_unit = 'kl'
+  elsif lsp_lang == 'en'
+    assign lsp_dec = '.'
+  endif
+
+  comment ----- Marca: Loja do Ouro só em português e em Portugal; senão Gold Store Premium (a regra do cabeçalho) -----
+  endcomment
+  assign lsp_country = localization.country.iso_code | default: '' | upcase
+  assign lsp_ps_brand = 'Gold Store Premium Private Selection'
+  if lsp_lang == 'pt' and lsp_country == 'PT'
+    assign lsp_ps_brand = 'Loja do Ouro Private Selection'
+  endif
+
+  comment ----- Textos incluídos (usados quando a definição da língua está vazia) -----
+  endcomment
+  case lsp_lang
+    when 'en'
+      assign d_eyebrow = 'Private Selection'
+      assign d_tagline = 'For those who have never needed to raise their voice.'
+      assign d_cta = 'Enter the Private Selection'
+      if section.settings.cta_target == 'product'
+        assign d_cta = 'Discover the piece'
+      endif
+      assign d_cta2 = 'Speak to an advisor'
+      assign d_coupon_label = 'Private Selection privilege'
+      assign d_coupon_note = 'Valid on this piece only · one use per customer · not combinable with other offers.'
+      assign d_apply_auto = 'Applied automatically at checkout.'
+      assign d_apply_manual = 'Enter the code at checkout.'
+      assign d_with_code = 'with code'
+      assign d_copy = 'Copy code'
+      assign d_copied = 'Copied'
+      assign d_selected = 'Code selected'
+      assign d_sold = 'Sold'
+      assign d_sold_cta = 'Discover other pieces'
+      assign d_wa = 'Hello, I would like to know more about this piece from the ' | append: lsp_ps_brand | append: ':'
+      assign d_wa_sold = 'Hello, I am looking for a piece similar to this one:'
+      assign d_hall_800 = 'Deer’s head'
+      assign d_hall_925 = 'Rabbit'
+    when 'es'
+      assign d_eyebrow = 'Private Selection'
+      assign d_tagline = 'Para quien nunca ha necesitado alzar la voz.'
+      assign d_cta = 'Entrar en Private Selection'
+      if section.settings.cta_target == 'product'
+        assign d_cta = 'Descubrir la pieza'
+      endif
+      assign d_cta2 = 'Hablar con un asesor'
+      assign d_coupon_label = 'Privilegio Private Selection'
+      assign d_coupon_note = 'Válido solo para esta pieza · un uso por cliente · no acumulable con otras promociones.'
+      assign d_apply_auto = 'Se aplica automáticamente al finalizar la compra.'
+      assign d_apply_manual = 'Introduzca el código al finalizar la compra.'
+      assign d_with_code = 'con el código'
+      assign d_copy = 'Copiar código'
+      assign d_copied = 'Copiado'
+      assign d_selected = 'Código seleccionado'
+      assign d_sold = 'Pieza vendida'
+      assign d_sold_cta = 'Descubrir otras piezas'
+      assign d_wa = 'Hola, me gustaría saber más sobre esta pieza de ' | append: lsp_ps_brand | append: ':'
+      assign d_wa_sold = 'Hola, busco una pieza similar a esta:'
+      assign d_hall_800 = 'Cabeza de ciervo'
+      assign d_hall_925 = 'Conejo'
+    when 'fr'
+      assign d_eyebrow = 'Private Selection'
+      assign d_tagline = 'Pour qui n’a jamais eu besoin d’élever la voix.'
+      assign d_cta = 'Entrer dans la Private Selection'
+      if section.settings.cta_target == 'product'
+        assign d_cta = 'Découvrir la pièce'
+      endif
+      assign d_cta2 = 'Parler à un conseiller'
+      assign d_coupon_label = 'Privilège Private Selection'
+      assign d_coupon_note = 'Valable uniquement sur cette pièce · une utilisation par client · non cumulable avec d’autres offres.'
+      assign d_apply_auto = 'Appliqué automatiquement lors du paiement.'
+      assign d_apply_manual = 'Saisissez le code lors du paiement.'
+      assign d_with_code = 'avec le code'
+      assign d_copy = 'Copier le code'
+      assign d_copied = 'Copié'
+      assign d_selected = 'Code sélectionné'
+      assign d_sold = 'Pièce vendue'
+      assign d_sold_cta = 'Découvrir d’autres pièces'
+      assign d_wa = 'Bonjour, j’aimerais en savoir plus sur cette pièce de la ' | append: lsp_ps_brand | append: ' :'
+      assign d_wa_sold = 'Bonjour, je recherche une pièce semblable à celle-ci :'
+      assign d_hall_800 = 'Tête de cerf'
+      assign d_hall_925 = 'Lapin'
+    when 'de'
+      assign d_eyebrow = 'Private Selection'
+      assign d_tagline = 'Für alle, die nie die Stimme erheben mussten.'
+      assign d_cta = 'Zur Private Selection'
+      if section.settings.cta_target == 'product'
+        assign d_cta = 'Das Stück entdecken'
+      endif
+      assign d_cta2 = 'Mit einem Berater sprechen'
+      assign d_coupon_label = 'Privileg der Private Selection'
+      assign d_coupon_note = 'Nur für dieses Stück gültig · einmal pro Person einlösbar · nicht mit anderen Aktionen kombinierbar.'
+      assign d_apply_auto = 'Wird an der Kasse automatisch angewendet.'
+      assign d_apply_manual = 'Geben Sie den Code an der Kasse ein.'
+      assign d_with_code = 'mit dem Code'
+      assign d_copy = 'Code kopieren'
+      assign d_copied = 'Kopiert'
+      assign d_selected = 'Code markiert'
+      assign d_sold = 'Verkauft'
+      assign d_sold_cta = 'Weitere Stücke entdecken'
+      assign d_wa = 'Guten Tag, ich möchte mehr über dieses Stück aus der ' | append: lsp_ps_brand | append: ' erfahren:'
+      assign d_wa_sold = 'Guten Tag, ich suche ein ähnliches Stück wie dieses:'
+      assign d_hall_800 = 'Hirschkopf'
+      assign d_hall_925 = 'Kaninchen'
+    when 'it'
+      assign d_eyebrow = 'Private Selection'
+      assign d_tagline = 'Per chi non ha mai avuto bisogno di alzare la voce.'
+      assign d_cta = 'Entra nella Private Selection'
+      if section.settings.cta_target == 'product'
+        assign d_cta = 'Scopri il pezzo'
+      endif
+      assign d_cta2 = 'Parla con un consulente'
+      assign d_coupon_label = 'Privilegio Private Selection'
+      assign d_coupon_note = 'Valido solo per questo pezzo · un utilizzo per cliente · non cumulabile con altre promozioni.'
+      assign d_apply_auto = 'Applicato automaticamente al momento del pagamento.'
+      assign d_apply_manual = 'Inserisca il codice al momento del pagamento.'
+      assign d_with_code = 'con il codice'
+      assign d_copy = 'Copia codice'
+      assign d_copied = 'Copiato'
+      assign d_selected = 'Codice selezionato'
+      assign d_sold = 'Venduto'
+      assign d_sold_cta = 'Scopri altri pezzi'
+      assign d_wa = 'Buongiorno, vorrei sapere di più su questo pezzo della ' | append: lsp_ps_brand | append: ':'
+      assign d_wa_sold = 'Buongiorno, cerco un pezzo simile a questo:'
+      assign d_hall_800 = 'Testa di cervo'
+      assign d_hall_925 = 'Coniglio'
+    else
+      assign d_eyebrow = 'Private Selection'
+      assign d_tagline = 'Para quem nunca precisou de levantar a voz.'
+      assign d_cta = 'Entrar na Private Selection'
+      if section.settings.cta_target == 'product'
+        assign d_cta = 'Descobrir a peça'
+      endif
+      assign d_cta2 = 'Falar com um consultor'
+      assign d_coupon_label = 'Privilégio Private Selection'
+      assign d_coupon_note = 'Válido apenas para esta peça · uma utilização por cliente · não acumulável com outras promoções.'
+      assign d_apply_auto = 'Aplicado automaticamente na finalização da compra.'
+      assign d_apply_manual = 'Introduza o código na finalização da compra.'
+      assign d_with_code = 'com o código'
+      assign d_copy = 'Copiar código'
+      assign d_copied = 'Copiado'
+      assign d_selected = 'Código selecionado'
+      assign d_sold = 'Peça vendida'
+      assign d_sold_cta = 'Descobrir outras peças'
+      assign d_wa = 'Olá, gostaria de saber mais sobre esta peça da ' | append: lsp_ps_brand | append: ':'
+      assign d_wa_sold = 'Olá, procuro uma peça semelhante a esta:'
+      assign d_hall_800 = 'Cabeça de Veado'
+      assign d_hall_925 = 'Coelho'
+  endcase
+
+  comment ----- Textos das definições, por língua -----
+  endcomment
+  case lsp_lang
+    when 'pt'
+      assign x_eyebrow = section.settings.eyebrow
+      comment ----- O nome antigo guardado na homepage passa a mostrar o nome novo (até a etiqueta ser mudada no editor) -----
+      endcomment
+      if x_eyebrow == 'Salão Privado'
+        assign x_eyebrow = d_eyebrow
+      endif
+      assign x_title_1 = section.settings.title_1
+      assign x_title_2 = section.settings.title_2
+      assign x_tagline = section.settings.tagline
+      assign x_cta = section.settings.cta_label | default: d_cta
+      assign x_cta2 = section.settings.cta2_label | default: d_cta2
+      assign x_coupon_label = section.settings.coupon_label | default: d_coupon_label
+      assign x_coupon_note = section.settings.coupon_note | default: d_coupon_note
+    when 'en'
+      assign x_eyebrow = section.settings.eyebrow_en | default: d_eyebrow
+      assign x_title_1 = section.settings.title_1_en
+      assign x_title_2 = section.settings.title_2_en
+      assign x_tagline = section.settings.tagline_en | default: d_tagline
+      assign x_cta = section.settings.cta_label_en | default: d_cta
+      assign x_cta2 = section.settings.cta2_label_en | default: d_cta2
+      assign x_coupon_label = section.settings.coupon_label_en | default: d_coupon_label
+      assign x_coupon_note = section.settings.coupon_note_en | default: d_coupon_note
+    when 'es'
+      assign x_eyebrow = section.settings.eyebrow_es | default: d_eyebrow
+      assign x_title_1 = section.settings.title_1_es
+      assign x_title_2 = section.settings.title_2_es
+      assign x_tagline = section.settings.tagline_es | default: d_tagline
+      assign x_cta = section.settings.cta_label_es | default: d_cta
+      assign x_cta2 = section.settings.cta2_label_es | default: d_cta2
+      assign x_coupon_label = section.settings.coupon_label_es | default: d_coupon_label
+      assign x_coupon_note = section.settings.coupon_note_es | default: d_coupon_note
+    when 'fr'
+      assign x_eyebrow = section.settings.eyebrow_fr | default: d_eyebrow
+      assign x_title_1 = section.settings.title_1_fr
+      assign x_title_2 = section.settings.title_2_fr
+      assign x_tagline = section.settings.tagline_fr | default: d_tagline
+      assign x_cta = section.settings.cta_label_fr | default: d_cta
+      assign x_cta2 = section.settings.cta2_label_fr | default: d_cta2
+      assign x_coupon_label = section.settings.coupon_label_fr | default: d_coupon_label
+      assign x_coupon_note = section.settings.coupon_note_fr | default: d_coupon_note
+    when 'de'
+      assign x_eyebrow = section.settings.eyebrow_de | default: d_eyebrow
+      assign x_title_1 = section.settings.title_1_de
+      assign x_title_2 = section.settings.title_2_de
+      assign x_tagline = section.settings.tagline_de | default: d_tagline
+      assign x_cta = section.settings.cta_label_de | default: d_cta
+      assign x_cta2 = section.settings.cta2_label_de | default: d_cta2
+      assign x_coupon_label = section.settings.coupon_label_de | default: d_coupon_label
+      assign x_coupon_note = section.settings.coupon_note_de | default: d_coupon_note
+    when 'it'
+      assign x_eyebrow = section.settings.eyebrow_it | default: d_eyebrow
+      assign x_title_1 = section.settings.title_1_it
+      assign x_title_2 = section.settings.title_2_it
+      assign x_tagline = section.settings.tagline_it | default: d_tagline
+      assign x_cta = section.settings.cta_label_it | default: d_cta
+      assign x_cta2 = section.settings.cta2_label_it | default: d_cta2
+      assign x_coupon_label = section.settings.coupon_label_it | default: d_coupon_label
+      assign x_coupon_note = section.settings.coupon_note_it | default: d_coupon_note
+    else
+      assign x_eyebrow = d_eyebrow
+      assign x_title_1 = blank
+      assign x_title_2 = blank
+      assign x_tagline = d_tagline
+      assign x_cta = d_cta
+      assign x_cta2 = d_cta2
+      assign x_coupon_label = d_coupon_label
+      assign x_coupon_note = d_coupon_note
+  endcase
+
+  assign lsp_render = true
+  assign lsp_sold = false
+  if lsp_product == blank
+    assign lsp_render = false
+  elsif lsp_product.available == false
+    assign lsp_sold = true
+    if section.settings.sold_behavior == 'hide'
+      assign lsp_render = false
+    endif
+  endif
+-%}
+
+{%- if lsp_render -%}
+  {%- liquid
+    assign v = lsp_product.selected_or_first_available_variant
+
+    capture lsp_copy_raw
+      render 'lod-product-copy'
+    endcapture
+    assign t = lsp_copy_raw | strip | split: '~~'
+
+    capture lsp_facts_raw
+      render 'lod-product-facts', p: lsp_product, v: v, t: t, unit: lsp_unit, dec: lsp_dec
+    endcapture
+    assign f = lsp_facts_raw | strip | split: '¦'
+
+    assign lsp_title_long = false
+    if x_title_1 == blank and x_title_2 == blank
+      assign x_title_1 = f[0] | default: lsp_product.title
+      if x_title_1.size > 26
+        assign lsp_title_long = true
+      endif
+    endif
+
+    comment ----- Imagens: fotografia ao pulso (2.ª imagem da peça) e packshot (1.ª imagem) -----
+    endcomment
+    assign lsp_photo = section.settings.image_photo
+    if lsp_photo == blank
+      if lsp_product.media.size > 1
+        assign lsp_photo = lsp_product.media[1].preview_image
+      else
+        assign lsp_photo = lsp_product.featured_image
+      endif
+    endif
+    assign lsp_pack = section.settings.image_pack | default: lsp_product.featured_image
+    assign lsp_photo_alt = lsp_photo.alt | default: lsp_product.title
+    assign lsp_pack_alt = lsp_pack.alt | default: lsp_product.title
+
+    assign lsp_show_vitrine = false
+    if section.settings.show_vitrine and lsp_pack != blank
+      assign lsp_show_vitrine = true
+      if lsp_photo != blank and lsp_photo.src == lsp_pack.src
+        assign lsp_show_vitrine = false
+      endif
+    endif
+
+    assign lsp_focal = 'object-position: ' | append: lsp_photo.presentation.focal_point
+    assign lsp_loading = 'eager'
+    assign lsp_fetch = 'auto'
+    if section.index > 3
+      assign lsp_loading = 'lazy'
+    endif
+    if section.settings.priority or section.index == 1
+      assign lsp_loading = 'eager'
+      assign lsp_fetch = 'high'
+    endif
+
+    comment ----- Factos da peça (vêm do produto) -----
+    endcomment
+    assign lsp_karat = f[3]
+    assign lsp_fine = f[4]
+    if lsp_fine == blank and f[2] != blank
+      assign lsp_tdown = lsp_product.title | downcase | replace: ',', '.'
+      if lsp_tdown contains '19 kt' or lsp_tdown contains '19kt' or lsp_tdown contains '19.2 kt' or lsp_tdown contains '19 ct' or lsp_tdown contains '19ct'
+        assign lsp_fine = '800'
+        assign lsp_karat = '19' | append: lsp_dec | append: '2 ' | append: lsp_unit
+      elsif lsp_tdown contains '18 kt' or lsp_tdown contains '18kt' or lsp_tdown contains '18 ct' or lsp_tdown contains '18ct'
+        assign lsp_fine = '750'
+        assign lsp_karat = '18 ' | append: lsp_unit
+      endif
+    endif
+    assign lsp_metal = f[2]
+    if lsp_karat != blank
+      assign lsp_metal = lsp_metal | append: ' ' | append: lsp_karat
+    endif
+    assign lsp_hall = blank
+    if lsp_fine == '800'
+      assign lsp_hall = d_hall_800
+    elsif lsp_fine == '925'
+      assign lsp_hall = d_hall_925
+    endif
+    assign lsp_extra = section.settings.facts_extra
+    if lsp_dec == '.'
+      assign lsp_extra = lsp_extra | replace: ',', '.'
+    endif
+
+    assign lsp_chip = blank
+    if lsp_sold
+      assign lsp_chip = d_sold
+    elsif f[7] == '1'
+      if section.settings.unique_badge
+        assign lsp_chip = t[1]
+      else
+        assign lsp_chip = t[17]
+      endif
+    endif
+
+    comment ----- Cupão: código e % vêm sempre da mesma origem -----
+    endcomment
+    assign lsp_code = section.settings.coupon_code | strip | upcase
+    assign lsp_pct = section.settings.coupon_percent | plus: 0
+    if lsp_code == blank
+      assign lsp_code = lsp_product.metafields.custom.cupao_codigo.value | strip | upcase
+      assign lsp_pct = lsp_product.metafields.custom.cupao_percentagem.value | default: 0 | plus: 0 | round
+    endif
+    if lsp_sold
+      assign lsp_code = blank
+    endif
+    if section.settings.coupon_scope == 'pt' and localization.country.iso_code != 'PT'
+      assign lsp_code = blank
+    endif
+
+    assign lsp_price = v.price
+    assign lsp_coupon_price = blank
+    if lsp_code != blank and lsp_pct > 0 and lsp_pct < 100
+      assign lsp_off = lsp_price | times: lsp_pct | plus: 50 | divided_by: 100
+      assign lsp_coupon_price = lsp_price | minus: lsp_off
+    endif
+
+    comment ----- Ligações -----
+    endcomment
+    assign lsp_url = lsp_product.url
+    if section.settings.cta_target != 'product'
+      assign lsp_url = lsp_product.url | append: '?view=private-selection'
+    endif
+    assign lsp_auto = false
+    if section.settings.cta_mode == 'discount' and lsp_code != blank
+      assign lsp_code_enc = lsp_code | url_encode | replace: '+', '%20'
+      if section.settings.cta_target != 'product'
+        comment
+          A Private Selection aplica o código sozinha ao abrir (parâmetro cupao).
+          O link /discount/ da Shopify perderia o ?view=private-selection.
+        endcomment
+        assign lsp_url = lsp_url | append: '&cupao=' | append: lsp_code_enc
+      else
+        assign lsp_redirect = lsp_url | url_encode
+        assign lsp_url = '/discount/' | append: lsp_code_enc | append: '?redirect=' | append: lsp_redirect
+      endif
+      assign lsp_auto = true
+    endif
+    if lsp_sold
+      assign lsp_url = section.settings.sold_link | default: lsp_product.collections.first.url | default: routes.all_products_collection_url
+      assign x_cta = d_sold_cta
+    endif
+
+    assign lsp_wa_number = section.settings.whatsapp_number | remove: ' ' | remove: '+'
+    assign lsp_wa_open = d_wa
+    if lsp_sold
+      assign lsp_wa_open = d_wa_sold
+    endif
+    assign lsp_wa_text = lsp_wa_open | append: ' ' | append: lsp_product.title | append: ' — ' | append: request.origin | append: lsp_product.url | url_encode | replace: '+', '%20'
+
+    comment ----- Cores (calculadas aqui para funcionar em todos os navegadores) -----
+    endcomment
+    assign c_bg = section.settings.color_bg
+    assign c_fg = section.settings.color_text
+    assign c_gold = section.settings.color_gold
+    assign c_muted = c_fg | color_mix: c_bg, 64
+    assign c_soft = c_fg | color_mix: c_bg, 84
+    assign c_line = c_fg | color_modify: 'alpha', 0.16
+    assign c_paper = c_fg | color_mix: '#ffffff', 70
+
+    assign lsp_font = section.settings.font_display
+    assign lsp_font_i = lsp_font | font_modify: 'style', 'italic'
+
+    assign lsp_has_title2 = false
+    if x_title_2 != blank
+      assign lsp_has_title2 = true
+    endif
+  -%}
+
+  <style>
+    {{ lsp_font | font_face: font_display: 'swap' }}
+    {%- if lsp_font_i -%}{{ lsp_font_i | font_face: font_display: 'swap' }}{%- endif -%}
+
+    /* Os estilos vêm antes do HTML para a secção nunca aparecer sem formatação durante o carregamento. */
+    .lsp {
+      --lsp-serif: {{ lsp_font.family }}, "Iowan Old Style", Baskerville, Georgia, {{ lsp_font.fallback_families }};
+      --lsp-sans: var(--font-body-family, "Work Sans"), "Helvetica Neue", Arial, sans-serif;
+      --lsp-seam: 54%;
+      --lsp-plate: clamp(132px, 12.5vw, 196px);
+      position: relative;
+      margin-top: var(--lsp-pt);
+      margin-bottom: var(--lsp-pb);
+      background: var(--lsp-bg);
+      color: var(--lsp-fg);
+      font-family: var(--lsp-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    .lsp *, .lsp *::before, .lsp *::after { box-sizing: border-box; }
+    .lsp :where(h2, p, figure) { margin: 0; padding: 0; }
+    .lsp :where(a) { color: inherit; }
+    .lsp--right { --lsp-seam: 46%; }
+
+    .lsp__grid {
+      position: relative;
+      display: grid;
+      grid-template-columns: var(--lsp-seam) minmax(0, 1fr);
+      min-height: clamp(600px, 46vw, 780px);
+    }
+    .lsp--right .lsp__grid { grid-template-columns: minmax(0, 1fr) calc(100% - var(--lsp-seam)); }
+    .lsp--nophoto .lsp__grid { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+
+    /* ---------- Fotografia ---------- */
+    .lsp__media { position: relative; min-width: 0; }
+    .lsp--right .lsp__media { order: 2; }
+    .lsp__photo { position: absolute; inset: 0; display: block; overflow: hidden; }
+    .lsp__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* A peça, pousada sobre a junção entre a fotografia e o texto */
+    .lsp__plate {
+      position: absolute;
+      z-index: 2;
+      right: 0;
+      bottom: clamp(48px, 6.5vw, 104px);
+      width: var(--lsp-plate);
+      aspect-ratio: 1;
+      transform: translateX(50%);
+      background: var(--lsp-paper);
+      box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .75);
+    }
+    .lsp--right .lsp__plate { right: auto; left: 0; transform: translateX(-50%); }
+    .lsp__plate img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 9%;
+      mix-blend-mode: multiply;
+      display: block;
+    }
+
+    /* ---------- Texto ---------- */
+    .lsp__content {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding-block: clamp(56px, 6vw, 104px);
+      padding-left: calc(var(--lsp-plate) / 2 + clamp(32px, 3.5vw, 64px));
+      padding-right: clamp(24px, 4.5vw, 88px);
+    }
+    .lsp--right .lsp__content {
+      padding-left: clamp(24px, 4.5vw, 88px);
+      padding-right: calc(var(--lsp-plate) / 2 + clamp(32px, 3.5vw, 64px));
+    }
+    .lsp--nophoto .lsp__content { padding-inline: clamp(24px, 8vw, 160px); }
+    .lsp__content > * { max-width: 480px; }
+
+    .lsp__kicker {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--lsp-gold);
+    }
+    .lsp__title {
+      margin-top: 30px;
+      word-break: normal;
+      overflow-wrap: break-word;
+      hyphens: none;
+      font-family: var(--lsp-serif);
+      font-weight: {{ lsp_font.weight }};
+      color: var(--lsp-fg);
+      letter-spacing: 0;
+    }
+    .lsp__title-pre {
+      display: block;
+      font-style: italic;
+      font-size: clamp(20px, 1.7vw, 26px);
+      line-height: 1.2;
+      color: var(--lsp-soft);
+    }
+    .lsp__title-main {
+      display: block;
+      margin-top: 4px;
+      font-size: clamp(56px, 6vw, 96px);
+      line-height: .92;
+      letter-spacing: -.02em;
+    }
+    .lsp__title-main--long {
+      font-size: clamp(36px, 3.6vw, 56px);
+      line-height: 1.05;
+      letter-spacing: -.01em;
+      text-wrap: balance;
+    }
+    .lsp__tagline {
+      margin-top: 26px;
+      font-family: var(--lsp-serif);
+      font-size: clamp(19px, 1.5vw, 22px);
+      line-height: 1.4;
+      color: var(--lsp-soft);
+      max-width: 30ch;
+      text-wrap: balance;
+    }
+    .lsp__specs {
+      margin-top: 22px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--lsp-muted);
+    }
+    .lsp__specs span + span::before { content: " · "; }
+
+    .lsp__offer {
+      width: 100%;
+      margin-top: 34px;
+      padding-top: 24px;
+      border-top: 1px solid var(--lsp-line);
+    }
+    .lsp__price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+    .lsp__amount {
+      font-family: var(--lsp-serif);
+      font-size: clamp(28px, 2.3vw, 34px);
+      line-height: 1;
+      color: var(--lsp-fg);
+      font-variant-numeric: lining-nums;
+    }
+    .lsp__vat { font-size: 12px; color: var(--lsp-muted); }
+
+    .lsp__privilege { margin-top: 18px; font-size: 14px; line-height: 1.6; color: var(--lsp-soft); }
+    .lsp__privilege-label {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--lsp-gold);
+    }
+    .lsp__privilege strong {
+      font-family: var(--lsp-serif);
+      font-size: 20px;
+      font-weight: {{ lsp_font.weight }};
+      color: var(--lsp-fg);
+      font-variant-numeric: lining-nums;
+    }
+    .lsp__code {
+      display: inline;
+      margin: 0;
+      padding: 0 0 1px;
+      border: 0;
+      border-bottom: 1px dashed var(--lsp-gold);
+      border-radius: 0;
+      background: none;
+      font: inherit;
+      font-weight: 600;
+      letter-spacing: .06em;
+      color: var(--lsp-fg);
+      cursor: copy;
+    }
+    .lsp__code:hover { color: var(--lsp-gold); }
+    .lsp__copied {
+      margin-left: 8px;
+      font-size: 12px;
+      color: var(--lsp-gold);
+    }
+
+    .lsp__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px 32px;
+      margin-top: 34px;
+    }
+    .lsp .lsp__cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 34px;
+      background: var(--lsp-fg);
+      border: 1px solid var(--lsp-fg);
+      color: var(--lsp-bg);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: .02em;
+      text-decoration: none;
+      transition: background-color .3s ease, color .3s ease;
+    }
+    .lsp .lsp__cta:hover { background: transparent; color: var(--lsp-fg); }
+    .lsp .lsp__link {
+      font-size: 14px;
+      color: var(--lsp-fg);
+      text-decoration: underline;
+      text-decoration-color: var(--lsp-gold);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 6px;
+      transition: color .3s ease;
+    }
+    .lsp .lsp__link:hover { color: var(--lsp-gold); }
+    .lsp .lsp__cta:focus-visible,
+    .lsp .lsp__link:focus-visible,
+    .lsp .lsp__code:focus-visible { outline: 1px solid var(--lsp-gold); outline-offset: 4px; box-shadow: none; }
+
+    .lsp__note { margin-top: 26px; font-size: 12px; line-height: 1.6; color: var(--lsp-muted); max-width: 52ch; }
+    .lsp__sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+    /* ---------- Tablet e telemóvel ---------- */
+    @media (max-width: 989px) {
+      .lsp,
+      .lsp--right { --lsp-plate: clamp(112px, 30vw, 160px); }
+      .lsp__grid,
+      .lsp--right .lsp__grid { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+      .lsp--right .lsp__media { order: 0; }
+      .lsp__media { aspect-ratio: 4 / 5; max-height: 680px; }
+      .lsp__plate,
+      .lsp--right .lsp__plate {
+        left: auto;
+        right: 20px;
+        bottom: calc(var(--lsp-plate) * -.45);
+        transform: none;
+      }
+      .lsp__content,
+      .lsp--right .lsp__content {
+        padding: calc(var(--lsp-plate) * .45 + 28px) 20px 56px;
+      }
+      .lsp__content > * { max-width: 560px; }
+      .lsp__title { margin-top: 22px; }
+    }
+    @media (max-width: 749px) {
+      .lsp__title-main { font-size: clamp(54px, 16vw, 72px); }
+      .lsp__title-main--long { font-size: clamp(32px, 9vw, 42px); }
+      .lsp__actions { flex-direction: column; align-items: stretch; align-self: stretch; gap: 18px; }
+      .lsp .lsp__cta { width: 100%; }
+      .lsp .lsp__link { align-self: center; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .lsp .lsp__cta, .lsp .lsp__link { transition: none; }
+    }
+  </style>
+
+  <section
+    id="{{ lsp_id }}"
+    class="lsp{% if section.settings.image_position == 'right' %} lsp--right{% endif %}{% if lsp_photo == blank %} lsp--nophoto{% endif %}"
+    style="--lsp-bg: {{ c_bg }}; --lsp-fg: {{ c_fg }}; --lsp-gold: {{ c_gold }}; --lsp-muted: {{ c_muted }}; --lsp-soft: {{ c_soft }}; --lsp-line: {{ c_line }}; --lsp-paper: {{ c_paper }}; --lsp-pt: {{ section.settings.padding_top }}px; --lsp-pb: {{ section.settings.padding_bottom }}px;"
+    aria-labelledby="{{ lsp_id }}-title"
+  >
+    <div class="lsp__grid">
+      {%- if lsp_photo != blank -%}
+        <div class="lsp__media">
+          <a class="lsp__photo" href="{{ lsp_url }}" tabindex="-1" aria-hidden="true">
+            {{-
+              lsp_photo
+              | image_url: width: 2000
+              | image_tag:
+                widths: '480, 720, 960, 1200, 1500, 2000',
+                sizes: '(min-width: 990px) 54vw, 100vw',
+                loading: lsp_loading,
+                fetchpriority: lsp_fetch,
+                alt: lsp_photo_alt,
+                style: lsp_focal
+            -}}
+          </a>
+          {%- if lsp_show_vitrine -%}
+            <figure class="lsp__plate">
+              {{-
+                lsp_pack
+                | image_url: width: 500
+                | image_tag: widths: '200, 300, 400, 500', sizes: '196px', loading: 'lazy', alt: lsp_pack_alt
+              -}}
+            </figure>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+
+      <div class="lsp__content">
+        {%- if x_eyebrow != blank -%}
+          <p class="lsp__kicker">{{ x_eyebrow }}</p>
+        {%- endif -%}
+
+        <h2 class="lsp__title" id="{{ lsp_id }}-title">
+          {%- if lsp_has_title2 -%}
+            {%- if x_title_1 != blank -%}<span class="lsp__title-pre">{{ x_title_1 }}</span>{%- endif -%}
+            <span class="lsp__title-main">{{ x_title_2 }}</span>
+          {%- else -%}
+            <span class="lsp__title-main{% if lsp_title_long %} lsp__title-main--long{% endif %}">{{ x_title_1 }}</span>
+          {%- endif -%}
+        </h2>
+
+        {%- if x_tagline != blank -%}
+          <p class="lsp__tagline">{{ x_tagline }}</p>
+        {%- endif -%}
+
+        {%- capture lsp_specs_1 -%}
+          {%- if lsp_chip != blank -%}<span>{{ lsp_chip }}</span>{%- endif -%}
+          {%- if f[6] == '1' -%}<span>{{ t[3] }}</span>{%- endif -%}
+        {%- endcapture -%}
+        {%- capture lsp_specs_2 -%}
+          {%- if lsp_metal != blank -%}<span>{{ lsp_metal }}</span>{%- endif -%}
+          {%- if lsp_fine != blank -%}<span>{{ lsp_fine }}‰</span>{%- endif -%}
+          {%- if f[5] != blank -%}<span>{{ f[5] }}</span>{%- endif -%}
+          {%- if lsp_extra != blank -%}<span>{{ lsp_extra }}</span>{%- endif -%}
+        {%- endcapture -%}
+        {%- if lsp_specs_1 != blank or lsp_specs_2 != blank or lsp_hall != blank -%}
+          <p class="lsp__specs">
+            {%- if lsp_specs_1 != blank -%}{{ lsp_specs_1 }}<br>{%- endif -%}
+            {%- if lsp_specs_2 != blank -%}{{ lsp_specs_2 }}<br>{%- endif -%}
+            {%- if lsp_hall != blank -%}<span>{{ t[10] }} {{ lsp_hall }}</span>{%- endif -%}
+          </p>
+        {%- endif -%}
+
+        {%- unless lsp_sold -%}
+          <div class="lsp__offer">
+            <p class="lsp__price">
+              <span class="lsp__amount">{{ lsp_price | money }}</span>
+              {%- if cart.taxes_included -%}<span class="lsp__vat">{{ t[4] }}</span>{%- endif -%}
+            </p>
+
+            {%- if lsp_code != blank -%}
+              <p class="lsp__privilege">
+                <span class="lsp__privilege-label">
+                  {{- x_coupon_label -}}
+                  {%- if lsp_coupon_price != blank %} · −{{ lsp_pct }}%{% endif -%}
+                </span>
+                {%- if lsp_coupon_price != blank -%}<strong>{{ lsp_coupon_price | money }}</strong> {{ d_with_code }} {% endif -%}
+                <button type="button" class="lsp__code" data-lsp-copy="{{ lsp_code | escape }}" data-copied="{{ d_copied | escape }}" data-selected="{{ d_selected | escape }}" aria-label="{{ d_copy | escape }}: {{ lsp_code | escape }}" title="{{ d_copy | escape }}">{{ lsp_code }}</button>
+                {%- if x_coupon_note != blank -%}<sup aria-hidden="true">*</sup>{%- endif -%}
+                <span class="lsp__copied" role="status" aria-live="polite" data-lsp-status></span>
+              </p>
+            {%- endif -%}
+          </div>
+        {%- endunless -%}
+
+        <div class="lsp__actions">
+          <a class="lsp__cta" href="{{ lsp_url }}">{{ x_cta }}</a>
+          {%- if section.settings.show_cta2 and lsp_wa_number != blank -%}
+            <a class="lsp__link" href="https://wa.me/{{ lsp_wa_number }}?text={{ lsp_wa_text }}" target="_blank" rel="noopener">{{ x_cta2 }}</a>
+          {%- endif -%}
+        </div>
+
+        {%- if lsp_code != blank -%}
+          <p class="lsp__note">
+            {%- if x_coupon_note != blank -%}* {{ x_coupon_note }} {% endif -%}
+            {%- if lsp_auto -%}{{ d_apply_auto }}{%- else -%}{{ d_apply_manual }}{%- endif -%}
+          </p>
+        {%- endif -%}
+      </div>
+    </div>
+  </section>
+
+  {%- if lsp_code != blank -%}
+    <script>
+      (function () {
+        var root = document.getElementById('{{ lsp_id }}');
+        if (!root) return;
+        var btn = root.querySelector('[data-lsp-copy]');
+        var status = root.querySelector('[data-lsp-status]');
+        if (!btn || !status) return;
+        var timer;
+        function selectCode() {
+          var range = document.createRange();
+          range.selectNodeContents(btn);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        function show(text) {
+          status.textContent = text;
+          clearTimeout(timer);
+          timer = setTimeout(function () { status.textContent = ''; }, 2400);
+        }
+        btn.addEventListener('click', function () {
+          var code = btn.getAttribute('data-lsp-copy');
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(code).then(function () {
+              show(btn.getAttribute('data-copied'));
+            }, function () {
+              selectCode();
+              show(btn.getAttribute('data-selected'));
+            });
+          } else {
+            selectCode();
+            show(btn.getAttribute('data-selected'));
+          }
+        });
+      })();
+    </script>
+  {%- endif -%}
+{%- elsif request.design_mode -%}
+  <div style="padding: 40px 24px; text-align: center; background: #0b0b09; color: #f7f3ec; font-family: var(--font-body-family, Arial, sans-serif); font-size: 14px; line-height: 1.6;">
+    {%- if lsp_product == blank -%}
+      <strong style="letter-spacing: .2em; text-transform: uppercase; font-size: 11px; color: #bc914c;">Private Selection</strong><br>
+      Escolha a peça em destaque nas definições desta secção.
+    {%- else -%}
+      <strong style="letter-spacing: .2em; text-transform: uppercase; font-size: 11px; color: #bc914c;">Private Selection — secção escondida</strong><br>
+      A peça «{{ lsp_product.title }}» está vendida ou indisponível, por isso esta secção não aparece na loja.
+    {%- endif -%}
+  </div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "LOD — Private Selection",
+  "tag": "section",
+  "class": "section",
+  "disabled_on": {
+    "groups": ["header", "footer"]
+  },
+  "settings": [
+    { "type": "header", "content": "Peça em destaque" },
+    { "type": "product", "id": "product", "label": "Peça" },
+    { "type": "checkbox", "id": "unique_badge", "label": "Esta peça é um exemplar único", "info": "Mostra «Peça única» quando só há 1 unidade. Desligado = «Última unidade disponível».", "default": true },
+    {
+      "type": "select",
+      "id": "sold_behavior",
+      "label": "Quando a peça estiver vendida ou indisponível",
+      "options": [
+        { "value": "hide", "label": "Esconder a secção" },
+        { "value": "show", "label": "Mostrar como «Peça vendida»" }
+      ],
+      "default": "hide"
+    },
+    { "type": "url", "id": "sold_link", "label": "Ligação quando vendida", "info": "Vazio = coleção da peça." },
+
+    { "type": "header", "content": "Imagens" },
+    { "type": "image_picker", "id": "image_photo", "label": "Fotografia principal", "info": "Vazio = 2.ª imagem da peça (ao pulso)." },
+    { "type": "image_picker", "id": "image_pack", "label": "Fotografia da peça (fundo branco)", "info": "Vazio = 1.ª imagem da peça (fundo branco)." },
+    { "type": "checkbox", "id": "show_vitrine", "label": "Mostrar a peça pousada sobre a fotografia", "default": true },
+    {
+      "type": "select",
+      "id": "image_position",
+      "label": "Posição da fotografia (computador)",
+      "options": [
+        { "value": "left", "label": "À esquerda" },
+        { "value": "right", "label": "À direita" }
+      ],
+      "default": "left"
+    },
+    { "type": "checkbox", "id": "priority", "label": "Carregar a fotografia com prioridade", "info": "Ative se esta for a primeira secção da página.", "default": false },
+
+    { "type": "header", "content": "Textos — Português" },
+    { "type": "text", "id": "eyebrow", "label": "Etiqueta", "default": "Private Selection" },
+    { "type": "text", "id": "title_1", "label": "Título — 1.ª linha (pequena, itálico)", "info": "Deixe as duas linhas vazias para usar o nome da peça." },
+    { "type": "text", "id": "title_2", "label": "Título — 2.ª linha (grande)" },
+    { "type": "text", "id": "tagline", "label": "Frase", "default": "Para quem nunca precisou de levantar a voz." },
+    { "type": "text", "id": "facts_extra", "label": "Medida (opcional)", "info": "Ex.: 20,1 cm. Aparece em todas as línguas. Toque, peso e contraste vêm do produto." },
+    { "type": "text", "id": "cta_label", "label": "Texto do botão principal", "placeholder": "Entrar na Private Selection", "info": "Vazio = texto traduzido automaticamente em cada língua." },
+    { "type": "text", "id": "cta2_label", "label": "Texto do botão do consultor", "default": "Falar com um consultor" },
+    { "type": "text", "id": "coupon_label", "label": "Nome do cupão", "default": "Privilégio Private Selection" },
+    { "type": "text", "id": "coupon_note", "label": "Condições do cupão", "info": "Escreva as condições do seu código. A frase sobre como se aplica o código é acrescentada sozinha.", "default": "Válido apenas para esta peça · uma utilização por cliente · não acumulável com outras promoções." },
+
+    { "type": "header", "content": "Textos — English" },
+    { "type": "paragraph", "content": "Vazio = tradução incluída. Se mudar um texto em português, escreva também aqui. Título vazio = nome da peça (traduzido na app Translate & Adapt)." },
+    { "type": "text", "id": "eyebrow_en", "label": "Etiqueta" },
+    { "type": "text", "id": "title_1_en", "label": "Título — 1.ª linha (pequena, itálico)" },
+    { "type": "text", "id": "title_2_en", "label": "Título — 2.ª linha (grande)" },
+    { "type": "text", "id": "tagline_en", "label": "Frase" },
+    { "type": "text", "id": "cta_label_en", "label": "Texto do botão principal" },
+    { "type": "text", "id": "cta2_label_en", "label": "Texto do botão do consultor" },
+    { "type": "text", "id": "coupon_label_en", "label": "Nome do cupão" },
+    { "type": "text", "id": "coupon_note_en", "label": "Condições do cupão" },
+
+    { "type": "header", "content": "Textos — Español" },
+    { "type": "paragraph", "content": "Vazio = tradução incluída. Se mudar um texto em português, escreva também aqui. Título vazio = nome da peça (traduzido na app Translate & Adapt)." },
+    { "type": "text", "id": "eyebrow_es", "label": "Etiqueta" },
+    { "type": "text", "id": "title_1_es", "label": "Título — 1.ª linha (pequena, itálico)" },
+    { "type": "text", "id": "title_2_es", "label": "Título — 2.ª linha (grande)" },
+    { "type": "text", "id": "tagline_es", "label": "Frase" },
+    { "type": "text", "id": "cta_label_es", "label": "Texto do botão principal" },
+    { "type": "text", "id": "cta2_label_es", "label": "Texto do botão do consultor" },
+    { "type": "text", "id": "coupon_label_es", "label": "Nome do cupão" },
+    { "type": "text", "id": "coupon_note_es", "label": "Condições do cupão" },
+
+    { "type": "header", "content": "Textos — Français" },
+    { "type": "paragraph", "content": "Vazio = tradução incluída. Se mudar um texto em português, escreva também aqui. Título vazio = nome da peça (traduzido na app Translate & Adapt)." },
+    { "type": "text", "id": "eyebrow_fr", "label": "Etiqueta" },
+    { "type": "text", "id": "title_1_fr", "label": "Título — 1.ª linha (pequena, itálico)" },
+    { "type": "text", "id": "title_2_fr", "label": "Título — 2.ª linha (grande)" },
+    { "type": "text", "id": "tagline_fr", "label": "Frase" },
+    { "type": "text", "id": "cta_label_fr", "label": "Texto do botão principal" },
+    { "type": "text", "id": "cta2_label_fr", "label": "Texto do botão do consultor" },
+    { "type": "text", "id": "coupon_label_fr", "label": "Nome do cupão" },
+    { "type": "text", "id": "coupon_note_fr", "label": "Condições do cupão" },
+
+    { "type": "header", "content": "Textos — Deutsch" },
+    { "type": "paragraph", "content": "Vazio = tradução incluída. Se mudar um texto em português, escreva também aqui. Título vazio = nome da peça (traduzido na app Translate & Adapt)." },
+    { "type": "text", "id": "eyebrow_de", "label": "Etiqueta" },
+    { "type": "text", "id": "title_1_de", "label": "Título — 1.ª linha (pequena, itálico)" },
+    { "type": "text", "id": "title_2_de", "label": "Título — 2.ª linha (grande)" },
+    { "type": "text", "id": "tagline_de", "label": "Frase" },
+    { "type": "text", "id": "cta_label_de", "label": "Texto do botão principal" },
+    { "type": "text", "id": "cta2_label_de", "label": "Texto do botão do consultor" },
+    { "type": "text", "id": "coupon_label_de", "label": "Nome do cupão" },
+    { "type": "text", "id": "coupon_note_de", "label": "Condições do cupão" },
+
+    { "type": "header", "content": "Textos — Italiano" },
+    { "type": "paragraph", "content": "Vazio = tradução incluída. Se mudar um texto em português, escreva também aqui. Título vazio = nome da peça (traduzido na app Translate & Adapt)." },
+    { "type": "text", "id": "eyebrow_it", "label": "Etiqueta" },
+    { "type": "text", "id": "title_1_it", "label": "Título — 1.ª linha (pequena, itálico)" },
+    { "type": "text", "id": "title_2_it", "label": "Título — 2.ª linha (grande)" },
+    { "type": "text", "id": "tagline_it", "label": "Frase" },
+    { "type": "text", "id": "cta_label_it", "label": "Texto do botão principal" },
+    { "type": "text", "id": "cta2_label_it", "label": "Texto do botão do consultor" },
+    { "type": "text", "id": "coupon_label_it", "label": "Nome do cupão" },
+    { "type": "text", "id": "coupon_note_it", "label": "Condições do cupão" },
+
+    { "type": "header", "content": "Cupão" },
+    { "type": "paragraph", "content": "A secção não consegue confirmar se o código está ativo. Se desativar ou alterar o código em Descontos, ou se mudar a peça acima, altere também aqui — senão a loja mostra um preço que o cliente não consegue obter." },
+    { "type": "text", "id": "coupon_code", "label": "Código", "info": "Ex.: MARQUESA10. Vazio = sem cupão (ou o código guardado na própria peça, se existir)." },
+    { "type": "range", "id": "coupon_percent", "label": "Desconto do código", "min": 0, "max": 50, "step": 1, "unit": "%", "default": 0, "info": "A mesma percentagem que criou em Descontos. 0 = não mostrar o preço com desconto." },
+    {
+      "type": "select",
+      "id": "coupon_scope",
+      "label": "Mostrar o cupão em",
+      "options": [
+        { "value": "all", "label": "Todos os mercados" },
+        { "value": "pt", "label": "Só Portugal" }
+      ],
+      "default": "all"
+    },
+    {
+      "type": "select",
+      "id": "cta_target",
+      "label": "Para onde vai o botão principal",
+      "options": [
+        { "value": "salao", "label": "Para a peça na Private Selection" },
+        { "value": "product", "label": "Para a página normal da peça" }
+      ],
+      "default": "salao"
+    },
+    {
+      "type": "select",
+      "id": "cta_mode",
+      "label": "O que faz o botão principal",
+      "options": [
+        { "value": "discount", "label": "Aplica o código e abre a peça" },
+        { "value": "product", "label": "Só abre a peça" }
+      ],
+      "default": "discount"
+    },
+
+    { "type": "header", "content": "Consultor" },
+    { "type": "checkbox", "id": "show_cta2", "label": "Mostrar «Falar com um consultor»", "default": true },
+    { "type": "text", "id": "whatsapp_number", "label": "Número WhatsApp", "info": "Com indicativo, sem espaços e sem +.", "default": "351910067687" },
+
+    { "type": "header", "content": "Estilo" },
+    { "type": "font_picker", "id": "font_display", "label": "Tipo de letra do título e do preço", "default": "bodoni_moda_n4" },
+    { "type": "color", "id": "color_bg", "label": "Fundo", "default": "#0b0b09" },
+    { "type": "color", "id": "color_text", "label": "Texto", "default": "#f7f3ec" },
+    { "type": "color", "id": "color_gold", "label": "Dourado", "default": "#bc914c" },
+    { "type": "range", "id": "padding_top", "label": "Espaço acima", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 0 },
+    { "type": "range", "id": "padding_bottom", "label": "Espaço abaixo", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 0 }
+  ],
+  "presets": [
+    { "name": "LOD — Private Selection" }
+  ]
+}
+{% endschema %}

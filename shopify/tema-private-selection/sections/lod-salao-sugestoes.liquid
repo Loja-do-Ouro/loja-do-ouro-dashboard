@@ -1,0 +1,344 @@
+{%- comment -%}
+  LOJA DO OURO — PRIVATE SELECTION · SUGESTÕES / v3 (v3: «Mostrar a coleção inteira», 24 de cada vez)
+  Peças de uma coleção (por defeito «Ouro»), da mais cara para a mais barata, só as disponíveis.
+  A ordem vem da própria Shopify (sort_by=price-descending) através da secção interna lod-salao-grelha.
+  Exclui a peça que está a ser vista e, se quiser, o ouro de investimento (barras e moedas).
+  «Abrir as sugestões também na Private Selection»: as ligações levam ?view= com o sufixo do modelo atual
+  (template.suffix, ex.: private-selection), por isso continuam a funcionar se o modelo mudar de nome.
+{%- endcomment -%}
+
+{%- liquid
+  assign lsg_lang = localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+  assign lsg_lang = lsg_lang | downcase | slice: 0, 2
+  case lsg_lang
+    when 'en'
+      assign d_kicker = 'Private Selection'
+      assign d_title = 'More pieces in gold'
+      assign d_sub = 'From the most precious to the most accessible.'
+      assign d_all = 'View all gold pieces'
+      assign d_sel_title = 'The complete selection'
+      assign d_sel_sub = 'Every piece in the Private Selection, from the most precious to the most accessible.'
+      assign d_more = 'Show more pieces'
+    when 'es'
+      assign d_kicker = 'Private Selection'
+      assign d_title = 'Otras piezas en oro'
+      assign d_sub = 'De la pieza de mayor valor a la más accesible.'
+      assign d_all = 'Ver todas las piezas de oro'
+      assign d_sel_title = 'La selección completa'
+      assign d_sel_sub = 'Todas las piezas de la Private Selection, de la de mayor valor a la más accesible.'
+      assign d_more = 'Mostrar más piezas'
+    when 'fr'
+      assign d_kicker = 'Private Selection'
+      assign d_title = 'Autres bijoux en or'
+      assign d_sub = 'Du plus précieux au plus accessible.'
+      assign d_all = 'Voir tous les bijoux en or'
+      assign d_sel_title = 'La sélection complète'
+      assign d_sel_sub = 'Tous les bijoux de la Private Selection, du plus précieux au plus accessible.'
+      assign d_more = 'Voir plus de bijoux'
+    when 'de'
+      assign d_kicker = 'Private Selection'
+      assign d_title = 'Weitere Stücke aus Gold'
+      assign d_sub = 'Vom kostbarsten bis zum erschwinglichsten Stück.'
+      assign d_all = 'Alle Stücke aus Gold ansehen'
+      assign d_sel_title = 'Die vollständige Auswahl'
+      assign d_sel_sub = 'Alle Stücke der Private Selection, vom kostbarsten bis zum erschwinglichsten.'
+      assign d_more = 'Weitere Stücke anzeigen'
+    when 'it'
+      assign d_kicker = 'Private Selection'
+      assign d_title = 'Altri pezzi in oro'
+      assign d_sub = 'Dal pezzo più prezioso al più accessibile.'
+      assign d_all = 'Scopri tutti i pezzi in oro'
+      assign d_sel_title = 'La selezione completa'
+      assign d_sel_sub = 'Tutti i pezzi della Private Selection, dal più prezioso al più accessibile.'
+      assign d_more = 'Mostra altri pezzi'
+    else
+      assign d_kicker = 'Private Selection'
+      assign d_title = 'Outras peças em ouro'
+      assign d_sub = 'Da peça de maior valor à mais acessível.'
+      assign d_all = 'Ver todas as peças em ouro'
+      assign d_sel_title = 'A seleção completa'
+      assign d_sel_sub = 'Todas as peças da Private Selection, da de maior valor à mais acessível.'
+      assign d_more = 'Mostrar mais peças'
+  endcase
+
+  comment ----- «Mostrar a coleção inteira»: todas as peças disponíveis, 24 de cada vez com «Mostrar mais» -----
+  endcomment
+  assign lsg_show_all = section.settings.show_all
+  if lsg_show_all
+    assign d_title = d_sel_title
+    assign d_sub = d_sel_sub
+  endif
+
+  assign lsg_collection = section.settings.collection
+  if lsg_collection == blank
+    assign lsg_collection = collections['ouro']
+  endif
+  assign lsg_count = section.settings.count
+  if lsg_show_all
+    assign lsg_count = 24
+  endif
+  assign lsg_view = ''
+  if section.settings.open_in_salon and template.suffix != blank
+    assign lsg_view = template.suffix
+  endif
+  assign lsg_all_url = lsg_collection.url | append: '?sort_by=price-descending'
+  assign lsg_exclude = ''
+  if product != blank
+    assign lsg_exclude = product.id
+  endif
+-%}
+
+{%- if lsg_collection != blank -%}
+  <style>
+    .lsg {
+      background: var(--lss-bg, #0b0b09);
+      color: var(--lss-fg, #f7f3ec);
+      font-family: var(--lss-sans, Arial, sans-serif);
+      border-top: 1px solid var(--lss-line, rgba(247, 243, 236, .14));
+      padding-block: clamp(56px, 7vw, 120px);
+      -webkit-font-smoothing: antialiased;
+    }
+    .lsg *, .lsg *::before, .lsg *::after { box-sizing: border-box; }
+    .lsg :where(h2, p) { margin: 0; }
+    .lsg__wrap { max-width: 1440px; margin-inline: auto; padding-inline: clamp(20px, 4vw, 64px); }
+    .lsg__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 40px; margin-bottom: clamp(32px, 4vw, 56px); }
+    .lsg__kicker { font-size: 11px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--lss-gold, #bc914c); }
+    .lsg__kicker + .lsg__title { margin-top: 18px; }
+    .lsg__title {
+      font-family: var(--lss-serif, Georgia, serif);
+      font-weight: var(--lss-serif-weight, 400);
+      font-size: clamp(36px, 3.8vw, 60px);
+      line-height: 1.05;
+      letter-spacing: 0;
+      color: var(--lss-fg, #f7f3ec);
+      word-break: normal;
+    }
+    .lsg__sub { margin-top: 12px; font-family: var(--lss-serif, Georgia, serif); font-size: clamp(18px, 1.4vw, 21px); color: var(--lss-soft, #d6d1c8); }
+    .lsg .lsg__all {
+      font-size: 14px;
+      color: var(--lss-fg, #f7f3ec);
+      text-decoration: underline;
+      text-decoration-color: var(--lss-gold, #bc914c);
+      text-underline-offset: 6px;
+      transition: color .3s ease;
+    }
+    .lsg .lsg__all:hover { color: var(--lss-gold, #bc914c); }
+    .lsg__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(28px, 3vw, 48px) clamp(14px, 2vw, 28px); }
+    .lsg-card { min-width: 0; }
+    .lsg .lsg-card__link { display: grid; gap: 10px; color: inherit; text-decoration: none; }
+    .lsg-card__media {
+      display: block;
+      aspect-ratio: 4 / 5;
+      background: var(--lss-paper, #fcfaf6);
+      overflow: hidden;
+    }
+    .lsg-card__media img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      padding: 12%;
+      mix-blend-mode: multiply;
+      transition: transform .8s ease;
+    }
+    .lsg-card__title { margin-top: 6px; font-family: var(--lss-serif, Georgia, serif); font-size: 17px; line-height: 1.35; color: var(--lss-fg, #f7f3ec); }
+    .lsg-card__price { font-size: 13px; color: var(--lss-soft, #d6d1c8); font-variant-numeric: lining-nums; }
+    .lsg-card--ghost .lsg-card__media { background: var(--lss-panel, #1a1916); }
+    .lsg-ghost-line { display: block; height: 14px; width: 82%; margin-top: 16px; background: var(--lss-panel, #1a1916); }
+    .lsg-ghost-line + .lsg-ghost-line { width: 56%; margin-top: 8px; }
+    .lsg-ghost-line--price { height: 10px; width: 30%; margin-top: 14px; }
+    .lsg__empty { font-size: 14px; color: var(--lss-soft, #d6d1c8); }
+    .lsg__more-wrap { display: flex; justify-content: center; margin-top: clamp(40px, 5vw, 72px); }
+    .lsg__more-wrap[hidden], .lsg-card[hidden] { display: none; }
+    .lsg .lsg__more {
+      appearance: none;
+      cursor: pointer;
+      min-height: 48px;
+      padding: 14px 32px;
+      border: 1px solid var(--lss-gold, #bc914c);
+      background: transparent;
+      color: var(--lss-fg, #f7f3ec);
+      font: inherit;
+      font-size: 13px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      transition: background-color .3s ease, color .3s ease;
+    }
+    .lsg .lsg__more:hover { background: var(--lss-gold, #bc914c); color: var(--lss-bg, #0b0b09); }
+    .lsg .lsg__more:focus-visible { outline: 1px solid var(--lss-gold, #bc914c); outline-offset: 4px; }
+    .lsg .lsg-card__link:focus-visible { outline: 1px solid var(--lss-gold, #bc914c); outline-offset: 4px; }
+    @media (hover: hover) and (pointer: fine) {
+      .lsg .lsg-card__link:hover .lsg-card__media img { transform: scale(1.04); }
+      .lsg .lsg-card__link:hover .lsg-card__title { text-decoration: underline; text-decoration-color: var(--lss-gold, #bc914c); text-underline-offset: 4px; }
+    }
+    @media (max-width: 989px) {
+      .lsg__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 749px) {
+      .lsg__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .lsg-card__title { font-size: 15px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .lsg-card__media img { transition: none; }
+    }
+  </style>
+
+  <section
+    class="lsg"
+    id="lsg-{{ section.id }}"
+    data-lsg
+    data-url="{{ lsg_collection.url }}"
+    data-count="{{ lsg_count }}"
+    data-exclude="{{ lsg_exclude }}"
+    data-skip-invest="{{ section.settings.exclude_investment }}"
+    data-view="{{ lsg_view }}"
+    data-all="{{ lsg_show_all }}"
+    data-empty-text="Sem peças disponíveis nesta coleção (só visível no editor)."
+    aria-labelledby="lsg-{{ section.id }}-title"
+  >
+    <div class="lsg__wrap">
+      <header class="lsg__head">
+        <div>
+          {%- if section.settings.kicker != blank -%}<p class="lsg__kicker">{{ section.settings.kicker }}</p>{%- endif -%}
+          <h2 class="lsg__title" id="lsg-{{ section.id }}-title">{{ section.settings.title | default: d_title }}</h2>
+          <p class="lsg__sub">{{ section.settings.subtitle | default: d_sub }}</p>
+        </div>
+        {%- unless lsg_show_all -%}
+          <a class="lsg__all" href="{{ lsg_all_url }}">{{ section.settings.all_label | default: d_all }}</a>
+        {%- endunless -%}
+      </header>
+
+      <div class="lsg__grid" data-lsg-grid aria-busy="true">
+        {%- for i in (1..lsg_count) -%}
+          <div class="lsg-card lsg-card--ghost" aria-hidden="true"><span class="lsg-card__media"></span><span class="lsg-ghost-line"></span><span class="lsg-ghost-line"></span><span class="lsg-ghost-line lsg-ghost-line--price"></span></div>
+        {%- endfor -%}
+      </div>
+      {%- if lsg_show_all -%}
+        <div class="lsg__more-wrap" data-lsg-more-wrap hidden>
+          <button type="button" class="lsg__more" data-lsg-more>{{ d_more }}</button>
+        </div>
+      {%- endif -%}
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      var root = document.getElementById('lsg-{{ section.id }}');
+      if (!root) return;
+      var grid = root.querySelector('[data-lsg-grid]');
+      var count = parseInt(root.dataset.count, 10) || 12;
+      var exclude = root.dataset.exclude;
+      var skipInvest = root.dataset.skipInvest === 'true';
+      var view = root.dataset.view;
+      var base = root.dataset.url;
+      var picked = [];
+      var seen = {};
+      var maxPages = 6;
+      // Coleção inteira: lê todas as páginas (48 peças cada) e mostra 24 de cada vez.
+      var showAll = root.dataset.all === 'true';
+      var step = 24;
+      if (showAll) { count = Infinity; maxPages = 30; }
+      var moreWrap = root.querySelector('[data-lsg-more-wrap]');
+      var moreBtn = root.querySelector('[data-lsg-more]');
+
+      function reveal(upTo) {
+        var cards = grid.querySelectorAll('[data-lsg-item]');
+        var firstNew = null;
+        Array.prototype.forEach.call(cards, function (card, i) {
+          var show = i < upTo;
+          if (show && card.hidden && !firstNew) firstNew = card;
+          card.hidden = !show;
+        });
+        if (moreWrap) moreWrap.hidden = upTo >= cards.length;
+        return firstNew;
+      }
+
+      function finish() {
+        grid.innerHTML = '';
+        if (!picked.length) {
+          if (window.Shopify && Shopify.designMode) {
+            grid.innerHTML = '<p class="lsg__empty">' + root.dataset.emptyText + '</p>';
+          } else {
+            root.hidden = true;
+          }
+          return;
+        }
+        picked.forEach(function (card) {
+          if (view) {
+            var link = card.querySelector('a');
+            if (link) {
+              var url = new URL(link.getAttribute('href'), window.location.origin);
+              url.searchParams.set('view', view);
+              link.setAttribute('href', url.pathname + url.search);
+            }
+          }
+          grid.appendChild(card);
+        });
+        grid.removeAttribute('aria-busy');
+        if (showAll && moreBtn) {
+          var shown = step;
+          reveal(shown);
+          moreBtn.addEventListener('click', function () {
+            shown += step;
+            var firstNew = reveal(shown);
+            var link = firstNew && firstNew.querySelector('a');
+            if (link) link.focus({ preventScroll: true });
+          });
+        }
+      }
+
+      function load(page) {
+        var url = base + (base.indexOf('?') > -1 ? '&' : '?') + 'sort_by=price-descending&filter.v.availability=1&section_id=lod-salao-grelha&page=' + page;
+        return fetch(url, { headers: { Accept: 'text/html' } })
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+          .then(function (html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var wrap = doc.querySelector('[data-lsg-page]');
+            if (!wrap) return finish();
+            Array.prototype.forEach.call(wrap.querySelectorAll('[data-lsg-item]'), function (card) {
+              if (picked.length >= count) return;
+              var id = card.getAttribute('data-id');
+              if (id === exclude || seen[id]) return;
+              if (card.getAttribute('data-available') !== 'true') return;
+              if (skipInvest && card.getAttribute('data-invest') === '1') return;
+              seen[id] = true;
+              picked.push(document.importNode(card, true));
+            });
+            var pages = parseInt(wrap.getAttribute('data-pages'), 10) || 1;
+            if (picked.length < count && page < pages && page < maxPages) return load(page + 1);
+            finish();
+          });
+      }
+
+      function start() { load(1).catch(function () { finish(); }); }
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries, observer) {
+          if (entries[0].isIntersecting) { observer.disconnect(); start(); }
+        }, { rootMargin: '800px 0px' }).observe(root);
+      } else {
+        start();
+      }
+    })();
+  </script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "LOD — Selection: outras",
+  "tag": "div",
+  "class": "lsg-section",
+  "enabled_on": { "templates": ["product", "collection"] },
+  "settings": [
+    { "type": "paragraph", "content": "Mostra peças disponíveis da coleção, da mais cara para a mais barata. Os campos de texto vazios usam a tradução incluída em cada língua. Se escrever um texto, traduza-o depois na app Translate & Adapt — senão aparece em português nas outras línguas." },
+    { "type": "collection", "id": "collection", "label": "Coleção", "info": "Vazio = coleção «Ouro». Se escolher outra coleção, mude também o título, a frase e a ligação." },
+    { "type": "checkbox", "id": "show_all", "label": "Mostrar a coleção inteira", "info": "Todas as peças disponíveis da coleção, 24 de cada vez com «Mostrar mais». Ignora o número de peças e esconde a ligação para a coleção.", "default": false },
+    { "type": "range", "id": "count", "label": "Número de peças", "min": 4, "max": 24, "step": 4, "default": 12 },
+    { "type": "checkbox", "id": "exclude_investment", "label": "Excluir ouro de investimento (barras e moedas)", "default": true },
+    { "type": "checkbox", "id": "open_in_salon", "label": "Abrir as sugestões também na Private Selection", "info": "Desligado = abrem na página normal da peça.", "default": true },
+    { "type": "text", "id": "kicker", "label": "Etiqueta (opcional)", "info": "Vazio = sem etiqueta por cima do título." },
+    { "type": "text", "id": "title", "label": "Título", "placeholder": "Outras peças em ouro" },
+    { "type": "text", "id": "subtitle", "label": "Frase", "placeholder": "Da peça de maior valor à mais acessível." },
+    { "type": "text", "id": "all_label", "label": "Ligação para a coleção", "placeholder": "Ver todas as peças em ouro" }
+  ]
+}
+{% endschema %}

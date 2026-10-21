@@ -1,0 +1,1072 @@
+{%- comment -%}
+  LOJA DO OURO — PRIVATE SELECTION · ACESSO / v1
+  Porta de entrada do modelo de produto «private-selection» (abrir com ?view=private-selection).
+  Fica logo a seguir ao cabeçalho da Private Selection.
+  - Enquanto o cliente não entra, a página mostra só o cabeçalho e esta porta; a peça e as sugestões
+    ficam escondidas (classe html.lps-locked, posta antes de a página aparecer, sem mostrar a peça).
+  - Dois separadores: «Pedir acesso» (nome, e-mail, telemóvel, novidades opcionais) e «Já tenho acesso»
+    (e-mail e senha). Pedidos e entradas vão para o dashboard: /api/private-selection/request, /login,
+    /session e /logout. Os erros chegam com um código e são traduzidos aqui.
+  - Sessão: o token fica no navegador (localStorage lps_token) e é confirmado no dashboard em cada visita;
+    uma confirmação boa vale 5 minutos (sessionStorage lps_ok_until). Remover a pessoa ou mudar a senha
+    no dashboard corta o acesso.
+  - Marca: Loja do Ouro só em português E com o país Portugal; nos outros casos Gold Store Premium.
+    O dashboard recebe a língua (pt, en, es, fr, de, it) e a marca (ldo ou gsp) para o e-mail certo.
+  - Textos incluídos em PT/EN/ES/FR/DE/IT; os campos vazios no editor usam essas traduções.
+  - Secções que devem continuar visíveis com a porta fechada: classe lps-keep (o cabeçalho já a tem).
+  - window.lpsLogout() termina a sessão (botão «Terminar sessão» do cabeçalho, só no computador).
+  - Atenção: a porta só esconde a peça nesta página; a página normal do produto continua pública.
+{%- endcomment -%}
+
+{%- liquid
+  assign lps_lang = localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+  assign lps_lang = lps_lang | downcase | slice: 0, 2
+  assign lps_country = localization.country.iso_code | default: '' | upcase
+
+  comment ----- Marca: Loja do Ouro só em português e em Portugal; senão Gold Store Premium (a regra do cabeçalho) -----
+  endcomment
+  assign lps_brand = 'gsp'
+  assign lps_brand_name = 'Gold Store Premium'
+  if lps_lang == 'pt' and lps_country == 'PT'
+    assign lps_brand = 'ldo'
+    assign lps_brand_name = 'Loja do Ouro'
+  endif
+
+  case lps_lang
+    when 'en'
+      assign lps_locale = 'en'
+      assign d_intro = 'A selection of pieces reserved for registered clients. Request access, or sign in with the password you received by email.'
+      assign d_tab_request = 'Request access'
+      assign d_tab_login = 'I already have access'
+      assign d_name = 'Name'
+      assign d_email = 'Email'
+      assign d_phone = 'Mobile number'
+      assign d_phone_hint = 'Including the country code, for example +44 7700 900123.'
+      assign d_consent = 'I would like to receive news and exclusive invitations by email.'
+      assign d_privacy = 'We use your details only to manage your access and, with your permission, to send you news.'
+      assign d_privacy_link = 'Privacy policy'
+      assign d_request_button = 'Request access'
+      assign d_sending = 'Sending…'
+      assign d_received = 'Request received. In about 30 minutes you will receive an email with your access password.'
+      assign d_login_hint = 'Use the email address you requested access with and the password we sent you.'
+      assign d_password = 'Password'
+      assign d_show_password = 'Show password'
+      assign d_hide_password = 'Hide password'
+      assign d_login_button = 'Sign in'
+      assign d_checking = 'Confirming your access…'
+      assign d_nojs = 'To enter, please enable JavaScript in your browser.'
+      assign d_err_name = 'Please enter your name.'
+      assign d_err_email = 'Please check your email address.'
+      assign d_err_phone = 'Please check your mobile number, including the country code.'
+      assign d_err_password = 'Please enter your password.'
+      assign d_err_request = 'We could not send your request. Please check your details and try again.'
+      assign d_err_origin = 'Access is not available from this website. Please contact us.'
+      assign d_err_rate = 'We have received several requests in a row. Please wait a few minutes and try again.'
+      assign d_err_unavailable = 'The service is temporarily unavailable. Please try again in a few minutes.'
+      assign d_err_invalid = 'The email address or password is incorrect.'
+      assign d_err_locked = 'Too many attempts. For your security, please wait a few minutes before trying again.'
+      assign d_err_expired = 'Your session has ended. Please sign in again with your email address and password.'
+      assign d_err_network = 'We could not connect. Please check your internet connection and try again.'
+    when 'es'
+      assign lps_locale = 'es'
+      assign d_intro = 'Una selección de piezas reservada a clientes registrados. Solicite su acceso o entre con la contraseña que recibió por correo electrónico.'
+      assign d_tab_request = 'Solicitar acceso'
+      assign d_tab_login = 'Ya tengo acceso'
+      assign d_name = 'Nombre'
+      assign d_email = 'Correo electrónico'
+      assign d_phone = 'Móvil'
+      assign d_phone_hint = 'Con el prefijo del país, por ejemplo +34 612 345 678.'
+      assign d_consent = 'Deseo recibir novedades e invitaciones exclusivas por correo electrónico.'
+      assign d_privacy = 'Utilizamos sus datos únicamente para gestionar su acceso y, si lo autoriza, para enviarle novedades.'
+      assign d_privacy_link = 'Política de privacidad'
+      assign d_request_button = 'Solicitar acceso'
+      assign d_sending = 'Enviando…'
+      assign d_received = 'Solicitud recibida. En unos 30 minutos recibirá un correo electrónico con su contraseña de acceso.'
+      assign d_login_hint = 'Utilice el correo electrónico con el que solicitó el acceso y la contraseña que le enviamos.'
+      assign d_password = 'Contraseña'
+      assign d_show_password = 'Mostrar la contraseña'
+      assign d_hide_password = 'Ocultar la contraseña'
+      assign d_login_button = 'Entrar'
+      assign d_checking = 'Confirmando su acceso…'
+      assign d_nojs = 'Para entrar, active JavaScript en su navegador.'
+      assign d_err_name = 'Indique su nombre.'
+      assign d_err_email = 'Revise la dirección de correo electrónico.'
+      assign d_err_phone = 'Revise el número de móvil, con el prefijo del país.'
+      assign d_err_password = 'Indique su contraseña.'
+      assign d_err_request = 'No se ha podido enviar la solicitud. Revise los datos e inténtelo de nuevo.'
+      assign d_err_origin = 'No es posible acceder desde este sitio web. Póngase en contacto con nosotros.'
+      assign d_err_rate = 'Hemos recibido varias solicitudes seguidas. Espere unos minutos e inténtelo de nuevo.'
+      assign d_err_unavailable = 'El servicio no está disponible en este momento. Inténtelo de nuevo dentro de unos minutos.'
+      assign d_err_invalid = 'El correo electrónico o la contraseña no son correctos.'
+      assign d_err_locked = 'Demasiados intentos. Por seguridad, espere unos minutos antes de volver a intentarlo.'
+      assign d_err_expired = 'Su sesión ha finalizado. Vuelva a entrar con su correo electrónico y su contraseña.'
+      assign d_err_network = 'No se ha podido establecer la conexión. Compruebe su conexión a internet e inténtelo de nuevo.'
+    when 'fr'
+      assign lps_locale = 'fr'
+      assign d_intro = 'Une sélection de pièces réservée aux clients inscrits. Demandez votre accès ou connectez-vous avec le mot de passe reçu par e-mail.'
+      assign d_tab_request = 'Demander l’accès'
+      assign d_tab_login = 'J’ai déjà un accès'
+      assign d_name = 'Nom'
+      assign d_email = 'Adresse e-mail'
+      assign d_phone = 'Téléphone portable'
+      assign d_phone_hint = 'Avec l’indicatif du pays, par exemple +33 6 12 34 56 78.'
+      assign d_consent = 'Je souhaite recevoir par e-mail des nouveautés et des invitations exclusives.'
+      assign d_privacy = 'Vos données servent uniquement à gérer votre accès et, si vous l’acceptez, à vous envoyer nos nouveautés.'
+      assign d_privacy_link = 'Politique de confidentialité'
+      assign d_request_button = 'Demander l’accès'
+      assign d_sending = 'Envoi en cours…'
+      assign d_received = 'Demande reçue. Dans une trentaine de minutes, vous recevrez un e-mail avec votre mot de passe d’accès.'
+      assign d_login_hint = 'Utilisez l’adresse e-mail indiquée lors de votre demande et le mot de passe que nous vous avons envoyé.'
+      assign d_password = 'Mot de passe'
+      assign d_show_password = 'Afficher le mot de passe'
+      assign d_hide_password = 'Masquer le mot de passe'
+      assign d_login_button = 'Se connecter'
+      assign d_checking = 'Vérification de votre accès…'
+      assign d_nojs = 'Pour entrer, veuillez activer JavaScript dans votre navigateur.'
+      assign d_err_name = 'Veuillez indiquer votre nom.'
+      assign d_err_email = 'Veuillez vérifier votre adresse e-mail.'
+      assign d_err_phone = 'Veuillez vérifier votre numéro de portable, avec l’indicatif du pays.'
+      assign d_err_password = 'Veuillez saisir votre mot de passe.'
+      assign d_err_request = 'Votre demande n’a pas pu être envoyée. Veuillez vérifier vos informations et réessayer.'
+      assign d_err_origin = 'L’accès n’est pas possible depuis ce site. Veuillez nous contacter.'
+      assign d_err_rate = 'Nous avons reçu plusieurs demandes à la suite. Veuillez patienter quelques minutes avant de réessayer.'
+      assign d_err_unavailable = 'Le service est momentanément indisponible. Veuillez réessayer dans quelques minutes.'
+      assign d_err_invalid = 'L’adresse e-mail ou le mot de passe est incorrect.'
+      assign d_err_locked = 'Trop de tentatives. Par sécurité, veuillez patienter quelques minutes avant de réessayer.'
+      assign d_err_expired = 'Votre session a expiré. Veuillez vous reconnecter avec votre adresse e-mail et votre mot de passe.'
+      assign d_err_network = 'Connexion impossible. Veuillez vérifier votre connexion internet et réessayer.'
+    when 'de'
+      assign lps_locale = 'de'
+      assign d_intro = 'Eine Auswahl an Schmuckstücken, die registrierten Kunden vorbehalten ist. Beantragen Sie Ihren Zugang oder melden Sie sich mit dem Passwort an, das Sie per E-Mail erhalten haben.'
+      assign d_tab_request = 'Zugang anfragen'
+      assign d_tab_login = 'Ich habe bereits Zugang'
+      assign d_name = 'Name'
+      assign d_email = 'E-Mail-Adresse'
+      assign d_phone = 'Mobilnummer'
+      assign d_phone_hint = 'Mit Ländervorwahl, zum Beispiel +49 151 23456789.'
+      assign d_consent = 'Ich möchte Neuheiten und exklusive Einladungen per E-Mail erhalten.'
+      assign d_privacy = 'Wir verwenden Ihre Daten ausschließlich zur Verwaltung Ihres Zugangs und, mit Ihrer Einwilligung, für den Versand von Neuheiten.'
+      assign d_privacy_link = 'Datenschutzerklärung'
+      assign d_request_button = 'Zugang anfragen'
+      assign d_sending = 'Wird gesendet …'
+      assign d_received = 'Anfrage eingegangen. In etwa 30 Minuten erhalten Sie eine E-Mail mit Ihrem Zugangspasswort.'
+      assign d_login_hint = 'Verwenden Sie die E-Mail-Adresse Ihrer Anfrage und das Passwort, das wir Ihnen gesendet haben.'
+      assign d_password = 'Passwort'
+      assign d_show_password = 'Passwort anzeigen'
+      assign d_hide_password = 'Passwort verbergen'
+      assign d_login_button = 'Anmelden'
+      assign d_checking = 'Ihr Zugang wird geprüft …'
+      assign d_nojs = 'Bitte aktivieren Sie JavaScript in Ihrem Browser, um fortzufahren.'
+      assign d_err_name = 'Bitte geben Sie Ihren Namen an.'
+      assign d_err_email = 'Bitte überprüfen Sie Ihre E-Mail-Adresse.'
+      assign d_err_phone = 'Bitte überprüfen Sie Ihre Mobilnummer mit Ländervorwahl.'
+      assign d_err_password = 'Bitte geben Sie Ihr Passwort ein.'
+      assign d_err_request = 'Ihre Anfrage konnte nicht gesendet werden. Bitte prüfen Sie Ihre Angaben und versuchen Sie es erneut.'
+      assign d_err_origin = 'Von dieser Website aus ist kein Zugang möglich. Bitte kontaktieren Sie uns.'
+      assign d_err_rate = 'Wir haben mehrere Anfragen kurz hintereinander erhalten. Bitte warten Sie einige Minuten und versuchen Sie es erneut.'
+      assign d_err_unavailable = 'Der Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es in einigen Minuten erneut.'
+      assign d_err_invalid = 'E-Mail-Adresse oder Passwort ist nicht korrekt.'
+      assign d_err_locked = 'Zu viele Versuche. Bitte warten Sie aus Sicherheitsgründen einige Minuten, bevor Sie es erneut versuchen.'
+      assign d_err_expired = 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut mit Ihrer E-Mail-Adresse und Ihrem Passwort an.'
+      assign d_err_network = 'Es konnte keine Verbindung hergestellt werden. Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.'
+    when 'it'
+      assign lps_locale = 'it'
+      assign d_intro = 'Una selezione di gioielli riservata ai clienti registrati. Richieda l’accesso oppure entri con la password ricevuta via e-mail.'
+      assign d_tab_request = 'Richiedi l’accesso'
+      assign d_tab_login = 'Ho già l’accesso'
+      assign d_name = 'Nome'
+      assign d_email = 'Indirizzo e-mail'
+      assign d_phone = 'Cellulare'
+      assign d_phone_hint = 'Con il prefisso internazionale, ad esempio +39 312 345 6789.'
+      assign d_consent = 'Desidero ricevere via e-mail novità e inviti esclusivi.'
+      assign d_privacy = 'Utilizziamo i suoi dati solo per gestire il suo accesso e, se lo autorizza, per inviarle novità.'
+      assign d_privacy_link = 'Informativa sulla privacy'
+      assign d_request_button = 'Richiedi l’accesso'
+      assign d_sending = 'Invio in corso…'
+      assign d_received = 'Richiesta ricevuta. Entro circa 30 minuti riceverà un’e-mail con la sua password di accesso.'
+      assign d_login_hint = 'Utilizzi l’indirizzo e-mail con cui ha richiesto l’accesso e la password che le abbiamo inviato.'
+      assign d_password = 'Password'
+      assign d_show_password = 'Mostra la password'
+      assign d_hide_password = 'Nascondi la password'
+      assign d_login_button = 'Entra'
+      assign d_checking = 'Verifica dell’accesso in corso…'
+      assign d_nojs = 'Per entrare, attivi JavaScript nel suo browser.'
+      assign d_err_name = 'Indichi il suo nome.'
+      assign d_err_email = 'Controlli l’indirizzo e-mail.'
+      assign d_err_phone = 'Controlli il numero di cellulare, con il prefisso internazionale.'
+      assign d_err_password = 'Inserisca la password.'
+      assign d_err_request = 'Non è stato possibile inviare la richiesta. Controlli i dati e riprovi.'
+      assign d_err_origin = 'Non è possibile accedere da questo sito. La preghiamo di contattarci.'
+      assign d_err_rate = 'Abbiamo ricevuto diverse richieste di seguito. Attenda qualche minuto e riprovi.'
+      assign d_err_unavailable = 'Il servizio è momentaneamente non disponibile. Riprovi tra qualche minuto.'
+      assign d_err_invalid = 'L’indirizzo e-mail o la password non sono corretti.'
+      assign d_err_locked = 'Troppi tentativi. Per sicurezza, attenda qualche minuto prima di riprovare.'
+      assign d_err_expired = 'La sua sessione è scaduta. Entri di nuovo con il suo indirizzo e-mail e la password.'
+      assign d_err_network = 'Impossibile stabilire la connessione. Controlli la connessione a internet e riprovi.'
+    else
+      assign lps_locale = 'pt'
+      assign d_intro = 'Uma seleção de peças reservada a clientes registados. Peça o seu acesso ou entre com a senha que recebeu por e-mail.'
+      assign d_tab_request = 'Pedir acesso'
+      assign d_tab_login = 'Já tenho acesso'
+      assign d_name = 'Nome'
+      assign d_email = 'E-mail'
+      assign d_phone = 'Telemóvel'
+      assign d_phone_hint = 'Com o indicativo do país, por exemplo +351 912 345 678.'
+      assign d_consent = 'Quero receber novidades e convites exclusivos por e-mail.'
+      assign d_privacy = 'Usamos os seus dados apenas para gerir o seu acesso e, se o autorizar, para lhe enviar novidades.'
+      assign d_privacy_link = 'Política de privacidade'
+      assign d_request_button = 'Pedir acesso'
+      assign d_sending = 'A enviar…'
+      assign d_received = 'Pedido recebido. Dentro de cerca de 30 minutos recebe um e-mail com a sua senha de acesso.'
+      assign d_login_hint = 'Use o e-mail com que pediu acesso e a senha que lhe enviámos.'
+      assign d_password = 'Senha'
+      assign d_show_password = 'Mostrar a senha'
+      assign d_hide_password = 'Ocultar a senha'
+      assign d_login_button = 'Entrar'
+      assign d_checking = 'A confirmar o seu acesso…'
+      assign d_nojs = 'Para entrar, ative o JavaScript no seu navegador.'
+      assign d_err_name = 'Indique o seu nome.'
+      assign d_err_email = 'Confirme o endereço de e-mail.'
+      assign d_err_phone = 'Confirme o número de telemóvel, com o indicativo do país.'
+      assign d_err_password = 'Indique a sua senha.'
+      assign d_err_request = 'Não foi possível enviar o pedido. Reveja os dados e tente novamente.'
+      assign d_err_origin = 'Não é possível entrar a partir deste site. Por favor, contacte-nos.'
+      assign d_err_rate = 'Recebemos vários pedidos seguidos. Aguarde alguns minutos e tente novamente.'
+      assign d_err_unavailable = 'O serviço está temporariamente indisponível. Tente novamente dentro de alguns minutos.'
+      assign d_err_invalid = 'O e-mail ou a senha não estão corretos.'
+      assign d_err_locked = 'Demasiadas tentativas. Por segurança, aguarde alguns minutos antes de tentar novamente.'
+      assign d_err_expired = 'A sua sessão terminou. Entre novamente com o seu e-mail e a sua senha.'
+      assign d_err_network = 'Não foi possível estabelecer ligação. Verifique a sua ligação à internet e tente novamente.'
+  endcase
+
+  comment ----- Textos do editor: vazio = texto incluído da língua -----
+  endcomment
+  assign x_title = section.settings.title | default: ''
+  assign x_intro = section.settings.intro | default: d_intro
+  assign x_tab_request = section.settings.tab_request | default: d_tab_request
+  assign x_tab_login = section.settings.tab_login | default: d_tab_login
+  assign x_name = section.settings.label_name | default: d_name
+  assign x_email = section.settings.label_email | default: d_email
+  assign x_phone = section.settings.label_phone | default: d_phone
+  assign x_phone_hint = section.settings.phone_hint | default: d_phone_hint
+  assign x_consent = section.settings.consent | default: d_consent
+  assign x_privacy = section.settings.privacy_text | default: d_privacy
+  assign x_privacy_link = section.settings.privacy_link | default: d_privacy_link
+  assign x_request_button = section.settings.request_button | default: d_request_button
+  assign x_sending = section.settings.sending | default: d_sending
+  assign x_received = section.settings.received | default: d_received
+  assign x_login_hint = section.settings.login_hint | default: d_login_hint
+  assign x_password = section.settings.label_password | default: d_password
+  assign x_show_password = section.settings.show_password | default: d_show_password
+  assign x_hide_password = section.settings.hide_password | default: d_hide_password
+  assign x_login_button = section.settings.login_button | default: d_login_button
+  assign x_checking = section.settings.checking | default: d_checking
+  assign x_nojs = section.settings.nojs | default: d_nojs
+  assign x_err_name = section.settings.err_name | default: d_err_name
+  assign x_err_email = section.settings.err_email | default: d_err_email
+  assign x_err_phone = section.settings.err_phone | default: d_err_phone
+  assign x_err_password = section.settings.err_password | default: d_err_password
+  assign x_err_request = section.settings.err_request | default: d_err_request
+  assign x_err_origin = section.settings.err_origin | default: d_err_origin
+  assign x_err_rate = section.settings.err_rate | default: d_err_rate
+  assign x_err_unavailable = section.settings.err_unavailable | default: d_err_unavailable
+  assign x_err_invalid = section.settings.err_invalid | default: d_err_invalid
+  assign x_err_locked = section.settings.err_locked | default: d_err_locked
+  assign x_err_expired = section.settings.err_expired | default: d_err_expired
+  assign x_err_network = section.settings.err_network | default: d_err_network
+
+  assign lps_api = section.settings.api_base | default: 'https://loja-do-ouro-dashboard.vercel.app' | strip
+
+  comment ----- Política de privacidade: vazio = a da loja, na língua atual (ex.: /en/policies/privacy-policy) -----
+  endcomment
+  assign lps_privacy = section.settings.privacy_url
+  if lps_privacy == blank
+    assign lps_root = routes.root_url | default: '/'
+    if lps_root == '/'
+      assign lps_privacy = '/policies/privacy-policy'
+    else
+      assign lps_privacy = lps_root | append: '/policies/privacy-policy'
+    endif
+  endif
+
+  comment ----- No editor de temas: conteúdo à vista sem entrar, se a opção estiver ligada -----
+  endcomment
+  assign lps_editor_open = false
+  if request.design_mode and section.settings.show_in_editor
+    assign lps_editor_open = true
+  endif
+
+  assign lps_id = 'lps-' | append: section.id
+-%}
+
+<script>
+  /* Antes de a página aparecer: fecha a porta, a não ser que haja uma confirmação válida (5 min). */
+  (function () {
+    var d = document.documentElement;
+    var token = null;
+    var until = 0;
+    try {
+      token = window.localStorage.getItem('lps_token');
+      until = Number(window.sessionStorage.getItem('lps_ok_until')) || 0;
+    } catch (e) {}
+    d.classList.remove('lps-checking');
+    if ({{ lps_editor_open }}) {
+      d.classList.remove('lps-locked');
+    } else if (token && until > Date.now()) {
+      d.classList.remove('lps-locked');
+      d.classList.add('lps-member');
+    } else {
+      d.classList.add('lps-locked');
+      d.classList.remove('lps-member');
+      if (token) d.classList.add('lps-checking');
+    }
+  })();
+</script>
+
+<style>
+  /* Porta fechada: no conteúdo da página só ficam o cabeçalho e esta porta (e secções com a classe lps-keep). */
+  html.lps-locked #MainContent > .shopify-section:not(.lps-keep):not(.lss-header-section):not(.lps-section),
+  html.lps-locked main > .shopify-section:not(.lps-keep):not(.lss-header-section):not(.lps-section) { display: none !important; }
+
+  .lps {
+    display: none;
+    background: var(--lss-bg, #0b0b09);
+    color: var(--lss-fg, #f7f3ec);
+    font-family: var(--lss-sans, Arial, sans-serif);
+    -webkit-font-smoothing: antialiased;
+  }
+  html.lps-locked .lps, .lps.lps--nojs { display: block; }
+  .lps *, .lps *::before, .lps *::after { box-sizing: border-box; }
+  .lps :where(p, form) { margin: 0; }
+  .lps__wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    max-width: 560px;
+    min-height: calc(100vh - var(--lss-header-h, 72px) - var(--lss-trust-h, 0px));
+    margin-inline: auto;
+    padding: clamp(48px, 9vh, 112px) 20px clamp(56px, 10vh, 128px);
+  }
+  @supports (min-height: 100svh) {
+    .lps__wrap { min-height: calc(100svh - var(--lss-header-h, 72px) - var(--lss-trust-h, 0px)); }
+  }
+
+  .lps__head { text-align: center; }
+  .lps .lps__title {
+    margin: 0;
+    font: inherit;
+    letter-spacing: 0;
+    line-height: 1;
+    color: inherit;
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: none;
+  }
+  .lps .lps__title:focus { outline: none; box-shadow: none; }
+  .lps__brand {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .24em;
+    line-height: 1.4;
+    text-transform: uppercase;
+    color: var(--lss-gold, #bc914c);
+  }
+  .lps__name {
+    display: block;
+    font-family: var(--lss-serif, Georgia, serif);
+    font-weight: var(--lss-serif-weight, 400);
+    font-size: clamp(38px, 8vw, 66px);
+    line-height: 1.02;
+    color: var(--lss-fg, #f7f3ec);
+    text-wrap: balance;
+  }
+  .lps__brand + .lps__name { margin-top: 18px; }
+  .lps__intro {
+    max-width: 36ch;
+    margin: 22px auto 0;
+    font-family: var(--lss-serif, Georgia, serif);
+    font-size: clamp(17px, 1.4vw, 19px);
+    line-height: 1.55;
+    color: var(--lss-soft, #d6d1c8);
+    text-wrap: pretty;
+  }
+  .lps__checking {
+    display: none;
+    margin-top: 40px;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: .04em;
+    color: var(--lss-muted, #a29f99);
+  }
+  html.lps-checking .lps__checking { display: block; }
+  html.lps-checking .lps__body { display: none; }
+
+  .lps__body { width: 100%; max-width: 440px; margin: clamp(36px, 5vw, 52px) auto 0; }
+  .lps__tabs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-bottom: 1px solid var(--lss-line, rgba(247, 243, 236, .14)); }
+  .lps .lps__tab {
+    position: relative;
+    min-height: 48px;
+    margin: 0;
+    padding: 12px 8px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--lss-muted, #a29f99);
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: .04em;
+    line-height: 1.3;
+    text-align: center;
+    cursor: pointer;
+    transition: color .3s ease;
+  }
+  .lps__tab::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: var(--lss-gold, #bc914c);
+    transform: scaleX(0);
+    transition: transform .35s ease;
+  }
+  .lps .lps__tab:hover, .lps .lps__tab[aria-selected="true"] { color: var(--lss-fg, #f7f3ec); }
+  .lps__tab[aria-selected="true"]::after { transform: scaleX(1); }
+  .lps__panel { padding-top: 30px; }
+  .lps__panel[hidden] { display: none; }
+
+  .lps__notice {
+    margin-bottom: 22px;
+    padding: 14px 16px;
+    border: 1px solid var(--lss-line, rgba(247, 243, 236, .14));
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--lss-fg, #f7f3ec);
+  }
+  .lps__notice:empty { display: none; }
+  .lps .lps__notice:focus { outline: none; box-shadow: none; border-color: var(--lss-gold, #bc914c); }
+  .lps__lead { margin-bottom: 6px; font-size: 14px; line-height: 1.6; color: var(--lss-soft, #d6d1c8); }
+
+  .lps__field + .lps__field, .lps__lead + .lps__form .lps__field:first-child { margin-top: 22px; }
+  .lps__label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .lps__label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    line-height: 1.4;
+    text-transform: uppercase;
+    color: var(--lss-muted, #a29f99);
+  }
+  .lps .lps__input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    margin: 6px 0 0;
+    padding: 10px 0;
+    border: 0;
+    border-bottom: 1px solid var(--lss-line, rgba(247, 243, 236, .14));
+    border-radius: 0;
+    background: transparent;
+    color: var(--lss-fg, #f7f3ec);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.4;
+    box-shadow: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color .3s ease;
+  }
+  .lps .lps__input:focus, .lps .lps__input:focus-visible { outline: none; border-bottom-color: var(--lss-gold, #bc914c); box-shadow: 0 1px 0 var(--lss-gold, #bc914c); }
+  .lps .lps__input[aria-invalid="true"] { border-bottom-color: #e8b4a8; }
+  .lps .lps__input:-webkit-autofill { -webkit-text-fill-color: var(--lss-fg, #f7f3ec); -webkit-box-shadow: 0 0 0 1000px var(--lss-bg, #0b0b09) inset; caret-color: var(--lss-fg, #f7f3ec); }
+  .lps .lps__input:-webkit-autofill:focus { -webkit-box-shadow: 0 0 0 1000px var(--lss-bg, #0b0b09) inset, 0 1px 0 var(--lss-gold, #bc914c); }
+  .lps__hint { margin-top: 8px; font-size: 12px; line-height: 1.5; color: var(--lss-muted, #a29f99); }
+  .lps .lps__toggle {
+    min-height: 24px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lss-muted, #a29f99);
+    font: inherit;
+    font-size: 12px;
+    text-decoration: underline;
+    text-decoration-color: var(--lss-line, rgba(247, 243, 236, .14));
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: color .3s ease;
+  }
+  .lps .lps__toggle:hover { color: var(--lss-fg, #f7f3ec); }
+
+  .lps__hp { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  .lps__check { display: flex; align-items: flex-start; gap: 12px; margin-top: 26px; font-size: 13px; line-height: 1.55; color: var(--lss-soft, #d6d1c8); cursor: pointer; }
+  .lps .lps__check input {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: none;
+    display: grid;
+    place-content: center;
+    width: 18px;
+    height: 18px;
+    margin: 1px 0 0;
+    border: 1px solid var(--lss-muted, #a29f99);
+    border-radius: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .lps__check input::after {
+    content: "";
+    width: 9px;
+    height: 5px;
+    border: solid var(--lss-bg, #0b0b09);
+    border-width: 0 0 1.5px 1.5px;
+    transform: translateY(-1px) rotate(-45deg);
+    opacity: 0;
+  }
+  .lps .lps__check input:checked { border-color: var(--lss-gold, #bc914c); background: var(--lss-gold, #bc914c); }
+  .lps__check input:checked::after { opacity: 1; }
+  .lps__privacy { margin-top: 16px; font-size: 12px; line-height: 1.6; color: var(--lss-muted, #a29f99); }
+  .lps .lps__privacy a { color: var(--lss-soft, #d6d1c8); text-decoration: underline; text-decoration-color: var(--lss-gold, #bc914c); text-underline-offset: 3px; }
+
+  .lps__error { margin-top: 18px; font-size: 13px; line-height: 1.5; color: #e8b4a8; }
+  .lps__error:empty { margin-top: 0; }
+  .lps .lps__submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 56px;
+    margin: 22px 0 0;
+    padding: 0 28px;
+    border: 1px solid var(--lss-fg, #f7f3ec);
+    border-radius: 0;
+    background: var(--lss-fg, #f7f3ec);
+    color: var(--lss-bg, #0b0b09);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: .02em;
+    cursor: pointer;
+    transition: background-color .3s ease, color .3s ease;
+  }
+  .lps .lps__submit:hover:not([aria-disabled="true"]) { background: transparent; color: var(--lss-fg, #f7f3ec); }
+  .lps .lps__submit[aria-disabled="true"] { opacity: .7; cursor: progress; }
+  .lps a:focus-visible, .lps button:focus-visible, .lps .lps__check input:focus-visible { outline: 1px solid var(--lss-gold, #bc914c); outline-offset: 4px; box-shadow: none; }
+  html.lps-member [data-lps-focus]:focus { outline: none; box-shadow: none; }
+
+  .lps-editor-note { margin: 0; padding: 10px 16px; background: var(--lss-panel, #1a1916); border-bottom: 1px solid var(--lss-line, rgba(247, 243, 236, .14)); font: 12px/1.5 var(--lss-sans, Arial, sans-serif); color: var(--lss-muted, #a29f99); text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lps__tab, .lps__tab::after, .lps .lps__input, .lps .lps__submit, .lps .lps__toggle { transition: none; }
+  }
+</style>
+
+{%- if request.design_mode -%}
+  {%- if lps_editor_open -%}
+    <p class="lps-editor-note">Private Selection: no editor a peça está à vista sem entrar. Para ver a porta de entrada como os clientes, desligue «Mostrar o conteúdo no editor» nesta secção.</p>
+  {%- else -%}
+    <p class="lps-editor-note">Pré-visualização da porta de entrada. Os pedidos e as entradas feitos aqui são reais (vão para o dashboard).</p>
+  {%- endif -%}
+{%- endif -%}
+
+<section
+  class="lps"
+  id="{{ lps_id }}"
+  data-api="{{ lps_api | escape }}"
+  data-locale="{{ lps_locale }}"
+  data-brand="{{ lps_brand }}"
+  data-editor-open="{{ lps_editor_open }}"
+  aria-labelledby="{{ lps_id }}-title"
+>
+  <div class="lps__wrap">
+    <header class="lps__head">
+      <h1 class="lps__title" id="{{ lps_id }}-title" tabindex="-1" data-lps-title>
+        {%- if x_title != blank -%}
+          <span class="lps__name">{{ x_title }}</span>
+        {%- else -%}
+          <span class="lps__brand">{{ lps_brand_name }}</span> <span class="lps__name">Private Selection</span>
+        {%- endif -%}
+      </h1>
+      <p class="lps__intro">{{ x_intro }}</p>
+    </header>
+
+    <p class="lps__checking">{{ x_checking }}</p>
+
+    <div class="lps__body">
+      <div class="lps__tabs" role="tablist" aria-labelledby="{{ lps_id }}-title">
+        <button class="lps__tab" type="button" role="tab" id="{{ lps_id }}-tab-request" aria-controls="{{ lps_id }}-panel-request" aria-selected="true" data-lps-tab="request">{{ x_tab_request }}</button>
+        <button class="lps__tab" type="button" role="tab" id="{{ lps_id }}-tab-login" aria-controls="{{ lps_id }}-panel-login" aria-selected="false" tabindex="-1" data-lps-tab="login">{{ x_tab_login }}</button>
+      </div>
+
+      <div class="lps__panel" role="tabpanel" id="{{ lps_id }}-panel-request" aria-labelledby="{{ lps_id }}-tab-request" data-lps-panel="request">
+        <form class="lps__form" method="post" action="#" novalidate data-lps-form="request">
+          <div class="lps__field">
+            <label class="lps__label" for="{{ lps_id }}-name">{{ x_name }}</label>
+            <input class="lps__input" id="{{ lps_id }}-name" name="name" type="text" autocomplete="name" autocapitalize="words" maxlength="120" required data-lps-field="name">
+          </div>
+          <div class="lps__field">
+            <label class="lps__label" for="{{ lps_id }}-email">{{ x_email }}</label>
+            <input class="lps__input" id="{{ lps_id }}-email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="254" required data-lps-field="email">
+          </div>
+          <div class="lps__field">
+            <label class="lps__label" for="{{ lps_id }}-phone">{{ x_phone }}</label>
+            <input class="lps__input" id="{{ lps_id }}-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="32" required aria-describedby="{{ lps_id }}-phone-hint" data-lps-field="phone">
+            <p class="lps__hint" id="{{ lps_id }}-phone-hint">{{ x_phone_hint }}</p>
+          </div>
+          <div class="lps__hp" aria-hidden="true">
+            <label for="{{ lps_id }}-website">Website</label>
+            <input id="{{ lps_id }}-website" name="website" type="text" tabindex="-1" autocomplete="off" data-lps-field="website">
+          </div>
+          <label class="lps__check">
+            <input type="checkbox" name="consent_marketing" data-lps-field="consent">
+            <span>{{ x_consent }}</span>
+          </label>
+          <p class="lps__privacy">{{ x_privacy }} <a href="{{ lps_privacy }}" target="_blank" rel="noopener">{{ x_privacy_link }}</a></p>
+          <p class="lps__error" role="alert" data-lps-error></p>
+          <button class="lps__submit" type="submit" data-busy="{{ x_sending | escape }}">{{ x_request_button }}</button>
+        </form>
+      </div>
+
+      <div class="lps__panel" role="tabpanel" id="{{ lps_id }}-panel-login" aria-labelledby="{{ lps_id }}-tab-login" data-lps-panel="login" hidden>
+        <p class="lps__notice" role="status" tabindex="-1" data-lps-notice></p>
+        <p class="lps__lead">{{ x_login_hint }}</p>
+        <form class="lps__form" method="post" action="#" novalidate data-lps-form="login">
+          <div class="lps__field">
+            <label class="lps__label" for="{{ lps_id }}-login-email">{{ x_email }}</label>
+            <input class="lps__input" id="{{ lps_id }}-login-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="254" required data-lps-field="email">
+          </div>
+          <div class="lps__field">
+            <div class="lps__label-row">
+              <label class="lps__label" for="{{ lps_id }}-password">{{ x_password }}</label>
+              <button class="lps__toggle" type="button" aria-controls="{{ lps_id }}-password" data-lps-toggle data-show="{{ x_show_password | escape }}" data-hide="{{ x_hide_password | escape }}">{{ x_show_password }}</button>
+            </div>
+            <input class="lps__input" id="{{ lps_id }}-password" name="password" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" maxlength="200" required data-lps-field="password">
+          </div>
+          <p class="lps__error" role="alert" data-lps-error></p>
+          <button class="lps__submit" type="submit" data-busy="{{ x_checking | escape }}">{{ x_login_button }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<noscript>
+  <style>
+    #MainContent > .shopify-section:not(.lps-keep):not(.lss-header-section):not(.lps-section),
+    main > .shopify-section:not(.lps-keep):not(.lss-header-section):not(.lps-section) { display: none !important; }
+  </style>
+  <div class="lps lps--nojs">
+    <div class="lps__wrap">
+      <div class="lps__head">
+        <p class="lps__title">
+          {%- if x_title != blank -%}
+            <span class="lps__name">{{ x_title }}</span>
+          {%- else -%}
+            <span class="lps__brand">{{ lps_brand_name }}</span> <span class="lps__name">Private Selection</span>
+          {%- endif -%}
+        </p>
+        <p class="lps__intro">{{ x_nojs }}</p>
+      </div>
+    </div>
+  </div>
+</noscript>
+
+<script>
+  (function () {
+    var root = document.getElementById('{{ lps_id }}');
+    if (!root) return;
+    var html = document.documentElement;
+    var api = (root.getAttribute('data-api') || '').replace(/\/+$/, '');
+    var locale = root.getAttribute('data-locale') || 'pt';
+    var brand = root.getAttribute('data-brand') === 'ldo' ? 'ldo' : 'gsp';
+    var TTL = 5 * 60 * 1000;
+    var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    var T = {
+      received: {{ x_received | json }},
+      invalid_name: {{ x_err_name | json }},
+      invalid_email: {{ x_err_email | json }},
+      invalid_phone: {{ x_err_phone | json }},
+      invalid_password: {{ x_err_password | json }},
+      invalid_request: {{ x_err_request | json }},
+      origin: {{ x_err_origin | json }},
+      rate_limited: {{ x_err_rate | json }},
+      unavailable: {{ x_err_unavailable | json }},
+      invalid: {{ x_err_invalid | json }},
+      locked: {{ x_err_locked | json }},
+      expired: {{ x_err_expired | json }},
+      network: {{ x_err_network | json }}
+    };
+    /* Campo a assinalar para cada código de erro */
+    var FIELD = { invalid_name: 'name', invalid_email: 'email', invalid_phone: 'phone', invalid_password: 'password', invalid: 'password' };
+
+    if (root.getAttribute('data-editor-open') === 'true') {
+      html.classList.remove('lps-locked');
+      html.classList.remove('lps-checking');
+      return;
+    }
+
+    /* ----- Guardar no navegador (com reserva em memória se o navegador não deixar) ----- */
+    var memory = {};
+    function read(kind, key) {
+      try {
+        var value = window[kind].getItem(key);
+        if (value !== null) return value;
+      } catch (e) {}
+      return Object.prototype.hasOwnProperty.call(memory, kind + key) ? memory[kind + key] : null;
+    }
+    function write(kind, key, value) {
+      if (value === null) delete memory[kind + key]; else memory[kind + key] = value;
+      try {
+        if (value === null) window[kind].removeItem(key); else window[kind].setItem(key, value);
+      } catch (e) {}
+    }
+    function forget() {
+      write('localStorage', 'lps_token', null);
+      write('sessionStorage', 'lps_ok_until', null);
+    }
+    function clientKey() {
+      var key = read('localStorage', 'lps_client_key');
+      if (key) return key;
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        key = window.crypto.randomUUID();
+      } else {
+        key = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          var r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+        });
+      }
+      write('localStorage', 'lps_client_key', key);
+      return key;
+    }
+
+    /* ----- Pedidos ao dashboard ----- */
+    function call(path, body, bearer) {
+      var headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+      if (bearer) headers.Authorization = 'Bearer ' + bearer;
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 20000) : null;
+      function done(result) {
+        if (timer) clearTimeout(timer);
+        return result;
+      }
+      return fetch(api + '/api/private-selection/' + path, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+        headers: headers,
+        body: JSON.stringify(body || {}),
+        signal: ctrl ? ctrl.signal : undefined
+      }).then(function (r) {
+        return r.json().then(null, function () { return {}; }).then(function (data) {
+          data = data && typeof data === 'object' ? data : {};
+          if (r.ok && data.ok === true) return done(data);
+          var code = typeof data.code === 'string' && data.code ? data.code : '';
+          if (!code) {
+            if (r.status === 401) code = path === 'login' ? 'invalid' : 'expired';
+            else if (r.status === 403) code = 'origin';
+            else if (r.status === 429) code = 'rate_limited';
+            else if (r.status >= 500) code = 'unavailable';
+            else code = 'invalid_request';
+          }
+          return done({ ok: false, code: code, status: r.status });
+        });
+      }, function () {
+        return done({ ok: false, code: 'network' });
+      });
+    }
+
+    /* ----- Separadores ----- */
+    var tabs = Array.prototype.slice.call(root.querySelectorAll('[data-lps-tab]'));
+    var panels = Array.prototype.slice.call(root.querySelectorAll('[data-lps-panel]'));
+    var reqForm = root.querySelector('[data-lps-form="request"]');
+    var logForm = root.querySelector('[data-lps-form="login"]');
+    var notice = root.querySelector('[data-lps-notice]');
+    var title = root.querySelector('[data-lps-title]');
+    var toggle = root.querySelector('[data-lps-toggle]');
+
+    function field(form, key) { return form ? form.querySelector('[data-lps-field="' + key + '"]') : null; }
+
+    function select(name, focusTab) {
+      tabs.forEach(function (tab) {
+        var on = tab.getAttribute('data-lps-tab') === name;
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        tab.tabIndex = on ? 0 : -1;
+        if (on && focusTab) tab.focus();
+      });
+      panels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-lps-panel') !== name; });
+    }
+    tabs.forEach(function (tab, i) {
+      tab.addEventListener('click', function () { select(tab.getAttribute('data-lps-tab'), false); });
+      tab.addEventListener('keydown', function (e) {
+        var n = null;
+        if (e.key === 'ArrowRight') n = (i + 1) % tabs.length;
+        if (e.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+        if (e.key === 'Home') n = 0;
+        if (e.key === 'End') n = tabs.length - 1;
+        if (n === null) return;
+        e.preventDefault();
+        select(tabs[n].getAttribute('data-lps-tab'), true);
+      });
+    });
+
+    /* ----- Mensagens ----- */
+    function clear(form) {
+      if (!form) return;
+      var box = form.querySelector('[data-lps-error]');
+      if (box) box.textContent = '';
+      Array.prototype.forEach.call(form.querySelectorAll('[aria-invalid]'), function (el) { el.removeAttribute('aria-invalid'); });
+    }
+    function fail(form, code, focus) {
+      if (!form) return;
+      var box = form.querySelector('[data-lps-error]');
+      if (box) box.textContent = T[code] || T.invalid_request;
+      var el = FIELD[code] ? field(form, FIELD[code]) : null;
+      if (!el) return;
+      el.setAttribute('aria-invalid', 'true');
+      if (focus) el.focus();
+    }
+    function busy(form, on) {
+      var btn = form.querySelector('[type="submit"]');
+      form.setAttribute('aria-busy', on ? 'true' : 'false');
+      if (!btn) return;
+      if (on) {
+        btn.setAttribute('data-label', btn.textContent);
+        btn.textContent = btn.getAttribute('data-busy');
+        btn.setAttribute('aria-disabled', 'true');
+      } else {
+        if (btn.getAttribute('data-label')) btn.textContent = btn.getAttribute('data-label');
+        btn.removeAttribute('aria-disabled');
+      }
+    }
+    root.addEventListener('input', function (e) {
+      if (e.target && e.target.removeAttribute) e.target.removeAttribute('aria-invalid');
+    });
+
+    /* ----- Porta fechada / aberta ----- */
+    function checking(on) {
+      if (on) html.classList.add('lps-checking'); else html.classList.remove('lps-checking');
+      root.setAttribute('aria-busy', on ? 'true' : 'false');
+    }
+    function showGate(tab, code) {
+      checking(false);
+      html.classList.add('lps-locked');
+      html.classList.remove('lps-member');
+      select(tab, false);
+      if (code) fail(tab === 'login' ? logForm : reqForm, code, false);
+    }
+    function unlock(moveFocus) {
+      write('sessionStorage', 'lps_ok_until', String(Date.now() + TTL));
+      checking(false);
+      html.classList.remove('lps-locked');
+      html.classList.add('lps-member');
+      try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+      try { document.dispatchEvent(new CustomEvent('lps:unlocked')); } catch (e) {}
+      if (!moveFocus) return;
+      /* Leva o foco para o título da peça (o primeiro h1 fora da porta) e volta ao topo */
+      var heads = document.querySelectorAll('#MainContent h1, main h1');
+      for (var i = 0; i < heads.length; i++) {
+        if (!root.contains(heads[i]) && heads[i].getClientRects().length) {
+          heads[i].setAttribute('tabindex', '-1');
+          heads[i].setAttribute('data-lps-focus', '');
+          try { heads[i].focus({ preventScroll: true }); } catch (e) { heads[i].focus(); }
+          break;
+        }
+      }
+      window.scrollTo(0, 0);
+    }
+    function verify() {
+      var token = read('localStorage', 'lps_token');
+      if (!token) {
+        showGate(read('localStorage', 'lps_email') ? 'login' : 'request');
+        return;
+      }
+      checking(true);
+      call('session', {}, token).then(function (res) {
+        if (res.ok) return unlock(false);
+        /* Sessão recusada: apaga o token. Falha de rede ou serviço: guarda-o para a próxima tentativa. */
+        if (res.code === 'expired' || res.status === 401) forget();
+        showGate('login', res.code === 'expired' || res.status === 401 ? 'expired' : res.code);
+      });
+    }
+
+    /* ----- Pedir acesso ----- */
+    if (reqForm) reqForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (reqForm.getAttribute('aria-busy') === 'true') return;
+      clear(reqForm);
+      var name = (field(reqForm, 'name').value || '').replace(/\s+/g, ' ').trim();
+      var email = (field(reqForm, 'email').value || '').trim();
+      var phone = (field(reqForm, 'phone').value || '').trim();
+      var consent = field(reqForm, 'consent');
+      var trap = field(reqForm, 'website');
+      if (name.length < 2) return fail(reqForm, 'invalid_name', true);
+      if (!EMAIL.test(email)) return fail(reqForm, 'invalid_email', true);
+      if (phone.replace(/\D/g, '').length < 8) return fail(reqForm, 'invalid_phone', true);
+      busy(reqForm, true);
+      call('request', {
+        name: name,
+        email: email,
+        phone: phone,
+        locale: locale,
+        brand: brand,
+        consent_marketing: !!(consent && consent.checked),
+        client_key: clientKey(),
+        website: trap ? trap.value : ''
+      }).then(function (res) {
+        busy(reqForm, false);
+        if (!res.ok) return fail(reqForm, res.code, true);
+        write('localStorage', 'lps_email', email);
+        reqForm.reset();
+        var loginEmail = field(logForm, 'email');
+        if (loginEmail) loginEmail.value = email;
+        clear(logForm);
+        select('login', false);
+        if (notice) {
+          notice.textContent = T.received;
+          notice.focus();
+        }
+      });
+    });
+
+    /* ----- Já tenho acesso ----- */
+    if (logForm) logForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (logForm.getAttribute('aria-busy') === 'true') return;
+      clear(logForm);
+      var emailEl = field(logForm, 'email');
+      var passEl = field(logForm, 'password');
+      var email = (emailEl.value || '').trim();
+      var password = passEl.value || '';
+      if (!EMAIL.test(email)) return fail(logForm, 'invalid_email', true);
+      if (!password) return fail(logForm, 'invalid_password', true);
+      busy(logForm, true);
+      call('login', { email: email, password: password }).then(function (res) {
+        busy(logForm, false);
+        if (res.ok && res.token) {
+          write('localStorage', 'lps_token', String(res.token));
+          write('localStorage', 'lps_email', email);
+          passEl.value = '';
+          passEl.type = 'password';
+          if (toggle) toggle.textContent = toggle.getAttribute('data-show');
+          if (notice) notice.textContent = '';
+          unlock(true);
+          return;
+        }
+        fail(logForm, res.ok ? 'unavailable' : res.code, true);
+      });
+    });
+
+    if (toggle) toggle.addEventListener('click', function () {
+      var passEl = field(logForm, 'password');
+      if (!passEl) return;
+      var show = passEl.type === 'password';
+      passEl.type = show ? 'text' : 'password';
+      toggle.textContent = toggle.getAttribute(show ? 'data-hide' : 'data-show');
+    });
+
+    /* ----- Terminar sessão (chamado pelo cabeçalho) ----- */
+    window.lpsLogout = function () {
+      var token = read('localStorage', 'lps_token');
+      forget();
+      write('localStorage', 'lps_email', null);
+      if (token) call('logout', {}, token);
+      clear(reqForm);
+      clear(logForm);
+      if (notice) notice.textContent = '';
+      var loginEmail = field(logForm, 'email');
+      if (loginEmail) loginEmail.value = '';
+      showGate('login');
+      window.scrollTo(0, 0);
+      if (title) title.focus();
+    };
+
+    /* ----- Arranque ----- */
+    var saved = read('localStorage', 'lps_email');
+    var savedField = field(logForm, 'email');
+    if (saved && savedField && !savedField.value) savedField.value = saved;
+    if (html.classList.contains('lps-locked')) verify();
+
+    /* Página reposta pelo botão «Voltar» (cache do navegador): os scripts não voltam a correr,
+       por isso confirma de novo (ex.: terminou a sessão noutra página, ou entrou noutra página). */
+    window.addEventListener('pageshow', function (e) {
+      if (!e.persisted) return;
+      /* A memória desta página pode estar antiga; se o navegador deixa ler, vale o que está guardado. */
+      try {
+        window.localStorage.getItem('lps_token');
+        window.sessionStorage.getItem('lps_ok_until');
+        memory = {};
+      } catch (err) {}
+      var token = read('localStorage', 'lps_token');
+      var until = Number(read('sessionStorage', 'lps_ok_until')) || 0;
+      var locked = html.classList.contains('lps-locked');
+      if (!token) {
+        if (!locked || html.classList.contains('lps-checking')) showGate(read('localStorage', 'lps_email') ? 'login' : 'request');
+        return;
+      }
+      if (!locked && until > Date.now()) return;
+      html.classList.add('lps-locked');
+      html.classList.remove('lps-member');
+      verify();
+    });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "LOD — Selection: acesso",
+  "tag": "div",
+  "class": "lps-section lps-keep",
+  "enabled_on": { "templates": ["product", "collection"] },
+  "settings": [
+    { "type": "paragraph", "content": "Porta de entrada da Private Selection. Enquanto o cliente não entra, a página mostra só o cabeçalho e esta porta; a peça e as sugestões ficam escondidas. Os pedidos de acesso e as senhas são tratados no dashboard (Private Selection). Atenção: a porta só esconde a peça nesta página; a página normal do produto continua pública." },
+    { "type": "checkbox", "id": "show_in_editor", "label": "Mostrar o conteúdo no editor", "info": "Ligado = no editor de temas vê a peça sem entrar, para a poder editar. Desligado = vê a porta de entrada como os clientes. Na loja os clientes têm sempre de entrar.", "default": true },
+    { "type": "header", "content": "Ligações" },
+    { "type": "text", "id": "api_base", "label": "Endereço do dashboard", "default": "https://loja-do-ouro-dashboard.vercel.app", "info": "Só se muda se o dashboard mudar de endereço." },
+    { "type": "url", "id": "privacy_url", "label": "Política de privacidade", "info": "Vazio = política de privacidade da loja, na língua do cliente." },
+    { "type": "header", "content": "Textos — topo" },
+    { "type": "paragraph", "content": "Em todos os textos: vazio = texto incluído, já traduzido em PT, EN, ES, FR, DE e IT. Um texto escrito por si tem de ser traduzido na app Translate & Adapt — senão aparece em português nas outras línguas." },
+    { "type": "text", "id": "title", "label": "Título", "info": "Vazio = nome completo da marca: Loja do Ouro Private Selection (português em Portugal) ou Gold Store Premium Private Selection (outras línguas ou outros países)." },
+    { "type": "textarea", "id": "intro", "label": "Frase de apresentação", "placeholder": "Uma seleção de peças reservada a clientes registados. Peça o seu acesso ou entre com a senha que recebeu por e-mail." },
+    { "type": "text", "id": "tab_request", "label": "Separador para pedir acesso", "placeholder": "Pedir acesso" },
+    { "type": "text", "id": "tab_login", "label": "Separador para entrar", "placeholder": "Já tenho acesso" },
+    { "type": "text", "id": "checking", "label": "Enquanto confirma o acesso", "placeholder": "A confirmar o seu acesso…" },
+    { "type": "text", "id": "nojs", "label": "Sem JavaScript no navegador", "placeholder": "Para entrar, ative o JavaScript no seu navegador." },
+    { "type": "header", "content": "Textos — pedir acesso" },
+    { "type": "text", "id": "label_name", "label": "Campo do nome", "placeholder": "Nome" },
+    { "type": "text", "id": "label_email", "label": "Campo do e-mail", "placeholder": "E-mail", "info": "Também usado no separador para entrar." },
+    { "type": "text", "id": "label_phone", "label": "Campo do telemóvel", "placeholder": "Telemóvel" },
+    { "type": "text", "id": "phone_hint", "label": "Ajuda do telemóvel", "placeholder": "Com o indicativo do país, por exemplo +351 912 345 678." },
+    { "type": "text", "id": "consent", "label": "Caixa das novidades (opcional para o cliente)", "placeholder": "Quero receber novidades e convites exclusivos por e-mail." },
+    { "type": "textarea", "id": "privacy_text", "label": "Nota de privacidade", "placeholder": "Usamos os seus dados apenas para gerir o seu acesso e, se o autorizar, para lhe enviar novidades." },
+    { "type": "text", "id": "privacy_link", "label": "Ligação para a política de privacidade", "placeholder": "Política de privacidade" },
+    { "type": "text", "id": "request_button", "label": "Botão de pedir acesso", "placeholder": "Pedir acesso" },
+    { "type": "text", "id": "sending", "label": "Botão enquanto envia", "placeholder": "A enviar…" },
+    { "type": "textarea", "id": "received", "label": "Mensagem depois do pedido", "placeholder": "Pedido recebido. Dentro de cerca de 30 minutos recebe um e-mail com a sua senha de acesso.", "info": "Se mudar o atraso do e-mail no dashboard, ajuste também este texto." },
+    { "type": "header", "content": "Textos — já tenho acesso" },
+    { "type": "textarea", "id": "login_hint", "label": "Frase do separador", "placeholder": "Use o e-mail com que pediu acesso e a senha que lhe enviámos." },
+    { "type": "text", "id": "label_password", "label": "Campo da senha", "placeholder": "Senha" },
+    { "type": "text", "id": "show_password", "label": "Mostrar a senha", "placeholder": "Mostrar a senha" },
+    { "type": "text", "id": "hide_password", "label": "Ocultar a senha", "placeholder": "Ocultar a senha" },
+    { "type": "text", "id": "login_button", "label": "Botão de entrar", "placeholder": "Entrar", "info": "Enquanto confirma, o botão mostra o texto «Enquanto confirma o acesso»." },
+    { "type": "header", "content": "Mensagens de erro" },
+    { "type": "text", "id": "err_name", "label": "Nome em falta", "placeholder": "Indique o seu nome." },
+    { "type": "text", "id": "err_email", "label": "E-mail inválido", "placeholder": "Confirme o endereço de e-mail." },
+    { "type": "text", "id": "err_phone", "label": "Telemóvel inválido", "placeholder": "Confirme o número de telemóvel, com o indicativo do país." },
+    { "type": "text", "id": "err_password", "label": "Senha em falta", "placeholder": "Indique a sua senha." },
+    { "type": "text", "id": "err_invalid", "label": "E-mail ou senha errados", "placeholder": "O e-mail ou a senha não estão corretos." },
+    { "type": "text", "id": "err_locked", "label": "Demasiadas tentativas", "placeholder": "Demasiadas tentativas. Por segurança, aguarde alguns minutos antes de tentar novamente." },
+    { "type": "text", "id": "err_expired", "label": "Sessão terminada", "placeholder": "A sua sessão terminou. Entre novamente com o seu e-mail e a sua senha.", "info": "Aparece quando a pessoa foi removida, a senha mudou ou passaram 30 dias." },
+    { "type": "text", "id": "err_rate", "label": "Muitos pedidos seguidos", "placeholder": "Recebemos vários pedidos seguidos. Aguarde alguns minutos e tente novamente." },
+    { "type": "text", "id": "err_request", "label": "Pedido recusado", "placeholder": "Não foi possível enviar o pedido. Reveja os dados e tente novamente." },
+    { "type": "text", "id": "err_unavailable", "label": "Serviço indisponível", "placeholder": "O serviço está temporariamente indisponível. Tente novamente dentro de alguns minutos." },
+    { "type": "text", "id": "err_network", "label": "Sem ligação", "placeholder": "Não foi possível estabelecer ligação. Verifique a sua ligação à internet e tente novamente." },
+    { "type": "text", "id": "err_origin", "label": "Endereço da loja não autorizado", "placeholder": "Não é possível entrar a partir deste site. Por favor, contacte-nos.", "info": "Só aparece se o domínio da loja não estiver na lista do dashboard (PRIVATE_SELECTION_ORIGINS)." }
+  ]
+}
+{% endschema %}

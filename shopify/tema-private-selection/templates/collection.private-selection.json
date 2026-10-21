@@ -1,0 +1,29 @@
+{
+  "sections": {
+    "salao_cabecalho": {
+      "type": "lod-salao-cabecalho",
+      "settings": {
+        "logo_pt": "shopify://shop_images/logo_horizontal_f74be36a-8ff7-48e9-8e46-9c150f0d3c69.png",
+        "logo_intl": "shopify://shop_images/Prancheta_19_1.png",
+        "show_trust": true
+      }
+    },
+    "private_gate": {
+      "type": "lod-private-gate",
+      "settings": {
+        "show_in_editor": true,
+        "api_base": "https://loja-do-ouro-dashboard.vercel.app"
+      }
+    },
+    "salao_sugestoes": {
+      "type": "lod-salao-sugestoes",
+      "settings": {
+        "collection": "private-selection",
+        "show_all": true,
+        "count": 12,
+        "open_in_salon": true
+      }
+    }
+  },
+  "order": ["salao_cabecalho", "private_gate", "salao_sugestoes"]
+}
