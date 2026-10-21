@@ -1,0 +1,49 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "salao_cabecalho": {
+      "type": "lod-salao-cabecalho",
+      "settings": {
+        "logo_pt": "shopify://shop_images/logo_horizontal_f74be36a-8ff7-48e9-8e46-9c150f0d3c69.png",
+        "logo_intl": "shopify://shop_images/Prancheta_19_1.png"
+      }
+    },
+    "private_gate": {
+      "type": "lod-private-gate",
+      "settings": {
+        "show_in_editor": true,
+        "api_base": "https://loja-do-ouro-dashboard.vercel.app"
+      }
+    },
+    "salao_peca": {
+      "type": "lod-salao-peca",
+      "settings": {
+        "coupon_product": "pulseira-marquesa-em-ouro-19kl-20-1cm",
+        "coupon_code": "MARQUESA10",
+        "coupon_percent": 10
+      }
+    },
+    "salao_sugestoes": {
+      "type": "lod-salao-sugestoes",
+      "settings": {
+        "collection": "private-selection",
+        "show_all": true,
+        "count": 12
+      }
+    }
+  },
+  "order": [
+    "salao_cabecalho",
+    "private_gate",
+    "salao_peca",
+    "salao_sugestoes"
+  ]
+}

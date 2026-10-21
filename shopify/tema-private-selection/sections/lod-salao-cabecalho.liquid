@@ -1,0 +1,457 @@
+{%- comment -%}
+  LOJA DO OURO — PRIVATE SELECTION · CABEÇALHO / v3
+  - Só para o modelo de produto «private-selection». Esconde o menu e as barras da loja nesta página.
+  - Marca: Loja do Ouro só em português E com o país Portugal; em qualquer outro caso (outra língua
+    ou outro país, ex.: goldstorepremium.com em português) mostra Gold Store Premium.
+  - Faixa de confiança: linha fina com três textos curtos por cima do cabeçalho. Ao descer a página,
+    a faixa sai e só o cabeçalho fica fixo (--lss-header-h continua a ser a altura do cabeçalho fixo).
+    O texto 3 incluído (certificado) só aparece em peças de ouro ou prata, como na ficha de produto.
+  - Define também as cores e o tipo de letra de toda a Private Selection (as outras secções usam-nos).
+  - Classe lps-keep: continua à vista com a porta de entrada fechada (secção «LOD — Selection: acesso»).
+  - «Terminar sessão» (só no computador) aparece depois de o cliente entrar e chama window.lpsLogout().
+{%- endcomment -%}
+
+{%- liquid
+  assign lss_lang = localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+  assign lss_lang = lss_lang | downcase | slice: 0, 2
+  assign lss_country = localization.country.iso_code | default: '' | upcase
+
+  comment ----- Marca: Loja do Ouro só em português e em Portugal; senão Gold Store Premium -----
+  endcomment
+  assign lss_brand_pt = false
+  if lss_lang == 'pt' and lss_country == 'PT'
+    assign lss_brand_pt = true
+  endif
+
+  comment ----- «Private Selection» é o nome: fica em inglês em todas as línguas -----
+  endcomment
+  assign d_label = 'Private Selection'
+
+  case lss_lang
+    when 'en'
+      assign d_exit = 'Leave the Private Selection'
+      assign d_exit_short = 'Leave'
+      assign d_cart = 'Bag'
+      assign d_logout = 'Sign out'
+      assign d_trust_label = 'Secure shopping'
+      assign d_trust_1 = 'Secure payment'
+      assign d_trust_2 = 'Insured delivery'
+      assign d_trust_3 = 'Certificate of authenticity'
+    when 'es'
+      assign d_exit = 'Salir de Private Selection'
+      assign d_exit_short = 'Salir'
+      assign d_cart = 'Cesta'
+      assign d_logout = 'Cerrar sesión'
+      assign d_trust_label = 'Compra segura'
+      assign d_trust_1 = 'Pago seguro'
+      assign d_trust_2 = 'Envío asegurado'
+      assign d_trust_3 = 'Certificado de autenticidad'
+    when 'fr'
+      assign d_exit = 'Quitter la Private Selection'
+      assign d_exit_short = 'Quitter'
+      assign d_cart = 'Panier'
+      assign d_logout = 'Se déconnecter'
+      assign d_trust_label = 'Achat sécurisé'
+      assign d_trust_1 = 'Paiement sécurisé'
+      assign d_trust_2 = 'Livraison assurée'
+      assign d_trust_3 = 'Certificat d’authenticité'
+    when 'de'
+      assign d_exit = 'Private Selection verlassen'
+      assign d_exit_short = 'Verlassen'
+      assign d_cart = 'Warenkorb'
+      assign d_logout = 'Abmelden'
+      assign d_trust_label = 'Sicher einkaufen'
+      assign d_trust_1 = 'Sichere Zahlung'
+      assign d_trust_2 = 'Versicherter Versand'
+      assign d_trust_3 = 'Echtheitszertifikat'
+    when 'it'
+      assign d_exit = 'Esci dalla Private Selection'
+      assign d_exit_short = 'Esci'
+      assign d_cart = 'Carrello'
+      assign d_logout = 'Disconnetti'
+      assign d_trust_label = 'Acquisto sicuro'
+      assign d_trust_1 = 'Pagamento sicuro'
+      assign d_trust_2 = 'Spedizione assicurata'
+      assign d_trust_3 = 'Certificato di autenticità'
+    else
+      assign d_exit = 'Sair da Private Selection'
+      assign d_exit_short = 'Sair'
+      assign d_cart = 'Carrinho'
+      assign d_logout = 'Terminar sessão'
+      assign d_trust_label = 'Compra segura'
+      assign d_trust_1 = 'Pagamento seguro'
+      assign d_trust_2 = 'Envio com seguro'
+      assign d_trust_3 = 'Certificado de autenticidade'
+  endcase
+
+  assign x_exit = section.settings.exit_label | default: d_exit
+  assign x_label = section.settings.label | default: d_label
+  assign lss_exit_url = section.settings.exit_link | default: routes.root_url
+
+  if lss_brand_pt
+    assign d_brand = 'Loja do Ouro'
+    assign lss_logo = section.settings.logo_pt | default: settings.logo
+  else
+    assign d_brand = 'Gold Store Premium'
+    assign lss_logo = section.settings.logo_intl
+  endif
+
+  comment ----- Faixa de confiança: vazio = texto incluído; «-» esconde esse texto -----
+  endcomment
+  assign x_trust_1 = section.settings.trust_1 | default: '' | strip | default: d_trust_1
+  assign x_trust_2 = section.settings.trust_2 | default: '' | strip | default: d_trust_2
+  assign x_trust_3 = section.settings.trust_3 | default: '' | strip
+
+  comment ----- Texto 3 incluído (certificado de autenticidade): só em peças de ouro ou prata, com a regra da ficha de produto (não em aço nem sem metal) -----
+  endcomment
+  if x_trust_3 == blank and section.settings.show_trust
+    assign x_trust_3 = '-'
+    if product != blank
+      assign lss_v = product.selected_or_first_available_variant
+      capture lss_copy_raw
+        render 'lod-product-copy'
+      endcapture
+      assign lss_t = lss_copy_raw | strip | split: '~~'
+      capture lss_facts_raw
+        render 'lod-product-facts', p: product, v: lss_v, t: lss_t, unit: 'K', dec: ','
+      endcapture
+      assign lss_f = lss_facts_raw | strip | split: '¦'
+      if lss_f[2] != blank and lss_f[2] != lss_t[68]
+        assign x_trust_3 = d_trust_3
+      endif
+    endif
+  endif
+
+  comment ----- Ordem: pagamento, certificado, envio — no telemóvel cabem os dois primeiros -----
+  endcomment
+  assign lss_trust = ''
+  if section.settings.show_trust
+    if x_trust_1 != '-'
+      assign lss_trust = lss_trust | append: x_trust_1 | append: '~~'
+    endif
+    if x_trust_3 != '-'
+      assign lss_trust = lss_trust | append: x_trust_3 | append: '~~'
+    endif
+    if x_trust_2 != '-'
+      assign lss_trust = lss_trust | append: x_trust_2 | append: '~~'
+    endif
+  endif
+  assign lss_trust = lss_trust | split: '~~'
+  assign lss_show_trust = false
+  if lss_trust.size > 0
+    assign lss_show_trust = true
+  endif
+
+  assign c_bg = section.settings.color_bg
+  assign c_fg = section.settings.color_text
+  assign c_gold = section.settings.color_gold
+  assign c_muted = c_fg | color_mix: c_bg, 64
+  assign c_soft = c_fg | color_mix: c_bg, 84
+  assign c_line = c_fg | color_modify: 'alpha', 0.14
+  assign c_panel = c_fg | color_mix: c_bg, 6
+  assign c_paper = c_fg | color_mix: '#ffffff', 70
+
+  assign lss_font = section.settings.font_display
+  assign lss_font_i = lss_font | font_modify: 'style', 'italic'
+-%}
+
+<style>
+  {{ lss_font | font_face: font_display: 'swap' }}
+  {%- if lss_font_i -%}{{ lss_font_i | font_face: font_display: 'swap' }}{%- endif -%}
+
+  /* Cores e letra da Private Selection (usadas por todas as secções da Private Selection) */
+  :root {
+    --lss-bg: {{ c_bg }};
+    --lss-fg: {{ c_fg }};
+    --lss-gold: {{ c_gold }};
+    --lss-muted: {{ c_muted }};
+    --lss-soft: {{ c_soft }};
+    --lss-line: {{ c_line }};
+    --lss-panel: {{ c_panel }};
+    --lss-paper: {{ c_paper }};
+    --lss-serif: {{ lss_font.family }}, "Iowan Old Style", Baskerville, Georgia, {{ lss_font.fallback_families }};
+    --lss-serif-weight: {{ lss_font.weight }};
+    --lss-sans: var(--font-body-family, "Work Sans"), "Helvetica Neue", Arial, sans-serif;
+    --lss-header-h: 88px;
+    --lss-trust-h: {% if lss_show_trust %}32px{% else %}0px{% endif %};
+  }
+
+  /* Na Private Selection, o menu e as barras da loja ficam escondidos. */
+  .shopify-section-group-header-group { display: none !important; }
+  html, body.gradient { background: var(--lss-bg); }
+  html { scroll-padding-top: calc(var(--lss-header-h) + 12px); }
+  /* A faixa de confiança sai ao descer; só a linha do logótipo fica fixa (altura --lss-header-h). */
+  #shopify-section-{{ section.id }} { position: sticky; top: calc(var(--lss-trust-h) * -1); z-index: 40; }
+
+  .lss-header {
+    position: relative;
+    background: var(--lss-bg);
+    color: var(--lss-fg);
+    border-bottom: 1px solid var(--lss-line);
+    font-family: var(--lss-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .lss-header *, .lss-header *::before, .lss-header *::after { box-sizing: border-box; }
+
+  /* Faixa de confiança: uma só linha; os textos que não cabem passam para a 2.ª linha, que fica escondida. */
+  .lss-header__trust {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    height: var(--lss-trust-h);
+    overflow: hidden;
+    margin: 0;
+    padding: 0 16px;
+    list-style: none;
+    background: var(--lss-panel);
+    border-bottom: 1px solid var(--lss-line);
+    font-size: 12px;
+    letter-spacing: .02em;
+    color: var(--lss-muted);
+  }
+  .lss-header__trust li {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: calc(var(--lss-trust-h) - 1px);
+  }
+  .lss-header__trust li + li::before {
+    content: "";
+    display: inline-block;
+    width: 1px;
+    height: 9px;
+    margin-inline: 14px;
+    vertical-align: -1px;
+    background: var(--lss-muted);
+    opacity: .5;
+  }
+
+  .lss-header__bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    height: var(--lss-header-h);
+    max-width: 1600px;
+    margin-inline: auto;
+    padding-inline: clamp(16px, 3.5vw, 56px);
+  }
+  .lss-header a { color: inherit; text-decoration: none; }
+  .lss-header__exit {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-inline: 8px;
+    margin-inline: -8px;
+    gap: 10px;
+    font-size: 13px;
+    letter-spacing: .02em;
+    color: var(--lss-soft);
+    transition: color .3s ease;
+  }
+  .lss-header__exit svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.3; }
+  .lss-header__exit:hover { color: var(--lss-fg); }
+  .lss-header__exit-short { display: none; }
+
+  .lss-header__brand { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .lss-header__logo { display: block; }
+  /* Logótipo maior; a altura máxima garante que logótipo + etiqueta cabem na linha fixa */
+  .lss-header__logo img {
+    display: block;
+    width: clamp(170px, 15vw, 240px);
+    height: auto;
+    max-height: calc(var(--lss-header-h) - 28px);
+    object-fit: contain;
+  }
+  .lss-header__brand-text { font-family: var(--lss-serif); font-size: 22px; letter-spacing: .08em; color: var(--lss-gold); }
+  .lss-header__label {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: .24em;
+    text-transform: uppercase;
+    color: var(--lss-muted);
+  }
+
+  .lss-header__end { justify-self: end; display: flex; align-items: center; gap: 28px; min-width: 0; }
+  /* «Terminar sessão»: só depois de entrar (classe lps-member, posta pela porta de entrada) */
+  .lss-header__logout {
+    display: none;
+    align-items: center;
+    min-height: 44px;
+    margin: 0 -8px;
+    padding: 0 8px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    color: var(--lss-soft);
+    cursor: pointer;
+    transition: color .3s ease;
+  }
+  html.lps-member .lss-header__logout { display: inline-flex; }
+  .lss-header__logout:hover { color: var(--lss-fg); }
+
+  .lss-header__cart {
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-inline: 8px;
+    margin-inline: -8px;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--lss-soft);
+    transition: color .3s ease;
+  }
+  .lss-header__cart:hover { color: var(--lss-fg); }
+  .lss-header__cart svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+  .lss-header__count {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid var(--lss-line);
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    color: var(--lss-fg);
+  }
+  .lss-header__count[data-count="0"] { display: none; }
+  .lss-header a:focus-visible, .lss-header button:focus-visible { outline: 1px solid var(--lss-gold); outline-offset: 4px; box-shadow: none; }
+
+  @media (max-width: 749px) {
+    :root { --lss-header-h: 60px;{% if lss_show_trust %} --lss-trust-h: 30px;{% endif %} }
+    .lss-header__trust li + li::before { margin-inline: 10px; }
+    .lss-header__bar { gap: 10px; }
+    .lss-header__exit { gap: 6px; }
+    .lss-header__exit-long, .lss-header__cart-label { display: none; }
+    .lss-header__exit-short { display: inline; }
+    .lss-header__logo img { width: min(150px, 38vw); max-height: calc(var(--lss-header-h) - 16px); }
+    .lss-header__label { display: none; }
+    html.lps-member .lss-header__logout { display: none; }
+  }
+</style>
+
+<header class="lss-header">
+  {%- if lss_show_trust %}
+  <ul class="lss-header__trust" role="list" aria-label="{{ d_trust_label | escape }}">
+    {%- for trust in lss_trust %}
+    <li>{{ trust | escape }}</li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+  <div class="lss-header__bar">
+    <a class="lss-header__exit" href="{{ lss_exit_url }}" aria-label="{{ x_exit | escape }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M10.5 6.5 5 12l5.5 5.5"/></svg>
+      <span class="lss-header__exit-long" aria-hidden="true">{{ x_exit }}</span>
+      <span class="lss-header__exit-short" aria-hidden="true">{{ d_exit_short }}</span>
+    </a>
+
+    <div class="lss-header__brand">
+      <a class="lss-header__logo" href="{{ lss_exit_url }}" aria-label="{{ d_brand | escape }}">
+        {%- if lss_logo != blank -%}
+          {{-
+            lss_logo
+            | image_url: width: 480
+            | image_tag: loading: 'eager', widths: '150, 240, 300, 360, 480', sizes: '(min-width: 1600px) 240px, (min-width: 1134px) 15vw, (min-width: 750px) 170px, 150px', alt: ''
+          -}}
+        {%- else -%}
+          <span class="lss-header__brand-text">{{ d_brand }}</span>
+        {%- endif -%}
+      </a>
+      {%- if x_label != blank -%}<span class="lss-header__label">{{ x_label }}</span>{%- endif -%}
+    </div>
+
+    <div class="lss-header__end">
+      <button class="lss-header__logout" type="button" data-lps-logout>{{ d_logout }}</button>
+      <a class="lss-header__cart" href="{{ routes.cart_url }}" data-lss-cart aria-haspopup="dialog">
+        <span class="lss-header__cart-label" aria-hidden="true">{{ d_cart }}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>
+        <span class="lss-header__count" data-lss-count data-count="{{ cart.item_count }}" aria-hidden="true">{{ cart.item_count }}</span>
+        <span class="visually-hidden" data-lss-count-sr data-label="{{ d_cart | escape }}">{{ d_cart }}: {{ cart.item_count }}</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<script>
+  (function () {
+    /* «Terminar sessão»: a função vem da porta de entrada (secção «LOD — Selection: acesso») */
+    var logout = document.querySelector('[data-lps-logout]');
+    if (logout) logout.addEventListener('click', function () {
+      if (typeof window.lpsLogout === 'function') window.lpsLogout();
+    });
+
+    var link = document.querySelector('[data-lss-cart]');
+    if (!link) return;
+    link.addEventListener('click', function (event) {
+      var drawer = document.querySelector('cart-drawer');
+      if (drawer && typeof drawer.open === 'function') {
+        event.preventDefault();
+        drawer.open(link);
+      }
+    });
+    function setCount(count) {
+      if (typeof count !== 'number') return;
+      document.querySelectorAll('[data-lss-count]').forEach(function (el) {
+        el.textContent = count;
+        el.setAttribute('data-count', count);
+      });
+      document.querySelectorAll('[data-lss-count-sr]').forEach(function (el) {
+        el.textContent = el.getAttribute('data-label') + ': ' + count;
+      });
+    }
+    function refresh() {
+      fetch(((window.Shopify && Shopify.routes && Shopify.routes.root) || '/') + 'cart.js', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (c) { setCount(c.item_count); })
+        .catch(function () {});
+    }
+    document.addEventListener('lss:cart-updated', function (event) {
+      if (event.detail && typeof event.detail.count === 'number') setCount(event.detail.count); else refresh();
+    });
+    /* Alterações feitas no carrinho lateral da loja (quantidades, remover) */
+    document.addEventListener('DOMContentLoaded', function () {
+      if (typeof subscribe === 'function' && typeof PUB_SUB_EVENTS !== 'undefined') {
+        subscribe(PUB_SUB_EVENTS.cartUpdate, function (e) {
+          if (e && e.cartData && typeof e.cartData.item_count === 'number') setCount(e.cartData.item_count); else refresh();
+        });
+      }
+    });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "LOD — Selection: topo",
+  "tag": "div",
+  "class": "lss-header-section lps-keep",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    { "type": "paragraph", "content": "Na Private Selection o menu da loja fica escondido. Este cabeçalho mostra a faixa de confiança, o logótipo, o botão para sair e o carrinho. Os textos vazios usam a tradução incluída de cada língua. Se escrever um texto, traduza-o depois na app Translate & Adapt — senão aparece em português nas outras línguas." },
+    { "type": "header", "content": "Logótipo" },
+    { "type": "image_picker", "id": "logo_pt", "label": "Logótipo Loja do Ouro (português em Portugal)", "info": "Só aparece com a loja em português e o país Portugal. Vazio = logótipo das definições do tema." },
+    { "type": "image_picker", "id": "logo_intl", "label": "Logótipo Gold Store Premium (outras línguas ou outros países)", "info": "Aparece em todas as outras línguas e em qualquer país que não Portugal (ex.: goldstorepremium.com em português). Vazio = nome Gold Store Premium em texto." },
+    { "type": "header", "content": "Faixa de confiança" },
+    { "type": "checkbox", "id": "show_trust", "label": "Mostrar faixa de confiança", "info": "Linha fina com três textos curtos por cima do logótipo. Ao descer a página, a faixa sai e o cabeçalho fica fixo. Se os textos não couberem numa linha, os últimos ficam escondidos: no telemóvel aparecem normalmente só os dois primeiros (pagamento e certificado).", "default": true },
+    { "type": "text", "id": "trust_1", "label": "Texto 1", "placeholder": "Pagamento seguro", "info": "Em cada texto: vazio = texto incluído, já traduzido em todas as línguas; «-» esconde esse texto. Um texto escrito por si tem de ser traduzido na app Translate & Adapt — senão aparece em português nas outras línguas." },
+    { "type": "text", "id": "trust_3", "label": "Texto 2", "placeholder": "Certificado de autenticidade", "info": "Vazio = «Certificado de autenticidade», só em peças de ouro ou prata (como na ficha de produto). Um texto escrito por si aparece em todas as peças." },
+    { "type": "text", "id": "trust_2", "label": "Texto 3", "placeholder": "Envio com seguro", "info": "No telemóvel este texto costuma ficar escondido por falta de espaço." },
+    { "type": "header", "content": "Textos" },
+    { "type": "text", "id": "label", "label": "Etiqueta por baixo do logótipo", "placeholder": "Private Selection", "info": "Vazio = «Private Selection» em todas as línguas (é o nome, fica sempre em inglês)." },
+    { "type": "text", "id": "exit_label", "label": "Botão de saída", "placeholder": "Sair da Private Selection" },
+    { "type": "url", "id": "exit_link", "label": "Para onde vai o botão de saída", "info": "Vazio = página inicial da loja." },
+    { "type": "header", "content": "Estilo de toda a Private Selection" },
+    { "type": "font_picker", "id": "font_display", "label": "Tipo de letra dos títulos e preços", "default": "bodoni_moda_n4" },
+    { "type": "color", "id": "color_bg", "label": "Fundo", "default": "#0b0b09" },
+    { "type": "color", "id": "color_text", "label": "Texto", "default": "#f7f3ec" },
+    { "type": "color", "id": "color_gold", "label": "Dourado", "default": "#bc914c" }
+  ]
+}
+{% endschema %}

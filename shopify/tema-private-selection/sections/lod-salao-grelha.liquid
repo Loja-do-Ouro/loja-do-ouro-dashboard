@@ -1,0 +1,47 @@
+{%- comment -%}
+  LOJA DO OURO — PRIVATE SELECTION · GRELHA (secção interna, não se adiciona no editor)
+  Pedida pela secção «LOD — Selection: outras» (lod-salao-sugestoes) com:
+  /collections/<coleção>?sort_by=price-descending&section_id=lod-salao-grelha
+  Devolve as peças da coleção já ordenadas pela Shopify, da mais cara para a mais barata.
+{%- endcomment -%}
+{%- if collection != blank -%}
+  {%- paginate collection.products by 48 -%}
+    <div data-lsg-page data-pages="{{ paginate.pages }}" data-current="{{ paginate.current_page }}">
+      {%- for p in collection.products -%}
+        {%- liquid
+          assign lsg_hay = p.tags | join: ' ' | prepend: ' ' | prepend: p.type | downcase | replace: '’', "'"
+          assign lsg_invest = '0'
+          if lsg_hay contains 'investimento' or lsg_hay contains 'investment' or lsg_hay contains 'inversión' or lsg_hay contains 'barra' or lsg_hay contains 'lingote' or lsg_hay contains 'lingot' or lsg_hay contains 'moeda' or lsg_hay contains 'moneda' or lsg_hay contains 'coin'
+            assign lsg_invest = '1'
+          endif
+          comment ----- Tipo de produto traduzido (EN, FR, DE, IT); «lingot» já apanha lingotto; «gold bar» e não só «bar» (alfinetes e colares de barra) -----
+          endcomment
+          if lsg_hay contains 'ingot' or lsg_hay contains 'bullion' or lsg_hay contains 'gold bar' or lsg_hay contains 'investissement' or lsg_hay contains 'or de placement' or lsg_hay contains 'monnaie' or lsg_hay contains "pièce d'or" or lsg_hay contains "pièces d'or" or lsg_hay contains 'pièce en or' or lsg_hay contains 'pièces en or' or lsg_hay contains 'barren' or lsg_hay contains 'münze' or lsg_hay contains 'anlagegold' or lsg_hay contains 'moneta' or lsg_hay contains 'monete'
+            assign lsg_invest = '1'
+          endif
+          assign lsg_img = p.featured_image
+        -%}
+        <article class="lsg-card" data-lsg-item data-id="{{ p.id }}" data-available="{{ p.available }}" data-invest="{{ lsg_invest }}">
+          <a class="lsg-card__link" href="{{ p.url }}">
+            <span class="lsg-card__media">
+              {%- if lsg_img != blank -%}
+                {{- lsg_img | image_url: width: 600 | image_tag: widths: '300, 450, 600', sizes: '(min-width: 1440px) 320px, (min-width: 990px) 22vw, (min-width: 750px) 30vw, 46vw', loading: 'lazy', alt: '' -}}
+              {%- endif -%}
+            </span>
+            <span class="lsg-card__title">{{ p.title }}</span>
+            <span class="lsg-card__price">
+              {%- if p.price_varies -%}{%- assign lsg_from = p.price_min | money -%}{{ 'products.product.price.from_price_html' | t: price: lsg_from }}{%- else -%}{{ p.price | money }}{%- endif -%}
+            </span>
+          </a>
+        </article>
+      {%- endfor -%}
+    </div>
+  {%- endpaginate -%}
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "LOD — Selection: grelha",
+  "settings": []
+}
+{% endschema %}
