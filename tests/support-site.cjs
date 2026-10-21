@@ -18,6 +18,11 @@ test("Only the store sites (and the dashboard itself) may use the chat", () => {
   // Lista própria: só https, sem barras finais; valores inválidos são ignorados.
   assert.deepEqual(site.parseOrigins("https://a.pt/, http://b.pt, javascript:x, https://c.pt:8443"), ["https://a.pt", "https://c.pt:8443"]);
   assert.deepEqual(site.parseOrigins("lixo"), site.DEFAULT_ORIGINS);
+  // Lista de recurso própria (Private Selection): só quando a variável falta ou não tem valores válidos.
+  const own = ["https://own.example"];
+  assert.deepEqual(site.parseOrigins(undefined, own), own);
+  assert.deepEqual(site.parseOrigins("lixo", own), own);
+  assert.deepEqual(site.parseOrigins("https://a.pt", own), ["https://a.pt"]);
 });
 
 test("A logged-in customer's email is confirmed only with a valid, recent theme signature", () => {

@@ -11,9 +11,10 @@ export const DEFAULT_ORIGINS = [
   "https://lojadoouro-online.myshopify.com",
 ];
 
-export function parseOrigins(value: string | undefined) {
+// fallback: lista usada sem variável ou com valores todos inválidos (a Private Selection tem a sua).
+export function parseOrigins(value: string | undefined, fallback: string[] = DEFAULT_ORIGINS) {
   const list = (value || "").split(",").map((s) => s.trim().replace(/\/+$/, "").toLowerCase()).filter((s) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(s));
-  return list.length ? list : DEFAULT_ORIGINS;
+  return list.length ? list : fallback;
 }
 
 // Origem do pedido aceite: uma das lojas ou o próprio dashboard (página de teste).
