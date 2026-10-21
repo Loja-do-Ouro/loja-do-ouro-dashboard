@@ -345,7 +345,7 @@ begin
     password_ct = p_password_ct, password_changed_at = now(), password_changed_by = v_me,
     updated_at = now(), updated_by = v_me
   where id = 1;
-  update public.ldo_ps_sessions set revoked_at = now() where revoked_at is null and expires_at > now();
+  -- Membros antes das sessões, pela mesma ordem de ldo_ps_remove (evita bloqueios mútuos se correrem ao mesmo tempo).
   update public.ldo_ps_members set email_lease_until = null where email_sent_at is null and email_lease_until > now();
   if coalesce(p_notify_all, false) then
     update public.ldo_ps_members set email_due_at = now(), email_sent_at = null, email_attempts = 0,
@@ -353,6 +353,7 @@ begin
     where status = 'active';
     get diagnostics v_queued = row_count;
   end if;
+  update public.ldo_ps_sessions set revoked_at = now() where revoked_at is null and expires_at > now();
   insert into public.ldo_app_audit (actor, action, target, details)
   values (v_me, 'private.password', null, jsonb_build_object('first', v_first, 'notify_all', coalesce(p_notify_all, false),
     'queued', v_queued));
@@ -524,10 +525,11 @@ begin
   end if;
 
   if v_m.id is null then
+    -- O mesmo bcrypt que um membro faria, também com a rede travada: o tempo da resposta não diz se o email é membro.
+    perform extensions.crypt(coalesce(p_password, ''), extensions.gen_salt('bf', 10));
     if v_busy then
       return jsonb_build_object('ok', false, 'reason', 'locked');
     end if;
-    perform extensions.crypt(coalesce(p_password, ''), extensions.gen_salt('bf', 10));
   elsif extensions.crypt(coalesce(p_password, ''), v_s.password_hash) = v_s.password_hash then
     v_token := encode(extensions.gen_random_bytes(32), 'hex');
     v_expires := now() + make_interval(days => v_s.session_days);
