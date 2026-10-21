@@ -176,3 +176,24 @@ test("Only members who ticked the box are subscribed to marketing; list changes 
   assert.equal(ps.klaviyoSubscriptionPayload({ ...member, brand: "gsp" }, "L").data.attributes.custom_source, "Gold Store Premium Private Selection");
   assert.deepEqual(ps.klaviyoListPayload(["01ABC", "01DEF"]), { data: [{ type: "profile", id: "01ABC" }, { type: "profile", id: "01DEF" }] });
 });
+
+test("The password form alerts before saving: under 8 characters, spaces at the ends or a different confirmation", () => {
+  const short = ps.passwordAlert("Ouro26", "Ouro26");
+  assert.equal(short.field, "password");
+  assert.match(short.message, /pelo menos 8 caracteres \(faltam 2\)\. Não foi guardada\.$/);
+  assert.match(ps.passwordAlert("", "").message, /^A senha tem de ter pelo menos 8 caracteres\. Não foi guardada\.$/);
+  assert.equal(ps.passwordAlert(" Ouro2026", " Ouro2026").field, "password");
+  assert.equal(ps.passwordAlert("x".repeat(101), "x".repeat(101)).field, "password");
+  const mismatch = ps.passwordAlert("Ouro2026", "Ouro2027");
+  assert.equal(mismatch.field, "confirm");
+  assert.match(mismatch.message, /não coincidem/);
+  // Sem alerta exatamente quando o servidor aceita a senha.
+  for (const ok of ["Ouro2026", "uma senha longa com espaços", "x".repeat(100)]) {
+    assert.deepEqual(ps.passwordAlert(ok, ok), { message: "", field: null }, ok);
+    assert.equal(ps.validPassword(ok), true, ok);
+  }
+  for (const bad of ["1234567", " Ouro2026", "Ouro2026 ", "x".repeat(101), "Ouro\u00002026"]) {
+    assert.notEqual(ps.passwordAlert(bad, bad).message, "", JSON.stringify(bad));
+    assert.equal(ps.validPassword(bad), false, JSON.stringify(bad));
+  }
+});
