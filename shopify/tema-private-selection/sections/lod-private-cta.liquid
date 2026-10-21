@@ -1,0 +1,354 @@
+{%- comment -%}
+  LOJA DO OURO — PRIVATE SELECTION · CONVITE NA HOMEPAGE / v1
+  Área de chamada para a zona exclusiva: não vende uma peça, convida a entrar na Private Selection
+  (peças restritas e descontos para membros). O botão abre a coleção «Private Selection», onde está a porta
+  de acesso (pedir acesso / já tenho acesso) e, depois de entrar, todas as peças.
+  - Número de peças: vem da coleção (arredondado às dezenas, «+140»); atualiza-se sozinho.
+  - Pré-visualização: as primeiras peças da coleção (as de maior valor), desfocadas — só se veem depois de entrar.
+    Ou uma imagem escolhida nas definições.
+  - Textos incluídos em PT/EN/ES/FR/DE/IT; os campos vazios no editor usam essas traduções.
+  - Marca: Loja do Ouro só em português E com o país Portugal; senão Gold Store Premium (regra da Private Selection).
+{%- endcomment -%}
+
+{%- liquid
+  assign lpc_lang = localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+  assign lpc_lang = lpc_lang | downcase | slice: 0, 2
+  assign lpc_country = localization.country.iso_code | default: '' | upcase
+  assign lpc_brand = 'Gold Store Premium Private Selection'
+  if lpc_lang == 'pt' and lpc_country == 'PT'
+    assign lpc_brand = 'Loja do Ouro Private Selection'
+  endif
+
+  case lpc_lang
+    when 'en'
+      assign d_title = 'Pieces you won’t find on display.'
+      assign d_text = 'A reserved selection of fine jewellery, from €2,500, with exclusive terms and member-only discounts. Access is personal and free of charge.'
+      assign d_b1_t = 'Restricted pieces'
+      assign d_b1 = 'Fine jewellery and one-of-a-kind pieces, visible to members only.'
+      assign d_b2_t = 'Exclusive discounts'
+      assign d_b2 = 'Reserved terms you won’t find in the store.'
+      assign d_b3_t = 'Dedicated service'
+      assign d_b3 = 'A personal consultant, from first contact to delivery.'
+      assign d_count = 'reserved pieces'
+      assign d_cta = 'Enter the Private Selection'
+      assign d_cta2 = 'Request access'
+      assign d_note = 'Personal access, confirmed by email.'
+      assign d_locked = 'Visible to members only'
+    when 'es'
+      assign d_title = 'Piezas que no están en el escaparate.'
+      assign d_text = 'Una selección reservada de alta joyería, desde 2.500 €, con condiciones y descuentos exclusivos para miembros. El acceso es personal y gratuito.'
+      assign d_b1_t = 'Piezas restringidas'
+      assign d_b1 = 'Alta joyería y piezas únicas, visibles solo para miembros.'
+      assign d_b2_t = 'Descuentos exclusivos'
+      assign d_b2 = 'Condiciones reservadas que no encontrará en la tienda.'
+      assign d_b3_t = 'Atención dedicada'
+      assign d_b3 = 'Un asesor a su disposición, del primer contacto a la entrega.'
+      assign d_count = 'piezas reservadas'
+      assign d_cta = 'Entrar en Private Selection'
+      assign d_cta2 = 'Solicitar acceso'
+      assign d_note = 'Acceso personal, confirmado por correo electrónico.'
+      assign d_locked = 'Solo visible para miembros'
+    when 'fr'
+      assign d_title = 'Des pièces qui ne sont pas en vitrine.'
+      assign d_text = 'Une sélection réservée de haute joaillerie, à partir de 2 500 €, avec des conditions et des remises exclusives pour les membres. L’accès est personnel et gratuit.'
+      assign d_b1_t = 'Pièces réservées'
+      assign d_b1 = 'Haute joaillerie et pièces uniques, visibles uniquement par les membres.'
+      assign d_b2_t = 'Remises exclusives'
+      assign d_b2 = 'Des conditions réservées, introuvables en boutique.'
+      assign d_b3_t = 'Service dédié'
+      assign d_b3 = 'Un conseiller à votre disposition, du premier contact à la livraison.'
+      assign d_count = 'pièces réservées'
+      assign d_cta = 'Entrer dans la Private Selection'
+      assign d_cta2 = 'Demander l’accès'
+      assign d_note = 'Accès personnel, confirmé par e-mail.'
+      assign d_locked = 'Visible uniquement par les membres'
+    when 'de'
+      assign d_title = 'Stücke, die nicht im Schaufenster liegen.'
+      assign d_text = 'Eine exklusive Auswahl an feinem Schmuck ab 2.500 €, mit besonderen Konditionen und Rabatten nur für Mitglieder. Der Zugang ist persönlich und kostenlos.'
+      assign d_b1_t = 'Exklusive Stücke'
+      assign d_b1 = 'Feiner Schmuck und Unikate, nur für Mitglieder sichtbar.'
+      assign d_b2_t = 'Exklusive Rabatte'
+      assign d_b2 = 'Besondere Konditionen, die es im Shop nicht gibt.'
+      assign d_b3_t = 'Persönliche Beratung'
+      assign d_b3 = 'Ein persönlicher Berater, vom ersten Kontakt bis zur Lieferung.'
+      assign d_count = 'reservierte Stücke'
+      assign d_cta = 'Private Selection betreten'
+      assign d_cta2 = 'Zugang anfragen'
+      assign d_note = 'Persönlicher Zugang, per E-Mail bestätigt.'
+      assign d_locked = 'Nur für Mitglieder sichtbar'
+    when 'it'
+      assign d_title = 'Pezzi che non sono in vetrina.'
+      assign d_text = 'Una selezione riservata di alta gioielleria, da 2.500 €, con condizioni e sconti esclusivi per i membri. L’accesso è personale e gratuito.'
+      assign d_b1_t = 'Pezzi riservati'
+      assign d_b1 = 'Alta gioielleria e pezzi unici, visibili solo ai membri.'
+      assign d_b2_t = 'Sconti esclusivi'
+      assign d_b2 = 'Condizioni riservate che non trova in negozio.'
+      assign d_b3_t = 'Servizio dedicato'
+      assign d_b3 = 'Un consulente a sua disposizione, dal primo contatto alla consegna.'
+      assign d_count = 'pezzi riservati'
+      assign d_cta = 'Entra nella Private Selection'
+      assign d_cta2 = 'Richiedi l’accesso'
+      assign d_note = 'Accesso personale, confermato via e-mail.'
+      assign d_locked = 'Visibile solo ai membri'
+    else
+      assign d_title = 'Peças que não estão em montra.'
+      assign d_text = 'Uma seleção reservada de alta joalharia, a partir de 2500 €, com condições e descontos exclusivos para membros. O acesso é pessoal e gratuito.'
+      assign d_b1_t = 'Peças restritas'
+      assign d_b1 = 'Alta joalharia e peças únicas, visíveis apenas para membros.'
+      assign d_b2_t = 'Descontos exclusivos'
+      assign d_b2 = 'Condições reservadas, que não encontra na loja.'
+      assign d_b3_t = 'Atendimento dedicado'
+      assign d_b3 = 'Um consultor ao seu dispor, do primeiro contacto à entrega.'
+      assign d_count = 'peças reservadas'
+      assign d_cta = 'Entrar na Private Selection'
+      assign d_cta2 = 'Pedir acesso'
+      assign d_note = 'Acesso pessoal, confirmado por e-mail.'
+      assign d_locked = 'Visível apenas para membros'
+  endcase
+
+  comment ----- Textos: só o português é editável aqui; vazio = texto incluído na língua do cliente -----
+  endcomment
+  if lpc_lang == 'pt'
+    assign d_title = section.settings.title | default: d_title
+    assign d_text = section.settings.text | default: d_text
+    assign d_cta = section.settings.cta_label | default: d_cta
+  endif
+
+  assign lpc_collection = section.settings.collection
+  if lpc_collection == blank
+    assign lpc_collection = collections['private-selection']
+  endif
+  assign lpc_url = section.settings.link | default: lpc_collection.url | default: routes.all_products_collection_url
+
+  assign lpc_total = lpc_collection.products_count | default: 0
+  assign lpc_tens = lpc_total | divided_by: 10 | times: 10
+  assign lpc_count_label = ''
+  if section.settings.show_count and lpc_total >= 10
+    assign lpc_count_label = '+' | append: lpc_tens
+  elsif section.settings.show_count and lpc_total > 0
+    assign lpc_count_label = lpc_total
+  endif
+
+  assign lpc_font = section.settings.font_display
+  assign c_bg = section.settings.color_bg
+  assign c_fg = section.settings.color_text
+  assign c_gold = section.settings.color_gold
+  assign c_soft = c_fg | color_mix: c_bg, 78
+  assign c_line = c_fg | color_modify: 'alpha', 0.14
+  assign c_panel = c_fg | color_mix: c_bg, 6
+-%}
+
+<style>
+  {{ lpc_font | font_face: font_display: 'swap' }}
+  #lpc-{{ section.id }} {
+    --lpc-bg: {{ c_bg }};
+    --lpc-fg: {{ c_fg }};
+    --lpc-gold: {{ c_gold }};
+    --lpc-soft: {{ c_soft }};
+    --lpc-line: {{ c_line }};
+    --lpc-panel: {{ c_panel }};
+    --lpc-serif: {{ lpc_font.family }}, "Iowan Old Style", Baskerville, Georgia, {{ lpc_font.fallback_families }};
+    background: var(--lpc-bg);
+    color: var(--lpc-fg);
+    font-family: var(--font-body-family, "Work Sans"), "Helvetica Neue", Arial, sans-serif;
+    padding-block: {{ section.settings.padding_top }}px {{ section.settings.padding_bottom }}px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .lpc *, .lpc *::before, .lpc *::after { box-sizing: border-box; }
+  .lpc :where(h2, p, ul) { margin: 0; }
+  .lpc__wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(40px, 6vw, 110px);
+    max-width: 1440px;
+    margin-inline: auto;
+    padding: clamp(64px, 8vw, 128px) clamp(20px, 4vw, 64px);
+  }
+  .lpc__eyebrow { display: flex; align-items: center; gap: 14px; font-size: 11px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--lpc-gold); }
+  .lpc__eyebrow::before { content: ""; width: 32px; height: 1px; background: var(--lpc-gold); }
+  .lpc__title {
+    margin-top: 22px;
+    max-width: 16ch;
+    font-family: var(--lpc-serif);
+    font-weight: {{ lpc_font.weight }};
+    font-size: clamp(38px, 4.6vw, 72px);
+    line-height: 1.04;
+    letter-spacing: -.01em;
+    color: var(--lpc-fg);
+  }
+  .lpc__text { margin-top: 24px; max-width: 52ch; font-size: clamp(15px, 1.1vw, 17px); line-height: 1.7; color: var(--lpc-soft); }
+  .lpc__benefits { list-style: none; padding: 0; margin-top: clamp(30px, 3.4vw, 44px); border-top: 1px solid var(--lpc-line); }
+  .lpc__benefit { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 4px 16px; padding-block: 18px; border-bottom: 1px solid var(--lpc-line); }
+  .lpc__benefit-n { grid-row: span 2; font-family: var(--lpc-serif); font-size: 15px; color: var(--lpc-gold); font-variant-numeric: lining-nums; }
+  .lpc__benefit-t { font-size: 14px; font-weight: 500; letter-spacing: .02em; color: var(--lpc-fg); }
+  .lpc__benefit-d { font-size: 14px; line-height: 1.55; color: var(--lpc-soft); }
+  .lpc__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; margin-top: clamp(30px, 3.4vw, 44px); }
+  .lpc .lpc__cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 15px 30px;
+    background: var(--lpc-gold);
+    color: var(--lpc-bg);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: background-color .3s ease, color .3s ease;
+  }
+  .lpc .lpc__cta svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+  .lpc .lpc__cta:hover { background: var(--lpc-fg); }
+  .lpc .lpc__cta2 {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: 14px;
+    color: var(--lpc-fg);
+    text-decoration: underline;
+    text-decoration-color: var(--lpc-gold);
+    text-underline-offset: 6px;
+    transition: color .3s ease;
+  }
+  .lpc .lpc__cta2:hover { color: var(--lpc-gold); }
+  .lpc .lpc__cta:focus-visible, .lpc .lpc__cta2:focus-visible { outline: 1px solid var(--lpc-gold); outline-offset: 4px; }
+  .lpc__note { margin-top: 18px; font-size: 12px; letter-spacing: .02em; color: var(--lpc-soft); }
+
+  /* Vitrine fechada: peças desfocadas, que só se veem depois de entrar */
+  .lpc__visual { position: relative; }
+  .lpc__mosaic { display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: 1fr 1fr; gap: clamp(10px, 1.2vw, 16px); aspect-ratio: 5 / 6; }
+  .lpc__tile { position: relative; overflow: hidden; background: #fcfaf6; }
+  .lpc__tile:first-child { grid-row: span 2; }
+  .lpc__tile img { width: 100%; height: 100%; display: block; object-fit: contain; padding: 14%; mix-blend-mode: multiply; filter: blur({{ section.settings.blur }}px) saturate(.85); transform: scale(1.08); }
+  .lpc__tile::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, color-mix(in srgb, var(--lpc-bg) 38%, transparent)); }
+  .lpc__image { position: relative; overflow: hidden; aspect-ratio: 5 / 6; }
+  .lpc__image img { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .lpc__badge {
+    position: absolute;
+    left: 50%;
+    bottom: clamp(18px, 2.4vw, 32px);
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: calc(100% - 32px);
+    padding: 14px 22px;
+    background: color-mix(in srgb, var(--lpc-bg) 86%, transparent);
+    border: 1px solid var(--lpc-line);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+  }
+  .lpc__badge svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--lpc-gold); stroke-width: 1.3; }
+  .lpc__badge-count { font-family: var(--lpc-serif); font-size: 22px; line-height: 1; color: var(--lpc-fg); font-variant-numeric: lining-nums; }
+  .lpc__badge-text { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--lpc-soft); overflow: hidden; text-overflow: ellipsis; }
+
+  @media (max-width: 989px) {
+    .lpc__wrap { grid-template-columns: minmax(0, 1fr); }
+    .lpc__visual { order: -1; max-width: 560px; width: 100%; margin-inline: auto; }
+    .lpc__mosaic, .lpc__image { aspect-ratio: 4 / 3; }
+    .lpc__title { max-width: 18ch; }
+  }
+  @media (max-width: 749px) {
+    .lpc__actions { flex-direction: column; align-items: stretch; }
+    .lpc .lpc__cta { width: 100%; }
+    .lpc .lpc__cta2 { justify-content: center; }
+    .lpc__badge { padding: 12px 16px; }
+    .lpc__badge-count { font-size: 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lpc .lpc__cta, .lpc .lpc__cta2 { transition: none; }
+  }
+</style>
+
+<section class="lpc" id="lpc-{{ section.id }}" aria-labelledby="lpc-{{ section.id }}-title">
+  <div class="lpc__wrap">
+    <div class="lpc__content">
+      <p class="lpc__eyebrow">{{ lpc_brand }}</p>
+      <h2 class="lpc__title" id="lpc-{{ section.id }}-title">{{ d_title }}</h2>
+      <p class="lpc__text">{{ d_text }}</p>
+
+      {%- if section.settings.show_benefits -%}
+        <ul class="lpc__benefits" role="list">
+          <li class="lpc__benefit"><span class="lpc__benefit-n" aria-hidden="true">01</span><span class="lpc__benefit-t">{{ d_b1_t }}</span><span class="lpc__benefit-d">{{ d_b1 }}</span></li>
+          <li class="lpc__benefit"><span class="lpc__benefit-n" aria-hidden="true">02</span><span class="lpc__benefit-t">{{ d_b2_t }}</span><span class="lpc__benefit-d">{{ d_b2 }}</span></li>
+          <li class="lpc__benefit"><span class="lpc__benefit-n" aria-hidden="true">03</span><span class="lpc__benefit-t">{{ d_b3_t }}</span><span class="lpc__benefit-d">{{ d_b3 }}</span></li>
+        </ul>
+      {%- endif -%}
+
+      <div class="lpc__actions">
+        <a class="lpc__cta" href="{{ lpc_url }}">
+          {{ d_cta }}
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5"/></svg>
+        </a>
+        {%- if section.settings.show_cta2 -%}
+          <a class="lpc__cta2" href="{{ lpc_url }}#pedir-acesso">{{ d_cta2 }}</a>
+        {%- endif -%}
+      </div>
+      <p class="lpc__note">{{ d_note }}</p>
+    </div>
+
+    <div class="lpc__visual">
+      {%- if section.settings.image != blank -%}
+        <div class="lpc__image">
+          {{- section.settings.image | image_url: width: 1400 | image_tag: loading: 'lazy', widths: '480, 720, 960, 1200, 1400', sizes: '(min-width: 990px) 45vw, 100vw', alt: '' -}}
+        </div>
+      {%- else -%}
+        <div class="lpc__mosaic" aria-hidden="true">
+          {%- assign lpc_n = 0 -%}
+          {%- for p in lpc_collection.products -%}
+            {%- if lpc_n >= 3 -%}{%- break -%}{%- endif -%}
+            {%- if p.featured_image == blank or p.available == false -%}{%- continue -%}{%- endif -%}
+            <span class="lpc__tile">
+              {{- p.featured_image | image_url: width: 500 | image_tag: loading: 'lazy', widths: '240, 360, 500', sizes: '(min-width: 990px) 22vw, 50vw', alt: '' -}}
+            </span>
+            {%- assign lpc_n = lpc_n | plus: 1 -%}
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
+      <p class="lpc__badge">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="1"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+        {%- if lpc_count_label != '' -%}
+          <span class="lpc__badge-count">{{ lpc_count_label }}</span>
+          <span class="lpc__badge-text">{{ d_count }}</span>
+        {%- else -%}
+          <span class="lpc__badge-text">{{ d_locked }}</span>
+        {%- endif -%}
+      </p>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "LOD — Private Selection: convite",
+  "tag": "div",
+  "class": "lpc-section",
+  "settings": [
+    { "type": "paragraph", "content": "Convite para a zona exclusiva Private Selection (peças restritas e descontos para membros). O botão abre a coleção Private Selection, onde a pessoa pede acesso ou entra. Textos vazios = textos incluídos, já traduzidos em PT, EN, ES, FR, DE e IT." },
+    { "type": "collection", "id": "collection", "label": "Coleção", "info": "Vazio = coleção «Private Selection». Dá o número de peças e as peças desfocadas." },
+    { "type": "url", "id": "link", "label": "Para onde vai o botão", "info": "Vazio = página da coleção (com a porta de acesso)." },
+    { "type": "image_picker", "id": "image", "label": "Imagem (opcional)", "info": "Vazio = as três peças de maior valor da coleção, desfocadas." },
+    { "type": "range", "id": "blur", "label": "Desfoque das peças", "min": 0, "max": 20, "step": 1, "unit": "px", "default": 9 },
+    { "type": "checkbox", "id": "show_count", "label": "Mostrar o número de peças", "info": "Arredondado às dezenas, por exemplo «+140 peças reservadas».", "default": true },
+    { "type": "checkbox", "id": "show_benefits", "label": "Mostrar as três vantagens", "default": true },
+    { "type": "checkbox", "id": "show_cta2", "label": "Mostrar «Pedir acesso»", "default": true },
+    { "type": "header", "content": "Textos em português (opcional)" },
+    { "type": "paragraph", "content": "Só mudam o português. As outras línguas usam sempre os textos incluídos." },
+    { "type": "text", "id": "title", "label": "Título", "placeholder": "Peças que não estão em montra." },
+    { "type": "textarea", "id": "text", "label": "Frase", "placeholder": "Uma seleção reservada de alta joalharia, a partir de 2500 €, com condições e descontos exclusivos para membros. O acesso é pessoal e gratuito." },
+    { "type": "text", "id": "cta_label", "label": "Botão", "placeholder": "Entrar na Private Selection" },
+    { "type": "header", "content": "Estilo" },
+    { "type": "font_picker", "id": "font_display", "label": "Tipo de letra do título", "default": "bodoni_moda_n4" },
+    { "type": "color", "id": "color_bg", "label": "Fundo", "default": "#0b0b09" },
+    { "type": "color", "id": "color_text", "label": "Texto", "default": "#f7f3ec" },
+    { "type": "color", "id": "color_gold", "label": "Dourado", "default": "#bc914c" },
+    { "type": "range", "id": "padding_top", "label": "Espaço acima", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 0 },
+    { "type": "range", "id": "padding_bottom", "label": "Espaço abaixo", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 0 }
+  ],
+  "presets": [{ "name": "LOD — Private Selection: convite" }]
+}
+{% endschema %}

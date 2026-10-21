@@ -226,7 +226,8 @@
         "title_2_de": "Marquesa",
         "title_1_it": "Bracciale",
         "title_2_it": "Marquesa"
-      }
+      },
+      "disabled": true
     },
     "lod_premium_collection_rail_ED8Dzt": {
       "type": "lod-premium-collection-rail",
@@ -699,6 +700,22 @@
         "padding_top": 40,
         "padding_bottom": 52
       }
+    },
+    "lod_private_cta_home": {
+      "type": "lod-private-cta",
+      "settings": {
+        "collection": "private-selection",
+        "blur": 9,
+        "show_count": true,
+        "show_benefits": true,
+        "show_cta2": true,
+        "font_display": "bodoni_moda_n4",
+        "color_bg": "#0b0b09",
+        "color_text": "#f7f3ec",
+        "color_gold": "#bc914c",
+        "padding_top": 0,
+        "padding_bottom": 0
+      }
     }
   },
   "order": [
@@ -706,6 +723,7 @@
     "lod_premium_collection_rail_nEHCfN",
     "lod_premium_collection_rail_JypQNL",
     "lod_premium_collection_rail_NMdqEL",
+    "lod_private_cta_home",
     "lod_salao_privado_PKtqyp",
     "lod_premium_collection_rail_ED8Dzt",
     "lod_premium_collection_rail_fwxRNg",
