@@ -1,5 +1,6 @@
 // Regras da Private Selection (área reservada da loja, com senha) que não dependem do servidor: formulário do tema,
-// marca e língua, endereço de entrada na loja e pedidos à Klaviyo. Sem I/O (testado em tests/private-selection.cjs);
+// marca e língua, endereço de entrada na loja, peças guardadas, código de membro e pedidos à Klaviyo. Sem I/O
+// (testado em tests/private-selection.cjs);
 // as rotas estão em app/api/private-selection/ e o envio em lib/private-selection/.
 import { isEmail, parseOrigins, SITES } from "./support/site-rules";
 
@@ -141,6 +142,45 @@ export function passwordAlert(password: string, confirm: string): { message: str
   if (/[\u0000-\u001f\u007f]/.test(password)) return fail("A senha tem caracteres que não se podem usar.");
   if (password !== confirm) return fail("As duas senhas não coincidem.", "confirm");
   return { message: "", field: null };
+}
+
+// ---------------------------------------------------------------- fase 2: catálogo exclusivo
+
+// Peças guardadas no perfil ("Adicionar ao perfil"), pelo handle do produto na Shopify. A mesma regra da BD
+// (ldo_ps_favorites): minúsculas sem acentos, algarismos e hífenes, a começar por letra ou algarismo, até 255
+// caracteres. O handle não é confirmado na Shopify, só o formato.
+export const PS_HANDLE_RE = /^[a-z0-9][a-z0-9-]{0,254}$/;
+export const isHandle = (v: unknown): v is string => typeof v === "string" && PS_HANDLE_RE.test(v);
+
+// Handle enviado pelo tema: sem espaços nas pontas e em minúsculas (a Shopify guarda-os sempre assim). Fora da
+// regra → null.
+export function cleanHandle(v: unknown): string | null {
+  if (typeof v !== "string" || v.length > 300) return null;
+  const h = v.trim().toLowerCase();
+  return isHandle(h) ? h : null;
+}
+
+// Até 300 peças por membro (verificado na BD, ldo_ps_favorites).
+export const PS_FAVORITES_MAX = 300;
+export const PS_FAVORITES_ACTIONS = ["list", "add", "remove"] as const;
+export type PsFavoritesAction = (typeof PS_FAVORITES_ACTIONS)[number];
+export const isFavoritesAction = (v: unknown): v is PsFavoritesAction =>
+  typeof v === "string" && (PS_FAVORITES_ACTIONS as readonly string[]).includes(v);
+
+// Página da peça na Loja do Ouro (lista da equipa). Handle fora da regra → null (sem link).
+export const pieceUrl = (handle: unknown) => (isHandle(handle) ? `${PS_BRANDS.ldo.origin}/products/${handle}` : null);
+
+// Código de membro: o código de desconto da Shopify (7,5 % nas peças da Private Selection, não acumulável) que a
+// página reservada aplica sem o mostrar. A mesma regra da BD (ldo_ps_settings.member_code): 4 a 40 letras sem
+// acentos, algarismos, "-" ou "_". Sem espaços nas pontas; vazio → null (retira o código).
+export const PS_MEMBER_CODE_RE = /^[A-Za-z0-9_-]{4,40}$/;
+export const PS_MEMBER_CODE_ERROR = 'O código tem de ter entre 4 e 40 caracteres: letras sem acentos, números, "-" ou "_".';
+export function parseMemberCode(v: unknown): { ok: true; code: string | null } | { ok: false; error: string } {
+  if (v === null || v === undefined) return { ok: true, code: null };
+  if (typeof v !== "string") return { ok: false, error: PS_MEMBER_CODE_ERROR };
+  const code = v.trim();
+  if (!code) return { ok: true, code: null };
+  return PS_MEMBER_CODE_RE.test(code) ? { ok: true, code } : { ok: false, error: PS_MEMBER_CODE_ERROR };
 }
 
 // Klaviyo (lib/klaviyo-write.ts). Todos os membros ficam na lista "Clientes Private Selection"; só quem marcou a
