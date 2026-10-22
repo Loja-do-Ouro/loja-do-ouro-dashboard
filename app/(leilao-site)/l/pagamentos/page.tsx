@@ -37,7 +37,7 @@ export default async function Payments() {
         {methods.includes("cc") && (
           <div className="lx-card lx-card-pad">
             <h3>Cartão</h3>
-            <p className="lx-small lx-muted" style={{ margin: 0 }}>Visa ou Mastercard, numa página segura da easypay com autenticação 3-D Secure do seu banco.</p>
+            <p className="lx-small lx-muted" style={{ margin: 0 }}>Visa ou Mastercard, num formulário seguro da easypay aqui mesmo, sem sair do site, com 3-D Secure do seu banco.</p>
           </div>
         )}
       </div>
@@ -90,8 +90,8 @@ export default async function Payments() {
 
       <h2>Segurança</h2>
       <p>
-        Os pedidos de pagamento são criados no nosso servidor e confirmados diretamente na easypay. Os dados do cartão são introduzidos apenas na página da
-        easypay, com 3-D Secure. Se tiver dúvidas sobre uma cativação, escreva-nos{s?.contact_email ? ` para ${s.contact_email}` : ""}.
+        Os pedidos de pagamento são criados no nosso servidor e confirmados diretamente na easypay. Os dados do cartão são escritos num formulário da
+        easypay embutido nesta página: seguem diretamente para a easypay, com 3-D Secure, e nunca passam pelo nosso servidor. Se tiver dúvidas sobre uma cativação, escreva-nos{s?.contact_email ? ` para ${s.contact_email}` : ""}.
       </p>
       <p style={{ marginTop: 28 }}>
         <Link className="lx-btn" href={base || "/"}>Ver leilões</Link>{" "}

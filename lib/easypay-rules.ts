@@ -88,3 +88,42 @@ export function notificationId(json: unknown): string | null {
   const id = ((json || {}) as { id?: unknown }).id;
   return typeof id === "string" && /^[A-Za-z0-9-]{8,64}$/.test(id) ? id : null;
 }
+
+// ---------------------------------------------------------------- Checkout (formulário embutido, para o cartão)
+
+export const CHECKOUT_SDK = "https://cdn.easypay.pt/checkout/2.9.1/";
+
+// Sessão do formulário embutido: só cartão; caução = authorisation, lote = sale. key = id do nosso registo (volta no
+// GET /single e liga o pagamento à caução ou ao pagamento certo).
+export function checkoutBody(c: { id: string; amount: number; type: "authorisation" | "sale"; customer: Customer; description: string }) {
+  const value = money(c.amount);
+  return {
+    type: ["single"],
+    payment: {
+      methods: ["CC"], type: c.type, currency: "EUR", key: c.id,
+      ...(c.type === "sale" ? { capture: { descriptive: descriptive(c.description), transaction_key: c.id.slice(0, 50) } } : {}),
+    },
+    order: { key: c.id, value, items: [{ description: descriptive(c.description), quantity: 1, key: c.id, value }] },
+    customer: customerBody(c.customer),
+  };
+}
+
+export type CheckoutManifest = { id: string; session: string; config: unknown };
+
+export function readManifest(json: unknown): CheckoutManifest | null {
+  const j = (json || {}) as { id?: unknown; session?: unknown; config?: unknown };
+  if (typeof j.id !== "string" || !j.id || typeof j.session !== "string" || !j.session) return null;
+  return { id: j.id, session: j.session, config: j.config ?? null };
+}
+
+// GET /checkout/{id}: id do pagamento criado quando o cliente concluiu (ou null).
+export function checkoutPaymentId(json: unknown): string | null {
+  const p = ((json || {}) as { payment?: { id?: unknown } }).payment;
+  return typeof p?.id === "string" && /^[A-Za-z0-9-]{8,64}$/.test(p.id) ? p.id : null;
+}
+
+// key do pagamento (o id do nosso registo, quando fomos nós a criá-lo).
+export function readKey(json: unknown): string | null {
+  const k = ((json || {}) as { key?: unknown }).key;
+  return typeof k === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k) ? k : null;
+}

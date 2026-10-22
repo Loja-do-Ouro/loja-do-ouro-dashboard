@@ -10,7 +10,7 @@ import { parseBid, safeNext, type BidResult } from "@/lib/leilao-site-rules";
 import { isLocked, recordFailure } from "@/lib/rate-limit";
 import { SupabaseError, userMessage } from "@/lib/supabase";
 import { serverRpc } from "@/lib/support/db";
-import { lotMoney, startDeposit, startPayment } from "@/lib/leilao/money";
+import { confirmCard, lotMoney, startDeposit, startPayment, type CardCheckout } from "@/lib/leilao/money";
 
 // Ações do site do leilão. As regras (palavra-passe, limites, idade, quem pode licitar) estão na BD; aqui só se
 // lê o formulário, se chama a função e se envia o email. Os formulários usam useActionState: o erro volta ao
@@ -205,7 +205,7 @@ export async function withdrawalAction(_: FormState, form: FormData): Promise<Fo
 
 // ---------------------------------------------------------------- caução e pagamento (easypay)
 
-export type MoneyState = { ok: true; status: string; url?: string | null } | { ok: false; error: string };
+export type MoneyState = { ok: true; status: string; url?: string | null; card?: CardCheckout } | { ok: false; error: string };
 
 // Erros da BD passam por userMessage; os da easypay (Error simples) já vêm escritos para o cliente.
 const moneyError = (e: unknown) => (e instanceof SupabaseError ? userMessage(e) : e instanceof Error ? e.message : userMessage(e));
@@ -217,6 +217,7 @@ export async function depositAction(lotId: string, method: string, phone: string
   try {
     const s = await startDeposit(session, lotId, method, phone.slice(0, 30));
     if (s.status === "held") return { ok: true, status: "held" };
+    if (s.card) return { ok: true, status: "card", card: s.card };
     const money = await lotMoney(session, lotId);
     return { ok: true, status: "pending", url: money?.deposit?.checkout_url ?? null };
   } catch (e) {
@@ -229,10 +230,22 @@ export async function payAction(lotId: string, method: string, phone: string): P
   if (!session) return { ok: false, error: "Entre na sua conta para continuar." };
   if (!UUID.test(lotId) || !["mb", "mbw", "cc"].includes(method)) return { ok: false, error: "Escolha Multibanco, MB WAY ou cartão." };
   try {
-    await startPayment(session, lotId, method as "mb" | "mbw" | "cc", phone.slice(0, 30));
+    const s = await startPayment(session, lotId, method as "mb" | "mbw" | "cc", phone.slice(0, 30));
+    if (s.card) return { ok: true, status: "card", card: s.card };
     const money = await lotMoney(session, lotId);
     return { ok: true, status: money?.payment?.status ?? "pending", url: money?.payment?.checkout_url ?? null };
   } catch (e) {
     return { ok: false, error: moneyError(e) };
+  }
+}
+
+// O formulário do cartão foi concluído: o servidor confirma o pagamento na easypay (o id vem do browser, o estado não).
+export async function confirmCardAction(ref: string): Promise<{ ok: boolean; status?: string | null }> {
+  const session = await auctionSession();
+  if (!session || !/^[A-Za-z0-9-]{8,64}$/.test(ref)) return { ok: false };
+  try {
+    return { ok: true, status: await confirmCard(ref) };
+  } catch {
+    return { ok: false };
   }
 }

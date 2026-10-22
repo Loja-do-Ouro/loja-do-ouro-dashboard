@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { CHECKOUT_SDK } from "@/lib/easypay-rules";
 import { eur, lisbonDateTime } from "@/lib/leilao-rules";
-import type { LotMoney } from "@/lib/leilao/money";
-import { depositAction, payAction } from "./actions";
+import type { CardCheckout, LotMoney } from "@/lib/leilao/money";
+import { confirmCardAction, depositAction, payAction } from "./actions";
 
-// Caução (cativação) antes de licitar e pagamento do lote ganho, pela easypay. O estado vem do servidor, que o
-// confirma na easypay; o ecrã pergunta de 4 em 4 segundos enquanto há um pedido à espera.
+// Caução (cativação) antes de licitar e pagamento do lote ganho, pela easypay, sem sair do site: MB WAY (aprovação no
+// telemóvel), Multibanco (referência mostrada aqui) e cartão (formulário embutido da easypay nesta página; os dados
+// do cartão vão diretamente para a easypay). O estado vem do servidor, que o confirma na easypay.
 
 function useLotMoney(lotId: string) {
   const [money, setMoney] = useState<LotMoney | null>(null);
@@ -43,6 +45,69 @@ function Methods({ value, onChange, options }: { value: string; onChange: (v: st
   );
 }
 
+// ---------------------------------------------------------------- formulário do cartão (easypay Checkout, embutido)
+
+type EasypayCheckout = {
+  startCheckout: (manifest: unknown, options: Record<string, unknown>) => { unmount: () => void };
+};
+declare global {
+  interface Window { easypayCheckout?: EasypayCheckout }
+}
+
+let sdk: Promise<EasypayCheckout> | null = null;
+function loadSdk(): Promise<EasypayCheckout> {
+  if (window.easypayCheckout) return Promise.resolve(window.easypayCheckout);
+  sdk ??= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = CHECKOUT_SDK;
+    s.async = true;
+    s.onload = () => (window.easypayCheckout ? resolve(window.easypayCheckout) : reject(new Error("sdk")));
+    s.onerror = () => { sdk = null; reject(new Error("sdk")); };
+    document.head.appendChild(s);
+  });
+  return sdk;
+}
+
+function CardForm({ card, onDone, onCancel }: { card: CardCheckout; onDone: () => void; onCancel: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const elId = `lx-card-${card.id}`;
+  useEffect(() => {
+    let instance: { unmount: () => void } | null = null;
+    let gone = false;
+    loadSdk().then((ep) => {
+      if (gone || !box.current) return;
+      instance = ep.startCheckout(card.manifest, {
+        id: elId, display: "inline", testing: card.testing, language: "pt_PT", hideDetails: true,
+        accentColor: "#1d3e47", fontFamily: "Inter, system-ui, sans-serif", backgroundColor: "#ffffff", errorColor: "#a3402f",
+        onSuccess: async (info: { payment?: { id?: string } }) => {
+          setChecking(true);
+          if (info?.payment?.id) await confirmCardAction(info.payment.id);
+          onDone();
+        },
+        onError: (e: { code?: string }) => {
+          setError(e?.code === "checkout-expired" ? "O formulário expirou. Comece de novo." : e?.code === "already-paid" ? "Este pagamento já foi feito." : "O pagamento com cartão não está disponível. Tente MB WAY ou mais tarde.");
+        },
+      });
+    }).catch(() => setError("Não foi possível carregar o formulário seguro do cartão. Verifique a ligação e tente de novo."));
+    return () => { gone = true; instance?.unmount(); };
+  }, [card, elId, onDone]);
+  return (
+    <div className="lx-cardform">
+      <p className="lx-small lx-muted" style={{ margin: 0 }}>
+        Formulário seguro da easypay, com 3-D Secure do seu banco. Os dados do cartão não passam pelo nosso site.
+      </p>
+      <div id={elId} ref={box} className="lx-cardform-frame" aria-live="polite" />
+      {checking && <div className="lx-alert lx-alert-info" role="status">A confirmar com a easypay…</div>}
+      {error && <div className="lx-alert lx-alert-err" role="alert">{error}</div>}
+      <button type="button" className="lx-linkbtn-dark" onClick={onCancel}>Escolher outra forma de pagamento</button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- caução
+
 export function DepositBox({ lotId, amount, holdDays, methods, phone, base }: {
   lotId: string; amount: number; holdDays: number; methods: string[]; phone: string | null; base: string;
 }) {
@@ -53,16 +118,25 @@ export function DepositBox({ lotId, amount, holdDays, methods, phone, base }: {
   const [method, setMethod] = useState(options[0]?.[0] ?? "mbw");
   const [tel, setTel] = useState(phone?.replace(/^\+351/, "") ?? "");
   const [error, setError] = useState("");
-  const [url, setUrl] = useState<string | null>(null);
+  const [card, setCard] = useState<CardCheckout | null>(null);
   const [pending, start] = useTransition();
   const d = money?.deposit;
 
   useEffect(() => { if (d?.status === "held") router.refresh(); }, [d?.status, router]);
-  useEffect(() => { if (d?.status === "pending" && d.checkout_url) setUrl(d.checkout_url); }, [d?.status, d?.checkout_url]);
+  const cardDone = useCallback(() => { setCard(null); load(); }, [load]);
 
   if (d?.status === "held") return <div className="lx-alert lx-alert-ok"><strong>Caução cativa</strong>Já pode licitar. A atualizar…</div>;
 
-  const waiting = d?.status === "pending";
+  const request = (m: string) => start(async () => {
+    setError("");
+    const r = await depositAction(lotId, m, tel);
+    if (!r.ok) return setError(r.error);
+    if (r.status === "held") return router.refresh();
+    if (r.card) setCard(r.card);
+    await load();
+  });
+  const waitingMbw = d?.status === "pending" && d.method === "mbw" && !card;
+
   return (
     <div className="lx-confirm">
       <div>
@@ -72,20 +146,15 @@ export function DepositBox({ lotId, amount, holdDays, methods, phone, base }: {
           pagar o lote. Dura até {holdDays} dias. <Link href={`${base}/pagamentos`} target="_blank">Porque pedimos caução?</Link>
         </p>
       </div>
-      {waiting ? (
+      {card ? (
+        <CardForm card={card} onDone={cardDone} onCancel={() => setCard(null)} />
+      ) : waitingMbw ? (
         <div className="lx-alert lx-alert-info" role="status">
-          {d?.method === "mbw" ? (
-            <><strong>Aprove no MB WAY</strong>Enviámos o pedido de {eur(amount)} para o seu telemóvel. Abra a app MB WAY e aceite (tem cerca de 5 minutos).</>
-          ) : (
-            <><strong>Conclua no cartão</strong>Abra a página segura da easypay, indique o cartão e confirme. Esta página atualiza sozinha.
-              {url && <div style={{ marginTop: 10 }}><a className="lx-btn lx-btn-dark lx-btn-small" href={url} target="_blank" rel="noopener noreferrer">Abrir página do cartão</a></div>}</>
-          )}
+          <strong>Aprove no MB WAY</strong>Enviámos o pedido de {eur(amount)} para o seu telemóvel. Abra a app MB WAY e aceite (tem cerca de 5 minutos).
           <div style={{ marginTop: 10 }}>
             <button type="button" className="lx-linkbtn-dark" onClick={() => load()}>Já aprovei, verificar</button>
             {" · "}
-            <button type="button" className="lx-linkbtn-dark" onClick={() => start(async () => { setError(""); const r = await depositAction(lotId, method, tel); if (!r.ok) setError(r.error); else { setUrl(r.url ?? null); await load(); } })}>
-              Enviar outro pedido
-            </button>
+            <button type="button" className="lx-linkbtn-dark" onClick={() => request("mbw")}>Enviar outro pedido</button>
           </div>
         </div>
       ) : (
@@ -95,18 +164,8 @@ export function DepositBox({ lotId, amount, holdDays, methods, phone, base }: {
           {method === "mbw" && (
             <label className="lx-field">Telemóvel MB WAY<input type="tel" inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="912 345 678" /></label>
           )}
-          <button
-            type="button" className="lx-btn lx-btn-dark lx-btn-block" disabled={pending}
-            onClick={() => start(async () => {
-              setError("");
-              const r = await depositAction(lotId, method, tel);
-              if (!r.ok) return setError(r.error);
-              if (r.status === "held") return router.refresh();
-              setUrl(r.url ?? null);
-              await load();
-            })}
-          >
-            {pending ? "A pedir…" : `Cativar ${eur(amount)}`}
+          <button type="button" className="lx-btn lx-btn-dark lx-btn-block" disabled={pending} onClick={() => request(method)}>
+            {pending ? "A preparar…" : method === "cc" ? `Cativar ${eur(amount)} no cartão` : `Cativar ${eur(amount)}`}
           </button>
         </>
       )}
@@ -114,6 +173,8 @@ export function DepositBox({ lotId, amount, holdDays, methods, phone, base }: {
     </div>
   );
 }
+
+// ---------------------------------------------------------------- pagamento do lote ganho
 
 export function PayBox({ lotId, amount, dueAt, methods, phone, base }: {
   lotId: string; amount: number; dueAt: string | null; methods: string[]; phone: string | null; base: string;
@@ -124,8 +185,10 @@ export function PayBox({ lotId, amount, dueAt, methods, phone, base }: {
   const [method, setMethod] = useState(options[0]?.[0] ?? "mb");
   const [tel, setTel] = useState(phone?.replace(/^\+351/, "") ?? "");
   const [error, setError] = useState("");
+  const [card, setCard] = useState<CardCheckout | null>(null);
   const [pending, start] = useTransition();
   const [other, setOther] = useState(false);
+  const cardDone = useCallback(() => { setCard(null); load(); }, [load]);
   const p = money?.payment;
 
   if (!money) return <div className="lx-alert lx-alert-info">A carregar o pagamento…</div>;
@@ -137,13 +200,16 @@ export function PayBox({ lotId, amount, dueAt, methods, phone, base }: {
       </div>
     );
   }
-  const waiting = p?.status === "pending";
   const go = () => start(async () => {
     setError("");
     const r = await payAction(lotId, method, tel);
     if (!r.ok) return setError(r.error);
+    if (r.card) setCard(r.card);
+    setOther(false);
     await load();
   });
+  const mbRef = p?.status === "pending" && p.method === "mb" && p.entity && p.reference ? p : null;
+  const mbwWaiting = p?.status === "pending" && p.method === "mbw";
 
   return (
     <div className="lx-confirm">
@@ -154,38 +220,38 @@ export function PayBox({ lotId, amount, dueAt, methods, phone, base }: {
           combinado consigo depois do pagamento. <Link href={`${base}/pagamentos`} target="_blank">Formas de pagamento</Link>
         </p>
       </div>
-      {waiting && p?.method === "mb" && p.entity && p.reference ? (
-        <div className="lx-mbref" role="status">
-          <div><span>Entidade</span><strong>{p.entity}</strong></div>
-          <div><span>Referência</span><strong>{p.reference.replace(/(\d{3})(?=\d)/g, "$1 ")}</strong></div>
-          <div><span>Montante</span><strong>{eur(p.amount)}</strong></div>
-          {p.expires_at && <p className="lx-small lx-muted" style={{ gridColumn: "1 / -1", margin: 0 }}>Válida até {lisbonDateTime(p.expires_at)}. A confirmação chega por email (pode demorar alguns minutos).</p>}
-        </div>
-      ) : waiting ? (
-        <div className="lx-alert lx-alert-info" role="status">
-          {p?.method === "mbw" ? (
-            <><strong>Aprove no MB WAY</strong>Enviámos o pedido de {eur(p.amount)} para o seu telemóvel. Abra a app MB WAY e aceite.</>
-          ) : (
-            <><strong>Conclua no cartão</strong>Abra a página segura da easypay e confirme. Esta página atualiza sozinha.
-              {p?.checkout_url && <div style={{ marginTop: 10 }}><a className="lx-btn lx-btn-dark lx-btn-small" href={p.checkout_url} target="_blank" rel="noopener noreferrer">Abrir página do cartão</a></div>}</>
-          )}
-        </div>
-      ) : null}
-      {(!waiting || p?.method !== "mb" || other) && (
+      {card ? (
+        <CardForm card={card} onDone={cardDone} onCancel={() => setCard(null)} />
+      ) : (
         <>
-          {p?.status === "failed" && <div className="lx-alert lx-alert-warn">O pagamento anterior não foi concluído. Pode tentar de novo.</div>}
-          {waiting && <p className="lx-small lx-muted" style={{ margin: 0 }}>Preferir outra forma de pagamento:</p>}
-          <Methods value={method} onChange={setMethod} options={options} />
-          {method === "mbw" && (
-            <label className="lx-field">Telemóvel MB WAY<input type="tel" inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="912 345 678" /></label>
+          {mbRef && !other && (
+            <div className="lx-mbref" role="status">
+              <div><span>Entidade</span><strong>{mbRef.entity}</strong></div>
+              <div><span>Referência</span><strong>{mbRef.reference!.replace(/(\d{3})(?=\d)/g, "$1 ")}</strong></div>
+              <div><span>Montante</span><strong>{eur(mbRef.amount)}</strong></div>
+              {mbRef.expires_at && <p className="lx-small lx-muted" style={{ gridColumn: "1 / -1", margin: 0 }}>Válida até {lisbonDateTime(mbRef.expires_at)}. A confirmação chega por email (pode demorar alguns minutos).</p>}
+            </div>
           )}
-          <button type="button" className="lx-btn lx-btn-block" disabled={pending} onClick={go}>
-            {pending ? "A preparar…" : method === "mb" ? "Gerar referência Multibanco" : `Pagar ${eur(amount)}`}
-          </button>
+          {mbwWaiting && !other && (
+            <div className="lx-alert lx-alert-info" role="status">
+              <strong>Aprove no MB WAY</strong>Enviámos o pedido de {eur(p!.amount)} para o seu telemóvel. Abra a app MB WAY e aceite.
+            </div>
+          )}
+          {(mbRef || mbwWaiting) && !other ? (
+            <button type="button" className="lx-linkbtn-dark" onClick={() => setOther(true)}>Pagar de outra forma</button>
+          ) : (
+            <>
+              {p?.status === "failed" && <div className="lx-alert lx-alert-warn">O pagamento anterior não foi concluído. Pode tentar de novo.</div>}
+              <Methods value={method} onChange={setMethod} options={options} />
+              {method === "mbw" && (
+                <label className="lx-field">Telemóvel MB WAY<input type="tel" inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="912 345 678" /></label>
+              )}
+              <button type="button" className="lx-btn lx-btn-block" disabled={pending} onClick={go}>
+                {pending ? "A preparar…" : method === "mb" ? "Gerar referência Multibanco" : method === "cc" ? `Pagar ${eur(amount)} com cartão` : `Pagar ${eur(amount)}`}
+              </button>
+            </>
+          )}
         </>
-      )}
-      {waiting && p?.method === "mb" && !other && (
-        <button type="button" className="lx-linkbtn-dark" onClick={() => { setOther(true); setMethod("mbw"); }}>Pagar de outra forma</button>
       )}
       {error && <div className="lx-alert lx-alert-err" role="alert">{error}</div>}
     </div>

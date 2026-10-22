@@ -1101,3 +1101,14 @@ body.lx {
     grid-template-columns: 1fr;
   }
 }
+.lx-cardform {
+  display: grid;
+  gap: 12px;
+}
+.lx-cardform-frame {
+  min-height: 320px;
+  border: 1px solid var(--lx-line);
+  border-radius: 12px;
+  background: var(--lx-paper);
+  overflow: hidden;
+}

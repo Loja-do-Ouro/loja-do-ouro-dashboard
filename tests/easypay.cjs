@@ -64,3 +64,28 @@ test("status and errors are read safely", () => {
   assert.equal(r.notificationId({ id: "../x" }), null);
   assert.equal(r.notificationId("nada"), null);
 });
+
+test("card checkout session: CC only, hold for deposits and sale for lots, keyed by our id", () => {
+  const id = "6b1f0c1e-0000-4000-8000-000000000002";
+  const dep = r.checkoutBody({ id, amount: 300, type: "authorisation", customer, description: "Caução leilão lote 3" });
+  assert.deepEqual(dep.type, ["single"]);
+  assert.deepEqual(dep.payment.methods, ["CC"]);
+  assert.equal(dep.payment.type, "authorisation");
+  assert.equal(dep.payment.key, id);
+  assert.equal(dep.payment.capture, undefined);
+  assert.equal(dep.order.value, 300);
+  assert.equal(dep.order.items[0].key, id);
+  const sale = r.checkoutBody({ id, amount: 3300, type: "sale", customer, description: "Leilão outono lote 3" });
+  assert.equal(sale.payment.type, "sale");
+  assert.equal(sale.payment.capture.descriptive, "Leilão outono lote 3");
+  assert.ok(r.CHECKOUT_SDK.startsWith("https://cdn.easypay.pt/checkout/"));
+});
+
+test("checkout manifest, payment id and key are read safely", () => {
+  assert.deepEqual(r.readManifest({ id: "10d3", session: "XkhR", config: null }), { id: "10d3", session: "XkhR", config: null });
+  assert.equal(r.readManifest({ id: "10d3" }), null);
+  assert.equal(r.checkoutPaymentId({ payment: { id: "df9d691d-f7fe-4ce4-8205-323888a769f3", status: "success" } }), "df9d691d-f7fe-4ce4-8205-323888a769f3");
+  assert.equal(r.checkoutPaymentId({ payment: {} }), null);
+  assert.equal(r.readKey({ key: "6b1f0c1e-0000-4000-8000-000000000002" }), "6b1f0c1e-0000-4000-8000-000000000002");
+  assert.equal(r.readKey({ key: "merchant key" }), null);
+});
