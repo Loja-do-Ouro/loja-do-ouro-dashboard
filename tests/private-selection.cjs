@@ -237,7 +237,7 @@ test("The member code follows the database rule; empty means no code", () => {
 });
 
 test("The handle and member code rules match the catalogue migration", () => {
-  const sql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261022120000_ldo_private_selection_catalogo.sql"), "utf8");
+  const sql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261022180000_ldo_private_selection_catalogo.sql"), "utf8");
   // A mesma expressão na coluna, na tabela e nas funções; a mesma mensagem de erro (o dashboard mostra a da BD).
   assert.ok(sql.includes(`'${ps.PS_HANDLE_RE.source}'`), "handle");
   assert.ok(sql.includes(`'${ps.PS_MEMBER_CODE_RE.source}'`), "member code");

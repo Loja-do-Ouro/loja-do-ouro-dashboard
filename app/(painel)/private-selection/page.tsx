@@ -123,7 +123,7 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
     psList(viewer.session).catch(() => null),
     // Sem a atualização da BD (20261021160000_ldo_ps_blocked) a lista não existe: a página continua sem este painel.
     psBlockedList(viewer.session).catch(() => null),
-    // Idem para as peças mais desejadas (20261022120000_ldo_private_selection_catalogo).
+    // Idem para as peças mais desejadas (20261022180000_ldo_private_selection_catalogo).
     psFavoritesTop(viewer.session).catch(() => null),
   ]);
   // De passagem, depois da resposta: o que já está na hora sai sem esperar pela verificação de 5 em 5 minutos.

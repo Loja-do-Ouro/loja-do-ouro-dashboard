@@ -4,7 +4,7 @@ import { encryptionProblem, seal } from "@/lib/support/crypto";
 import { serverRpc, sessionRpc } from "@/lib/support/db";
 
 // Funções ldo_ps_* (supabase/migrations/20261021120000_ldo_private_selection.sql e, na fase 2, o catálogo exclusivo
-// em 20261022120000_ldo_private_selection_catalogo.sql). As da equipa levam a sessão e a BD confirma o acesso (Super
+// em 20261022180000_ldo_private_selection_catalogo.sql). As da equipa levam a sessão e a BD confirma o acesso (Super
 // Admin ou Loja Online); as das rotas públicas e das filas levam o token do servidor.
 
 // Contexto da cifra da senha partilhada (dados autenticados do AES-GCM): só abre com este mesmo texto.
@@ -21,13 +21,13 @@ export type PsMember = {
   klaviyo_attempts: number; klaviyo_detail: string | null;
   last_login_at: string | null;
   // Fase 2: handles das peças guardadas no perfil, mais recentes primeiro (também de quem foi removido: ficam para o
-  // caso de voltar). Sem a atualização da BD (20261022120000) não vem.
+  // caso de voltar). Sem a atualização da BD (20261022180000) não vem.
   favorites?: string[];
 };
 export type PsSettings = {
   has_password: boolean; password_changed_at: string | null; password_changed_by_name: string | null;
   delay_minutes: number; session_days: number; entry_path: string;
-  // Fase 2: o código de desconto dos membros (null enquanto não houver). Sem a atualização da BD (20261022120000)
+  // Fase 2: o código de desconto dos membros (null enquanto não houver). Sem a atualização da BD (20261022180000)
   // não vem.
   member_code?: string | null;
 };
