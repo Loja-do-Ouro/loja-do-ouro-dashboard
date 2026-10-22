@@ -5,7 +5,7 @@ import { eur, formatIncrements, lisbonDateTime } from "@/lib/leilao-rules";
 import { requireViewer } from "@/lib/viewer";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { saveSettings } from "../actions";
+import { saveLegal, saveSettings } from "../actions";
 import { auctionMessage } from "../messages";
 
 export const dynamic = "force-dynamic";
@@ -112,6 +112,58 @@ export default async function AuctionSettingsPage({ searchParams }: { searchPara
           <div className="form-actions">
             <button type="submit">Guardar regras</button>
             {s.updated_at && <small className="muted">Última alteração {lisbonDateTime(s.updated_at)}</small>}
+          </div>
+        </form>
+      )}
+
+      {s && (
+        <form action={saveLegal} className="stack" style={{ marginTop: 24 }}>
+          <Panel title="Identificação legal e termos" eyebrow="SITE DO LEILÃO (RODAPÉ E PÁGINAS LEGAIS)">
+            <div className="form-grid">
+              <label>
+                Denominação social
+                <input name="company_name" maxLength={200} defaultValue={s.company_name || ""} />
+              </label>
+              <label>
+                NIF da empresa
+                <input name="company_nif" inputMode="numeric" maxLength={11} defaultValue={s.company_nif || ""} />
+              </label>
+              <label className="wide">
+                Sede
+                <input name="company_address" maxLength={400} defaultValue={s.company_address || ""} />
+              </label>
+              <label>
+                Registo comercial (conservatória e número)
+                <input name="company_registry" maxLength={200} defaultValue={s.company_registry || ""} />
+              </label>
+              <label>
+                Título RJOC (comércio de metais preciosos)
+                <input name="rjoc_title" maxLength={120} defaultValue={s.rjoc_title || ""} />
+              </label>
+              <label>
+                Email de contacto
+                <input name="contact_email" type="email" maxLength={254} defaultValue={s.contact_email || ""} />
+              </label>
+              <label>
+                Telefone de contacto
+                <input name="contact_phone" maxLength={40} defaultValue={s.contact_phone || ""} />
+              </label>
+              <label className="wide">
+                Entidade de resolução alternativa de litígios (RAL)
+                <input name="ral_entity" maxLength={400} defaultValue={s.ral_entity || ""} placeholder="Nome e site da entidade (a confirmar com o advogado)" />
+              </label>
+              <label>
+                Versão dos termos
+                <input name="terms_version" maxLength={40} required defaultValue={s.terms_version || ""} />
+              </label>
+              <p className="field-help wide">
+                Mudar a versão dos termos obriga os novos registos a aceitar a versão nova (quem já tem conta fica com a data em que aceitou). Mude-a quando o
+                advogado aprovar os textos (ex.: «2026-11-v1»).
+              </p>
+            </div>
+          </Panel>
+          <div className="form-actions">
+            <button type="submit">Guardar identificação</button>
           </div>
         </form>
       )}

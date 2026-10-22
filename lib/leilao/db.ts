@@ -15,6 +15,7 @@ export type AucCustomer = {
 
 export const aucOverview = (session: string) => sessionRpc<AucOverview>(session, "ldo_auc_overview");
 export const aucSettingsSave = (session: string, data: Record<string, unknown>) => sessionRpc<null>(session, "ldo_auc_settings_save", { p_data: data });
+export const aucLegalSave = (session: string, data: Record<string, unknown>) => sessionRpc<null>(session, "ldo_auc_legal_save", { p_data: data });
 export const aucEventSave = (session: string, id: string | null, data: Record<string, unknown>) =>
   sessionRpc<string>(session, "ldo_auc_event_save", { p_id: id, p_data: data });
 export const aucEventGet = (session: string, id: string) => sessionRpc<{ event: AucEvent; lots: AucLot[] }>(session, "ldo_auc_event_get", { p_id: id });

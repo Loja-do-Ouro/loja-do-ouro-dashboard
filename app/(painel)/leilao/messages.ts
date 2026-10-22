@@ -8,6 +8,7 @@ const OK: Record<string, string> = {
   lot_draft: "Lote de volta a rascunho.",
   lot_withdrawn: "Lote retirado. Quem licitou vai receber um aviso.",
   settings: "Regras guardadas. Aplicam-se às próximas licitações.",
+  legal: "Identificação legal guardada. Aparece no rodapé e nas páginas legais do site do leilão.",
   customer: "Cliente atualizado.",
 };
 

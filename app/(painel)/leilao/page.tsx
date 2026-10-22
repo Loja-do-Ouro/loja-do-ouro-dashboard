@@ -27,6 +27,7 @@ export default async function AuctionPage({ searchParams }: { searchParams: Prom
   return (
     <AppShell viewer={viewer} current="leilao" title="Leilão">
       <PageHeading eyebrow="LEILÃO" title="Leilões e lotes" text="Leilões por tempo em leilao.lojadoouro.pt: só peças da Loja do Ouro, com licitação automática, prolongamento no fim e caução nos lotes altos.">
+        <a className="outline-button" href="/l" target="_blank" rel="noopener noreferrer">Ver o site do leilão</a>
         <Link className="outline-button" href="#novo">+ Novo leilão</Link>
       </PageHeading>
       <Flash ok={auctionMessage(q.ok)} error={typeof q.erro === "string" ? q.erro.slice(0, 300) : undefined} />

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { canManageAuction, homePath } from "@/lib/permissions";
 import {
-  aucCustomerUpdate, aucEventSave, aucLotSave, aucLotStatus, aucSettingsSave, fetchShopifyProduct,
+  aucCustomerUpdate, aucEventSave, aucLegalSave, aucLotSave, aucLotStatus, aucSettingsSave, fetchShopifyProduct,
 } from "@/lib/leilao/db";
 import { lisbonInputToIso, parseEuro, parseIncrements, productHandle, slugify } from "@/lib/leilao-rules";
 import { userMessage } from "@/lib/supabase";
@@ -197,6 +197,18 @@ export async function saveSettings(form: FormData) {
     go(back, { erro: userMessage(e) });
   }
   go(back, { ok: "settings" });
+}
+
+export async function saveLegal(form: FormData) {
+  const viewer = await adminViewer();
+  const back = "/leilao/definicoes";
+  const fields = ["company_name", "company_nif", "company_address", "company_registry", "rjoc_title", "contact_email", "contact_phone", "ral_entity", "terms_version"];
+  try {
+    await aucLegalSave(viewer.session, Object.fromEntries(fields.map((f) => [f, text(form.get(f))])));
+  } catch (e) {
+    go(back, { erro: userMessage(e) });
+  }
+  go(back, { ok: "legal" });
 }
 
 // ---------------------------------------------------------------- clientes
