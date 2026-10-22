@@ -1027,3 +1027,77 @@ body.lx {
 .lx-footer-legal p {
   margin: 0 0 6px;
 }
+
+/* ---------------------------------------------------------------- caução e pagamento */
+
+.lx-methods {
+  display: grid;
+  gap: 8px;
+}
+.lx-method {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--lx-line);
+  border-radius: 10px;
+  background: var(--lx-paper);
+  cursor: pointer;
+}
+.lx-method[data-on="true"] {
+  border-color: var(--lx-gold);
+  box-shadow: 0 0 0 2px rgba(179, 138, 79, 0.18);
+}
+.lx-method input {
+  margin-top: 4px;
+  accent-color: var(--lx-petrol);
+}
+.lx-method span {
+  display: grid;
+  gap: 2px;
+}
+.lx-method small {
+  color: var(--lx-muted);
+  font-size: 0.82rem;
+}
+.lx-mbref {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--lx-paper);
+  border: 1px solid var(--lx-line);
+}
+.lx-mbref span {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lx-muted);
+}
+.lx-mbref strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.lx-linkbtn-dark {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--lx-petrol);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.lx-paygrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0 8px;
+}
+@media (max-width: 760px) {
+  .lx-paygrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -8,8 +8,9 @@ import {
 } from "@/lib/leilao/site";
 import { parseBid, safeNext, type BidResult } from "@/lib/leilao-site-rules";
 import { isLocked, recordFailure } from "@/lib/rate-limit";
-import { userMessage } from "@/lib/supabase";
+import { SupabaseError, userMessage } from "@/lib/supabase";
 import { serverRpc } from "@/lib/support/db";
+import { lotMoney, startDeposit, startPayment } from "@/lib/leilao/money";
 
 // Ações do site do leilão. As regras (palavra-passe, limites, idade, quem pode licitar) estão na BD; aqui só se
 // lê o formulário, se chama a função e se envia o email. Os formulários usam useActionState: o erro volta ao
@@ -200,4 +201,38 @@ export async function withdrawalAction(_: FormState, form: FormData): Promise<Fo
   const ok = await sendWithdrawalEmails({ ...values, contact: settings?.contact_email || "apoiocliente@lojadoouro.pt" }).catch(() => false);
   if (!ok) return { error: "Não conseguimos enviar a declaração. Tente de novo ou escreva-nos para o email de contacto.", values };
   return { ok: `Declaração enviada. Recebeu uma cópia em ${values.email}, com a data e a hora do envio.` };
+}
+
+// ---------------------------------------------------------------- caução e pagamento (easypay)
+
+export type MoneyState = { ok: true; status: string; url?: string | null } | { ok: false; error: string };
+
+// Erros da BD passam por userMessage; os da easypay (Error simples) já vêm escritos para o cliente.
+const moneyError = (e: unknown) => (e instanceof SupabaseError ? userMessage(e) : e instanceof Error ? e.message : userMessage(e));
+
+export async function depositAction(lotId: string, method: string, phone: string): Promise<MoneyState> {
+  const session = await auctionSession();
+  if (!session) return { ok: false, error: "Entre na sua conta para continuar." };
+  if (!UUID.test(lotId) || (method !== "cc" && method !== "mbw")) return { ok: false, error: "Escolha cartão ou MB WAY." };
+  try {
+    const s = await startDeposit(session, lotId, method, phone.slice(0, 30));
+    if (s.status === "held") return { ok: true, status: "held" };
+    const money = await lotMoney(session, lotId);
+    return { ok: true, status: "pending", url: money?.deposit?.checkout_url ?? null };
+  } catch (e) {
+    return { ok: false, error: moneyError(e) };
+  }
+}
+
+export async function payAction(lotId: string, method: string, phone: string): Promise<MoneyState> {
+  const session = await auctionSession();
+  if (!session) return { ok: false, error: "Entre na sua conta para continuar." };
+  if (!UUID.test(lotId) || !["mb", "mbw", "cc"].includes(method)) return { ok: false, error: "Escolha Multibanco, MB WAY ou cartão." };
+  try {
+    await startPayment(session, lotId, method as "mb" | "mbw" | "cc", phone.slice(0, 30));
+    const money = await lotMoney(session, lotId);
+    return { ok: true, status: money?.payment?.status ?? "pending", url: money?.payment?.checkout_url ?? null };
+  } catch (e) {
+    return { ok: false, error: moneyError(e) };
+  }
 }

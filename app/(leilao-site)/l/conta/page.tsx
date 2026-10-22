@@ -47,7 +47,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <section>
               <h2>Lotes ganhos</h2>
               <div className="lx-alert lx-alert-ok" style={{ marginBottom: 18 }}>
-                Parabéns! Enviámos as instruções de pagamento por email. Prazo: {settings?.payment_hours ?? 48} horas depois do fecho
+                Parabéns! Abra cada lote para pagar por Multibanco, MB WAY ou cartão. Prazo: {settings?.payment_hours ?? 48} horas depois do fecho
                 {won[0].payment_due_at ? ` (o mais próximo termina a ${lisbonDateTime(won[0].payment_due_at)})` : ""}.
               </div>
               <div className="lx-lots">{won.map((l) => <LotCard key={l.id} lot={l} base={base} now={now} endingMinutes={settings?.ending_soon_minutes ?? 60} />)}</div>

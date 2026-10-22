@@ -67,7 +67,7 @@ export default async function HowItWorks() {
           ? `Nos lotes com base a partir de ${eur(s.deposit_threshold)} pedimos uma caução de ${String(s.deposit_percent).replace(".", ",")}% da base (mínimo ${eur(s.deposit_min)}). `
           : "Nos lotes de valor elevado pedimos uma caução. "}
         A caução é apenas cativa (reservada) no cartão ou no MB WAY quando faz a primeira licitação nesse lote: não é cobrada. Se não ganhar, é libertada
-        logo após o fecho; se ganhar, é descontada no pagamento.
+        logo após o fecho; se ganhar, é libertada quando o pagamento do lote for confirmado (<Link href={`${base}/pagamentos`}>porque pedimos caução</Link>).
       </p>
 
       <h2>6. Ganhou? Pague e receba</h2>

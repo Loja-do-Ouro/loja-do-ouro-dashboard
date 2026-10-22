@@ -15,7 +15,7 @@ export type PubSettings = {
   deposit_percent: number; deposit_min: number; verified_threshold: number; payment_hours: number; ending_soon_minutes: number;
   new_warranty_months: number; used_warranty_months: number; company_name: string; company_nif: string; company_address: string;
   company_registry: string; rjoc_title: string; contact_email: string; contact_phone: string; ral_entity: string;
-  terms_version: string; session_days: number;
+  terms_version: string; session_days: number; hold_days: number; payment_methods: string[];
 };
 
 export type PubLot = {
