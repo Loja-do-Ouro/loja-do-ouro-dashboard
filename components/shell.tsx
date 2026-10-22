@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/dashboard/ui";
 import { NavScroll } from "@/components/nav-scroll";
-import { canCompareStores, canManagePrivateSelection, canManageStores, canManageUsers, canSeeOnline, canSupport, initials } from "@/lib/permissions";
+import { canCompareStores, canManageAuction, canManagePrivateSelection, canManageStores, canManageUsers, canSeeOnline, canSupport, initials } from "@/lib/permissions";
 import type { Viewer } from "@/lib/viewer";
 
 export const ONLINE_SECTIONS = [
@@ -41,6 +41,15 @@ export function AppShell({
         ...ONLINE_SECTIONS.map(([key, label, icon]) => ({ key, label, icon, href: onlineHref(key), badge: badges[key] })),
         // Página própria (não é uma secção de "/?section="): membros e senha da página reservada da loja.
         ...(canManagePrivateSelection(viewer) ? [{ key: "private-selection", label: "Private Selection", href: "/private-selection", icon: "key" }] : []),
+      ],
+    });
+  if (!locked && canManageAuction(viewer))
+    groups.push({
+      label: "LEILÃO",
+      items: [
+        { key: "leilao", label: "Leilões e lotes", href: "/leilao", icon: "gavel" },
+        { key: "leilao-clientes", label: "Clientes do leilão", href: "/leilao/clientes", icon: "people" },
+        { key: "leilao-definicoes", label: "Regras do leilão", href: "/leilao/definicoes", icon: "list" },
       ],
     });
   if (!locked && canSupport(viewer))

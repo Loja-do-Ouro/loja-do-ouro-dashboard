@@ -8,6 +8,8 @@ export type Access = { id: string; isSuper: boolean; online: boolean; support?: 
 export const canSeeOnline = (a: Access) => a.isSuper || a.online;
 // Private Selection (membros e senha de acesso): Super Admin e quem tem a Loja Online.
 export const canManagePrivateSelection = (a: Access) => canSeeOnline(a);
+// Leilão (leilao.lojadoouro.pt): quem gere a loja online (a BD confirma com ldo_private.auc_admin).
+export const canManageAuction = (a: Access) => canSeeOnline(a);
 // Apoio ao Cliente: conversas e respostas. Só o Super Admin configura as integrações.
 export const canSupport = (a: Access) => a.isSuper || Boolean(a.support);
 export const managedStores = (a: Access) => a.stores.filter((s) => s.level === "manager");
