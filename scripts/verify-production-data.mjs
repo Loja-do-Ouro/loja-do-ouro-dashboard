@@ -1,5 +1,12 @@
 // Read-only release gate. Log counts/configuration only, never URLs or secrets.
 // Login uses the Supabase project URL and its publishable key.
+// Node.js: 24.22.1 fixes the October 2026 security release (Brotli decoder RCE CVE-2026-111497, TLS, DNS).
+// GitHub Actions blocks an older version; on Vercel, which picks the 24.x patch, the build only warns.
+const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split(".").map(Number);
+const nodePatched = nodeMajor > 24 || (nodeMajor === 24 && (nodeMinor > 22 || (nodeMinor === 22 && nodePatch >= 1)));
+console.info("[release-check]", JSON.stringify({ node: process.version, patched: nodePatched }));
+if (!nodePatched && process.env.GITHUB_ACTIONS === "true") throw new Error(`Release blocked: Node.js ${process.version} is older than 24.22.1.`);
+if (!nodePatched) console.warn("[release-check] Node.js is older than 24.22.1 (October 2026 security release).");
 const loginConfigured = Boolean(
   (process.env.BI_SUPABASE_URL || process.env.SUPABASE_URL) &&
   (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.BI_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY),

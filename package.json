@@ -2,6 +2,9 @@
   "name": "loja-do-ouro-dashboard",
   "version": "4.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/verify-production-data.mjs && next build",

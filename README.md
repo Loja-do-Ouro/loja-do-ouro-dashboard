@@ -56,6 +56,8 @@ Permissões, independentes por utilizador:
 
 As regras são aplicadas em Supabase: as tabelas `ldo_app_*` e `ldo_store_sales*` não são acessíveis diretamente, e todas as leituras e escritas passam pelas funções `ldo_*`, que recebem o token de sessão e verificam as permissões. Por isso o dashboard só precisa da chave pública do projeto. Cada lançamento, correção e apagamento fica em `ldo_store_sales_history` (antes/depois, quem e quando); apagar é sempre uma marca, nunca uma remoção. Ver `supabase/migrations/`.
 
+**Tabelas novas** (a partir de 30-10-2026 o Supabase deixa de dar acesso automático pela Data API às tabelas novas em `public`): cada migração que cria uma tabela ou vista em `public` ativa o RLS e diz, no mesmo ficheiro, quem a pode usar. Como o dashboard só usa as funções `ldo_*` (security definer), o habitual é `revoke all on public.<tabela> from anon, authenticated;` e nenhum `grant` à tabela; as funções novas têm `revoke all ... from public, authenticated` e `grant execute ... to anon`. Nunca `grant ... on all tables in schema public`. O teste `tests/migration-grants.cjs` confirma estas regras.
+
 Variáveis: `BI_SUPABASE_URL` (ou `SUPABASE_URL`) e `SUPABASE_PUBLISHABLE_KEY`.
 
 ### Lojas físicas
