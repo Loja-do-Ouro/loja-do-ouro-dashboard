@@ -71,15 +71,15 @@ export default async function Rules() {
         {s
           ? `Nos lotes com base a partir de ${eur(s.deposit_threshold)} é pedida uma caução de ${String(s.deposit_percent).replace(".", ",")}% da base, com o mínimo de ${eur(s.deposit_min)}. `
           : "Nos lotes de valor elevado é pedida uma caução. "}
-        A caução é cativa no meio de pagamento (cartão ou MB WAY) através da easypay, sem cobrança. É libertada após o fecho se o licitante não ganhar e
-        descontada no pagamento se ganhar. Se o vencedor não pagar no prazo, a caução pode ser retida a título de compensação, na medida permitida por lei.
+        A caução é cativa no meio de pagamento (cartão ou MB WAY) através da easypay, sem cobrança. É libertada após o fecho se o licitante não ganhar e,
+        se ganhar, quando o pagamento do lote for confirmado. Se o vencedor não pagar no prazo, a caução pode ser retida a título de compensação, na medida permitida por lei.
       </p>
 
       <h2>9. Adjudicação, preço e pagamento</h2>
       <ul>
         <li>O lote é adjudicado a quem liderar no fecho, se a reserva tiver sido atingida.</li>
         <li>Não há comissão do comprador. O preço final inclui IVA quando aplicável (as peças usadas podem estar sujeitas ao regime da margem).</li>
-        <li>O pagamento é feito em {s?.payment_hours ?? 48} horas após o fecho, pelos meios indicados no email de adjudicação.</li>
+        <li>O pagamento é feito em {s?.payment_hours ?? 48} horas após o fecho, por Multibanco, MB WAY ou cartão (easypay), por transferência ou numa das nossas lojas (<Link href={`${base}/pagamentos`}>pagamentos e caução</Link>).</li>
         <li>Envio com seguro (portes indicados antes do pagamento) ou levantamento gratuito numa das nossas lojas, com identificação.</li>
         <li>Se o pagamento não for feito no prazo, o organizador pode anular a adjudicação e propor o lote ao licitante seguinte.</li>
       </ul>

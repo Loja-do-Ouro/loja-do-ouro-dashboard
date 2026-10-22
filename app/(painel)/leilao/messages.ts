@@ -10,6 +10,7 @@ const OK: Record<string, string> = {
   settings: "Regras guardadas. Aplicam-se às próximas licitações.",
   legal: "Identificação legal guardada. Aparece no rodapé e nas páginas legais do site do leilão.",
   customer: "Cliente atualizado.",
+  paid: "Lote marcado como pago. O cliente recebe a confirmação por email e a caução é libertada.",
 };
 
 export function auctionMessage(key: string | string[] | undefined) {

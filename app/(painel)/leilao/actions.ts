@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { canManageAuction, homePath } from "@/lib/permissions";
 import {
-  aucCustomerUpdate, aucEventSave, aucLegalSave, aucLotSave, aucLotStatus, aucSettingsSave, fetchShopifyProduct,
+  aucCustomerUpdate, aucEventSave, aucLegalSave, aucLotSave, aucLotStatus, aucPaymentManual, aucSettingsSave, fetchShopifyProduct,
 } from "@/lib/leilao/db";
 import { lisbonInputToIso, parseEuro, parseIncrements, productHandle, slugify } from "@/lib/leilao-rules";
 import { userMessage } from "@/lib/supabase";
@@ -226,4 +226,19 @@ export async function updateCustomer(form: FormData) {
     back({ erro: userMessage(e) });
   }
   back({ ok: "customer" });
+}
+
+// Pagamento recebido por transferência ou na loja: o lote fica pago e a caução do vencedor é libertada.
+export async function markPaid(form: FormData) {
+  const viewer = await adminViewer();
+  const eventId = id(form.get("event"));
+  const lotId = id(form.get("lot"));
+  if (!eventId || !lotId) redirect("/leilao");
+  const back = `/leilao/${eventId}/lote/${lotId}`;
+  try {
+    await aucPaymentManual(viewer.session, lotId as string, text(form.get("note")).slice(0, 300));
+  } catch (e) {
+    go(back, { erro: userMessage(e) });
+  }
+  go(back, { ok: "paid" });
 }

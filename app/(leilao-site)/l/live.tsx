@@ -7,6 +7,7 @@ import { eur, lisbonDateTime } from "@/lib/leilao-rules";
 import { bidResultText, countdown, countdownText, parseBid, quickBids, type BidResult } from "@/lib/leilao-site-rules";
 import type { LotLive, LotMe, PubLot } from "@/lib/leilao/site";
 import { bidAction, watchAction } from "./actions";
+import { DepositBox, PayBox } from "./money";
 
 // Partes do site que mexem no browser: contagem decrescente, galeria, painel de licitação (atualiza de poucos em
 // poucos segundos) e favoritos. O preço e o fecho vêm sempre da BD; o relógio do browser só é usado para contar.
@@ -82,10 +83,10 @@ export function WatchButton({ lotId, initial, loggedIn, loginHref }: { lotId: st
 
 type PanelProps = {
   lot: PubLot; me: LotMe | null; base: string; steps: [number, number][]; verifiedThreshold: number; extendMinutes: number;
-  extendWindowSeconds: number; paymentHours: number;
+  extendWindowSeconds: number; paymentHours: number; holdDays: number; paymentMethods: string[];
 };
 
-export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinutes, extendWindowSeconds, paymentHours }: PanelProps) {
+export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinutes, extendWindowSeconds, paymentHours, holdDays, paymentMethods }: PanelProps) {
   const router = useRouter();
   const [live, setLive] = useState<LotLive>({
     current_price: lot.current_price, bid_count: lot.bid_count, bidder_count: lot.bidder_count, close_at: lot.close_at,
@@ -215,7 +216,7 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
           {me?.won ? (
             <>
               <strong>Ganhou este lote por {eur(price)}</strong>
-              Vamos enviar-lhe por email as instruções de pagamento (prazo de {paymentHours} horas{me.payment_due_at ? `, até ${lisbonDateTime(me.payment_due_at)}` : ""}).
+              Pague aqui em {paymentHours} horas{me.payment_due_at ? ` (até ${lisbonDateTime(me.payment_due_at)})` : ""}.
             </>
           ) : live.result === "sold" ? (
             <>Lote vendido por {eur(price)}.</>
@@ -225,7 +226,11 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
             <>A apurar o resultado…</>
           )}
         </div>
-      ) : notOpen ? (
+      ) : null}
+      {closed && me?.won && (
+        <PayBox lotId={lot.id} amount={price} dueAt={me.payment_due_at} methods={paymentMethods} phone={null} base={base} />
+      )}
+      {closed ? null : notOpen ? (
         <div className="lx-alert lx-alert-info">As licitações abrem a {lisbonDateTime(lot.opens_at)} (hora de Lisboa). Guarde o lote nos favoritos para receber o aviso de fim.</div>
       ) : !me ? (
         <div className="lx-form">
@@ -235,6 +240,8 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
         </div>
       ) : me.is_staff ? (
         <div className="lx-alert lx-alert-info">Contas de colaboradores não podem licitar (regulamento, ponto 3).</div>
+      ) : lot.deposit > 0 && !me.deposit_held ? (
+        <DepositBox lotId={lot.id} amount={lot.deposit} holdDays={holdDays} methods={paymentMethods.filter((m) => m !== "mb")} phone={null} base={base} />
       ) : confirming !== null ? (
         <div className="lx-confirm">
           <div>

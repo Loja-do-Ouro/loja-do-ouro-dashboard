@@ -65,6 +65,7 @@ export default async function AuctionLayout({ children }: { children: React.Reac
               <h2 className="lx-footer-title">Leilão</h2>
               <ul className="lx-footer-links">
                 <li><Link href={`${base}/como-funciona`}>Como funciona</Link></li>
+                <li><Link href={`${base}/pagamentos`}>Pagamentos e caução</Link></li>
                 <li><Link href={`${base}/regulamento`}>Regulamento</Link></li>
                 <li><Link href={`${base}/termos`}>Termos e condições</Link></li>
                 <li><Link href={`${base}/livre-resolucao`}>Livre resolução (desistir da compra)</Link></li>

@@ -95,8 +95,9 @@ export function quickBids(minNext: number, steps: [number, number][]): number[] 
 // ---------------------------------------------------------------- emails
 
 export type OutboxItem = {
-  id: number; kind: "outbid" | "extended" | "ending_soon" | "won" | "lost" | "reserve_not_met" | "withdrawn";
-  payload: { price?: number | null; close_at?: string | null; payment_due_at?: string | null };
+  id: number;
+  kind: "outbid" | "extended" | "ending_soon" | "won" | "lost" | "reserve_not_met" | "withdrawn" | "deposit_held" | "paid" | "deposit_captured";
+  payload: { price?: number | null; close_at?: string | null; payment_due_at?: string | null; amount?: number | null; expires_at?: string | null; method?: string | null };
   lease: string; email: string; name: string; alias: string; deleted: boolean;
   lot: { title: string; position: number; image: string | null; event_slug: string; event_title: string; current_price: number | null; close_at: string | null } | null;
 };
@@ -140,9 +141,10 @@ export function outboxEmail(item: OutboxItem, siteUrl: string): EmailText | null
       return {
         subject: `Ganhou: ${l.title}`, eyebrow: "LEILÃO · PARABÉNS", title: "Ganhou este lote",
         paragraphs: [hi, `${lot} é seu por ${price}. Sem comissão do comprador: este é o valor a pagar (IVA incluído, quando aplicável).`,
-          `Pague até ${lisbonDateTime(item.payload.payment_due_at)} (hora de Lisboa). Vamos enviar-lhe as referências de pagamento e combinar a entrega ou o levantamento numa das nossas lojas.`,
+          `Pague até ${lisbonDateTime(item.payload.payment_due_at)} (hora de Lisboa) na página do lote: Multibanco, MB WAY ou cartão. Depois combinamos consigo a entrega ou o levantamento numa das nossas lojas.`,
+          "Se cativou uma caução neste lote, é libertada assim que o pagamento for confirmado.",
           "Tem 14 dias para desistir da compra a partir da entrega, sem indicar motivo (direito de livre resolução)."],
-        button: { label: "Ver o lote ganho", url },
+        button: { label: "Pagar o lote", url },
       };
     case "lost":
       return {
@@ -156,6 +158,29 @@ export function outboxEmail(item: OutboxItem, siteUrl: string): EmailText | null
         subject: `Reserva não atingida: ${l.title}`, eyebrow: "LEILÃO · RESULTADO", title: "O preço de reserva não foi atingido",
         paragraphs: [hi, `A sua licitação de ${price} em ${lot} foi a mais alta, mas ficou abaixo do preço de reserva, por isso o lote não foi vendido.`,
           "Podemos contactá-lo se for possível chegar a acordo. Se ficou com caução, ela é libertada automaticamente."],
+        button: null,
+      };
+    case "deposit_held":
+      return {
+        subject: `Caução cativa: ${l.title}`, eyebrow: "LEILÃO · CAUÇÃO", title: "Já pode licitar neste lote",
+        paragraphs: [hi, `Cativámos ${eur(item.payload.amount)} como caução para ${lot}. O valor fica apenas reservado: não foi cobrado.`,
+          "Se não ganhar, a reserva é anulada logo depois do fecho. Se ganhar, é anulada quando o pagamento do lote for confirmado.",
+          `A cativação dura até ${lisbonDateTime(item.payload.expires_at)}; se o lote fechar depois disso, pedimos para a renovar.`],
+        button: { label: "Licitar agora", url },
+      };
+    case "paid":
+      return {
+        subject: `Pagamento recebido: ${l.title}`, eyebrow: "LEILÃO · PAGAMENTO", title: "Pagamento confirmado",
+        paragraphs: [hi, `Recebemos o pagamento de ${eur(item.payload.amount ?? l.current_price)} de ${lot}. Obrigado!`,
+          "Vamos contactá-lo para combinar a entrega com seguro ou o levantamento numa das nossas lojas. A fatura segue por email.",
+          "Tem 14 dias, a contar da entrega, para desistir da compra sem indicar motivo."],
+        button: { label: "Ver o lote", url },
+      };
+    case "deposit_captured":
+      return {
+        subject: `Caução retida: ${l.title}`, eyebrow: "LEILÃO · CAUÇÃO", title: "A caução foi retida",
+        paragraphs: [hi, `O prazo de pagamento de ${lot} terminou sem pagamento, por isso a caução de ${eur(item.payload.amount)} foi cobrada, como previsto no regulamento (ponto 8).`,
+          "Se houve um problema com o pagamento, responda a este email e analisamos consigo."],
         button: null,
       };
     case "withdrawn":

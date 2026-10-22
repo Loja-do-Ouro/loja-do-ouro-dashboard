@@ -1,18 +1,21 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { canManageAuction, homePath } from "@/lib/permissions";
-import { aucEventGet, aucLotBids, aucOverview } from "@/lib/leilao/db";
+import { aucEventGet, aucLotBids, aucLotMoneyAdmin, aucOverview } from "@/lib/leilao/db";
+import { METHOD_LABEL } from "@/lib/easypay-rules";
 import { BID_KIND, depositFor, eur, lisbonDateTime, lotPhase, minNextBid, PHASE_LABEL } from "@/lib/leilao-rules";
 import { requireViewer } from "@/lib/viewer";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { saveLot, setLotStatus } from "../../../actions";
+import { markPaid, saveLot, setLotStatus } from "../../../actions";
 import { auctionMessage } from "../../../messages";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Lote · Leilão · Loja do Ouro" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PAYMENT_STATUS: Record<string, string> = { pending: "À espera", paid: "Pago", failed: "Falhou", cancelled: "Cancelado" };
+const DEPOSIT_STATUS: Record<string, string> = { pending: "À espera", held: "Cativa", captured: "Retida (cobrada)", released: "Libertada", failed: "Falhou" };
 const money = (n: number | null) => (n === null || n === undefined ? "" : String(n).replace(".", ","));
 
 export default async function AuctionLotPage({
@@ -31,6 +34,7 @@ export default async function AuctionLotPage({
     aucOverview(viewer.session).catch(() => null),
     aucLotBids(viewer.session, lotId).catch(() => []),
   ]);
+  const pay = await aucLotMoneyAdmin(viewer.session, lotId).catch(() => null);
   const lot = data?.lots.find((l) => l.id === lotId);
   if (!data || !lot || !overview) notFound();
   const e = data.event;
@@ -228,6 +232,46 @@ export default async function AuctionLotPage({
             </table>
           </div>
         </Panel>
+        {pay && (pay.deposits.length > 0 || pay.payments.length > 0 || (closed && lot.result === "sold")) && (
+          <Panel title="Caução e pagamento" eyebrow="EASYPAY" note="As cauções cativas de quem não ganhou são libertadas sozinhas depois do fecho; a do vencedor é libertada quando paga e retida se não pagar no prazo.">
+            {closed && lot.result === "sold" && !pay.payments.some((p) => p.status === "paid") && (
+              <form action={markPaid} className="inline-form" style={{ marginBottom: 16 }}>
+                <input type="hidden" name="event" value={e.id} />
+                <input type="hidden" name="lot" value={lot.id} />
+                <input name="note" placeholder="Ex.: transferência recebida a 25-10, loja do Porto" maxLength={300} />
+                <button type="submit" className="outline-button">Marcar como pago (fora da easypay)</button>
+              </form>
+            )}
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Valor</th><th>Estado</th></tr></thead>
+                <tbody>
+                  {pay.payments.map((p) => (
+                    <tr key={p.id}>
+                      <td>{lisbonDateTime(p.paid_at || p.created_at)}</td>
+                      <td>{p.alias}<small className="muted block">{p.email}</small></td>
+                      <td>Pagamento · {METHOD_LABEL[p.method as keyof typeof METHOD_LABEL] || p.method}{p.reference && <small className="muted block">Ent. {p.entity} · Ref. {p.reference}</small>}</td>
+                      <td>{eur(p.amount)}</td>
+                      <td>{PAYMENT_STATUS[p.status] || p.status}{p.detail && <small className="muted block">{p.detail}</small>}</td>
+                    </tr>
+                  ))}
+                  {pay.deposits.map((d) => (
+                    <tr key={d.id}>
+                      <td>{lisbonDateTime(d.created_at)}</td>
+                      <td>{d.alias}<small className="muted block">{d.email}</small></td>
+                      <td>Caução · {d.method ? METHOD_LABEL[d.method as keyof typeof METHOD_LABEL] : d.provider}</td>
+                      <td>{eur(d.amount)}</td>
+                      <td>{DEPOSIT_STATUS[d.status] || d.status}{d.status === "held" && d.expires_at ? <small className="muted block">até {lisbonDateTime(d.expires_at)}</small> : d.detail ? <small className="muted block">{d.detail}</small> : null}</td>
+                    </tr>
+                  ))}
+                  {!pay.deposits.length && !pay.payments.length && (
+                    <tr><td colSpan={5} className="muted">Ainda sem pagamento.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
       </div>
     </AppShell>
   );

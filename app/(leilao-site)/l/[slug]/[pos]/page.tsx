@@ -90,6 +90,7 @@ export default async function AuctionLotPage({ params }: Props) {
           <BidPanel
             lot={lot} me={me} base={base} steps={s.increments} verifiedThreshold={s.verified_threshold}
             extendMinutes={s.extend_minutes} extendWindowSeconds={s.extend_window_seconds} paymentHours={s.payment_hours}
+            holdDays={s.hold_days ?? 5} paymentMethods={s.payment_methods ?? ["mb", "mbw", "cc"]}
           />
           <div className="lx-card lx-card-pad">
             <h2 style={{ fontSize: "1.3rem" }}>Histórico</h2>

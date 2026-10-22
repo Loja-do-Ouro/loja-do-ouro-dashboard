@@ -40,3 +40,11 @@ export async function fetchShopifyProduct(handle: string): Promise<ShopifyProduc
   if (!r || !r.ok) return null;
   return shopifyProductDraft(await r.json().catch(() => null));
 }
+
+export type AucMoneyRow = {
+  id: string; alias: string; email: string; amount: number; status: string; method: string | null; provider: string; provider_ref: string | null;
+  expires_at?: string | null; entity?: string | null; reference?: string | null; paid_at?: string | null; detail: string | null; created_at: string;
+};
+export const aucLotMoneyAdmin = (session: string, lot: string) =>
+  sessionRpc<{ deposits: AucMoneyRow[]; payments: AucMoneyRow[] }>(session, "ldo_auc_lot_money_admin", { p_lot: lot });
+export const aucPaymentManual = (session: string, lot: string, note: string) => sessionRpc<null>(session, "ldo_auc_payment_manual", { p_lot: lot, p_note: note });
