@@ -11,6 +11,8 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || !constantTimeTextEqual(request.headers.get("authorization") || "", `Bearer ${secret}`))
     return new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } });
+  // Node.js version actually running the functions in production (a security fix needs 24.22.1 or later).
+  console.info("[runtime]", JSON.stringify({ node: process.version }));
   const missing = [
     !writerConfigured() && "BI_INGEST_TOKEN / SUPABASE_PUBLISHABLE_KEY / BI_SUPABASE_URL",
     !windsorConfigured() && "WINDSOR_API_KEY",
