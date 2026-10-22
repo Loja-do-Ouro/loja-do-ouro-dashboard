@@ -4,15 +4,17 @@ import { redirect } from "next/navigation";
 import { emailConfigured } from "@/lib/email";
 import { klaviyoWriteConfigured } from "@/lib/klaviyo-write";
 import { canManagePrivateSelection, homePath } from "@/lib/permissions";
-import { psBlockedList, psList, type PsMember } from "@/lib/private-selection/db";
+import { psBlockedList, psFavoritesTop, psList, type PsMember } from "@/lib/private-selection/db";
 import { sweepPrivateSelection } from "@/lib/private-selection/send";
-import { blockedReasonText, entryUrl, PS_BRANDS, PS_LOCALES, type PsLocale } from "@/lib/private-selection-rules";
+import { blockedReasonText, entryUrl, pieceUrl, PS_BRANDS, PS_LOCALES, type PsLocale } from "@/lib/private-selection-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
-import { addMember, removeMember, resendEmail, resolveBlocked, retryKlaviyo, saveEntryPath, savePassword } from "./actions";
+import {
+  addMember, clearMemberCode, removeMember, resendEmail, resolveBlocked, retryKlaviyo, saveEntryPath, saveMemberCode, savePassword,
+} from "./actions";
 import { PasswordForm } from "./password-form";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +32,8 @@ const OK: Record<string, string> = {
   password_sent: "Senha guardada e enviada de novo a todos os membros ativos (nos próximos minutos). Todas as sessões abertas na loja terminaram.",
   settings: "Página guardada.",
   klaviyo: "Klaviyo de novo na fila.",
+  code: "Código de membro guardado. A página reservada aplica-o a quem entra e, a quem já tem sessão, na confirmação seguinte da sessão. Confirme que o código existe na Shopify (Descontos), senão o carrinho ignora-o.",
+  code_cleared: "Código de membro retirado: a página reservada deixa de aplicar o desconto. Quem já o tem no carrinho continua com ele até o desativar na Shopify (Descontos).",
 };
 // Mensagens que acabam com o envio do email (já, ou só quando houver senha).
 const QUEUED = new Set(["added", "readded", "resent", "blocked_accepted"]);
@@ -90,14 +94,37 @@ function KlaviyoStatus({ m, removedView }: { m: PsMember; removedView: boolean }
   );
 }
 
+// Peça guardada: o handle, com o link para a peça na Loja do Ouro.
+function PieceLink({ handle }: { handle: string }) {
+  const url = pieceUrl(handle);
+  return url ? <a href={url} target="_blank" rel="noopener noreferrer">{handle}</a> : <>{handle}</>;
+}
+
+// Peças que o membro guardou no perfil na página reservada ("Adicionar ao perfil"), mais recentes primeiro.
+function SavedPieces({ handles }: { handles: string[] | undefined }) {
+  if (!handles?.length) return <span className="muted">—</span>;
+  return (
+    <details>
+      <summary>{handles.length} {handles.length === 1 ? "peça" : "peças"}</summary>
+      <ul>
+        {handles.map((h) => (
+          <li key={h}><PieceLink handle={h} /></li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 export default async function PrivateSelectionPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
   if (!canManagePrivateSelection(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const [list, blocked] = await Promise.all([
+  const [list, blocked, top] = await Promise.all([
     psList(viewer.session).catch(() => null),
     // Sem a atualização da BD (20261021160000_ldo_ps_blocked) a lista não existe: a página continua sem este painel.
     psBlockedList(viewer.session).catch(() => null),
+    // Idem para as peças mais desejadas (20261022120000_ldo_private_selection_catalogo).
+    psFavoritesTop(viewer.session).catch(() => null),
   ]);
   // De passagem, depois da resposta: o que já está na hora sai sem esperar pela verificação de 5 em 5 minutos.
   after(() => sweepPrivateSelection().catch(() => undefined));
@@ -106,6 +133,8 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
   const active = members.filter((m) => m.status === "active");
   const removed = members.filter((m) => m.status === "removed");
   const shown = removedView ? removed : active;
+  // Membros ativos com peças guardadas (painel "Peças mais desejadas", que também só conta os ativos).
+  const savers = active.filter((m) => m.favorites?.length).length;
   const s = list?.settings;
   // "Adicionar de novo": o formulário abre com os dados do removido (pelo id; os dados nunca vão no endereço).
   const readd = typeof q.id === "string" ? removed.find((m) => m.id === q.id) || null : null;
@@ -120,7 +149,7 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
 
   return (
     <AppShell viewer={viewer} current="private-selection" title="Private Selection">
-      <PageHeading eyebrow="LOJA ONLINE" title="Private Selection" text="Página reservada da loja: quem tem acesso, a senha partilhada e o email que a envia.">
+      <PageHeading eyebrow="LOJA ONLINE" title="Private Selection" text="Página reservada da loja: quem tem acesso, a senha partilhada e o email que a envia, o código de desconto dos membros e as peças que guardam no perfil.">
         <Link className="outline-button" href="#adicionar">+ Adicionar pessoa</Link>
       </PageHeading>
       <Flash ok={ok} error={error} />
@@ -196,6 +225,53 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
                 <PasswordForm action={savePassword} activeCount={active.length} disabled={Boolean(keyProblem)}>
                   {keepView}
                 </PasswordForm>
+              </Panel>
+
+              <Panel title="Código de membro (desconto)" eyebrow="PREÇO PRIVATE SELECTION" id="codigo">
+                {s.member_code === undefined ? (
+                  <div className="notice error-notice">Indisponível: falta a atualização da base de dados (catálogo exclusivo).</div>
+                ) : (
+                  <>
+                    <dl className="config-list">
+                      <dt>Código</dt>
+                      <dd>
+                        {s.member_code ? <span className="pill ok">Definido</span> : <span className="pill warn">Por definir</span>}
+                        {!s.member_code && <small className="block muted">Sem código, os membros veem as peças sem o preço Private Selection.</small>}
+                      </dd>
+                    </dl>
+                    <form action={saveMemberCode} className="form-grid" key={s.member_code || "sem-codigo"}>
+                      {keepView}
+                      <label className="wide">
+                        Código de desconto (o mesmo da Shopify)
+                        <input
+                          name="member_code"
+                          required
+                          minLength={4}
+                          maxLength={40}
+                          pattern="[A-Za-z0-9_\-]{4,40}"
+                          title='Entre 4 e 40 caracteres: letras sem acentos, números, "-" ou "_"'
+                          autoComplete="off"
+                          autoCapitalize="characters"
+                          spellCheck={false}
+                          defaultValue={s.member_code || ""}
+                        />
+                      </label>
+                      <p className="field-help wide">
+                        <strong>O código tem de existir na Shopify → Descontos</strong>, criado à mão como 7,5 % só nas peças da Private Selection e <strong>não acumulável</strong> com outros descontos. O dashboard não o cria nem confirma que existe: um código que a Shopify não tenha é ignorado no carrinho e os membros pagam o preço normal. A página reservada aplica-o sem o mostrar (nunca fica no HTML da loja) e mostra o preço Private Selection (menos 7,5 %). A Shopify mostra-o no checkout, por isso quem o vir pode passá-lo a outros: limite-o na Shopify às peças da Private Selection. Para o trocar, crie primeiro o novo na Shopify, guarde-o aqui e só depois desative o antigo.
+                      </p>
+                      <div className="wide form-actions">
+                        <button type="submit" className="secondary-button">Guardar código</button>
+                      </div>
+                    </form>
+                    {s.member_code && (
+                      <form action={clearMemberCode} className="row-action knowledge-row">
+                        {keepView}
+                        <label className="checkbox-label"><input type="checkbox" name="confirm" required /> Confirmo</label>
+                        <button type="submit" className="secondary-button" title="A página reservada deixa de aplicar o desconto">Retirar o código</button>
+                      </form>
+                    )}
+                  </>
+                )}
               </Panel>
 
               <Panel title="Email e página na loja" eyebrow="CONFIGURAÇÃO">
@@ -296,6 +372,39 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
             </Panel>
           )}
 
+          {top && (
+            <Panel
+              title="Peças mais desejadas"
+              eyebrow="GUARDADAS NO PERFIL"
+              note={`Quantos membros ativos guardaram cada peça na página reservada («Adicionar ao perfil»): as 10 mais guardadas (em empate, a guardada mais recentemente). ${savers} de ${active.length} ${active.length === 1 ? "membro ativo guardou" : "membros ativos guardaram"} peças; as de cada membro estão na lista abaixo, em «Peças guardadas».`}
+            >
+              {top.length ? (
+                <div className="table-scroll" tabIndex={0} aria-label="Peças mais desejadas da Private Selection">
+                  <table className="left-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Peça</th>
+                        <th>Guardada por</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {top.slice(0, 10).map((t, i) => (
+                        <tr key={t.handle}>
+                          <td>{i + 1}</td>
+                          <td><PieceLink handle={t.handle} /></td>
+                          <td>{t.count} {t.count === 1 ? "membro" : "membros"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="muted">Ainda nenhum membro ativo guardou peças.</p>
+              )}
+            </Panel>
+          )}
+
           <Panel
             title={`${shown.length} ${removedView ? (shown.length === 1 ? "membro removido" : "membros removidos") : shown.length === 1 ? "membro ativo" : "membros ativos"}`}
             eyebrow="MEMBROS"
@@ -316,6 +425,7 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
                     <th>Pedido</th>
                     <th>Email com a senha</th>
                     <th>Klaviyo</th>
+                    <th>Peças guardadas</th>
                     <th>Estado</th>
                     <th />
                   </tr>
@@ -339,6 +449,7 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
                       </td>
                       <td><EmailStatus m={m} hasPassword={s.has_password} /></td>
                       <td><KlaviyoStatus m={m} removedView={removedView} /></td>
+                      <td><SavedPieces handles={m.favorites} /></td>
                       <td>
                         {m.status === "active" ? <span className="pill ok">Ativo</span> : <span className="pill">Removido</span>}
                         {m.removed_at && <small className="muted block">{timestamp(m.removed_at)}{m.removed_by_name ? ` · ${m.removed_by_name}` : ""}</small>}
@@ -367,7 +478,7 @@ export default async function PrivateSelectionPage({ searchParams }: { searchPar
                   ))}
                   {!shown.length && (
                     <tr>
-                      <td colSpan={7} className="muted">{removedView ? "Ninguém foi removido." : "Ainda não há membros. Quem pedir acesso na página da loja aparece aqui."}</td>
+                      <td colSpan={8} className="muted">{removedView ? "Ninguém foi removido." : "Ainda não há membros. Quem pedir acesso na página da loja aparece aqui."}</td>
                     </tr>
                   )}
                 </tbody>

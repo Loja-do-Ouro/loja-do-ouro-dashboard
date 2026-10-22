@@ -1,10 +1,11 @@
 import "server-only";
-import type { PsBrand, PsKlaviyoMember, PsLocale } from "@/lib/private-selection-rules";
+import type { PsBrand, PsFavoritesAction, PsKlaviyoMember, PsLocale } from "@/lib/private-selection-rules";
 import { encryptionProblem, seal } from "@/lib/support/crypto";
 import { serverRpc, sessionRpc } from "@/lib/support/db";
 
-// Funções ldo_ps_* (supabase/migrations/20261021120000_ldo_private_selection.sql). As da equipa levam a sessão e a
-// BD confirma o acesso (Super Admin ou Loja Online); as das rotas públicas e das filas levam o token do servidor.
+// Funções ldo_ps_* (supabase/migrations/20261021120000_ldo_private_selection.sql e, na fase 2, o catálogo exclusivo
+// em 20261022120000_ldo_private_selection_catalogo.sql). As da equipa levam a sessão e a BD confirma o acesso (Super
+// Admin ou Loja Online); as das rotas públicas e das filas levam o token do servidor.
 
 // Contexto da cifra da senha partilhada (dados autenticados do AES-GCM): só abre com este mesmo texto.
 export const PS_PASSWORD_CONTEXT = "private-selection:password";
@@ -19,13 +20,20 @@ export type PsMember = {
   klaviyo_action: "upsert" | "remove" | null; klaviyo_synced_at: string | null; klaviyo_subscribed_at: string | null;
   klaviyo_attempts: number; klaviyo_detail: string | null;
   last_login_at: string | null;
+  // Fase 2: handles das peças guardadas no perfil, mais recentes primeiro (também de quem foi removido: ficam para o
+  // caso de voltar). Sem a atualização da BD (20261022120000) não vem.
+  favorites?: string[];
 };
 export type PsSettings = {
   has_password: boolean; password_changed_at: string | null; password_changed_by_name: string | null;
   delay_minutes: number; session_days: number; entry_path: string;
+  // Fase 2: o código de desconto dos membros (null enquanto não houver). Sem a atualização da BD (20261022120000)
+  // não vem.
+  member_code?: string | null;
 };
 
-// Membros (mais recentes primeiro) e o estado da senha; nunca a senha, o hash nem a cifra.
+// Membros (mais recentes primeiro), com as peças guardadas, e a configuração, com o código de membro; nunca a senha,
+// o hash nem a cifra.
 export function psList(session: string) {
   return sessionRpc<{ members: PsMember[]; settings: PsSettings }>(session, "ldo_ps_list");
 }
@@ -82,6 +90,20 @@ export function psSetSettings(session: string, entryPath: string) {
   return sessionRpc<null>(session, "ldo_ps_set_settings", { p_entry_path: entryPath });
 }
 
+// Código de membro (o código de desconto da Shopify; a BD exige 4 a 40 letras sem acentos, algarismos, "-" ou "_").
+// null retira-o: a página deixa de aplicar o desconto. A mudança fica em ldo_app_audit (private.code), sem o código.
+export function psSetMemberCode(session: string, code: string | null) {
+  return sessionRpc<null>(session, "ldo_ps_set_member_code", { p_code: code });
+}
+
+// Peças mais desejadas: quantos membros ativos guardaram cada peça (as mais guardadas primeiro; em empate, a guardada
+// mais recentemente), no máximo 100.
+export type PsFavoriteTop = { handle: string; count: number };
+
+export function psFavoritesTop(session: string) {
+  return sessionRpc<PsFavoriteTop[]>(session, "ldo_ps_favorites_top");
+}
+
 // ---------------------------------------------------------------- servidor (token): rotas públicas
 
 // created, existing, requeued ou blocked: só para o servidor (a rota responde sempre "pedido recebido").
@@ -97,16 +119,29 @@ export function psRequest(r: {
   });
 }
 
-// name: só o primeiro nome (a senha é partilhada: entrar não prova quem é a pessoa).
-export type PsLogin = { ok: true; token: string; expires_at: string; name: string } | { ok: false; reason: "invalid" | "locked" };
+// name: só o primeiro nome (a senha é partilhada: entrar não prova quem é a pessoa). code: o código de membro (null
+// enquanto não houver; sem a atualização da BD da fase 2 não vem).
+export type PsLogin =
+  | { ok: true; token: string; expires_at: string; name: string; code?: string | null }
+  | { ok: false; reason: "invalid" | "locked" };
 
 export function psLogin(email: string, password: string, ipPrefixHash: string) {
   return serverRpc<PsLogin>("ldo_ps_login", { p_email: email, p_password: password, p_ip_prefix_hash: ipPrefixHash });
 }
 
-// session: o token que a loja guardou (a BD só tem o hash).
+// session: o token que a loja guardou (a BD só tem o hash). code como na entrada.
 export function psSession(session: string) {
-  return serverRpc<{ ok: boolean; name?: string; expires_at?: string }>("ldo_ps_session", { p_session: session });
+  return serverRpc<{ ok: boolean; name?: string; expires_at?: string; code?: string | null }>("ldo_ps_session", { p_session: session });
+}
+
+// Peças guardadas do membro da sessão da loja (session: o token, confirmado como em psSession). list, add (até 300;
+// guardar outra vez não muda nada) ou remove (sem erro se não estava); handle só conta em add e remove. Devolve
+// sempre a lista toda, mais recentes primeiro; sessão inválida → { ok: false }. Mais de 300 ou um pedido inválido:
+// erro 22023.
+export function psFavorites(session: string, action: PsFavoritesAction, handle: string | null) {
+  return serverRpc<{ ok: true; handles: string[] } | { ok: false }>("ldo_ps_favorites", {
+    p_session: session, p_action: action, p_handle: handle,
+  });
 }
 
 export function psLogout(session: string) {

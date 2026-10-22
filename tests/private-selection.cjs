@@ -1,5 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const ps = require("../.test-build/private-selection-rules.js");
 
 test("Two brands with the Private Selection name in English, and six languages", () => {
@@ -204,4 +206,42 @@ test("Blocked requests explain which removed member blocks them", () => {
   assert.equal(ps.blockedReasonText("removed_phone", "diana@lojadfoouro.pt"), "O telemóvel é o de um membro removido (diana@lojadfoouro.pt).");
   assert.equal(ps.blockedReasonText("removed_phone", null), "O telemóvel é o de um membro removido.");
   assert.equal(ps.blockedReasonText("other", null), "Pedido de uma pessoa removida.");
+});
+
+test("Saved pieces are Shopify handles with the database rule", () => {
+  for (const ok of ["anel", "pulseira-marquesa-em-ouro-19kl-20-1cm", "libra-1911", "0", "a-", "a".repeat(255)])
+    assert.equal(ps.isHandle(ok), true, ok);
+  for (const bad of ["", "-anel", "Anel", "anel_ouro", "anel ouro", "anel/x", "../admin", "anel?view=x", "pérola", "anel\n", "a".repeat(256), null, 42, ["anel"]])
+    assert.equal(ps.isHandle(bad), false, JSON.stringify(bad));
+  // O tema envia product.handle; espaços nas pontas e maiúsculas não contam (a Shopify guarda-os em minúsculas).
+  assert.equal(ps.cleanHandle("  Anel-Ouro-19KL "), "anel-ouro-19kl");
+  assert.equal(ps.cleanHandle("anel"), "anel");
+  for (const bad of ["", "   ", "anel%20ouro", "anel ouro", "pérola", `${" ".repeat(300)}anel`, null, undefined, 7])
+    assert.equal(ps.cleanHandle(bad), null, JSON.stringify(bad));
+  assert.equal(ps.PS_FAVORITES_MAX, 300);
+  for (const a of ["list", "add", "remove"]) assert.equal(ps.isFavoritesAction(a), true, a);
+  for (const a of ["LIST", "clear", "toggle", "", null, 1]) assert.equal(ps.isFavoritesAction(a), false, String(a));
+  // Link da equipa para a peça na Loja do Ouro; um handle fora da regra fica sem link.
+  assert.equal(ps.pieceUrl("anel-ouro"), "https://www.lojadoouro.pt/products/anel-ouro");
+  for (const bad of ["../admin", "https://evil.example", "", null]) assert.equal(ps.pieceUrl(bad), null, String(bad));
+});
+
+test("The member code follows the database rule; empty means no code", () => {
+  assert.deepEqual(ps.parseMemberCode(" PS-Membro_75 "), { ok: true, code: "PS-Membro_75" });
+  for (const ok of ["ABCD", "x".repeat(40), "a_b-1", "PRIVATESELECTION2026"])
+    assert.deepEqual(ps.parseMemberCode(ok), { ok: true, code: ok }, ok);
+  for (const empty of ["", "   ", null, undefined]) assert.deepEqual(ps.parseMemberCode(empty), { ok: true, code: null }, String(empty));
+  for (const bad of ["abc", "x".repeat(41), "MEMBRO 75", "MEMBRO7,5", "PRÉMIO", "a/b", "a.b.c.d", "a\u0000bcd", 1234, {}, ["ABCD"]])
+    assert.deepEqual(ps.parseMemberCode(bad), { ok: false, error: ps.PS_MEMBER_CODE_ERROR }, JSON.stringify(bad));
+  assert.equal(ps.PS_MEMBER_CODE_ERROR, 'O código tem de ter entre 4 e 40 caracteres: letras sem acentos, números, "-" ou "_".');
+});
+
+test("The handle and member code rules match the catalogue migration", () => {
+  const sql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261022120000_ldo_private_selection_catalogo.sql"), "utf8");
+  // A mesma expressão na coluna, na tabela e nas funções; a mesma mensagem de erro (o dashboard mostra a da BD).
+  assert.ok(sql.includes(`'${ps.PS_HANDLE_RE.source}'`), "handle");
+  assert.ok(sql.includes(`'${ps.PS_MEMBER_CODE_RE.source}'`), "member code");
+  assert.ok(sql.includes(`'${ps.PS_MEMBER_CODE_ERROR}'`), "member code message");
+  assert.ok(sql.includes(`>= ${ps.PS_FAVORITES_MAX} then`), "favourites limit");
+  for (const a of ["list", "add", "remove"]) assert.ok(sql.includes(`'${a}'`), a);
 });

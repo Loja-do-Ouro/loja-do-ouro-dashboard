@@ -3,9 +3,11 @@
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { canManagePrivateSelection, homePath } from "@/lib/permissions";
-import { psAdd, psBlockedResolve, psKlaviyoRetry, psRemove, psResend, psSetPassword, psSetSettings } from "@/lib/private-selection/db";
+import { psAdd, psBlockedResolve, psKlaviyoRetry, psRemove, psResend, psSetMemberCode, psSetPassword, psSetSettings } from "@/lib/private-selection/db";
 import { sweepPrivateSelection } from "@/lib/private-selection/send";
-import { cleanEmail, isBrand, isLocale, normalizePhone, PS_PASSWORD_MAX, PS_PASSWORD_MIN, validPassword } from "@/lib/private-selection-rules";
+import {
+  cleanEmail, isBrand, isLocale, normalizePhone, parseMemberCode, PS_PASSWORD_MAX, PS_PASSWORD_MIN, validPassword,
+} from "@/lib/private-selection-rules";
 import { userMessage } from "@/lib/supabase";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { requireViewer } from "@/lib/viewer";
@@ -146,4 +148,32 @@ export async function saveEntryPath(form: FormData) {
     back(form, { erro: userMessage(e) });
   }
   back(form, { ok: "settings" });
+}
+
+// Código de membro (o código de desconto da Shopify que a página reservada aplica sem o mostrar). A mesma regra da
+// BD (parseMemberCode). Aqui só se guarda um código: retirá-lo é a ação seguinte, com confirmação. O código nunca vai
+// no endereço (nem nas mensagens de erro).
+export async function saveMemberCode(form: FormData) {
+  const viewer = await adminViewer();
+  const parsed = parseMemberCode(form.get("member_code"));
+  if (!parsed.ok) back(form, { erro: parsed.error });
+  if (!parsed.code) back(form, { erro: "Indique o código. Para deixar de aplicar o desconto, use «Retirar o código»." });
+  try {
+    await psSetMemberCode(viewer.session, parsed.code);
+  } catch (e) {
+    back(form, { erro: userMessage(e) });
+  }
+  back(form, { ok: "code" });
+}
+
+// "Retirar o código": a página deixa de aplicar o desconto (o código continua na Shopify até ser desativado lá).
+export async function clearMemberCode(form: FormData) {
+  const viewer = await adminViewer();
+  if (form.get("confirm") !== "on") back(form, { erro: "Confirme antes de retirar o código." });
+  try {
+    await psSetMemberCode(viewer.session, null);
+  } catch (e) {
+    back(form, { erro: userMessage(e) });
+  }
+  back(form, { ok: "code_cleared" });
 }
