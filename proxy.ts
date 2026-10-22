@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auctionHostRoute, isAuctionHost } from "@/lib/leilao-site-rules";
 import { authConfigured, SESSION_COOKIE } from "@/lib/session";
 
 // /acesso: link do email para criar a palavra-passe (o token vai no corpo do pedido e é verificado na BD).
@@ -8,6 +9,21 @@ const PUBLIC_PATHS = ["/login", "/acesso", "/api/auth/login", "/api/auth/logout"
 // permissions are checked by each page and action in Supabase, never only here.
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+
+  // Leilão (leilao.lojadoouro.pt): só o site público, servido a partir de /l; o dashboard não existe nesse domínio.
+  if (isAuctionHost(request.headers.get("host"))) {
+    const route = auctionHostRoute(path);
+    if (!route) return NextResponse.next();
+    const url = request.nextUrl.clone();
+    if ("redirect" in route) {
+      url.pathname = route.redirect;
+      return NextResponse.redirect(url, 308);
+    }
+    url.pathname = route.rewrite;
+    return NextResponse.rewrite(url);
+  }
+  // O mesmo site no endereço do dashboard (/l), enquanto o domínio não está ligado: contas próprias, sem a sessão da equipa.
+  if (path === "/l" || path.startsWith("/l/") || path.startsWith("/api/l/")) return NextResponse.next();
 
   if (!authConfigured()) {
     if (process.env.NODE_ENV !== "production") return NextResponse.next();
@@ -41,5 +57,5 @@ export function proxy(request: NextRequest) {
 // Ícones da janela (app/favicon.ico, app/apple-icon.png) e logótipos: públicos, também na página de entrada e nos
 // emails aos clientes (Loja do Ouro e Gold Store Premium).
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|apple-icon.png|logo-loja-do-ouro.png|logo-gold-store-premium.png).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|apple-icon.png|logo-loja-do-ouro.png|logo-gold-store-premium.png|emblema-loja-do-ouro.png).*)"],
 };

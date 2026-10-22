@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { checkAccess, createPassword, type AccessInfo } from "@/app/acesso/actions";
+import { checkAccess, createPassword, type AccessInfo } from "@/app/(painel)/acesso/actions";
 
 const REASONS: Record<string, string> = {
   missing: "Este endereço está incompleto. Abra de novo o link que recebeu por email (se o copiou, copie-o inteiro).",
