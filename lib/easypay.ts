@@ -4,11 +4,14 @@ import { easypayBase, readError, type EasypayEnv } from "./easypay-rules";
 // Ligação à easypay (API 2.0) com EASYPAY_ACCOUNT_ID e EASYPAY_API_KEY (colados na Vercel; nunca chegam ao browser).
 // EASYPAY_ENV=prod para produção; por omissão, sandbox (api.test.easypay.pt).
 
+// Valores colados na Vercel podem trazer espaços, aspas ou mudanças de linha: limpos antes de usar.
+const env = (name: string) => (process.env[name] || "").trim().replace(/^["']|["']$/g, "").trim();
+
 export function easypayConfigured() {
-  return Boolean(process.env.EASYPAY_ACCOUNT_ID && process.env.EASYPAY_API_KEY);
+  return Boolean(env("EASYPAY_ACCOUNT_ID") && env("EASYPAY_API_KEY"));
 }
 
-export const easypayEnv = (): EasypayEnv => (process.env.EASYPAY_ENV === "prod" ? "prod" : "test");
+export const easypayEnv = (): EasypayEnv => (env("EASYPAY_ENV").toLowerCase() === "prod" ? "prod" : "test");
 
 export type EpResult = { ok: true; json: unknown } | { ok: false; error: string; status: number };
 
@@ -20,8 +23,8 @@ export async function easypay(method: "GET" | "POST", path: string, body?: unkno
       cache: "no-store",
       signal: AbortSignal.timeout(20_000),
       headers: {
-        AccountId: process.env.EASYPAY_ACCOUNT_ID!,
-        ApiKey: process.env.EASYPAY_API_KEY!,
+        AccountId: env("EASYPAY_ACCOUNT_ID"),
+        ApiKey: env("EASYPAY_API_KEY"),
         "Content-Type": "application/json",
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
