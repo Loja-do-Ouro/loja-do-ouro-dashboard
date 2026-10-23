@@ -16,6 +16,13 @@ export type LotMoney = {
   payment: { id: string; status: "pending" | "paid" | "failed" | "cancelled"; amount: number; method: PayMethod | "manual"; entity: string | null; reference: string | null; checkout_url: string | null; expires_at: string | null; paid_at: string | null; detail: string | null } | null;
 };
 
+// O cliente vê uma mensagem simples; o erro técnico da easypay fica guardado na caução/pagamento (detail).
+function publicError(r: { error: string; status: number }) {
+  if (r.status === 401 || r.status === 403) return "os pagamentos estão temporariamente indisponíveis. Tente mais tarde ou fale connosco";
+  if (r.status === 503) return "a easypay não respondeu. Tente de novo dentro de momentos";
+  return r.error;
+}
+
 type Started = {
   status: "new" | "held" | "existing"; id?: string; amount?: number; method?: string; phone?: string | null; name?: string; email?: string;
   lot_title?: string; lot_position?: number; event_slug?: string; due_at?: string | null;
@@ -31,7 +38,7 @@ async function openCheckout(kind: "deposit" | "payment", s: Started, type: "auth
   const manifest = r.ok ? readManifest(r.json) : null;
   if (!manifest) {
     await serverRpc("ldo_auc_provider_created", { p_kind: kind, p_id: s.id, p_ref: null, p_data: { error: r.ok ? "Resposta inesperada da easypay." : r.error } });
-    throw new Error(`Não foi possível abrir o pagamento com cartão: ${r.ok ? "resposta inesperada" : r.error}`);
+    throw new Error(`Não foi possível abrir o pagamento com cartão: ${r.ok ? "resposta inesperada" : publicError(r)}`);
   }
   await serverRpc("ldo_auc_checkout_created", { p_kind: kind, p_id: s.id, p_checkout: manifest.id });
   return { kind, id: s.id!, manifest, testing: easypayEnv() !== "prod" };
@@ -50,7 +57,7 @@ export async function startDeposit(session: string, lot: string, method: Deposit
     p_kind: "deposit", p_id: s.id, p_ref: created?.ref ?? null,
     p_data: created ? { url: created.url } : { error: r.ok ? "Resposta inesperada da easypay." : r.error },
   });
-  if (!created) throw new Error(`Não foi possível pedir a caução: ${r.ok ? "resposta inesperada" : r.error}`);
+  if (!created) throw new Error(`Não foi possível pedir a caução: ${r.ok ? "resposta inesperada" : publicError(r)}`);
   return s;
 }
 
@@ -68,7 +75,7 @@ export async function startPayment(session: string, lot: string, method: PayMeth
     p_kind: "payment", p_id: s.id, p_ref: created?.ref ?? null,
     p_data: created ? { url: created.url, entity: created.entity, reference: created.reference, expires_at: created.expires_at } : { error: r.ok ? "Resposta inesperada da easypay." : r.error },
   });
-  if (!created) throw new Error(`Não foi possível criar o pagamento: ${r.ok ? "resposta inesperada" : r.error}`);
+  if (!created) throw new Error(`Não foi possível criar o pagamento: ${r.ok ? "resposta inesperada" : publicError(r)}`);
   return s;
 }
 

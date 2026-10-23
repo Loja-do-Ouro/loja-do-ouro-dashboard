@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // O corpo só serve para saber o id: o estado é sempre lido na API da easypay, por isso uma notificação falsa não muda
 // nada. Responde 200 depressa para a easypay não repetir.
 export async function POST(request: Request) {
-  const secret = process.env.EASYPAY_WEBHOOK_SECRET;
+  const secret = (process.env.EASYPAY_WEBHOOK_SECRET || "").trim();
   if (secret && !constantTimeTextEqual(new URL(request.url).searchParams.get("s") || "", secret)) {
     return new Response("Não autorizado.", { status: 401 });
   }
