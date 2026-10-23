@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = { themeColor: "#14272c" };
+export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export default async function AuctionLayout({ children }: { children: React.ReactNode }) {
   const [base, session, settings] = await Promise.all([siteBase(), auctionSession(), pubSettings()]);
@@ -24,9 +24,10 @@ export default async function AuctionLayout({ children }: { children: React.Reac
         <a className="lx-skip" href="#conteudo">Saltar para o conteúdo</a>
         <header className="lx-header">
           <div className="lx-wrap lx-header-row">
-            <Link href={home} className="lx-brand" aria-label="Leilão Loja do Ouro, início">
-              <span className="lx-brand-name">Loja do Ouro</span>
-              <span className="lx-brand-sub">Leilões</span>
+            <Link href={home} className="lx-logo" aria-label="Leilão Loja do Ouro, início">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-loja-do-ouro.png" alt="Loja do Ouro" width={732} height={424} />
+              <span className="lx-logo-sub">Leilões</span>
             </Link>
             <nav className="lx-nav" aria-label="Principal">
               <Link href={home}>Leilões</Link>
@@ -54,6 +55,8 @@ export default async function AuctionLayout({ children }: { children: React.Reac
           <div className="lx-wrap lx-footer-grid">
             <div>
               <div className="lx-brand lx-brand-footer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/emblema-loja-do-ouro.png" alt="" width={56} height={56} className="lx-footer-emblem" />
                 <span className="lx-brand-name">Loja do Ouro</span>
                 <span className="lx-brand-sub">Leilões</span>
               </div>
