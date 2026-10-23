@@ -27,9 +27,13 @@ export default async function HowItWorks() {
         </p>
       )}
 
-      <h2>2. Indique o seu máximo</h2>
+      <h2>2. Licite já ou indique um máximo automático</h2>
       <p>
-        Em cada lote escreve o valor máximo que está disposto a pagar. Esse valor é secreto. Licitamos por si, automaticamente, só o necessário para
+        Em cada lote pode escolher. <strong>Licitar já</strong>: o preço do lote passa logo para o valor que indicar, como numa sala de leilões.{" "}
+        <strong>Máximo automático</strong>: indica o máximo que está disposto a pagar e licitamos por si, só quando alguém licitar contra.
+      </p>
+      <p>
+        No máximo automático, o valor que indica é secreto. Licitamos por si, automaticamente, só o necessário para
         continuar à frente: se a próxima licitação mínima for {eur(110)} e o seu máximo for {eur(300)}, o preço fica em {eur(110)} até alguém licitar
         contra si.
       </p>

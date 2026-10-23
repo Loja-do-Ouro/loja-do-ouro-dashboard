@@ -58,7 +58,9 @@ export function bidResultText(r: BidResult): { tone: "ok" | "warn"; title: strin
     return {
       tone: "ok",
       title: "Lidera este lote",
-      text: `O preço atual é ${eur(r.price)}. O seu máximo de ${eur(r.max)} fica secreto: só subimos por si o necessário para continuar à frente.${reserve}${ext}`,
+      text: r.max > r.price
+        ? `O preço atual é ${eur(r.price)}. O seu máximo de ${eur(r.max)} fica secreto: só subimos por si o necessário para continuar à frente.${reserve}${ext}`
+        : `Licitou ${eur(r.price)} e é agora o preço do lote. Se alguém licitar mais, avisamos por email.${reserve}${ext}`,
     };
   }
   return {

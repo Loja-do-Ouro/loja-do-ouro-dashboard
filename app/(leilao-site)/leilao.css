@@ -1146,3 +1146,35 @@ body.lx {
   background: var(--lx-paper);
   overflow: hidden;
 }
+
+/* Tipo de licitação: direta («Licitar já») ou máximo automático. */
+.lx-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lx-mode {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--lx-line);
+  border-radius: 10px;
+  background: var(--lx-paper);
+  color: var(--lx-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.lx-mode strong {
+  font-size: 0.92rem;
+}
+.lx-mode small {
+  font-size: 0.76rem;
+  color: var(--lx-muted);
+  line-height: 1.3;
+}
+.lx-mode[aria-selected="true"] {
+  border-color: var(--lx-gold);
+  background: #fffcf6;
+  box-shadow: 0 0 0 2px rgba(179, 138, 79, 0.18);
+}

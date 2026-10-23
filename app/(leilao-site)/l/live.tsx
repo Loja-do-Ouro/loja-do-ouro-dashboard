@@ -97,6 +97,8 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
   const now = useNow(offset);
   const [value, setValue] = useState(String(lot.min_next));
   const [confirming, setConfirming] = useState<number | null>(null);
+  // «Licitar já» (direta: o preço passa logo para o valor) ou «Máximo automático» (secreto, sobe só se licitarem contra).
+  const [direct, setDirect] = useState(true);
   const [result, setResult] = useState<{ tone: "ok" | "warn" | "err"; title: string; text: string } | null>(null);
   const [pending, start] = useTransition();
   const bids = useRef(lot.bid_count);
@@ -161,7 +163,7 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
 
   function place(n: number) {
     start(async () => {
-      const r = await bidAction(lot.id, String(n));
+      const r = await bidAction(lot.id, String(n), direct && !live.me_leading);
       setConfirming(null);
       if (!r.ok) {
         setResult({ tone: "err", title: "Licitação não aceite", text: r.error });
@@ -245,9 +247,12 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
       ) : confirming !== null ? (
         <div className="lx-confirm">
           <div>
-            <strong>Confirmar licitação máxima de {eur(confirming)}</strong>
+            <strong>{direct && !live.me_leading ? `Confirmar licitação de ${eur(confirming)}` : `Confirmar máximo automático de ${eur(confirming)}`}</strong>
             <p className="lx-small" style={{ margin: "6px 0 0" }}>
-              Licitamos por si, automaticamente, só o necessário para continuar à frente, até este máximo. A licitação é vinculativa: se ganhar,
+              {direct && !live.me_leading
+                ? `O preço do lote passa já para ${eur(confirming)}. Se outro licitante tiver um máximo mais alto, ele responde automaticamente.`
+                : "O seu máximo fica secreto: licitamos por si só o necessário para continuar à frente, até este valor."}{" "}
+              A licitação é vinculativa: se ganhar,
               compromete-se a comprar a peça pelo preço final (sem comissão), com 14 dias para desistir depois da entrega.
               {confirming >= verifiedThreshold && me.level === "registered" ? ` Licitações a partir de ${eur(verifiedThreshold)} pedem conta verificada: fale connosco.` : ""}
             </p>
@@ -259,9 +264,25 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
         </div>
       ) : (
         <form className="lx-bidform" onSubmit={(e) => { e.preventDefault(); review(); }}>
+          {!live.me_leading && (
+            <div className="lx-modes" role="tablist" aria-label="Tipo de licitação">
+              <button type="button" role="tab" aria-selected={direct} className="lx-mode" onClick={() => setDirect(true)}>
+                <strong>Licitar já</strong><small>O preço sobe para o seu valor</small>
+              </button>
+              <button type="button" role="tab" aria-selected={!direct} className="lx-mode" onClick={() => setDirect(false)}>
+                <strong>Máximo automático</strong><small>Secreto; só sobe se licitarem contra si</small>
+              </button>
+            </div>
+          )}
           <label className="lx-field" htmlFor="lx-bid">
-            {live.me_leading ? "Subir o meu máximo" : "A sua licitação máxima"}
-            <small>Mínimo {eur(live.min_next)}. Pode indicar um valor mais alto: só o usamos se alguém licitar contra si.</small>
+            {live.me_leading ? "Subir o meu máximo automático" : direct ? "O valor da sua licitação" : "O seu máximo secreto"}
+            <small>
+              {live.me_leading
+                ? "Continua a liderar. Se alguém licitar, respondemos por si até ao novo máximo."
+                : direct
+                  ? `Mínimo ${eur(live.min_next)}. O preço do lote passa logo para este valor.`
+                  : `Mínimo ${eur(live.min_next)}. Licitamos por si, de ${eur(live.min_next)} em diante, só o necessário para continuar à frente.`}
+            </small>
           </label>
           <div className="lx-bidinput">
             <input id="lx-bid" inputMode="decimal" autoComplete="off" value={value} onChange={(e) => setValue(e.target.value)} aria-describedby="lx-bid-help" />
@@ -274,7 +295,7 @@ export function BidPanel({ lot, me, base, steps, verifiedThreshold, extendMinute
               ))}
             </div>
           )}
-          <button type="submit" className="lx-btn lx-btn-block">{live.me_leading ? "Subir máximo" : "Licitar"}</button>
+          <button type="submit" className="lx-btn lx-btn-block">{live.me_leading ? "Subir máximo" : direct ? "Licitar" : "Definir máximo"}</button>
           <p id="lx-bid-help" className="lx-small lx-muted" style={{ margin: 0 }}>
             Uma licitação nos últimos {Math.round(extendWindowSeconds / 60) || 1} min prolonga o lote para {extendMinutes} min, e avisamos todos os licitantes por email.
             {lot.deposit > 0 ? ` Este lote pede uma caução de ${eur(lot.deposit)}, cativa no cartão ou MB WAY e libertada se não ganhar.` : ""}

@@ -158,13 +158,14 @@ export async function deleteAccountAction(_: FormState, form: FormData): Promise
 
 export type BidState = { ok: true; result: BidResult } | { ok: false; error: string; login?: boolean };
 
-export async function bidAction(lotId: string, value: string): Promise<BidState> {
+// direct: licitação direta (o preço passa logo para o valor); senão, máximo automático secreto.
+export async function bidAction(lotId: string, value: string, direct = false): Promise<BidState> {
   const session = await auctionSession();
   if (!session) return { ok: false, error: "Entre na sua conta para licitar.", login: true };
   const max = parseBid(value);
   if (!UUID.test(lotId) || max === null) return { ok: false, error: "Indique um valor válido em euros." };
   try {
-    const result = await serverRpc<BidResult>("ldo_auc_bid", { p_session: session, p_lot: lotId, p_max: max, p_ip_hash: await ipHash() });
+    const result = await serverRpc<BidResult>("ldo_auc_bid", { p_session: session, p_lot: lotId, p_max: max, p_ip_hash: await ipHash(), p_direct: direct === true });
     // Avisos (ultrapassado, prolongado) logo a seguir, sem esperar pela verificação de 5 em 5 minutos.
     after(() => sendAuctionOutbox({ budgetMs: 20_000 }).catch(() => undefined));
     return { ok: true, result };

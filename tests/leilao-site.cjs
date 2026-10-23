@@ -88,3 +88,10 @@ test("queue emails link to the lot and never mention the other bidders' maximum"
   assert.match(r.outboxEmail({ ...item, kind: "won", payload: { price: 450, payment_due_at: "2026-11-04T21:00:00Z" } }, "https://x").paragraphs.join(" "), /14 dias/);
   assert.equal(r.outboxEmail({ ...item, lot: null }, "https://x"), null);
 });
+
+test("a direct bid (max equal to price) is explained as the new price, not a secret maximum", () => {
+  const t = r.bidResultText({ status: "leading", price: 2600, max: 2600, close_at: "x", extended: false, reserve_met: true, min_next: 2700 });
+  assert.equal(t.tone, "ok");
+  assert.match(t.text, /Licitou 2600,00/);
+  assert.doesNotMatch(t.text, /secreto/);
+});
