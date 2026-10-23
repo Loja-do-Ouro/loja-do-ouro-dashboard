@@ -48,7 +48,11 @@ export default async function Rules() {
 
       <h2>5. Licitações</h2>
       <ul>
-        <li>Cada licitação indica o valor máximo que o licitante aceita pagar. O sistema licita automaticamente por ele só o necessário para liderar.</li>
+        <li>
+          Há dois tipos de licitação: <strong>direta</strong>, em que o preço do lote passa logo para o valor indicado; e <strong>máximo automático</strong>,
+          em que o licitante indica o máximo que aceita pagar e o sistema licita por ele só o necessário para liderar, mantendo esse máximo secreto.
+        </li>
+        <li>Se o líder tiver um máximo automático igual ou superior a uma nova licitação, o sistema responde por ele com o incremento mínimo, até esse máximo.</li>
         <li>O preço sobe pelos incrementos publicados na página «Como funciona». Em caso de máximos iguais, ganha o que foi registado primeiro.</li>
         <li>As licitações são vinculativas e não podem ser retiradas, salvo erro manifesto comunicado de imediato e aceite pelo organizador.</li>
         <li>A hora oficial é a do servidor do leilão (hora de Lisboa), registada em cada licitação.</li>
