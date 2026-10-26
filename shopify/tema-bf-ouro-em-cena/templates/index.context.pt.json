@@ -385,10 +385,6 @@
           }
         }
       }
-    },
-    "lod_bf_ouro_em_cena": {
-      "type": "lod-bf-ouro-em-cena",
-      "settings": {}
     }
   },
   "order": [
