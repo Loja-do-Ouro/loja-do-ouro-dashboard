@@ -2,7 +2,7 @@
 // tests/support-review.cjs). A IA nunca bloqueia nem perde um envio: estas regras só decidem quando rever, leem a
 // resposta da IA e retiram sugestões que acrescentem factos ou compromissos.
 
-import { clip, linksIn, otherBrandIn, storesText, unverifiedLinks, untrusted } from "./ai-rules";
+import { clip, costUsd, linksIn, otherBrandIn, storesText, unverifiedLinks, untrusted } from "./ai-rules";
 import { isCommentChannel, publicReplyRisks } from "./comment-rules";
 import { CHANNEL_LABEL, LOCALE_LABEL, SITE_BRAND, type Channel, type SiteKey, type SiteLocale } from "./rules";
 
@@ -132,14 +132,15 @@ export function parseReview(text: string): ReviewOutput {
 // ---------------------------------------------------------------- português do Brasil
 
 // Sinais de português do Brasil (com a flag u; i para apanhar o início das frases). Palavras de Portugal com ê/ô antes
-// de m ou n ("cêntimos", "ênfase") ficam de fora.
+// de m ou n ("cêntimos", "ênfase", "cônjuge", "estômago") e palavras em -ando/-endo que não são gerúndios ("vou
+// quando", "está estupendo") ficam de fora.
 const PT_BR: RegExp[] = [
   /(?<!\p{L})você(?!\p{L})/giu,
   /[êô](?=[mn]\p{L})/giu,
   /\b(estou|estamos|está|estão|vou|vamos|fico|ficamos)\s+\p{L}{2,}[aei]ndo(?!\p{L})/giu,
   /(?<!\p{L})(contato|equipe|celular|registro|usuário|tela)(?!\p{L})/giu,
 ];
-const PT_PT_OK = /^(cêntimos?|ênfases?|pêndulos?|fêmeas?|dêmos)$/i;
+const PT_PT_OK = /^(cêntimos?|ênfases?|pêndulos?|fêmeas?|dêmos|cônjuges?|estômagos?|côncav[oa]s?|cônsul(es)?|têmporas?|êmbolos?|tômbolas?|cômputos?)$|\s(quando|estupendo|tremendo|horrendo|reverendo|dividendo|adendo|brando|nefando|venerando)$/i;
 
 function wordAround(text: string, index: number, match: string) {
   if (/\s/.test(match)) return match;
@@ -170,53 +171,139 @@ export function portugueseText(text: string, locale?: SiteLocale | null) {
 
 // ---------------------------------------------------------------- factos e compromissos
 
-// Números normalizados: "10h00", "10:00" e "10" são o mesmo; "09:30" e "9h30" também; "50,00" é "50".
-function numberFacts(text: string) {
-  const out = new Set<string>();
-  for (const m of (text || "").match(/\d+(?:[.,:hH/]\d+)*/g) || []) {
-    const seps = (m.match(/[.,:hH/]/g) || []).map((s) => (s === "h" || s === "H" ? ":" : s === "," ? "." : s));
-    const parts = m.split(/[.,:hH/]/).map((p) => p.replace(/^0+(?=\d)/, ""));
-    while (parts.length > 1 && /^0+$/.test(parts[parts.length - 1]) && seps[parts.length - 2] !== "/") parts.pop();
-    out.add(parts.map((p, i) => (i ? seps[i - 1] + p : p)).join(""));
+// Números por extenso, como algarismos ("dois dias" = "2 dias"). Os artigos "um"/"uma" ("one") ficam de fora: estão em
+// quase todas as frases.
+const NUMBER_WORDS: Record<string, string> = {
+  dois: "2", duas: "2", três: "3", quatro: "4", cinco: "5", seis: "6", sete: "7", oito: "8", nove: "9", dez: "10", onze: "11",
+  doze: "12", treze: "13", catorze: "14", quatorze: "14", quinze: "15", dezasseis: "16", dezassete: "17", dezoito: "18",
+  dezanove: "19", vinte: "20", trinta: "30", quarenta: "40", cinquenta: "50", sessenta: "60", setenta: "70", oitenta: "80",
+  noventa: "90", cem: "100", cento: "100", mil: "1000", meia: "1/2", metade: "1/2", dobro: "x2",
+  two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10", fifteen: "15",
+  twenty: "20", thirty: "30", hundred: "100", thousand: "1000", half: "1/2",
+};
+const NUMBER_RE = new RegExp(`\\d+(?:[.,:hH/]\\d+)*|(?<![\\p{L}\\p{N}])(?:${Object.keys(NUMBER_WORDS).join("|")})(?![\\p{L}\\p{N}])`, "giu");
+
+// Números normalizados: "10h00", "10:00" e "10" são o mesmo; "09:30" e "9h30" também; "50,00" é "50". specific: com
+// separadores ou 3+ algarismos (hora, valor, data, telefone); os outros ("2", "dez") só valem com a palavra seguinte
+// ("2 dias" não é "2 a 3 dias").
+type NumberHit = { n: string; specific: boolean; next: string };
+function numberHits(text: string): NumberHit[] {
+  const out: NumberHit[] = [];
+  const t = text || "";
+  for (const m of t.matchAll(NUMBER_RE)) {
+    const raw = m[0];
+    let n: string;
+    if (/^\d/.test(raw)) {
+      const seps = (raw.match(/[.,:hH/]/g) || []).map((s) => (s === "h" || s === "H" ? ":" : s === "," ? "." : s));
+      const parts = raw.split(/[.,:hH/]/).map((p) => p.replace(/^0+(?=\d)/, ""));
+      while (parts.length > 1 && /^0+$/.test(parts[parts.length - 1]) && seps[parts.length - 2] !== "/") parts.pop();
+      n = parts.map((p, i) => (i ? seps[i - 1] + p : p)).join("");
+    } else n = NUMBER_WORDS[raw.toLowerCase()];
+    const after = /^\s*(\p{L}+|[€%$£]|\d)/u.exec(t.slice((m.index ?? 0) + raw.length));
+    out.push({ n, specific: /^\d+[.,:hH/]/.test(raw) || !/^\d{1,2}$/.test(n), next: !after ? "" : /^\d/.test(after[1]) ? "#" : after[1].toLowerCase() });
   }
   return out;
 }
 
-// Factos que uma sugestão não pode acrescentar: números (datas, valores, horas, telefones), emails e códigos
-// alfanuméricos. As ligações são vistas à parte (unverifiedLinks).
+// Palavras em maiúsculas que não são códigos (marcas, meios de pagamento, transportadoras).
+const NOT_CODES = new Set(["IBAN", "MBWAY", "PAYPAL", "KLARNA", "VISA", "MASTERCARD", "SWIFT", "FEDEX", "NACEX", "SEUR", "LOJA", "OURO", "GOLD", "STORE", "PREMIUM", "HTTP", "HTTPS"]);
+
+// Factos que uma sugestão não pode acrescentar: números (datas, valores, horas, telefones, também por extenso), emails,
+// códigos com letras e algarismos e palavras de 4+ letras em maiúsculas (códigos como "BEMVINDO"). Chaves: n: número,
+// s: número específico, n:X|palavra: número pequeno com a palavra seguinte, e: email, c: código, u: maiúsculas. As
+// ligações são vistas à parte (newLinks).
 export function factsIn(text: string): Set<string> {
-  const out = new Set<string>([...numberFacts(text)].map((n) => `n:${n}`));
+  const out = new Set<string>();
+  for (const h of numberHits(text)) {
+    out.add(`n:${h.n}`);
+    out.add(h.specific ? `s:${h.n}` : `n:${h.n}|${h.next}`);
+  }
   for (const e of (text || "").match(/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/gu) || []) out.add(`e:${e.toLowerCase()}`);
   for (const c of (text || "").match(/(?<![\p{L}\p{N}])(?=[\p{L}\p{N}]*\p{N})(?=[\p{L}\p{N}]*\p{L})[\p{L}\p{N}]{4,}(?![\p{L}\p{N}])/gu) || [])
     if (!/^\d{1,2}h\d{0,2}$/i.test(c)) out.add(`c:${c.toUpperCase()}`);
+  for (const u of (text || "").match(/(?<![\p{L}\p{N}])\p{Lu}{4,}(?![\p{L}\p{N}])/gu) || []) if (!NOT_CODES.has(u)) out.add(`u:${u}`);
   return out;
 }
 
-// Os números de um texto mudaram noutro (aviso no painel da revisão).
+const W = "(?<!\\p{L})", E = "(?!\\p{L})";
+const re = (s: string) => new RegExp(s, "iu");
+// Datas e prazos (cada um com a sua chave: "amanhã" não é "segunda-feira"). Comparados só com a resposta da
+// colaboradora: a base de conhecimento não diz quando segue uma encomenda.
+const WEEKDAYS_EN = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+const MONTHS_EN = ["january", "february", "", "april", "", "june", "july", "august", "september", "october", "november", "december"];
+const DEADLINES: [string, RegExp][] = [
+  ["hoje", re(`${W}(hoje|today)${E}`)],
+  ["amanhã", re(`${W}(amanh[ãa]|tomorrow)${E}`)],
+  ["ontem", re(`${W}(ontem|yesterday)${E}`)],
+  ...["segunda", "terça", "quarta", "quinta", "sexta"].map((d, i): [string, RegExp] =>
+    [`${d}-feira`, re(`${W}${d}[\\s-]feira${E}|(?<=${W}(?:na|nesta|esta|próxima|até|à)\\s)${d}${E}|${W}${WEEKDAYS_EN[i]}${E}`)]),
+  ["sábado", re(`${W}(s[áa]bados?|saturdays?)${E}`)],
+  ["domingo", re(`${W}(domingos?|sundays?)${E}`)],
+  ["fim de semana", re(`${W}(fim[\\s-]de[\\s-]semana|weekend)${E}`)],
+  ["semana", re(`${W}((esta|nesta|próxima|daqui\\s+a\\s+uma|dentro\\s+de\\s+uma|uma)\\s+semana|semana\\s+que\\s+vem|(this|next)\\s+week)${E}`)],
+  ["mês", re(`${W}((este|neste|próximo|daqui\\s+a\\s+um|dentro\\s+de\\s+um|um)\\s+mês|mês\\s+que\\s+vem|(this|next)\\s+month)${E}`)],
+  // "may" e "march" (inglês) são também verbos: só os nomes em português.
+  ...["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+    .map((m, i): [string, RegExp] => [m, re(`${W}(${m}${MONTHS_EN[i] ? `|${MONTHS_EN[i]}` : ""})${E}`)]),
+  ["dias úteis", re(`${W}(dias?\\s+[úu]t(il|eis)|(business|working)\\s+days?)${E}`)],
+  ["horas", re(`${W}(horas?|hours?)${E}`)],
+];
+const DEADLINE_KEYS = new Set(DEADLINES.map(([k]) => k));
+const COMMITMENTS: [string, RegExp][] = [
+  ["reembolso", re(`${W}(reembols\\p{L}*|refund\\p{L}*)`)],
+  ["devolução", re(`${W}(devolu[çc]\\p{L}*|devolv\\p{L}*)`)],
+  ["desconto", re(`${W}(descontos?|discounts?)${E}`)],
+  ["oferta", re(`${W}ofertas?${E}`)],
+  ["grátis", re(`${W}(gr[áa]tis|gratuit\\p{L}*|free\\s+of\\s+charge|free\\s+(shipping|delivery|returns?))${E}`)],
+  ["garantia", re(`${W}(garant\\p{L}*|guarant\\p{L}*|warrant\\p{L}*)`)],
+  ["prazo", re(`${W}prazos?${E}`)],
+  ["troca", re(`${W}(troc[aáo]\\p{L}*|exchang\\p{L}*)`)],
+  // "Vale a pena" e "mais vale" não são vales de compras.
+  ["vale", re(`${W}(?<!mais\\s)(vales?${E}(?!\\s+(a\\s+pena|mais|tudo|o\\s+mesmo))|vouchers?${E})`)],
+  ["sem custos", re(`${W}(sem\\s+(qualquer\\s+|nenhum\\s+)?(custos?|encargos?|despesas?)|at\\s+no\\s+(extra\\s+)?cost|no\\s+charge)${E}`)],
+  ["compensação", re(`${W}compens\\p{L}*`)],
+  ...DEADLINES,
+];
+export function commitmentsIn(text: string) {
+  return COMMITMENTS.filter(([, r]) => r.test(text || "")).map(([key]) => key);
+}
+
+// Os números ou as datas e prazos de um texto mudaram noutro (aviso no painel da revisão).
 export function numbersChanged(a: string, b: string) {
-  const x = numberFacts(a), y = numberFacts(b);
+  const key = (t: string) => new Set([...numberHits(t).map((h) => h.n), ...commitmentsIn(t).filter((c) => DEADLINE_KEYS.has(c))]);
+  const x = key(a), y = key(b);
   return x.size !== y.size || [...x].some((n) => !y.has(n));
 }
 
-const COMMITMENTS: [string, RegExp][] = [
-  ["reembolso", /(?<!\p{L})reembols\p{L}*/iu],
-  ["devolução", /(?<!\p{L})devolu[çc]\p{L}*/iu],
-  ["desconto", /(?<!\p{L})descontos?(?!\p{L})/iu],
-  ["oferta", /(?<!\p{L})ofertas?(?!\p{L})/iu],
-  ["grátis", /(?<!\p{L})(gr[áa]tis|gratuit[oa]s?)(?!\p{L})/iu],
-  ["garantimos", /(?<!\p{L})garantimos(?!\p{L})/iu],
-  ["prazo", /(?<!\p{L})prazos?(?!\p{L})/iu],
-];
-export function commitmentsIn(text: string) {
-  return COMMITMENTS.filter(([, re]) => re.test(text || "")).map(([key]) => key);
+// Ligações com qualquer terminação (com https://, www. ou só o domínio), além das de LINK_RE: um endereço plantado na
+// conversa ("seguro-lojadoouro.xyz/pagar") nunca segue numa sugestão.
+const SCHEME_LINK = /(?:https?:\/\/|www\.)[^\s<>"'«»()[\]]+/giu;
+const BARE_DOMAIN = /(?<![\p{L}\p{N}_.@/-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}(?![\p{L}\p{N}_@-])(?:[/:?#][^\s<>"'«»()[\]]*)?/giu;
+const linkNorm = (u: string) => u.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+const linkHost = (u: string) => linkNorm(u).split(/[/?#:]/)[0];
+function addressesIn(text: string) {
+  // Domínios de menos de 5 caracteres ("p.ex") são abreviaturas; os curtos verdadeiros ficam com LINK_RE.
+  const found = [...(text || "").matchAll(SCHEME_LINK), ...(text || "").matchAll(BARE_DOMAIN)]
+    .map((m) => m[0].replace(/[.,;:!?…]+$/, "")).filter((u) => linkHost(u).length >= 5);
+  return [...new Set([...found, ...linksIn(text || "")])];
+}
+// Ligações de uma sugestão que não estão na resposta da colaboradora nem na base de conhecimento (um domínio sozinho
+// basta que lá esteja).
+export function newLinks(suggestion: string, trusted: string) {
+  const known = addressesIn(trusted);
+  const urls = new Set(known.map(linkNorm)), hosts = new Set(known.map(linkHost));
+  return addressesIn(suggestion).filter((u) => {
+    const n = linkNorm(u);
+    return !(urls.has(n) || (n === linkHost(u) && hosts.has(n)));
+  });
 }
 
 export const DISCARD_REASONS = ["ligacao", "dados_novos", "compromisso", "marca", "dados_pessoais", "pt_br"] as const;
 export type DiscardReason = (typeof DISCARD_REASONS)[number];
 export const DISCARD_TEXT: Record<DiscardReason, string> = {
   ligacao: "A sugestão da IA foi retirada: acrescentava uma ligação que não está na sua resposta nem na base de conhecimento.",
-  dados_novos: "A sugestão da IA foi retirada: acrescentava números, datas, valores, contactos ou códigos que não estão na sua resposta nem na base de conhecimento.",
-  compromisso: "A sugestão da IA foi retirada: acrescentava um compromisso (reembolso, devolução, desconto, oferta, prazo…) que não está na sua resposta.",
+  dados_novos: "A sugestão da IA foi retirada: acrescentava números, valores, contactos ou códigos que não estão na sua resposta nem na base de conhecimento.",
+  compromisso: "A sugestão da IA foi retirada: acrescentava um compromisso ou uma data (reembolso, troca, desconto, oferta, amanhã, dias úteis…) que não está na sua resposta.",
   marca: "A sugestão da IA foi retirada: mencionava a outra marca.",
   dados_pessoais: "A sugestão da IA foi retirada: acrescentava dados pessoais ou de encomenda.",
   pt_br: "A sugestão da IA foi retirada: tinha expressões do português do Brasil.",
@@ -228,11 +315,27 @@ export function discardReason(o: {
   draft: string; suggestion: string; knowledge: string; site: SiteKey; portuguese: boolean; knowledgeFacts?: Set<string>;
 }): DiscardReason | null {
   const { draft, suggestion } = o;
-  if (unverifiedLinks(suggestion, `${draft}\n${o.knowledge}`).length) return "ligacao";
-  const known = new Set([...factsIn(draft), ...(o.knowledgeFacts ?? factsIn(o.knowledge))]);
+  const trusted = `${draft}\n${o.knowledge}`;
+  if (unverifiedLinks(suggestion, trusted).length || newLinks(suggestion, trusted).length) return "ligacao";
+  const mine = factsIn(draft), kb = o.knowledgeFacts ?? factsIn(o.knowledge);
+  const words = new Set(trusted.toUpperCase().match(/[\p{L}\p{N}]+/gu) || []);
+  // Um número específico (hora, valor, telefone) basta estar na base de conhecimento; um número pequeno ("2", "dois") só
+  // com a mesma palavra a seguir ("2 a 3 dias" não justifica "2 dias"). As maiúsculas contam se a palavra lá estiver.
+  const known = (f: string) => {
+    if (mine.has(f)) return true;
+    if (f.startsWith("s:")) return kb.has(`n:${f.slice(2)}`) || mine.has(`n:${f.slice(2)}`);
+    if (f.startsWith("n:")) {
+      const bar = f.indexOf("|");
+      if (bar < 0) return true;
+      const n = f.slice(2, bar);
+      return mine.has(`n:${n}`) || kb.has(`s:${n}`) || kb.has(f);
+    }
+    if (f.startsWith("u:")) return words.has(f.slice(2));
+    return kb.has(f);
+  };
   // As ligações já foram vistas: os números e códigos dentro delas não contam outra vez.
-  const withoutLinks = linksIn(suggestion).reduce((t, url) => t.split(url).join(" "), suggestion);
-  if ([...factsIn(withoutLinks)].some((f) => !known.has(f))) return "dados_novos";
+  const withoutLinks = addressesIn(suggestion).reduce((t, url) => t.split(url).join(" "), suggestion);
+  if ([...factsIn(withoutLinks)].some((f) => !known(f))) return "dados_novos";
   const promised = new Set(commitmentsIn(draft));
   if (commitmentsIn(suggestion).some((c) => !promised.has(c))) return "compromisso";
   if (otherBrandIn(suggestion, o.site) && !otherBrandIn(draft, o.site)) return "marca";
@@ -272,12 +375,20 @@ export const diffTokens = (s: string) => (s || "").match(TOKEN) || [];
 export function wordDiff(a: string, b: string, max = 600): DiffOp[] | null {
   const x = diffTokens(a), y = diffTokens(b);
   if (x.length > max || y.length > max) return null;
-  const key = (t: string) => t.trim();
+  // Cada palavra passa a um número (comparações rápidas: o painel compara respostas inteiras, até REVIEW_DIFF_MAX).
+  const ids = new Map<string, number>();
+  const id = (t: string) => {
+    const k = t.trim();
+    let v = ids.get(k);
+    if (v === undefined) ids.set(k, (v = ids.size));
+    return v;
+  };
+  const xi = x.map(id), yi = y.map(id);
   const n = x.length, m = y.length, w = m + 1;
   const lcs = new Uint16Array((n + 1) * w);
   for (let i = n - 1; i >= 0; i--)
     for (let j = m - 1; j >= 0; j--)
-      lcs[i * w + j] = key(x[i]) === key(y[j]) ? lcs[(i + 1) * w + j + 1] + 1 : Math.max(lcs[(i + 1) * w + j], lcs[i * w + j + 1]);
+      lcs[i * w + j] = xi[i] === yi[j] ? lcs[(i + 1) * w + j + 1] + 1 : Math.max(lcs[(i + 1) * w + j], lcs[i * w + j + 1]);
   const ops: DiffOp[] = [];
   const push = (t: DiffOp["t"], s: string) => {
     const last = ops[ops.length - 1];
@@ -286,7 +397,7 @@ export function wordDiff(a: string, b: string, max = 600): DiffOp[] | null {
   };
   let i = 0, j = 0;
   while (i < n && j < m) {
-    if (key(x[i]) === key(y[j])) {
+    if (xi[i] === yi[j]) {
       push("eq", y[j]);
       i++;
       j++;
@@ -310,6 +421,26 @@ export function changedShare(ops: DiffOp[]) {
 }
 // Acima disto a sugestão não segue com um clique: a colaboradora tem de a editar.
 export const REVIEW_MAX_CHANGE = 0.4;
+// Palavras comparadas no painel: chega para uma resposta de REVIEW_MAX_CHARS (cerca de 750 palavras) e a sugestão
+// (matriz de até 1,4 M posições, poucos ms).
+export const REVIEW_DIFF_MAX = 1200;
+
+// A proposta da IA continua na resposta enviada (igual, acrescentada a outro texto ou com poucas alterações)? Se não,
+// a resposta não fica ligada a ela.
+export function draftStillUsed(aiText: string, body: string) {
+  const a = normalizeForHash(aiText), b = normalizeForHash(body);
+  if (!a || !b) return false;
+  if (b.includes(a)) return true;
+  const ops = wordDiff(a, b, REVIEW_DIFF_MAX);
+  return Boolean(ops) && changedShare(ops!) <= REVIEW_MAX_CHANGE;
+}
+
+// A resposta da colaboradora vai para a IA com < e > trocados por ‹ e › (untrusted): se o original os tinha, voltam na
+// sugestão (o cliente nunca recebe ‹3 em vez de <3).
+export function restoreAngles(suggestion: string, draft: string) {
+  if (!/[<>]/.test(draft) || /[‹›]/.test(draft)) return suggestion;
+  return suggestion.replace(/‹/g, "<").replace(/›/g, ">");
+}
 
 // ---------------------------------------------------------------- escolha ao enviar
 
@@ -357,6 +488,22 @@ export function needsTuning(s: Pick<ReviewStats, "sugestao" | "decididas">) {
 }
 
 // ---------------------------------------------------------------- pedido à IA
+
+// Recusas de ldo_support_ai_review_begin que querem dizer "revisão desligada" (texto igual ao da BD): não são falhas, e
+// o browser deixa de pedir revisões até recarregar a página.
+export const REVIEW_OFF = {
+  modo: "A revisão da IA está desligada na configuração do apoio.",
+  pessoa: "Desligou a revisão das suas respostas.",
+} as const;
+
+// Custo de uma revisão interrompida (a Anthropic pode cobrar o pedido já processado), por excesso: 3 caracteres por
+// token, a base de conhecimento como escrita na cache de 1 h e 300 tokens de saída.
+export function interruptedCost(model: string, chars: { prompt: number; knowledge: number }) {
+  return costUsd([{
+    model, input_tokens: Math.ceil(chars.prompt / 3), output_tokens: 300,
+    cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: Math.ceil(chars.knowledge / 3) },
+  }], model);
+}
 
 export type ReviewBegin = {
   id: string;

@@ -95,6 +95,12 @@ test("Brazilian Portuguese signals: the spec cases, plus Portuguese words with �
   assert.equal(r.portugueseText("Bonjour, nous avons le même modèle."), false);
   assert.equal(r.portugueseText("Olá", "en"), false, "língua do site");
   assert.equal(r.portugueseText("Olá", "pt"), true);
+  // Palavras de Portugal com ê/ô antes de m ou n, e palavras em -ando/-endo que não são gerúndios.
+  for (const ok of ["O seu cônjuge pode levantar a encomenda.", "Dor de estômago", "Os cônjuges", "o cônsul", "côncava", "as têmporas", "êmbolo", "tômbola",
+    "Vou quando puder.", "Estamos quando abrir.", "Está estupendo!", "Está tremendo.", "Está horrendo."])
+    assert.deepEqual(r.ptBrSignals(ok), [], ok);
+  assert.deepEqual(r.ptBrSignals("Vou quando puder, mas estou verificando."), ["estou verificando"]);
+  assert.deepEqual(r.localReviewProblems("Olá Ana, o seu cônjuge pode levantar a encomenda quando quiser.", { site: null, locale: null }), []);
 });
 
 test("Local checks on the colleague's reply: Brazilian Portuguese and, in site chat, the other brand", () => {
@@ -131,6 +137,26 @@ test("Word diff (longest common subsequence) rebuilds both texts and measures ho
   const long = Array.from({ length: 601 }, (_, i) => `p${i}`).join(" ");
   assert.equal(r.wordDiff(long, "curto"), null);
   assert.ok(r.wordDiff(Array.from({ length: 600 }, (_, i) => `p${i}`).join(" "), "curto"));
+  // No painel compara-se até REVIEW_DIFF_MAX: uma resposta no limite da revisão tem sempre diferenças.
+  const email = "Obrigado pela sua mensagem sobre a encomenda que fez na nossa loja online. ".repeat(53).trim();
+  assert.ok(email.length <= r.REVIEW_MAX_CHARS && email.length > 3900);
+  const big = r.wordDiff(email, `Bom dia, ${email}`, r.REVIEW_DIFF_MAX);
+  assert.ok(big && r.changedShare(big) < r.REVIEW_MAX_CHANGE, "só acrescenta \"Bom dia,\"");
+});
+
+test("Helpers: the AI draft still in the reply, and < > back in the suggestion", () => {
+  assert.equal(r.draftStillUsed("Olá Ana, a encomenda segue amanhã.", "Olá Ana, a encomenda segue amanhã."), true);
+  assert.equal(r.draftStillUsed("Olá Ana, a encomenda segue amanhã.", "Bom dia!\n\nOlá Ana, a encomenda segue amanhã."), true, "acrescentada");
+  assert.equal(r.draftStillUsed("Olá Ana, a encomenda segue amanhã por CTT.", "Olá Ana, a encomenda segue hoje por CTT."), true, "poucas alterações");
+  assert.equal(r.draftStillUsed("Olá Ana, a encomenda segue amanhã.", "Boa tarde, vou ver com o armazém e digo-lhe algo."), false, "reescrita");
+  assert.equal(r.draftStillUsed("", "Olá"), false);
+  assert.equal(r.restoreAngles("Olá Ana ‹3 Preço › 50 €", "Olá Ana <3 preço > 50 €"), "Olá Ana <3 Preço > 50 €");
+  assert.equal(r.restoreAngles("Olá ‹b›", "Olá, sem sinais"), "Olá ‹b›", "só se o original os tinha");
+  assert.equal(r.restoreAngles("‹ e <", "‹ e <"), "‹ e <", "o original já tinha ‹ ›");
+  // Uma revisão interrompida conta para o orçamento (por excesso).
+  const cost = r.interruptedCost("claude-haiku-5-5", { prompt: 9000, knowledge: 30000 });
+  assert.ok(cost > 0 && cost < 0.01, String(cost));
+  assert.ok(r.interruptedCost("claude-sonnet-5-5", { prompt: 9000, knowledge: 30000 }) > cost);
 });
 
 test("Changed numbers are flagged; the same time or amount written differently is not", () => {
@@ -139,6 +165,12 @@ test("Changed numbers are flagged; the same time or amount written differently i
   assert.equal(r.numbersChanged("Chega em 3 dias.", "Chega em 30 dias."), true);
   assert.equal(r.numbersChanged("Chega dia 1/11.", "Chega dia 2/11."), true);
   assert.equal(r.numbersChanged("Sem números.", "Com 1 número."), true);
+  // Números por extenso e datas também.
+  assert.equal(r.numbersChanged("Chega em 2 dias.", "Chega em dois dias."), false);
+  assert.equal(r.numbersChanged("Chega em 2 dias.", "Chega em três dias."), true);
+  assert.equal(r.numbersChanged("Enviamos hoje.", "Enviamos amanhã."), true);
+  assert.equal(r.numbersChanged("Vamos verificar.", "Vamos verificar e damos notícias na segunda-feira."), true);
+  assert.equal(r.numbersChanged("Tenha um bom dia.", "Tenha uma boa semana."), false, "despedidas não são prazos");
 });
 
 // ---------------------------------------------------------------- sugestões retiradas
@@ -166,6 +198,60 @@ test("A suggestion is dropped (problems kept) when it adds facts, commitments, l
   assert.equal(reason("Olá Maria! A loja abre às 9h30 e fecha às 19h.", { knowledgeFacts: r.factsIn(knowledge) }), null);
   assert.deepEqual(r.commitmentsIn("Fazemos a devolução e o reembolso; é grátis e sem prazos."), ["reembolso", "devolução", "grátis", "prazo"]);
   for (const k of r.DISCARD_REASONS) assert.match(r.DISCARD_TEXT[k], /^A sugestão da IA foi retirada: /);
+});
+
+test("A suggestion is dropped when it adds deadlines, dates, numbers in words, other commitments or letter-only codes", () => {
+  const draft = "Olá Ana, vamos verificar a sua encomenda e depois damos notícias.";
+  const knowledge = "Envios: 2 a 3 dias úteis. Portes grátis acima de 50 €. Horário: 09h30-19h00.";
+  const reason = (suggestion, extra = {}) => r.discardReason({ draft, suggestion, knowledge, site: "ldo", portuguese: true, ...extra });
+  for (const [s, why] of [
+    ["Olá Ana, vamos verificar a sua encomenda e enviamos amanhã.", "compromisso"],
+    ["Olá Ana, vamos verificar a sua encomenda e hoje mesmo damos notícias.", "compromisso"],
+    ["Olá Ana, a encomenda chega na segunda-feira.", "compromisso"],
+    ["Olá Ana, a encomenda chega na sexta.", "compromisso"],
+    ["Olá Ana, a encomenda chega em novembro.", "compromisso"],
+    ["Olá Ana, a encomenda segue esta semana.", "compromisso"],
+    ["Olá Ana, segue em dias úteis.", "compromisso"],
+    ["Olá Ana, damos notícias dentro de horas.", "compromisso"],
+    ["Olá Ana, a encomenda segue em dois dias úteis.", "dados_novos"],
+    ["Olá Ana, damos-lhe metade do valor de volta.", "dados_novos"],
+    ["Olá Ana, trocamos a peça sem custos.", "compromisso"],
+    ["Olá Ana, o vale de compras segue em breve.", "compromisso"],
+    ["Olá Ana, vamos verificar; o envio é sem qualquer custo.", "compromisso"],
+    ["Olá Ana, damos uma compensação.", "compromisso"],
+    ["Olá Ana, a peça está na garantia.", "compromisso"],
+    ["Olá Ana, devolvemos o valor.", "compromisso"],
+    ["Olá Ana, use o código BEMVINDO na próxima compra.", "dados_novos"],
+    ["Olá Ana, use o código BEMVINDO10 na próxima compra.", "dados_novos"],
+  ]) assert.equal(reason(s), why, s);
+  // Um número pequeno da base de conhecimento só vale com a mesma palavra a seguir.
+  assert.equal(r.discardReason({ draft: "O envio demora 3 dias.", suggestion: "O envio demora 2 dias.", knowledge, site: "ldo", portuguese: true }), "dados_novos");
+  assert.equal(reason("Olá Ana, vamos verificar; os envios demoram 2 a 3 dias úteis.", { draft: `${draft} Os envios demoram 2 a 3 dias úteis.` }), null);
+  assert.equal(reason("Olá Ana! Vamos verificar a sua encomenda; os envios demoram três dias úteis.", { draft: "Olá Ana, vamos verificar a sua encomenda; os envios demoram 3 dias úteis." }), null, "por extenso");
+  assert.equal(reason("Olá Ana! Os portes são grátis acima de 50 €.", { draft: "Olá Ana, os portes são grátis acima de 50 euros." }), null, "50 € da base");
+  assert.equal(reason("Olá Ana! A loja fecha às 19h.", { draft: "Olá Ana, a loja fecha ao fim do dia." }), null, "hora da base");
+  // O que já está na resposta, as despedidas e as palavras em maiúsculas da resposta ou da base não contam.
+  assert.equal(reason("Olá Ana! Vamos verificar a sua encomenda e amanhã damos notícias.", { draft: "Olá Ana, vamos verificar a sua encomenda e amanhã damos notícias" }), null);
+  assert.equal(reason("Olá Ana! Vamos verificar a sua encomenda e depois damos notícias. Tenha uma boa semana!"), null);
+  assert.equal(reason("Olá Ana! Vale a pena esperar: vamos verificar a sua encomenda e depois damos notícias."), null);
+  assert.equal(reason("Olá Ana! IMPORTANTE: vamos verificar a sua encomenda.", { draft: "Olá Ana, importante: vamos verificar a sua encomenda." }), null);
+  assert.equal(reason("Olá Ana! Pode pagar por MBWAY ou PAYPAL; vamos verificar a sua encomenda."), null, "meios de pagamento");
+  // Em inglês (Gold Store Premium) também.
+  assert.equal(reason("Hello Ana, we will ship it tomorrow.", { draft: "Hello Ana, we will check your order.", site: "gsp", portuguese: false }), "compromisso");
+  assert.equal(reason("Hello Ana, we will refund you.", { draft: "Hello Ana, we will check your order.", site: "gsp", portuguese: false }), "compromisso");
+});
+
+test("A suggestion is dropped when it adds a link with any ending (an address planted in the conversation)", () => {
+  const draft = "Olá Ana, pode pagar na loja online.";
+  const knowledge = "Loja online: https://www.lojadoouro.pt/pages/envios";
+  const reason = (suggestion) => r.discardReason({ draft, suggestion, knowledge, site: "ldo", portuguese: true });
+  for (const s of ["Olá Ana, use https://seguro-lojadoouro.xyz/pagar", "Olá Ana, use https://lojadoouro.click/pagar", "Olá Ana, use www.lojadoouro.top",
+    "Olá Ana, pague em lojadoouro-pagamentos.top/checkout.", "Olá Ana, use HTTPS://LojaDoOuro.Shop.Click/x", "Olá Ana, veja https://www.lojadoouro.pt/pagar"])
+    assert.equal(reason(s), "ligacao", s);
+  assert.equal(reason("Olá Ana, pode pagar em lojadoouro.pt."), null, "domínio da base de conhecimento");
+  assert.equal(reason("Olá Ana, veja https://www.lojadoouro.pt/pages/envios."), null);
+  assert.equal(reason("Olá Ana, pode pagar na loja online, p.ex. com cartão."), null, "abreviaturas não são ligações");
+  assert.deepEqual(r.newLinks("Veja seguro.xyz e apoio@lojadoouro.pt", "lojadoouro.pt"), ["seguro.xyz"], "emails não são ligações");
 });
 
 // ---------------------------------------------------------------- escolha ao enviar
