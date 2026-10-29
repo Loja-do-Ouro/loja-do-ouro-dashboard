@@ -367,6 +367,8 @@ export function SupportInbox({
   // Proposta da IA posta no campo com "Usar na resposta" (id e texto), por conversa.
   const aiDraftRef = useRef<Record<string, { id: string; text: string }>>({});
   const reviewPanelRef = useRef<HTMLDivElement>(null);
+  // Revisão cujo painel acabou de aparecer na conversa à vista (só esse recebe o foco).
+  const focusPanel = useRef<string | null>(null);
   const [sendError, setSendError] = useState("");
   // O aviso "emoji não inserido" deixa de valer quando o texto muda ou se troca de conversa ou separador.
   const clearEmojiLimit = () => setSendError((e) => (/^Limite de \d+ caracteres atingido: o emoji/.test(e) ? "" : e));
@@ -916,6 +918,8 @@ export function SupportInbox({
       // O texto fica como foi revisto: sem emojis nem produtos acrescentados a meio.
       setShowEmoji(false);
       setShowCatalog(false);
+      // O botão Enviar dá lugar a "Enviar sem revisão": o foco fica no campo de resposta (só de leitura).
+      focusComposer();
     }
     let next: Outgoing | null = null;
     try {
@@ -938,6 +942,7 @@ export function SupportInbox({
         else {
           const sugestao = r.sugestao;
           const diff = sugestao ? wordDiff(out.body, sugestao, REVIEW_DIFF_MAX) : null;
+          if (selectedRef.current === id) focusPanel.current = reviewId;
           setReviewPanels((p) => ({
             ...p,
             [id]: {
@@ -983,6 +988,8 @@ export function SupportInbox({
       id, which: "reply", body, uploads: (pendingRef.current[p.slot] || []).map((u) => u.id), slot: p.slot, draftWas: body, nome: p.nome,
       review: { id: p.id }, ...(aiDraft && draftStillUsed(aiDraft.text, body) ? { aiDraftId: aiDraft.id } : {}),
     });
+    // O botão desaparece com o painel: o foco volta ao campo de resposta.
+    focusComposer();
   }
   function panelEdit(p: ReviewPanel) {
     if (!selected) return;
@@ -995,9 +1002,13 @@ export function SupportInbox({
     closePanel(selected);
     focusComposer();
   }
-  // O painel recebe o foco ao aparecer (o Esc fecha-o).
+  // O painel recebe o foco quando acaba de aparecer na conversa que está à vista e o foco estava no campo de resposta (o
+  // Esc fecha-o); ao abrir na lista uma conversa com um painel guardado, o foco fica onde estava.
   useEffect(() => {
-    if (panel) reviewPanelRef.current?.focus({ preventScroll: true });
+    if (!panel || focusPanel.current !== panel.id) return;
+    focusPanel.current = null;
+    const active = document.activeElement;
+    if (!active || active === document.body || active.closest(".support-composer")) reviewPanelRef.current?.focus({ preventScroll: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panel?.id]);
 
@@ -1412,6 +1423,10 @@ export function SupportInbox({
                   }
                 } : undefined}
               >
+                {/* Região viva sempre presente (os leitores de ecrã anunciam a mudança do texto, não um elemento novo). */}
+                <p className="sr-only" role="status" aria-live="polite">
+                  {mode !== "reply" ? "" : reviewingHere ? "A rever a resposta com a IA…" : panel ? "A IA sugere melhorar esta resposta." : !sendError ? reviewNote : ""}
+                </p>
                 {/* Parte de cima com scroll; os botões ficam sempre à vista por baixo (nunca por cima do texto). */}
                 <div className="composer-scroll">
                 <div className="composer-tabs" role="tablist">
@@ -1461,12 +1476,18 @@ export function SupportInbox({
                               onClick={() => setReviewPanels((p) => (selected && p[selected] ? { ...p, [selected]: { ...p[selected], ver: "sugestao" } } : p))}>Ver só a sugestão</button>
                           </div>
                         )}
+                        {/* <del>/<ins> não são anunciados pelos leitores de ecrã: o texto escondido diz o que sai e o que entra. */}
                         {panel.ver === "diff" && panel.diff ? (
-                          <p className="review-text review-diff" aria-label="Sugestão com as diferenças: riscado sai, sublinhado entra">
-                            {panel.diff.map((op, i) => (op.t === "eq" ? <span key={i}>{op.s}</span> : op.t === "del" ? <del key={i}>{op.s}</del> : <ins key={i}>{op.s}</ins>))}
-                          </p>
+                          <>
+                            <p className="review-legend">Diferenças: riscado sai, sublinhado entra.</p>
+                            <p className="review-text review-diff">
+                              {panel.diff.map((op, i) => (op.t === "eq" ? <span key={i}>{op.s}</span>
+                                : op.t === "del" ? <del key={i}><span className="sr-only">[sai: </span>{op.s}<span className="sr-only">] </span></del>
+                                : <ins key={i}><span className="sr-only">[entra: </span>{op.s}<span className="sr-only">] </span></ins>))}
+                            </p>
+                          </>
                         ) : (
-                          <p className="review-text" aria-label="Sugestão da IA">{panel.sugestao}</p>
+                          <p className="review-text"><span className="sr-only">Sugestão da IA: </span>{panel.sugestao}</p>
                         )}
                         {panel.muda && <p className="review-warning">A sugestão muda muito o texto: edite-a antes de enviar.</p>}
                         {panel.longa && <p className="review-warning">Resposta longa: as diferenças não foram marcadas. Edite a sugestão antes de enviar.</p>}
@@ -1545,21 +1566,25 @@ export function SupportInbox({
                     <div className="composer-actions review-actions">
                       {sendError && <span className="support-error" role="alert">{sendError}</span>}
                       <button type="button" className="secondary-button" onClick={panelCancel} title="Fecha a revisão e volta ao texto (Esc)">Cancelar</button>
-                      <button type="button" className="secondary-button" onClick={() => panelEdit(panel)}>{panel.sugestao ? "Editar a sugestão" : "Editar a resposta"}</button>
-                      <button type="button" className={panelReady ? "secondary-button" : ""} disabled={sending} onClick={() => panelSend(panel, "propria")}>Enviar a minha versão</button>
-                      {panelReady && (
+                      {/* Ação principal: "Enviar a sugestão" quando pode seguir com um clique; senão, editar (a IA encontrou
+                          problemas e a sugestão só segue editada, ou não há sugestão). */}
+                      {panelReady && <button type="button" className="secondary-button" onClick={() => panelEdit(panel)}>Editar a sugestão</button>}
+                      <button type="button" className="secondary-button" disabled={sending} onClick={() => panelSend(panel, "propria")}>Enviar a minha versão</button>
+                      {panelReady ? (
                         <button type="button" disabled={sending} onClick={() => panelSend(panel, "sugestao")}>Enviar a sugestão</button>
+                      ) : (
+                        <button type="button" onClick={() => panelEdit(panel)}>{panel.sugestao ? "Editar a sugestão" : "Editar a resposta"}</button>
                       )}
                     </div>
                   ) : reviewingHere && mode === "reply" ? (
                     <div className="composer-actions">
-                      <span className="review-running" role="status">A rever a resposta com a IA…</span>
-                      <button type="button" className="secondary-button" onClick={() => selected && reviewing[selected]?.skip()}>Enviar sem revisão</button>
+                      <span className="review-running">A rever a resposta com a IA…</span>
+                      <button type="button" className="secondary-button" onClick={() => { if (selected) reviewing[selected]?.skip(); focusComposer(); }}>Enviar sem revisão</button>
                     </div>
                   ) : (
                     <div className="composer-actions">
                       {sendError && <span className="support-error" role="alert">{sendError}</span>}
-                      {!sendError && reviewNote && <span className="support-note" role="status">{reviewNote}</span>}
+                      {!sendError && reviewNote && <span className="support-note">{reviewNote}</span>}
                       <input
                         ref={fileInput}
                         type="file"

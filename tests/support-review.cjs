@@ -407,6 +407,28 @@ test("A reply reviewed in the background never ends up invisible, lost or sent t
   assert.ok(inbox.includes("aborts.forEach((abort) => abort());"));
 });
 
+test("The review panel works with a keyboard and a screen reader", () => {
+  const inbox = read("components/support/inbox.tsx");
+  // Região viva sempre presente; os textos visíveis já não têm role="status" (sem anúncios a dobrar).
+  assert.ok(inbox.includes('<p className="sr-only" role="status" aria-live="polite">'));
+  assert.ok(inbox.includes('<span className="review-running">A rever a resposta com a IA…</span>'));
+  assert.ok(inbox.includes('{!sendError && reviewNote && <span className="support-note">{reviewNote}</span>}'));
+  assert.ok(read("app/(painel)/globals.css").includes(".sr-only {"));
+  // Diferenças anunciadas ("[sai: …]", "[entra: …]") e legenda visível em vez de aria-label num <p>.
+  assert.ok(inbox.includes('<span className="sr-only">[sai: </span>') && inbox.includes('<span className="sr-only">[entra: </span>'));
+  assert.ok(inbox.includes("Diferenças: riscado sai, sublinhado entra."));
+  assert.ok(!/<p className="review-text[^"]*" aria-label=/.test(inbox));
+  // Foco: volta ao campo de resposta depois de enviar pelo painel ou "Enviar sem revisão"; o painel só puxa o foco
+  // quando acaba de aparecer na conversa à vista.
+  const panelSend = inbox.slice(inbox.indexOf("function panelSend("), inbox.indexOf("function panelEdit("));
+  assert.ok(panelSend.includes("focusComposer();"));
+  assert.ok(inbox.includes("reviewing[selected]?.skip(); focusComposer();"));
+  assert.ok(inbox.includes("if (!panel || focusPanel.current !== panel.id) return;"));
+  // Sem sugestão que siga com um clique, a ação principal é editar; "Enviar a minha versão" é sempre secundária.
+  assert.ok(inbox.includes('<button type="button" className="secondary-button" disabled={sending} onClick={() => panelSend(panel, "propria")}>Enviar a minha versão</button>'));
+  assert.ok(inbox.includes('<button type="button" onClick={() => panelEdit(panel)}>{panel.sugestao ? "Editar a sugestão" : "Editar a resposta"}</button>'));
+});
+
 test("During the review nothing changes the reply behind the colleague's back", () => {
   const inbox = read("components/support/inbox.tsx");
   const run = inbox.slice(inbox.indexOf("async function runReview("), inbox.indexOf("// Painel da revisão: a escolha"));
