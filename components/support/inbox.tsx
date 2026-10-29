@@ -36,8 +36,8 @@ import {
 } from "@/lib/support/rules";
 import { COMMENT_MAX_CHARS, isCommentChannel, POST_KIND_LABEL, POST_KIND_TITLE, publicReplyRisks, type CommentChannel, type PostKind } from "@/lib/support/comment-rules";
 import {
-  changedShare, DISCARD_TEXT, localReviewProblems, mergeProblems, numbersChanged, REVIEW_CLIENT_TIMEOUT_MS, REVIEW_MAX_CHANGE, shouldReview, wordDiff,
-  type DiffOp, type DiscardReason, type ReviewProblem, type ReviewTag,
+  changedShare, DISCARD_TEXT, draftStillUsed, localReviewProblems, mergeProblems, numbersChanged, REVIEW_CLIENT_TIMEOUT_MS, REVIEW_DIFF_MAX,
+  REVIEW_MAX_CHANGE, shouldReview, wordDiff, type DiffOp, type DiscardReason, type ReviewProblem, type ReviewTag,
 } from "@/lib/support/review-rules";
 
 type Source = { id: string; platform: string; channel: Channel; label: string; status: string; status_detail: string | null; last_success_at: string | null; last_attempt_at: string | null; last_error: string | null };
@@ -226,10 +226,11 @@ type ReviewResult =
   | { id: string; falhou: "timeout" | "erro"; motivo: string }
   // Desligada depois de a página abrir (configuração ou preferência): segue sem revisão e sem aviso.
   | { id: string; falhou: "desligada"; quem: "modo" | "pessoa" };
-// Painel da revisão de uma conversa: fica guardado e volta a aparecer quando se regressa à conversa.
+// Painel da revisão de uma conversa: fica guardado e volta a aparecer quando se regressa à conversa. A sugestão só segue
+// editada se mudar muito o texto (muda), se não houver diferenças marcadas (longa) ou se passar o limite do comentário.
 type ReviewPanel = {
   id: string; slot: string; body: string; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null;
-  diff: DiffOp[] | null; muda: boolean; numeros: boolean; ver: "diff" | "sugestao";
+  diff: DiffOp[] | null; muda: boolean; longa: boolean; limite: number | null; numeros: boolean; ver: "diff" | "sugestao";
 };
 // Um envio com tudo o que é preciso (a conversa pode já não ser a que está aberta). draftWas: o rascunho que o originou,
 // que só se apaga se ainda for esse.
@@ -599,6 +600,11 @@ export function SupportInbox({
   // Revisão da IA desta conversa: em curso (o texto fica só de leitura) ou painel aberto (no separador da resposta).
   const reviewingHere = Boolean(selected && reviewing[selected]);
   const panel = selected && mode === "reply" ? reviewPanels[selected] : undefined;
+  // A sugestão pode seguir com um clique (senão, só editada).
+  const panelReady = Boolean(panel?.sugestao && !panel.muda && !panel.longa && panel.limite === null);
+  // Resposta desta conversa em revisão ou à espera da escolha: nada muda o rascunho da resposta por outros caminhos.
+  const replyHeld = Boolean(selected && (reviewing[selected] || reviewPanels[selected]));
+  const REPLY_HELD = "Termine primeiro a revisão da IA da resposta (enviar, editar ou cancelar).";
   const reviewNote = (selected && reviewNotes[selected]) || "";
   const slotOf = (id: string, m: "reply" | "note") => `${id}:${m}`;
   // Anexos por enviar no momento do envio (um envio depois da revisão corre já com outra renderização).
@@ -651,7 +657,7 @@ export function SupportInbox({
   };
 
   function insertEmoji(char: string, viaMouse: boolean) {
-    if (!selected) return;
+    if (!selected || (mode === "reply" && replyHeld)) return;
     const slot = slotOf(selected, mode);
     const at = caret.current && caret.current.slot === slot && caret.current.text === text ? caret.current : { start: text.length, end: text.length };
     const next = insertAt(text, at.start, at.end, emojiAfter(text.slice(0, Math.min(at.start, at.end)), char));
@@ -757,6 +763,10 @@ export function SupportInbox({
   // aiId: a proposta usada. A resposta enviada fica ligada a ela e, se seguir sem alterações, não volta a ser revista.
   const useAiDraft = (value: string, how: "replace" | "append", aiId?: string) => {
     if (!selected) return;
+    if (replyHeld) {
+      setSendError(REPLY_HELD);
+      return;
+    }
     const current = drafts[selected]?.reply || "";
     if (how === "replace" && current.trim() && current.trim() !== value.trim() && !confirm("Substituir o texto que já está no campo de resposta pela proposta da IA?")) return;
     setDraft(selected, "reply", how === "append" && current.trim() ? `${current.replace(/\s+$/, "")}\n\n${value}` : value);
@@ -830,7 +840,8 @@ export function SupportInbox({
   // Revisão da IA antes de enviar. Nunca impede o envio: sem resposta em 10 s, com erro ou com "Enviar sem revisão", a
   // resposta segue; aprovada, segue logo (também se entretanto se mudou de conversa). Com sugestão, fica um painel
   // guardado nesta conversa.
-  async function runReview(out: Outgoing, local: { site: SiteKey | null; locale: SiteLocale | null }) {
+  // local.limit: limite de caracteres de um comentário público (uma sugestão maior não se publica com um clique).
+  async function runReview(out: Outgoing, local: { site: SiteKey | null; locale: SiteLocale | null; limit: number | null }) {
     const { id } = out;
     const reviewId = crypto.randomUUID();
     const controller = new AbortController();
@@ -868,12 +879,14 @@ export function SupportInbox({
         if (r.veredicto === "aprovada" && !problemas.length) next = { ...out, review: { id: reviewId }, note: REVIEW_OK };
         else {
           const sugestao = r.sugestao;
-          const diff = sugestao ? wordDiff(out.body, sugestao) : null;
+          const diff = sugestao ? wordDiff(out.body, sugestao, REVIEW_DIFF_MAX) : null;
           setReviewPanels((p) => ({
             ...p,
             [id]: {
               id: reviewId, slot: out.slot, body: out.body, problemas, sugestao, descartada: r.descartada, diff,
-              muda: Boolean(sugestao) && (!diff || changedShare(diff) > REVIEW_MAX_CHANGE),
+              muda: Boolean(diff) && changedShare(diff!) > REVIEW_MAX_CHANGE,
+              longa: Boolean(sugestao) && !diff,
+              limite: sugestao && local.limit !== null && sugestao.trim().length > local.limit ? local.limit : null,
               numeros: Boolean(sugestao) && numbersChanged(out.body, sugestao || ""), ver: diff ? "diff" : "sugestao",
             },
           }));
@@ -888,7 +901,8 @@ export function SupportInbox({
       reviewingRef.current.delete(id);
       setReviewing((r) => omit(r, id));
     }
-    if (next) await deliver(next);
+    // Os anexos como estão agora (um anexo retirado durante a revisão não segue).
+    if (next) await deliver({ ...next, uploads: (pendingRef.current[out.slot] || []).map((u) => u.id) });
   }
 
   // Painel da revisão: a escolha da colaboradora. A sugestão passa primeiro para o rascunho (se o envio falhar, fica lá).
@@ -897,13 +911,15 @@ export function SupportInbox({
   function panelSend(p: ReviewPanel, what: "sugestao" | "propria") {
     if (!selected) return;
     const id = selected;
+    // Uma sugestão que só segue editada (muito diferente, sem diferenças marcadas ou acima do limite) não sai daqui.
+    if (what === "sugestao" && (!p.sugestao || p.muda || p.longa || p.limite !== null)) return;
     const body = what === "sugestao" && p.sugestao ? p.sugestao.trim() : p.body;
     closePanel(id);
     if (body !== p.body) setDraft(id, "reply", body);
     const aiDraft = aiDraftRef.current[id];
     deliver({
       id, which: "reply", body, uploads: (pendingRef.current[p.slot] || []).map((u) => u.id), slot: p.slot, draftWas: body,
-      review: { id: p.id }, ...(aiDraft ? { aiDraftId: aiDraft.id } : {}),
+      review: { id: p.id }, ...(aiDraft && draftStillUsed(aiDraft.text, body) ? { aiDraftId: aiDraft.id } : {}),
     });
   }
   function panelEdit(p: ReviewPanel) {
@@ -946,12 +962,13 @@ export function SupportInbox({
     const retry = Boolean(prev && prev.body === body + "|" + uploads.join(","));
     const aiDraft = which === "reply" ? aiDraftRef.current[id] : undefined;
     const reviewed = reviewCycle.current[slot];
+    // A resposta só fica ligada à proposta da IA se ainda a tiver (igual, acrescentada ou com poucas alterações).
     const out: Outgoing = {
       id, which, body, uploads, slot, draftWas: body,
-      ...(reviewed ? { review: { id: reviewed } } : {}), ...(aiDraft ? { aiDraftId: aiDraft.id } : {}),
+      ...(reviewed ? { review: { id: reviewed } } : {}), ...(aiDraft && draftStillUsed(aiDraft.text, body) ? { aiDraftId: aiDraft.id } : {}),
     };
     if (shouldReview({ which, mode: reviewMode, pref: reviewPref, body, retry, aiDraft: aiDraft?.text ?? null, reviewed: Boolean(reviewed) }))
-      return runReview(out, { site: site?.site ?? null, locale: site?.locale ?? null });
+      return runReview(out, { site: site?.site ?? null, locale: site?.locale ?? null, limit: publicReply ? maxChars : null });
     return deliver(out);
   }
 
@@ -1261,6 +1278,11 @@ export function SupportInbox({
                             <button
                               type="button"
                               onClick={() => {
+                                // O texto volta ao rascunho da resposta: não durante a revisão da IA (ficava escondido).
+                                if (m.kind !== "note" && replyHeld) {
+                                  setActionError(REPLY_HELD);
+                                  return;
+                                }
                                 if (confirm("Confirma que verificou na plataforma e a mensagem NÃO foi enviada? O texto volta ao rascunho."))
                                   act({ action: "not_sent", messageId: m.id }, () => {
                                     setMode(m.kind === "note" ? "note" : "reply");
@@ -1273,7 +1295,15 @@ export function SupportInbox({
                           </>
                         )}
                         {m.delivery === "failed" && m.author_user_id === c.me && (
-                          <button type="button" onClick={() => { const which = m.kind === "note" ? "note" : "reply"; setMode(which); setDraft(selected!, which, m.body); }}>Copiar para o rascunho</button>
+                          <button type="button" onClick={() => {
+                            const which = m.kind === "note" ? "note" : "reply";
+                            if (which === "reply" && replyHeld) {
+                              setActionError(REPLY_HELD);
+                              return;
+                            }
+                            setMode(which);
+                            setDraft(selected!, which, m.body);
+                          }}>Copiar para o rascunho</button>
                         )}
                       </footer>
                     )}
@@ -1284,7 +1314,7 @@ export function SupportInbox({
               </div>
 
               {/* Entre as mensagens e a caixa de resposta: no telemóvel ocupa o lugar das mensagens, não o do texto. */}
-              {showEmoji && !(mode === "reply" ? replyBlocked : noteBlocked) && <EmojiPicker onPick={insertEmoji} onClose={closeEmoji} />}
+              {showEmoji && !(mode === "reply" ? replyBlocked || replyHeld : noteBlocked) && <EmojiPicker onPick={insertEmoji} onClose={closeEmoji} />}
               <div
                 className={`support-composer ${mode}${publicReply ? " public" : ""}${panel ? " reviewing" : ""}`}
                 onKeyDown={panel ? (e) => {
@@ -1351,6 +1381,8 @@ export function SupportInbox({
                           <p className="review-text" aria-label="Sugestão da IA">{panel.sugestao}</p>
                         )}
                         {panel.muda && <p className="review-warning">A sugestão muda muito o texto: edite-a antes de enviar.</p>}
+                        {panel.longa && <p className="review-warning">Resposta longa: as diferenças não foram marcadas. Edite a sugestão antes de enviar.</p>}
+                        {panel.limite !== null && <p className="review-warning">A sugestão passa o limite de {panel.limite} caracteres de um comentário: edite-a antes de publicar.</p>}
                         {panel.numeros && <p className="review-warning">A sugestão altera números ou datas: confirme antes de enviar.</p>}
                       </>
                     )}
@@ -1408,7 +1440,8 @@ export function SupportInbox({
                           <li key={u.id}>
                             {u.preview ? <img src={u.preview} alt="" /> : <span aria-hidden="true">📄</span>}
                             <span>{u.name}<small> · {sizeLabel(u.size)}</small></span>
-                            <button type="button" aria-label={`Retirar ${u.name}`} onClick={() => {
+                            {/* Em revisão, os anexos ficam como estão até à escolha (o envio leva os que estiverem aqui). */}
+                            <button type="button" aria-label={`Retirar ${u.name}`} disabled={reviewingHere && mode === "reply"} onClick={() => {
                               const slot = slotOf(selected!, mode);
                               dropPreview(u);
                               setPending((p) => ({ ...p, [slot]: (p[slot] || []).filter((x) => x.id !== u.id) }));
@@ -1425,8 +1458,8 @@ export function SupportInbox({
                       {sendError && <span className="support-error" role="alert">{sendError}</span>}
                       <button type="button" className="secondary-button" onClick={panelCancel} title="Fecha a revisão e volta ao texto (Esc)">Cancelar</button>
                       <button type="button" className="secondary-button" onClick={() => panelEdit(panel)}>{panel.sugestao ? "Editar a sugestão" : "Editar a resposta"}</button>
-                      <button type="button" className={panel.sugestao && !panel.muda ? "secondary-button" : ""} disabled={sending} onClick={() => panelSend(panel, "propria")}>Enviar a minha versão</button>
-                      {panel.sugestao && !panel.muda && (
+                      <button type="button" className={panelReady ? "secondary-button" : ""} disabled={sending} onClick={() => panelSend(panel, "propria")}>Enviar a minha versão</button>
+                      {panelReady && (
                         <button type="button" disabled={sending} onClick={() => panelSend(panel, "sugestao")}>Enviar a sugestão</button>
                       )}
                     </div>
@@ -1523,7 +1556,7 @@ export function SupportInbox({
                   conversationId={c.conversation.id}
                   visible={infoTab === "ia" && (pane === "info" || !sideOverlays())}
                   request={aiRequest}
-                  replyBlocked={replyBlocked}
+                  replyBlocked={replyBlocked || (replyHeld ? REPLY_HELD : "")}
                   publicReply={isComment}
                   onUseDraft={useAiDraft}
                   onBack={() => setPane("conversation")}

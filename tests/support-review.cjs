@@ -378,7 +378,7 @@ test("The composer texts of the review are the agreed ones", () => {
   // Falha da IA, tempo esgotado ou "Enviar sem revisão": a resposta segue sempre.
   const run = inbox.slice(inbox.indexOf("async function runReview("), inbox.indexOf("// Painel da revisão: a escolha"));
   assert.ok(run.includes('choice: "sem_revisao"') && run.includes('choice: "timeout"') && run.includes('choice: "erro"'));
-  assert.ok(run.includes("if (next) await deliver(next);"));
+  assert.ok(run.includes("if (next) await deliver({ ...next,"));
   assert.ok(run.includes("REVIEW_CLIENT_TIMEOUT_MS"));
   // Desligada depois de a página abrir: segue sem aviso de falha e o browser deixa de pedir revisões.
   assert.ok(run.includes('if ("falhou" in r && r.falhou === "desligada")') && run.includes('setReviewMode("desligada")') && run.includes("next = out;"));
@@ -386,6 +386,26 @@ test("The composer texts of the review are the agreed ones", () => {
   // Motivo entre parênteses: minúscula só numa palavra comum, nunca numa sigla.
   assert.ok(inbox.includes("/^\\p{Lu}\\p{Ll}/u.test(m) ? m.charAt(0).toLowerCase() + m.slice(1) : m"));
   assert.ok(!read("lib/support/review.ts").includes("(HTTP "), "sem parênteses dentro de parênteses");
+});
+
+test("During the review nothing changes the reply behind the colleague's back", () => {
+  const inbox = read("components/support/inbox.tsx");
+  const run = inbox.slice(inbox.indexOf("async function runReview("), inbox.indexOf("// Painel da revisão: a escolha"));
+  // Os anexos são os de agora (um anexo retirado durante a revisão não segue); o ✕ fica desligado.
+  assert.ok(run.includes("await deliver({ ...next, uploads: (pendingRef.current[out.slot] || []).map((u) => u.id) })"));
+  assert.ok(inbox.includes('aria-label={`Retirar ${u.name}`} disabled={reviewingHere && mode === "reply"}'));
+  // Propostas da IA, emojis, "Copiar para o rascunho" e "Não foi enviada" não mexem na resposta retida.
+  assert.ok(inbox.includes('replyBlocked={replyBlocked || (replyHeld ? REPLY_HELD : "")}'));
+  assert.ok(inbox.includes('if (!selected || (mode === "reply" && replyHeld)) return;'));
+  assert.ok(inbox.includes('showEmoji && !(mode === "reply" ? replyBlocked || replyHeld : noteBlocked)'));
+  assert.equal((inbox.match(/setActionError\(REPLY_HELD\)/g) || []).length, 2);
+  // Ligação à proposta da IA só se a resposta ainda a tiver; sugestão de um comentário acima do limite e respostas longas
+  // só seguem editadas; as diferenças cobrem uma resposta inteira.
+  assert.equal((inbox.match(/aiDraft && draftStillUsed\(aiDraft\.text, body\) \? \{ aiDraftId: aiDraft\.id \} : \{\}/g) || []).length, 2);
+  assert.ok(run.includes("limit: number | null") && run.includes("sugestao.trim().length > local.limit ? local.limit : null"));
+  assert.ok(inbox.includes("limit: publicReply ? maxChars : null"));
+  assert.ok(run.includes("wordDiff(out.body, sugestao, REVIEW_DIFF_MAX)") && run.includes("longa: Boolean(sugestao) && !diff"));
+  assert.ok(inbox.includes('if (what === "sugestao" && (!p.sugestao || p.muda || p.longa || p.limite !== null)) return;'));
 });
 
 // ---------------------------------------------------------------- migração
