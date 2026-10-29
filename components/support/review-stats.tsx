@@ -6,7 +6,6 @@ const usd = (v: number) => new Intl.NumberFormat("pt-PT", { style: "currency", c
 // ao lado dos colegas. cost: só o Super Admin vê o custo.
 export function ReviewStatsList({ s, cost = false }: { s: ReviewStats; cost?: boolean }) {
   const rate = acceptance(s);
-  const failed = s.timeout + s.erro;
   return (
     <dl className="config-list">
       <dt>Revisões</dt>
@@ -18,8 +17,15 @@ export function ReviewStatsList({ s, cost = false }: { s: ReviewStats; cost?: bo
         {s.descartadas > 0 && <small className="muted block">{s.descartadas} sugestão(ões) retirada(s) pelas regras de segurança (números, compromissos, ligações…).</small>}
       </dd>
       <dt>Sem revisão</dt>
-      <dd>{s.sem_revisao} enviadas sem esperar · {failed} sem resposta da IA (a tempo ou de todo){s.erros ? ` · ${s.erros} com erro da IA` : ""}</dd>
-      {cost && (<><dt>Custo estimado</dt><dd>{usd(s.custo)}</dd></>)}
+      <dd>{s.sem_revisao} enviadas sem esperar · {s.timeout} sem resposta da IA a tempo · {s.erro} com erro da IA</dd>
+      {cost && (
+        <>
+          <dt>Falhas da IA</dt>
+          <dd>{s.erros}<small className="muted block">Pedidos à IA que falharam ou não responderam a tempo, contados no servidor.</small></dd>
+          <dt>Custo estimado</dt>
+          <dd>{usd(s.custo)}</dd>
+        </>
+      )}
     </dl>
   );
 }

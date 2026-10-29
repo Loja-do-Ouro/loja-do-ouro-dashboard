@@ -480,6 +480,13 @@ test("The choice in SQL mirrors choiceFromHashes, once and only by the person wh
   const used = fnBody(SQL, "create function public.ldo_support_ai_draft_used(");
   assert.ok(used.includes("a.user_id = p_user and a.kind = 'draft' and a.used_message_id is null"));
   assert.ok(used.includes("m.conversation_id = a.conversation_id"));
+  // Estatísticas: "enviada tal como sugerida", "editada" e "versão própria" contam só as revisões com sugestão.
+  const stats = fnBody(SQL, "create function ldo_private.support_ai_review_stats(");
+  for (const c of ["sugestao", "editada", "propria"])
+    assert.ok(stats.includes(`'${c}', count(*) filter (where sugestao_hash is not null and choice = '${c}')`), c);
+  const view = read("components/support/review-stats.tsx");
+  assert.ok(view.includes("{s.sem_revisao} enviadas sem esperar · {s.timeout} sem resposta da IA a tempo · {s.erro} com erro da IA"));
+  assert.ok(!view.includes("a tempo ou de todo"));
   // Só totais da equipa para o Super Admin; cada pessoa vê as suas.
   assert.ok(fnBody(SQL, "create function public.ldo_support_review_settings(").includes("support_ai_review_stats(null,"));
   assert.ok(fnBody(SQL, "create function public.ldo_support_user_prefs(").includes("support_ai_review_stats(v_me,"));

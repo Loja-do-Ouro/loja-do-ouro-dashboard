@@ -96,7 +96,8 @@ language sql stable security definer set search_path = '' as $$
   where created_at >= ldo_private.support_lisbon_start('month');
 $$;
 
--- Totais das revisões desde p_since: de uma pessoa (p_user) ou da equipa (p_user nulo).
+-- Totais das revisões desde p_since: de uma pessoa (p_user) ou da equipa (p_user nulo). sugestao, editada e propria
+-- contam só as revisões com sugestão mostrada (uma resposta aprovada enviada tal como está não é "versão própria").
 create function ldo_private.support_ai_review_stats(p_user uuid, p_since timestamptz) returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object(
@@ -106,9 +107,9 @@ language sql stable security definer set search_path = '' as $$
     'melhorar', count(*) filter (where veredicto = 'melhorar'),
     'sugestoes', count(*) filter (where sugestao_hash is not null),
     'descartadas', count(*) filter (where descartada is not null),
-    'sugestao', count(*) filter (where choice = 'sugestao'),
-    'editada', count(*) filter (where choice = 'editada'),
-    'propria', count(*) filter (where choice = 'propria'),
+    'sugestao', count(*) filter (where sugestao_hash is not null and choice = 'sugestao'),
+    'editada', count(*) filter (where sugestao_hash is not null and choice = 'editada'),
+    'propria', count(*) filter (where sugestao_hash is not null and choice = 'propria'),
     'sem_revisao', count(*) filter (where choice = 'sem_revisao'),
     'timeout', count(*) filter (where choice = 'timeout'),
     'erro', count(*) filter (where choice = 'erro'),
