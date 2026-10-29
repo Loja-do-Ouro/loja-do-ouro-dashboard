@@ -1,7 +1,7 @@
 import "server-only";
 import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/bi/metricool";
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
-import { metaSendRefusal, sendOutcome } from "./rules";
+import { metaSendRefusal, metricoolBrandFindings, metricoolFault, metricoolNetwork, safeMetricoolBrand, sendOutcome, type InboxProbe, type SafeBrand } from "./rules";
 import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-rules";
 import { commentAccess, commentBrand, commentCursorAfter, commentReadPlan, threadToConversation, walkPages, type CommentThread, type PostElement } from "./comment-rules";
 
@@ -31,18 +31,22 @@ export class MetricoolError extends Error {
 
 export const metricoolInboxConfigured = () => metricoolConfigured() && serverConfigured();
 
-function failure(status: number | null, text: string | undefined, what: string, retryAfter = 0) {
+// provider: a rede, para explicar uma ligação em falta na marca (metricoolFault) em vez do texto técnico. Sem ligação
+// ou com a sessão anulada pela Meta, a fonte fica Bloqueada (com a explicação) até a rede ser religada.
+function failure(status: number | null, text: string | undefined, what: string, retryAfter = 0, provider?: string) {
   if (status === null) return new MetricoolError(`${what}: Metricool sem resposta.`, null);
   if (status === 401 || status === 403)
     return new MetricoolError(`${what}: a conta Metricool recusou o acesso à Inbox (HTTP ${status}). Confirmar que o plano e o token incluem a Inbox por API.`, status, 0, true);
   if (status === 429) return new MetricoolError(`${what}: limite de pedidos Metricool atingido.`, 429, retryAfter || 120);
+  const fault = metricoolFault(text, metricoolNetwork(provider), "sincronizacao", status);
+  if (fault) return new MetricoolError(`${what}: ${fault.text}`, status, retryAfter, fault.kind !== "internal");
   return new MetricoolError(`${what}: Metricool recusou o pedido (HTTP ${status}${text ? ` · ${text.replace(/\s+/g, " ").slice(0, 160)}` : ""}).`, status);
 }
 
 // Autorizações da Inbox para uma rede (permissões em falta na ligação da marca).
 export async function inboxAuthorizations(provider: string) {
   const r = await metricoolRequest("GET", "/v2/inbox/conversations/authorizations", { provider });
-  if (r.status !== 200) throw failure(r.status, r.text, `Autorizações ${provider}`);
+  if (r.status !== 200) throw failure(r.status, r.text, `Autorizações ${provider}`, 0, provider);
   const data = (r.json as { data?: { missingScopes?: string[]; allowAccessToMessages?: boolean } })?.data || {};
   return { allowAccessToMessages: Boolean(data.allowAccessToMessages), missingScopes: data.missingScopes || [] };
 }
@@ -68,7 +72,7 @@ async function listConversations(provider: string, { maxPages = 5, deadline = In
       delete params.blogId;
       r = await metricoolRequest("GET", u.pathname.replace(/^\/api/, ""), params, undefined, LIST_TIMEOUT_MS);
     } else r = await metricoolRequest("GET", "/v2/inbox/conversations", { provider }, undefined, LIST_TIMEOUT_MS);
-    if (r.status !== 200) throw failure(r.status, r.text, `Conversas ${provider}`, Number(r.headers?.get("retry-after")) || 0);
+    if (r.status !== 200) throw failure(r.status, r.text, `Conversas ${provider}`, Number(r.headers?.get("retry-after")) || 0, provider);
     const body = r.json as Listing;
     const page = body?.data || [];
     out.push(...page);
@@ -189,12 +193,14 @@ async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw:
     if (!decision) continue;
     const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
     if (!(await serverRpc<boolean>("ldo_support_social_autoreply_claim", { ...claim, p_contact: recipient, p_kind: decision.kind, p_since: decision.since }).catch(() => false))) continue;
-    const r = await metricoolSend(provider, conv.external_id, recipient, decision.text, null, 10_000).catch(() => ({ outcome: "uncertain" as const }));
+    const r = await metricoolSend(provider, conv.external_id, recipient, decision.text, null, 10_000).catch(() => ({ outcome: "uncertain" as const, fault: null }));
     // Falhou: o registo sai e a mensagem pode voltar a ser respondida. Enviada ou sem confirmação: fica o
     // acontecimento na conversa (o incerto nunca se repete, porque pode ter chegado).
     const result = { ...claim, p_outcome: r.outcome };
     await serverRpc("ldo_support_social_autoreply_result", result).catch(() => serverRpc("ldo_support_social_autoreply_result", result)).catch(() => undefined);
     if (r.outcome !== "failed") sent++;
+    // Sem ligação da rede na marca (ou sessão anulada pela Meta), as seguintes falhariam igual: param até à próxima passagem.
+    if (r.fault === "connection" || r.fault === "token") break;
   }
   return sent;
 }
@@ -214,7 +220,7 @@ async function hostedImage(publicUrl: string) {
 // sincronização seguinte reconhece a mensagem pelo texto.
 export async function metricoolSend(provider: string, conversationId: string, recipient: string | null, text: string, imageUrl?: string | null, timeoutMs = 30_000) {
   if (!recipient || recipient.startsWith("conversa:"))
-    return { outcome: "failed" as const, externalId: null, detail: "Destinatário por identificar nesta conversa: nada foi enviado." };
+    return { outcome: "failed" as const, externalId: null, fault: null, detail: "Destinatário por identificar nesta conversa: nada foi enviado." };
   let attachment: string | undefined;
   // Fotos da Shopify já são públicas e estáveis; só o URL temporário do dashboard é copiado para a Metricool.
   if (imageUrl) attachment = new URL(imageUrl).hostname === "cdn.shopify.com" ? imageUrl : (await hostedImage(imageUrl)).url;
@@ -223,13 +229,17 @@ export async function metricoolSend(provider: string, conversationId: string, re
   // A Meta recusa imagens que não consegue ir buscar (endereço protegido, expirado) ou em formato não suportado.
   const imageRefused = outcome === "failed" && attachment && /attachment format|attachment.*not supported|#100/i.test(r.text || "");
   // Pessoa que já não recebe mensagens da página (Meta #551): explicação em vez do erro técnico da Metricool.
-  const unreachable = outcome === "failed" ? metaSendRefusal(r.text, provider === "INSTAGRAM" ? "Instagram" : "Messenger") : null;
+  const network = metricoolNetwork(provider);
+  const unreachable = outcome === "failed" ? metaSendRefusal(r.text, network === "Instagram" ? "Instagram" : "Messenger") : null;
+  // Ligação da rede em falta na marca Metricool (UserConnection nula), sessão anulada pela Meta ou erro interno: idem.
+  const fault = outcome === "failed" && !imageRefused && !unreachable ? metricoolFault(r.text, network, "envio", r.status) : null;
   return {
     outcome,
     externalId: null,
+    fault: fault?.kind ?? null,
     detail: outcome === "accepted" ? null : outcome === "uncertain" ? "Sem confirmação da Metricool; verificar antes de reenviar."
       : imageRefused ? "A Meta recusou a imagem (não a conseguiu obter ou o formato não é suportado). Nada foi enviado ao cliente; pode enviar só o texto ou outra imagem JPEG/PNG."
-      : unreachable ?? failure(r.status, r.text, "Envio").message,
+      : unreachable ?? fault?.text ?? failure(r.status, r.text, "Envio").message,
   };
 }
 
@@ -309,6 +319,52 @@ export async function metricoolDiagnostics(provider: string) {
   return out;
 }
 
+// Ligação da marca na Metricool ("Validar ligações", Super Admin): só leituras, para ver de que lado está uma falha.
+// - a marca na lista de marcas do token (GET /admin/simpleProfiles): a resposta traz também logins, hashes, imagens e
+//   ligações de white label, que nunca saem daqui (só os campos de safeMetricoolBrand);
+// - as autorizações da Inbox nas três redes possíveis (o Instagram ligado pelo login do Instagram é INSTAGRAMBUSINESS),
+//   só com o HTTP, o acesso e o tipo de falha (nunca o texto da Metricool).
+// Nunca /admin/userstatus (devolve tokens) nem pedidos que alteram a marca ou as ligações.
+const INBOX_PROVIDERS = ["FACEBOOK", "INSTAGRAM", "INSTAGRAMBUSINESS"] as const;
+
+async function inboxProbe(provider: string): Promise<InboxProbe> {
+  const r = await metricoolRequest("GET", "/v2/inbox/conversations/authorizations", { provider }, undefined, 20_000);
+  if (r.status !== 200) return { status: r.status, fault: metricoolFault(r.text, metricoolNetwork(provider), "sincronizacao", r.status)?.kind ?? null };
+  const data = (r.json as { data?: { missingScopes?: unknown; allowAccessToMessages?: unknown } } | null)?.data || {};
+  const scopes = Array.isArray(data.missingScopes) ? data.missingScopes.filter((s): s is string => typeof s === "string" && /^[\w.:-]{1,60}$/.test(s)).slice(0, 10) : [];
+  return { status: 200, allowAccessToMessages: data.allowAccessToMessages === true, missingScopes: scopes };
+}
+
+export async function metricoolBrandDiagnostics(expected: { facebookPageId: string | null; instagramId: string | null },
+  lastInbound: { Facebook: string | null; Instagram: string | null }) {
+  const account = metricoolAccount();
+  try {
+    const [list, ...probes] = await Promise.all([
+      metricoolRequest("GET", "/admin/simpleProfiles", {}, undefined, 20_000),
+      ...INBOX_PROVIDERS.map((p) => inboxProbe(p)),
+    ]);
+    const body = list.json as unknown;
+    const raw = Array.isArray(body) ? body : Array.isArray((body as { data?: unknown } | null)?.data) ? (body as { data: unknown[] }).data : null;
+    const brands = list.status === 200 && raw ? raw.map(safeMetricoolBrand).filter((b): b is SafeBrand => !!b) : null;
+    const inbox = Object.fromEntries(INBOX_PROVIDERS.map((p, i) => [p, probes[i]])) as Record<(typeof INBOX_PROVIDERS)[number], InboxProbe>;
+    const brand = brands?.find((b) => String(b.id) === account.blogId) || null;
+    const page = brand?.facebookPageId || expected.facebookPageId;
+    return {
+      findings: metricoolBrandFindings({ account, brands, brandsStatus: list.status, expected, inbox, lastInbound, now: new Date() }),
+      detail: {
+        // userId e blogId em uso (não são segredos); esperado = contas da marca nas conversas guardadas (cursor.brand).
+        account, expected, lastInbound,
+        brands: brands ? brands.length : `indisponível (${list.status === null ? "sem resposta" : `HTTP ${list.status}`})`,
+        brand,
+        otherBrandsWithSamePage: (brands || []).filter((b) => b.id !== brand?.id && page && b.facebookPageId === page).map((b) => ({ id: b.id, label: b.label })),
+        inbox,
+      },
+    };
+  } catch (e) {
+    return { findings: [{ level: "erro" as const, text: e instanceof Error ? e.message : "Metricool indisponível." }], detail: { account } };
+  }
+}
+
 // ---------------------------------------------------------------- comentários das publicações
 // Inbox "post-comments" da Metricool: um tópico por comentário principal, com a publicação (element) e as
 // respostas. O diagnóstico (Super Admin) devolve contagens e estrutura, nunca textos, nomes nem ligações.
@@ -359,7 +415,7 @@ async function readCommentThreads(provider: string, maxPages: number, deadline: 
       return { status: r.status, data: body?.data || [], next: body?.page?.next || null };
     },
   });
-  if (walk.error) throw failure(walk.error.status, last.text, `Comentários ${provider}`, last.retryAfter);
+  if (walk.error) throw failure(walk.error.status, last.text, `Comentários ${provider}`, last.retryAfter, provider);
   return { threads, pages: walk.pages, complete: walk.end, next: walk.next, end: walk.end };
 }
 
@@ -370,7 +426,7 @@ export async function metricoolCommentsDiagnostics(provider: string) {
   const auth = await metricoolRequest("GET", "/v2/inbox/post-comments/authorizations", { provider });
   out.authorizations = auth.status === 200
     ? (auth.json as { data?: { missingScopes?: string[]; allowAccessToMessages?: boolean } })?.data || {}
-    : { error: failure(auth.status, auth.text, `Autorizações de comentários ${provider}`).message };
+    : { error: failure(auth.status, auth.text, `Autorizações de comentários ${provider}`, 0, provider).message };
   try {
     const { threads, pages, complete } = await readCommentThreads(provider, 3, deadline);
     out.listSeconds = Math.round((Date.now() - started) / 100) / 10;
@@ -411,7 +467,7 @@ export async function metricoolCommentsDiagnostics(provider: string) {
 
 async function commentAuthorizations(provider: string) {
   const r = await metricoolRequest("GET", "/v2/inbox/post-comments/authorizations", { provider });
-  if (r.status !== 200) throw failure(r.status, r.text, `Autorizações de comentários ${provider}`, Number(r.headers?.get("retry-after")) || 0);
+  if (r.status !== 200) throw failure(r.status, r.text, `Autorizações de comentários ${provider}`, Number(r.headers?.get("retry-after")) || 0, provider);
   return commentAccess((r.json as { data?: unknown } | null)?.data);
 }
 
@@ -496,10 +552,11 @@ export async function metricoolComment(provider: string | undefined, objectId: s
   if (!text.trim()) return { outcome: "failed" as const, externalId: null, detail: "Escreva o texto da resposta (os comentários não levam anexos)." };
   const r = await metricoolRequest("POST", "/v2/inbox/post-comments", {}, { provider, objectId, text }, timeoutMs);
   const outcome = sendOutcome(r.status);
+  const fault = outcome === "failed" ? metricoolFault(r.text, metricoolNetwork(provider), "comentario", r.status) : null;
   return {
     outcome,
     externalId: null,
     detail: outcome === "accepted" ? null : outcome === "uncertain" ? "Sem confirmação da Metricool; confirmar na publicação antes de voltar a publicar."
-      : failure(r.status, r.text, "Resposta pública").message,
+      : fault?.text ?? failure(r.status, r.text, "Resposta pública").message,
   };
 }

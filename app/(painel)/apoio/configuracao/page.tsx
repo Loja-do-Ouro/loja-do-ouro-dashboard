@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { metricoolConfigured } from "@/lib/bi/metricool";
@@ -12,7 +13,8 @@ import { serverConfigured, serverRpc, sessionRpc } from "@/lib/support/db";
 import type { SocialSettings } from "@/lib/support/social-rules";
 import { supportEmailFrom } from "@/lib/support/notify";
 import { siteOrigins } from "@/lib/support/site-chat";
-import { metricoolCommentsDiagnostics, metricoolDiagnostics } from "@/lib/support/metricool";
+import { metricoolBrandDiagnostics, metricoolCommentsDiagnostics, metricoolDiagnostics } from "@/lib/support/metricool";
+import { metricoolDetail, metricoolNetwork } from "@/lib/support/rules";
 import { WHATSAPP_STATUS } from "@/lib/support/whatsapp";
 import { redirectUri, ZENDESK_SCOPES, zendeskDiagnostics, zendeskReadiness } from "@/lib/support/zendesk";
 import { requireViewer } from "@/lib/viewer";
@@ -28,7 +30,8 @@ export const metadata = { title: "Configuração do apoio · Loja do Ouro" };
 
 type State = {
   settings: { poll_seconds: number; zendesk_subdomain: string };
-  sources: { id: string; label: string; platform: string; status: string; status_detail: string | null; failures: number; last_attempt_at: string | null; last_success_at: string | null; next_attempt_at: string | null; last_error: string | null; config: Record<string, unknown> }[];
+  // brand e last_inbound_at: só com a migração 20261029120000 (antes dela, ausentes).
+  sources: { id: string; label: string; platform: string; status: string; status_detail: string | null; failures: number; last_attempt_at: string | null; last_success_at: string | null; next_attempt_at: string | null; last_error: string | null; config: Record<string, unknown>; brand?: string | null; last_inbound_at?: string | null }[];
   connections: { user_id: string; name: string; zendesk_name: string | null; zendesk_email: string | null; zendesk_role: string | null; scope: string | null; status: string; status_detail: string | null; access_expires_at: string | null; refresh_expires_at: string | null; connected_at: string; updated_at: string }[];
   users: { id: string; name: string; username: string; support_access: boolean; is_super_admin: boolean }[];
   counts: { conversations: number; open: number };
@@ -62,6 +65,7 @@ const STATUS: Record<string, [string, string]> = {
   disabled: ["Desligado", "warn"],
 };
 const yes = (v: boolean) => (v ? <span className="pill ok">Configurado</span> : <span className="pill warn">Em falta</span>);
+const FINDING: Record<string, [string, string]> = { ok: ["OK", "ok"], aviso: ["Aviso", "warn"], erro: ["Erro", "warn"] };
 
 export default async function SupportConfigPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
@@ -107,10 +111,16 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const diag = q.diagnostico === "1";
   // Comentários das publicações: só leitura (contagens e estrutura), para decidir se entram no Apoio ao Cliente.
   // O Instagram pode estar ligado como INSTAGRAM ou INSTAGRAMBUSINESS: testam-se os dois.
-  const [zd, fb, ig, fbComments, igComments, igbComments] = diag
+  // Ligação da marca na Metricool: comparada com as contas da marca nas conversas guardadas (cursor.brand das fontes).
+  const fbSource = state.sources.find((x) => x.id === "metricool-facebook");
+  const igSource = state.sources.find((x) => x.id === "metricool-instagram");
+  const configured = (s: State["sources"][number] | undefined) => (typeof s?.config.brand_id === "string" ? s.config.brand_id : s?.brand || null);
+  const [zd, fb, ig, fbComments, igComments, igbComments, brandCheck] = diag
     ? await Promise.all([zendeskIsOff ? null : zendeskDiagnostics(), metricoolDiagnostics("FACEBOOK"), metricoolDiagnostics("INSTAGRAM"),
-        metricoolCommentsDiagnostics("FACEBOOK"), metricoolCommentsDiagnostics("INSTAGRAM"), metricoolCommentsDiagnostics("INSTAGRAMBUSINESS")])
-    : [null, null, null, null, null, null];
+        metricoolCommentsDiagnostics("FACEBOOK"), metricoolCommentsDiagnostics("INSTAGRAM"), metricoolCommentsDiagnostics("INSTAGRAMBUSINESS"),
+        metricoolBrandDiagnostics({ facebookPageId: configured(fbSource), instagramId: configured(igSource) },
+          { Facebook: fbSource?.last_inbound_at ?? null, Instagram: igSource?.last_inbound_at ?? null })])
+    : [null, null, null, null, null, null, null];
   // URL de produção estável a registar no Zendesk (o da preview só serve para testes).
   const productionCallback = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL || "loja-do-ouro-dashboard.vercel.app"}/api/support/zendesk/callback`;
   const thisCallback = redirectUri(`https://${process.env.VERCEL_URL || "localhost"}/`);
@@ -190,6 +200,20 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
             <dt>Sincronização</dt><dd>Consulta periódica — a Inbox Metricool não tem webhooks.</dd>
             <dt>Anexos na resposta</dt><dd>Não nesta fase (só texto).</dd>
           </dl>
+          {brandCheck && (
+            <>
+              <p className="panel-note">Ligação da marca na Metricool (só leitura: ids, estados e datas; sem tokens, emails nem dados pessoais).</p>
+              <dl className="config-list">
+                {brandCheck.findings.map((f, i) => (
+                  <Fragment key={i}>
+                    <dt><span className={`pill ${FINDING[f.level][1]}`}>{FINDING[f.level][0]}</span></dt>
+                    <dd>{f.text}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+              <pre className="diag">{JSON.stringify(brandCheck.detail, null, 2)}</pre>
+            </>
+          )}
           {fb && <pre className="diag">{JSON.stringify(fb, null, 2)}</pre>}
           {ig && <pre className="diag">{JSON.stringify(ig, null, 2)}</pre>}
           {(fbComments || igComments || igbComments) && (
@@ -221,9 +245,17 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
                     <td>
                       <span className={`pill ${STATUS[s.status]?.[1] || ""}`}>{s.id === "whatsapp" ? WHATSAPP_STATUS : STATUS[s.status]?.[0] || s.status}</span>
                       {s.status_detail && <small className="muted block">{s.status_detail}</small>}
-                      {s.last_error && <small className="block error-text">{s.last_error}{s.failures > 1 ? ` (${s.failures} falhas seguidas)` : ""}</small>}
+                      {s.last_error && (
+                        <small className="block error-text">
+                          {s.platform.startsWith("metricool") ? metricoolDetail(s.last_error, metricoolNetwork(String(s.config.provider || ""))) : s.last_error}
+                          {s.failures > 1 ? ` (${s.failures} falhas seguidas)` : ""}
+                        </small>
+                      )}
                     </td>
-                    <td>{timestamp(s.last_success_at)}</td>
+                    <td>
+                      {timestamp(s.last_success_at)}
+                      {s.last_inbound_at && <small className="muted block">Última mensagem recebida: {timestamp(s.last_inbound_at)}</small>}
+                    </td>
                     <td>{s.id === "whatsapp" ? "—" : timestamp(s.next_attempt_at)}</td>
                   </tr>
                 ))}

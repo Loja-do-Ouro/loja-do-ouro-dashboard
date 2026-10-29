@@ -10,6 +10,7 @@ import {
   canChangeStatus,
   canReply,
   metaUnreachable,
+  metricoolDetail,
   canTransfer,
   CHANNEL_LABEL,
   gmailThreadLink,
@@ -656,7 +657,7 @@ export function SupportInbox({
           : c.conversation.source_status === "blocked" && isGmail
             ? "A caixa Gmail do apoio precisa de ser ligada de novo (Configuração do apoio → Email (Gmail))."
             : c.conversation.source_status === "blocked" && !isZendesk
-              ? "A Metricool recusou o acesso a esta caixa de entrada. Ver a configuração do apoio."
+              ? "A Metricool recusou o acesso a esta caixa de entrada ou perdeu a ligação à rede: nada sai por aqui até ser reposta. Responda entretanto no Meta Business Suite (ver Configuração do apoio → Validar ligações)."
               : unreachable
                 ? `O ${c.conversation.channel === "instagram" ? "Instagram" : "Messenger"} não aceita mensagens nossas para esta pessoa (Meta #551): pode ter bloqueado a página, deixado de aceitar as nossas mensagens ou desativado a conta. Só será possível responder quando o cliente voltar a escrever. Se deixou telefone ou email na conversa, contacte-o por aí; pode deixar uma nota interna.`
               : isComment && !c.conversation.public_replies
@@ -967,6 +968,8 @@ export function SupportInbox({
                 {timeline.map((t) => {
                   if (t.event) return <p key={t.key} className="msg-event" role="note">{assignText(t.event)} · <time dateTime={t.at}>{time(t.at)}</time></p>;
                   const m = t.message!;
+                  // Erros técnicos da Metricool gravados antes da explicação (ligação da rede em falta) passam pelo mesmo texto.
+                  const deliveryText = metricoolDetail(m.delivery_detail, c.conversation.channel.startsWith("instagram") ? "Instagram" : "Facebook");
                   return (
                   <article key={m.id} className={`msg ${m.kind}`}>
                     <header>
@@ -1010,9 +1013,9 @@ export function SupportInbox({
                     )}
                     {m.kind === "note" && <small className="note-flag">Visível só para a equipa · nunca enviada ao cliente</small>}
                     {m.delivery && (
-                      <footer className={`delivery ${m.delivery}`} title={m.delivery_detail || ""}>
+                      <footer className={`delivery ${m.delivery}`} title={deliveryText || ""}>
                         {DELIVERY_LABEL[m.delivery]}
-                        {m.delivery_detail && m.delivery !== "accepted" ? ` — ${m.delivery_detail}` : ""}
+                        {deliveryText && m.delivery !== "accepted" ? ` — ${deliveryText}` : ""}
                         {(m.delivery === "uncertain" || m.delivery === "sending") && (
                           <>
                             {zendeskOff ? (
