@@ -8,8 +8,8 @@ import { serverRpc, sessionRpc } from "./db";
 import { HttpError } from "./http";
 import {
   CARD_LIMITS, DISTILL_INSTRUCTIONS, DISTILL_SCHEMA, KNOWLEDGE_BUTTON_CALL_MS, KNOWLEDGE_CRON_CALL_MS, KNOWLEDGE_CRON_END_MS, KNOWLEDGE_CRON_LIMIT,
-  KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_EFFORT, KNOWLEDGE_MAX_TOKENS, KNOWLEDGE_MODEL, KnowledgeFormatError, answerNames, cardPii, companyAllowlist,
-  conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, type KnowledgeBegin, type KnowledgeDiscard,
+  KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_EFFORT, KNOWLEDGE_MAX_TOKENS, KNOWLEDGE_MODEL, KnowledgeFormatError, cardPii, companyAllowlist,
+  conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, sourceWarnings, type KnowledgeBegin, type KnowledgeDiscard,
 } from "./knowledge-rules";
 
 // Base de conhecimento aprendida (Claude Sonnet 5.5, só no servidor): uma chamada por conversa, sem ferramentas, sem
@@ -87,17 +87,16 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
       const r = await record({ status: "done", cost, model, resultado: "existente", card_id: out.card_existente });
       return r?.resultado === "existente" ? { resultado: "existente", motivo: out.motivo } : { resultado: "descartado", motivo: out.motivo, descartado: r?.descartado ?? "formato" };
     }
-    // Verificações antes de gravar, na pergunta, nas variantes e na resposta: dados pessoais (com os dados da empresa
-    // aceites), factos que a equipa não escreveu, texto copiado do cliente e a outra marca. A pergunta e as variantes
-    // também são publicadas para a IA: um número, uma ligação ou a outra marca numa pergunta também retiram a proposta.
+    // Verificações antes de gravar, na pergunta, nas variantes e na resposta. Retiram a proposta só os dados pessoais
+    // sem ambiguidade (emails, telefones, IBAN, NIF, números de cartão, de encomenda ou de cliente, ligações de perfis, o
+    // nome do cliente ou de alguém da equipa), os números, ligações, contactos e compromissos que a equipa não escreveu,
+    // o texto copiado do cliente e a outra marca. A pergunta e as variantes também são publicadas para a IA: um número,
+    // uma ligação ou a outra marca numa pergunta também retiram a proposta. O resto (possíveis nomes, moradas,
+    // contradições e condições em falta) fica na proposta como aviso, que o Super Admin confirma antes de aprovar.
     const knowledge = begin.knowledge.map((k) => `## ${k.title}\n${k.body}`).join("\n\n");
     const allow = companyAllowlist({ knowledge, stores: begin.stores, extra: begin.company });
     const names = [begin.conversation.contact_name, begin.conversation.contact_handle, ...begin.staff_names];
     if (cardPii(out, allow, names).length) return discard("dados_pessoais", out.motivo);
-    // Um nome próprio comum na resposta, também em minúsculas, retira a proposta (vem de uma conversa com um cliente); os
-    // outros possíveis nomes ficam na proposta como aviso ("Possível nome: X"), que o Super Admin tem de confirmar antes de
-    // aprovar e de publicar.
-    if (answerNames(out.resposta, allow).some((n) => n.common)) return discard("dados_pessoais", out.motivo);
     // Só as respostas da equipa enviadas pelo dashboard confirmam factos; a escolhida no botão, se houver, conta como as outras.
     const staff = begin.messages.filter((m) => m.kind === "outbound" && m.dashboard).map((m) => m.body).join("\n\n");
     const questions = [out.pergunta, ...out.variantes].join("\n");
@@ -107,12 +106,14 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
     if (copiesCustomer([out.pergunta, ...out.variantes, out.resposta], inbound)) return discard("copia_cliente", out.motivo);
     const brand = conversationBrand(begin.conversation.channel, begin.conversation.site);
     if (otherBrandIn(out.resposta, brand) || otherBrandIn(questions, brand)) return discard("marca", out.motivo);
+    // Avisos em relação à resposta da equipa (só aqui há a resposta da equipa): ficam no cartão para o Super Admin.
+    const avisos = sourceWarnings({ text: out.resposta, staff, knowledge });
     const loja = out.loja ? begin.stores.find((s) => s.code === out.loja)?.id ?? null : null;
     const r = await record({
       status: "done", cost, model, resultado: "novo",
       card: {
         intent: out.intent, brand, loja_id: loja, pergunta: out.pergunta.slice(0, CARD_LIMITS.pergunta), variantes: out.variantes,
-        resposta: out.resposta, valido_ate: out.valido_ate,
+        resposta: out.resposta, valido_ate: out.valido_ate, avisos,
       },
     });
     if (!r) return { resultado: "erro", motivo: "não foi possível gravar a proposta" };
@@ -130,7 +131,7 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
 function buttonNote(o: Outcome) {
   switch (o.resultado) {
     case "novo":
-      return "Guardada como proposta na base de conhecimento aprendida: as regras do servidor não encontraram contactos, números de encomenda nem nomes conhecidos (palavras que podem ser nomes ficam assinaladas). O Super Admin revê-a e aprova-a em Configuração → IA do apoio.";
+      return "Guardada como proposta na base de conhecimento aprendida: as regras do servidor não encontraram emails, telefones, números de encomenda nem os nomes do cliente ou da equipa (possíveis nomes, moradas e contradições ficam assinalados). O Super Admin revê-a e aprova-a em Configuração → IA do apoio.";
     case "existente":
       return "Já existe uma resposta (proposta ou aprovada) para esta pergunta: ficou contada como mais uma confirmação.";
     case "nao_aproveitavel":

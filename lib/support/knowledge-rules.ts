@@ -5,7 +5,6 @@
 // Nenhuma mensagem do cliente é guardada: do cartão ficam só a pergunta genérica, as variantes e a resposta.
 
 import { clip, linksIn, otherBrandIn, unverifiedLinks, untrusted } from "./ai-rules";
-import { publicReplyRisks } from "./comment-rules";
 import { commitmentHits, factsIn, newLinks, numberHits, ptBrSignals, type NumberHit } from "./review-rules";
 import { CHANNEL_LABEL, SITE_BRAND, type Channel, type SiteKey } from "./rules";
 
@@ -67,10 +66,10 @@ export const KNOWLEDGE_DISCARDS = [
 ] as const;
 export type KnowledgeDiscard = (typeof KNOWLEDGE_DISCARDS)[number];
 export const KNOWLEDGE_DISCARD_TEXT: Record<KnowledgeDiscard, string> = {
-  dados_pessoais: "tinha dados pessoais ou de encomenda (nomes, contactos, moradas, perfis, códigos, números, ligações de conta)",
+  dados_pessoais: "tinha dados pessoais (emails, telefones, IBAN, NIF ou números de cartão, de encomenda ou de cliente, ligações de perfis ou de conta, ou o nome do cliente ou de alguém da equipa)",
   numero_novo: "tinha números, valores, horas, prazos ou códigos que a equipa não escreveu nesta conversa nem estão na base de conhecimento (ou horas por outra ordem)",
   ligacao_nova: "tinha ligações que a equipa não enviou nesta conversa nem estão na base de conhecimento",
-  politica_nova: "tinha compromissos (reembolso, troca, desconto, garantia, prazo…) que a equipa não escreveu nesta conversa numa frase com o mesmo sentido e as mesmas condições (\"fazemos\" onde a equipa escreveu \"não fazemos\" ou \"não é possível\", uma negação a mais ou a menos na frase, ou sem o \"só\", \"exceto\", \"se\" ou \"desde que\" da equipa; da base de conhecimento só contam com os mesmos números do mesmo parágrafo)",
+  politica_nova: "tinha compromissos (reembolso, troca, desconto, garantia, prazo…) que a equipa não afirmou nesta conversa (uma pergunta da equipa não conta) nem estão na base de conhecimento",
   contacto_novo: "tinha contactos que a equipa não escreveu nesta conversa nem estão na base de conhecimento",
   copia_cliente: "copiava texto da mensagem do cliente",
   marca: "mencionava a outra marca",
@@ -242,38 +241,62 @@ export function parseDistill(text: string, ctx: { similar: string[]; stores: str
 }
 
 // ---------------------------------------------------------------- dados pessoais
+//
+// Cada texto de um cartão (pergunta, variantes e resposta) dá duas listas:
+// - Recusas (PiiProblem), só para dados pessoais sem ambiguidade: emails fora dos domínios da empresa; telefones (+351,
+//   00351, 0044, grupos com espaços, pontos, hífens ou barras, 9 algarismos); IBAN, NIF e números de cartão; números de
+//   encomenda ou de referência depois de "encomenda", "pedido", "order", "fatura", "compra", "reparação", "guia",
+//   "reserva", "talão", "recibo", "referência" ou "(número de) cliente"; códigos de envio e números longos; ligações com
+//   um telefone, um perfil ou um id no caminho (wa.me, m.me, t.me, instagram.com/<x>, facebook.com/<x>, tiktok,
+//   páginas de ligações, encurtadores, 7+ algarismos, parâmetros, caminhos de conta) e perfis @; e os nomes do cliente
+//   da conversa e da equipa, em qualquer forma. Os dados da empresa (base de conhecimento, lojas, caixas e assinatura do
+//   apoio) passam. Uma proposta da IA com uma recusa é retirada; uma correção do Super Admin fica guardada, mas não é
+//   aprovada nem publicada.
+// - Avisos: tudo o que é heurístico (possíveis nomes, moradas, perfis sem @, códigos, emails da empresa e ligações que
+//   não estão na base de conhecimento), cada um com a palavra ou a frase («…»). Nunca retiram uma proposta: ficam no
+//   cartão, e aprovar, publicar e "Permitir em respostas automáticas" só avançam depois de o Super Admin marcar
+//   ACK_LABEL para o texto atual do cartão.
+
+export const ACK_LABEL = "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa";
 
 const EMAIL_RE = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/gu;
-// Email escrito para fugir aos filtros ("joana [at] gmail [dot] com", "joana arroba gmail ponto com").
-const OBFUSCATED_EMAIL = /[\p{L}\p{N}._%+-]+(?:\s*[[(]\s*at\s*[\])]\s*|\s+at\s+|\s*arroba\s*)[\p{L}\p{N}-]+(?:\s*[[(]\s*dot\s*[\])]\s*|\s+dot\s+|\s*ponto\s*)\p{L}{2,6}(?!\p{L})/iu;
-// Telefone com 9 algarismos (com ou sem +351 e separadores) e telefone com outro indicativo ("+44 20 7946 0958").
-const PHONE_RE = /(?:\+?351[\s.-]?)?(?<!\d)(?:\d[\s.-]?){8}\d(?!\d)/g;
-const INTL_PHONE_RE = /\+\d{1,3}[\s.()-]*(?:\d[\s.()-]*){6,12}\d/g;
+// Email escrito para fugir aos filtros ("joana [at] gmail [dot] com", "joana arroba gmail ponto com", "joana (arroba)
+// gmail.com", "joana @ gmail . com").
+const OBFUSCATED_EMAIL = /[\p{L}\p{N}._%+-]+\s*(?:[[(]\s*(?:at|arroba|@)\s*[\])]|\s(?:at|arroba)\s|\s@\s|arroba)\s*[\p{L}\p{N}-]+\s*(?:[[(]\s*(?:dot|ponto|\.)\s*[\])]|\s(?:dot|ponto)\s|\s\.\s|\.|ponto)\s*\p{L}{2,6}(?!\p{L})/iu;
+// Domínios da empresa: um email destes que não está na base de conhecimento é um aviso, não uma recusa.
+const OWN_DOMAIN = /(?:^|\.)(?:lojadoouro\.pt|goldstorepremium\.com)$/i;
 const POSTCODE_RE = /(?<!\d)\d{4}-\d{3}(?!\d)/g;
 const SCHEME_LINK = /(?:https?:\/\/|www\.)[^\s<>"'«»()[\]]+/giu;
+// Páginas de ligações, encurtadores e mapas escritos sem https:// (linksIn só conhece alguns domínios de topo).
+const SPECIAL_LINK = /(?<![\w.@-])(?:linktr\.ee|lnk\.bio|linkin\.bio|beacons\.ai|bio\.link|wa\.link|taplink\.cc|maps\.app\.goo\.gl|goo\.gl|bit\.ly|tinyurl\.com|cutt\.ly|is\.gd|t\.co|ow\.ly|rb\.gy|t\.ly|s\.id|shorturl\.at)\/[^\s<>"'«»()[\]]+/giu;
 // Ligações com dados de uma conta, encomenda, carrinho, seguimento, desconto ou cartão-oferta.
 const ACCOUNT_PATH = /\/(account|conta|orders?|encomendas?|checkouts?|cart|carrinho|tracking|track|seguimento|pedidos?|invoices?|faturas?|apps\/|discounts?\/|gift[_-]?cards?|giftcards?)/i;
-// Encomenda com o número logo a seguir, com palavras pelo meio ("a sua encomenda com o n.º 1234") ou com letras
-// ("encomenda LDO12345", "#LDO1234"). "Encomendas acima de 150 €" não conta (sem "nº" nem "#").
-const ORDER_RE = /(?<!\p{L})(encomenda|pedido|order|fatura|factura)s?(?!\p{L})\s*(n\.?\s*[ºo°]|nº|n\.|número|numero|nr\.?|no\.)?\s*:?\s*#?\s*\d{3,}|#\s?\d{4,}/iu;
-const ORDER_GAP_RE = /(?<!\p{L})(?:encomenda|pedido|order|fatura|factura)s?(?!\p{L})[^\d\n]{0,25}?(?:n\.?\s*[ºo°]|nº|número|numero|nr\.?|#)\s*:?\s*#?\s*[a-z]{0,4}-?\d{3,}/iu;
-const ORDER_ID_RE = /(?<!\p{L})(?:encomenda|pedido|order|fatura|factura)s?\s+#?[A-Za-z]{2,4}-?\d{3,}|#[A-Za-z]{2,4}-?\d{3,}/u;
-const IBAN_RE = /(?<![\p{L}\p{N}])[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){4,7}/u;
+// IBAN (também em minúsculas quando o resto são algarismos) e NIF com o número.
+const IBAN_RE = /(?<![\p{L}\p{N}])(?:[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){4,7}|[A-Za-z]{2}\d{2}(?: ?\d{4}){4,7})(?![\p{L}\p{N}])/u;
 const NIF_RE = /(?<!\p{L})(nif|nipc|contribuinte)(?!\p{L})\D{0,20}\d{9}/iu;
+// Código de envio (CTT e transportadoras internacionais: duas letras, nove algarismos, duas letras).
+const SHIPPING_RE = /(?<![\p{L}\p{N}])[A-Za-z]{2}\d{9}[A-Za-z]{2}(?![\p{L}\p{N}])/u;
 // Perfil de uma rede social ("@joana.joias").
 const HANDLE_RE = /(?<![\p{L}\p{N}._@])@[\p{L}\p{N}._]{2,30}/gu;
-// Códigos (desconto, vale, cartão-oferta): letras e algarismos juntos ("JOANA10"), uma palavra em maiúsculas depois de
-// "código"/"cupão" ("código BEMVINDO") ou grupos de 4 ("X7K9 M2P4 Q8R1"). Medidas ("45cm", "18kt") e horas não contam.
+const handleKey = (h: string) => h.toLowerCase().replace(/[._]+$/, "");
+// Códigos (desconto, vale, cartão-oferta, referência de artigo): letras e algarismos juntos ("JOANA10"), uma palavra em
+// maiúsculas depois de "código"/"cupão" ("código BEMVINDO"), grupos de 4 ("X7K9 M2P4 Q8R1") e letras com hífen e
+// algarismos ("LDO-12345"). Medidas ("45cm", "18kt") e horas não contam. Aviso.
 const CODE_TOKEN = /(?<![\p{L}\p{N}])(?=[\p{L}\p{N}]*\p{N})(?=[\p{L}\p{N}]*\p{L})[\p{L}\p{N}]{5,24}(?![\p{L}\p{N}])/gu;
 const CODE_AFTER_WORD = /(?<!\p{L})(?:c[óo]digos?|cup(?:[ãa]o|[õo]es)|cupom|vouchers?|codes?|coupons?)(?:\s+(?:de\s+)?(?:desconto|promocional|oferta))?\s*:?\s*["'«“”]?([\p{L}\p{N}]{4,24})/giu;
 const CODE_GROUPS = /(?<![\p{L}\p{N}])[A-Z0-9]{4}(?:[ -][A-Z0-9]{4}){2,}(?![\p{L}\p{N}])/gu;
+const CODE_DASH = /(?<![\p{L}\p{N}-])[A-Za-z]{2,5}-\d{3,}(?![\p{L}\p{N}])/gu;
 const NOT_A_CODE = /^\d+(?:mm|cm|m|g|gr|kg|ml|cl|kt|kl|ct|ctl|ªs?|ºs?|x|min|seg|h|hrs?)$|^\d{1,2}h\d{2}$/i;
-// Moradas, também em minúsculas, abreviadas ("r.", "av", "tv.", "lg.", "estr.", "pç.") e com o número colado ("n12",
-// "nº12"): rua, avenida, travessa, largo, praça, estrada, bairro, quinta, urbanização… com o nome (palavras ou uma data,
-// como "5 de Outubro" ou "1.º de Maio"), o número da porta (ou do lote) e o andar, se houver ("Rua das Flores 12, 3.º
-// Esq", "av 25 de abril 100", "Bairro da Boavista, lote 12"); e "lote 12" sozinho. Uma morada só passa se estiver na base
-// de conhecimento com o mesmo número (e o mesmo andar): "Estrada de Benfica 512" não é a loja da "Estrada de Benfica 100".
-// Sem materiais, medidas, horas e quantidades ("travessa de prata 925", "fio largo de 5 mm", "praça às 10h00", "na Rua
+
+// ---------------------------------------------------------------- moradas (avisos)
+// Rua, avenida, estrada, praça, travessa, largo, quinta… com o nome (palavras ou uma data, como "5 de Outubro"), também
+// em minúsculas e abreviadas ("r.", "av", "tv.", "lg.", "estr.", "pç."), e o número da porta ("Rua das Flores 12",
+// "rua do ouro 120", "rua das flores n12"), seguidos do que vier na mesma oração: andar, lado, letra, bloco,
+// apartamento, casa, lote, código postal ("Estrada de Benfica 100 - 3º esq", "100 B", "100/3º", "100, apartamento 3B").
+// Também com o número ou o andar antes da rua ("n.º 12 da rua das flores", "3.º esq. da Estrada de Benfica 100"), o
+// andar com o lado ("3.º esq.") e casa, prédio, edifício, bloco, apartamento, moradia, apartado ou lote com o número.
+// Só não é aviso a morada que está na base de conhecimento exatamente assim (com o mesmo número, andar e letra). Sem
+// materiais, medidas, horas e quantidades ("travessa de prata 925", "fio largo de 5 mm", "praça às 10h00", "na Rua
 // Augusta temos 3 lojas") nem dias da semana e datas ("quinta-feira, 12 de março").
 const ci = (w: string) => w.replace(/\p{L}/gu, (c) => (c.toLowerCase() === c.toUpperCase() ? c : `[${c.toLowerCase()}${c.toUpperCase()}]`));
 const MONTHS = "janeiro fevereiro março marco abril maio junho julho agosto setembro outubro novembro dezembro".split(" ");
@@ -281,24 +304,42 @@ const NOT_STREET_NAME = [...MONTHS, "segunda", "terça", "terca", "quarta", "qui
 const STREET_STOP = [...NOT_STREET_NAME, "d[aeo]s?", "de", "e", "ou", "em", "no", "na", "nos", "nas", "num", "numa", "com", "para", "por", "pelo",
   "pela", "at[ée]", "a", "à", "às", "ao", "aos", "o", "as", "os", "um", "uma", "mais", "menos", "cerca", "entre", "sem", "que", "é", "são", "custa",
   "custam", "tem", "têm", "temos", "há", "fica", "ficam", "está", "estão", "estamos", "abre", "abrem", "abrimos", "fecha", "fecham", "mede", "medem",
-  "pesa", "pesam", "vale", "ouro", "prata", "a[çc]o", "platina", "t[ií]t[âa]nio", "p[ée]rolas?", "metal", "cristal"];
+  "pesa", "pesam", "vale"];
+// Materiais: "travessa de prata 925" e "largo de ouro" são peças; "rua do ouro 120" e "rua da prata 45" são moradas.
+const MATERIALS = ["ouro", "prata", "a[çc]o", "platina", "t[ií]t[âa]nio", "p[ée]rolas?", "metal", "cristal"];
 const STREET_UNITS = "mm|cm|m|g|gr|kg|ml|kt|k|ct|kl|€|%|eur|euros?|quilates?|dias?|horas?|h|min|minutos?|anos?|meses|semanas?|vezes|x|ª|º|°|peças?|unidades?|gramas?|metros?|kms?|lojas?";
 const MONTHS_RE = MONTHS.map(ci).join("|");
-const STREET_PREFIX = `(?:(?:${["rua", "avenida", "travessa", "largo", "praceta", "estrada", "praça", "praca", "alameda", "calçada", "calcada", "beco",
-  "bairro", "urbanização", "urbanizacao", "quinta", "rotunda", "caminho", "azinhaga"].map(ci).join("|")})(?!\\p{L})(?!-)`
-  + `|(?:${["r", "tv", "trav", "lg", "lgo", "estr", "pç", "pça", "pc", "al", "cç", "urb", "qta", "pct"].map(ci).join("|")})\\.|${ci("av")}\\.?(?!\\p{L}))`;
+const prefixRe = (words: string[], abbr: string[], av: boolean) =>
+  `(?:(?:${words.map(ci).join("|")})(?!\\p{L})(?!-)|(?:${abbr.map(ci).join("|")})\\.${av ? `|${ci("av")}\\.?(?!\\p{L})` : ""})`;
+const PREFIX_MAIN = prefixRe(["rua", "avenida", "estrada", "praça", "praca", "praceta", "alameda", "calçada", "calcada", "beco", "bairro", "urbanização",
+  "urbanizacao", "rotunda", "caminho", "azinhaga"], ["r", "estr", "pç", "pça", "pc", "al", "cç", "urb", "pct"], true);
+const PREFIX_WORDY = prefixRe(["travessa", "largo", "quinta"], ["tv", "trav", "lg", "lgo", "qta"], false);
+const PREFIX_ALL = `(?:${PREFIX_MAIN}|${PREFIX_WORDY})`;
 const STREET_DAY = `\\d{1,2}(?:[ \\t]*\\.?[ \\t]*[ºo°])?[ \\t]+${ci("de")}[ \\t]+(?:${MONTHS_RE})(?!\\p{L})`;
-const STREET_TOKEN = `(?:${STREET_DAY}|(?!(?:${NOT_STREET_NAME.map(ci).join("|")})(?!\\p{L}))(?:\\p{Lu}\\p{L}{0,3}\\.|\\p{Lu}[\\p{L}'’-]*)`
-  + `|(?!(?:${STREET_STOP.join("|")})(?!\\p{L}))\\p{Ll}[\\p{L}'’-]+)`;
-const STREET_NUMBER = `(?:[nN]\\.?[ \\t]*[ºo°]\\.?|[nN]\\.|[nN][oO]\\.|[nN](?=\\d)|${ci("número")}|${ci("numero")}|${ci("lote")}|${ci("lt")}\\.?|${ci("porta")})?[ \\t]*`
+const streetToken = (stop: string[]) => `(?:${STREET_DAY}|(?!(?:${NOT_STREET_NAME.map(ci).join("|")})(?!\\p{L}))(?:\\p{Lu}\\p{L}{0,3}\\.|\\p{Lu}[\\p{L}'’-]*)`
+  + `|(?!(?:${stop.join("|")})(?!\\p{L}))\\p{Ll}[\\p{L}'’-]+)`;
+const STREET_NUMBER = `(?:[nN]\\.?[ \\t]*[ºo°]\\.?|[nN]\\.|[nN][oO]\\.|[nN](?=\\d)|${ci("número")}|${ci("numero")}|${ci("lote")}|${ci("lt")}\\.?|${ci("porta")}|${ci("casa")}|${ci("prédio")}|${ci("predio")}|${ci("edifício")}`
+  + `|${ci("edificio")}|${ci("moradia")}|${ci("vivenda")})?[ \\t]*`
   + `\\d{1,4}(?:-?[A-Fa-f](?!\\p{L}))?(?![\\d.,:]?\\d)(?![ \\t]*(?:${STREET_UNITS})(?!\\p{L}))(?![ \\t]*(?:${ci("de")}[ \\t]+)?(?:${MONTHS_RE})(?!\\p{L}))`;
-const STREET_FLOOR = `(?:[ \\t]*,?[ \\t]*(?:\\d{1,2}[ \\t]*\\.?[ \\t]*[ºo°ª]\\.?(?:[ \\t]*${ci("andar")})?(?:[ \\t]*(?:${ci("esquerd")}[oa]|${ci("esq")}\\.?|`
-  + `${ci("direit")}[oa]|${ci("dir")}\\.?|${ci("dto")}\\.?|${ci("dt")}\\.?|${ci("frente")}|${ci("fte")}\\.?|${ci("trás")}|${ci("tras")}|[A-Fa-f])(?!\\p{L}))?`
-  + `|${ci("r/c")}|${ci("rc")}(?!\\p{L})|${ci("cave")}(?!\\p{L})))?`;
-const ADDRESS_RE = new RegExp(`(?<!\\p{L})${STREET_PREFIX}(?:[ \\t]+(?:[dD][aeo]s?[ \\t]+|[dD]e[ \\t]+|e[ \\t]+)?${STREET_TOKEN}){1,6}[ \\t]*,?[ \\t]*`
-  + `${STREET_NUMBER}${STREET_FLOOR}`, "gu");
-const LOT_RE = new RegExp(`(?<!\\p{L})(?:${ci("lote")}|${ci("lt")}\\.)[ \\t]*(?:[nN]\\.?[ \\t]*[ºo°]\\.?[ \\t]*)?\\d{1,4}(?:-?[A-Fa-f](?!\\p{L}))?`
-  + `(?![\\d.,:]?\\d)(?![ \\t]*(?:${STREET_UNITS})(?!\\p{L}))${STREET_FLOOR}`, "gu");
+const addressRe = (prefix: string, stop: string[]) => new RegExp(`(?<!\\p{L})${prefix}(?:[ \\t]+(?:[dD][aeo]s?[ \\t]+|[dD]e[ \\t]+|e[ \\t]+)?`
+  + `${streetToken(stop)}){1,6}[ \\t]*,?[ \\t]*${STREET_NUMBER}`, "gu");
+const ADDRESS_RES = [addressRe(PREFIX_MAIN, STREET_STOP), addressRe(PREFIX_WORDY, [...STREET_STOP, ...MATERIALS])];
+const SIDE = `(?:${ci("esquerd")}[oa]|${ci("esq")}\\.?|${ci("direit")}[oa]|${ci("dir")}\\.?|${ci("dto")}\\.?|${ci("dt")}\\.?|${ci("frente")}|${ci("fte")}\\.?|`
+  + `${ci("trás")}|${ci("tras")})(?!\\p{L})`;
+const ORD = `\\d{1,2}[ \\t]*\\.?[ \\t]*[ºª°]\\.?`;
+const UNIT = `(?:${["bloco", "apartamento", "apto", "apt", "fração", "fracção", "fracao", "casa", "porta", "lote", "lt", "piso", "edifício", "edificio", "prédio",
+  "predio", "torre", "entrada", "moradia", "vivenda", "apartado", "andar"].map(ci).join("|")})\\.?(?!\\p{L})`;
+const NUM_MARK = `(?:[nN]\\.?[ \\t]*[ºo°]\\.?|[nN]\\.|${ci("número")}|${ci("numero")})`;
+const UNIT_TOKEN = `(?:${ORD}(?:[ \\t]*${ci("andar")})?(?:[ \\t]*${SIDE})?|\\d{1,2}[ \\t]*${SIDE}|\\d{1,2}[ \\t]*${ci("andar")}(?!\\p{L})|${ci("r/c")}|${ci("rc")}(?!\\p{L})`
+  + `|${ci("cave")}(?!\\p{L})|${UNIT}[ \\t]*(?:${NUM_MARK}[ \\t]*)?(?:\\d{1,4}[A-Za-z]?|[A-Za-z])(?![\\p{L}\\p{N}])|[A-F](?![\\p{L}\\p{N}])`
+  + `|[a-f](?=[ \\t]*(?:[,.;:)]|$))|\\d{4}-\\d{3}(?:[ \\t]+\\p{Lu}[\\p{L}'’-]*){0,3})`;
+// O resto da morada a seguir ao número: andar, lado, letra, bloco, apartamento, código postal (na mesma oração).
+const ADDRESS_TAIL = new RegExp(`^(?:[ \\t]*(?:[,\\-–\\/][ \\t]*)?${UNIT_TOKEN})+`, "u");
+const NUMBER_FIRST_RE = new RegExp(`(?<!\\p{L})${NUM_MARK}[ \\t]*\\d{1,4}[A-Za-z]?[ \\t]+${ci("d")}[aeo]s?[ \\t]+${PREFIX_ALL}(?:[ \\t]+[\\p{L}'’.-]+){0,4}`, "gu");
+const FLOOR_FIRST_RE = new RegExp(`(?<![\\p{L}\\p{N}])${ORD}(?:[ \\t]*${ci("andar")})?(?:[ \\t]*${SIDE})?[ \\t]*,?[ \\t]*(?:${ci("d")}[aeo]s?|${ci("no")}|${ci("na")})[ \\t]+`
+  + `(?:${NUM_MARK}[ \\t]*\\d{1,4}[A-Za-z]?[ \\t]+${ci("d")}[aeo]s?[ \\t]+)?${PREFIX_ALL}(?:[ \\t]+[\\p{L}'’.-]+){0,4}(?:[ \\t]*,?[ \\t]*\\d{1,4})?`, "gu");
+const FLOOR_SIDE_RE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${ORD}(?:[ \\t]*${ci("andar")})?[ \\t]*${SIDE}|\\d{1,2}[ \\t]*${SIDE})`, "gu");
+const UNIT_RE = new RegExp(`(?<!\\p{L})${UNIT}[ \\t]*(?:${NUM_MARK}[ \\t]*)?(?:\\d{1,4}[A-Za-z]?|[A-Z])(?![\\p{L}\\p{N}])(?![ \\t]*(?:${STREET_UNITS})(?!\\p{L}))`, "gu");
 // Morada comparada sem maiúsculas, abreviaturas, "n.º" nem pontuação ("Av. da República, n.º 45" = "avenida da república
 // 45"), com um espaço de cada lado (uma morada só conta inteira: "estrada de benfica 10" não está em "… benfica 100").
 function addressNorm(s: string) {
@@ -314,26 +355,57 @@ function addressNorm(s: string) {
     .replace(/(?<!\p{L})(?:r\/c|rc)(?!\p{L})/gu, "rc")
     .replace(/[^\p{L}\p{N}º]+/gu, " ").replace(/\s+/g, " ").trim()} `;
 }
-// Ligações a perfis e conversas de redes sociais e mensagens ("instagram.com/joana.joias", "wa.me/351912345678",
-// "m.me/joana", "t.me/joana"): só as da empresa (na base de conhecimento ou com um @ ou telefone da empresa).
-const SOCIAL_HOST = /^(?:[a-z0-9-]+\.)*(?:wa\.me|whatsapp\.com|instagram\.com|instagr\.am|facebook\.com|fb\.com|fb\.me|m\.me|messenger\.com|t\.me|telegram\.me|tiktok\.com|twitter\.com|x\.com|linkedin\.com|youtube\.com|youtu\.be|pinterest\.[a-z.]+|threads\.net|snapchat\.com)$/;
+type Span = { text: string; at: number; end: number; ok: boolean };
+// Possíveis moradas de um texto, com a posição e se estão na base de conhecimento (ok).
+function addressSpans(text: string, allow: Allowlist): Span[] {
+  const spans: Span[] = [];
+  const add = (at: number, raw: string) => {
+    const end = at + raw.length;
+    if (spans.some((s) => at < s.end && end > s.at)) return;
+    spans.push({ text: raw, at, end, ok: allow.addresses.includes(addressNorm(raw)) });
+  };
+  for (const re of ADDRESS_RES)
+    for (const m of text.matchAll(re)) {
+      const at = m.index ?? 0;
+      const tail = ADDRESS_TAIL.exec(text.slice(at + m[0].length));
+      add(at, m[0] + (tail ? tail[0] : ""));
+    }
+  for (const re of [NUMBER_FIRST_RE, FLOOR_FIRST_RE, FLOOR_SIDE_RE, UNIT_RE]) for (const m of text.matchAll(re)) add(m.index ?? 0, m[0]);
+  return spans.sort((a, b) => a.at - b.at);
+}
+const blank = (text: string, spans: Span[]) => spans.reduce((t, s) => t.slice(0, s.at) + " ".repeat(s.end - s.at) + t.slice(s.end), text);
+
+// Ligações a perfis e conversas de redes sociais, mensagens e páginas de ligações ("instagram.com/joana.joias",
+// "wa.me/351912345678", "m.me/joana", "t.me/joana", "linktr.ee/joana"): só as da empresa (na base de conhecimento ou com
+// um @ ou telefone da empresa). Encurtadores ("bit.ly/…", "maps.app.goo.gl/…") escondem o destino: só os da base.
+const SOCIAL_HOST = /^(?:[a-z0-9-]+\.)*(?:wa\.me|wa\.link|whatsapp\.com|instagram\.com|instagr\.am|facebook\.com|fb\.com|fb\.me|m\.me|messenger\.com|t\.me|telegram\.me|tiktok\.com|twitter\.com|x\.com|linkedin\.com|youtube\.com|youtu\.be|pinterest\.[a-z.]+|threads\.net|snapchat\.com|linktr\.ee|lnk\.bio|linkin\.bio|beacons\.ai|bio\.link|taplink\.cc|allmylinks\.com|onlyfans\.com|discord\.gg|signal\.me|tumblr\.com|vinted\.[a-z.]+|olx\.pt)$/;
+const SHORT_HOST = /^(?:[a-z0-9-]+\.)*(?:bit\.ly|goo\.gl|g\.co|tinyurl\.com|t\.co|ow\.ly|is\.gd|cutt\.ly|rebrand\.ly|shorturl\.at|tiny\.cc|rb\.gy|buff\.ly|s\.id|t\.ly)$/;
 // Ligação comparada sem maiúsculas, sem http(s):// nem www. e sem a barra final.
 const linkNorm = (u: string) => u.toLowerCase().replace(/[.,;:!?…]+$/, "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+const linkHost = (u: string) => linkNorm(u).split(/[/?#:]/)[0];
 // Frases com maiúsculas ("Rua Maria Pia", "Figueira da Foz", "Cartão de Cidadão"): da base de conhecimento, retiradas do
 // texto antes de procurar nomes (uma palavra solta da base não isenta um nome). Na mesma linha; ponto só em abreviaturas
 // ("Rua Dr. José…"), para não juntar duas frases.
 const PHRASE_RE = /(?:\p{Lu}\p{L}{0,3}\.|\p{Lu}[\p{L}'’-]*)(?:[ \t]+(?:(?:de|da|do|das|dos|e|d['’])[ \t]+)?(?:\p{Lu}\p{L}{0,3}\.|\p{Lu}[\p{L}'’-]*))+/gu;
 
-// Palavras com maiúscula que não são pessoas: lugares, meios de pagamento, transportadoras, redes, datas e fórmulas.
+// Palavras com maiúscula que não são pessoas: lugares, países, meios de pagamento, transportadoras, redes, datas e fórmulas.
 const FIXED_WORDS = `portugal portuguesa português lisboa porto açores madeira continente europa espanha frança alemanha suíça itália
-  bélgica luxemburgo holanda inglaterra brasil angola moçambique loja lojas ouro gold store premium private selection mb way mbway
-  multibanco paypal klarna visa mastercard american express apple google pay revolut ctt dhl ups fedex nacex seur correios expresso
-  chronopost gls instagram facebook messenger whatsapp tiktok shopify natal páscoa carnaval black friday cyber monday dia mãe pai namorados
+  bélgica luxemburgo holanda países baixos inglaterra escócia irlanda gales canadá brasil angola moçambique cabo verde guiné bissau timor macau
+  goa andorra mónaco malta chipre grécia áustria polónia suécia noruega dinamarca finlândia islândia croácia eslovénia eslováquia chéquia
+  hungria roménia bulgária sérvia ucrânia rússia turquia israel emirados dubai catar qatar arábia saudita egito marrocos tunísia argélia
+  áfrica américa ásia oceânia austrália japão china índia méxico argentina venezuela colômbia chile peru cuba londres paris madrid
+  barcelona genebra zurique nova iorque york braga coimbra faro leiria aveiro viseu setúbal évora funchal sintra cascais almada amadora
+  loures odivelas oeiras guimarães viana santarém beja bragança guarda portalegre algarve alentejo minho gaia matosinhos maia gondomar
+  canárias baleares
+  loja lojas ouro gold store premium private selection mb way mbway multibanco paypal klarna visa mastercard maestro american express amex
+  apple google pay revolut cofidis oney scalapay sequra bizum ctt dhl ups fedex nacex seur mrw dpd tnt correios correos expresso chronopost
+  gls instagram facebook messenger whatsapp tiktok shopify natal páscoa carnaval black friday cyber monday dia mãe pai namorados
   segunda terça quarta quinta sexta sábado domingo feira janeiro fevereiro março abril maio junho julho agosto setembro outubro novembro
-  dezembro olá bom boa dia tarde noite obrigado obrigada caro cara estimado estimada exmo exma senhor senhora senhores senhoras cliente
-  clientes amigos equipa apoio pedimos podemos pode agradecemos lamentamos informamos sim não muito quilate quilates kl euros eur iva
-  cartier tiffany pandora feliz felizes boas festas votos cumprimentos atenciosamente beijinhos abraço abraços até breve volte sempre
-  continental ilhas reino unido estados unidos união europeia joalharia ourivesaria relojoaria`;
+  dezembro primavera verão outono inverno olá bom boa dia tarde noite obrigado obrigada caro cara estimado estimada exmo exma senhor senhora
+  senhores senhoras cliente clientes amigos equipa apoio pedimos podemos pode agradecemos lamentamos informamos sim não muito quilate
+  quilates kl euros eur iva cartier tiffany pandora feliz felizes boas festas votos cumprimentos atenciosamente beijinhos abraço abraços até
+  breve volte sempre continental ilhas reino unido estados unidos união europeia joalharia ourivesaria relojoaria cristo rei arcanjo
+  anjo sagrada família fátima arial helvetica calibri verdana times roman`;
 // Palavras de joalharia que também são nomes de pessoas ("Rosa", "Pérola") ou que aparecem com maiúscula ("Anel",
 // "Filigrana"): não contam como nome.
 const NAME_EXCEPTIONS = `rosa branco branca amarelo amarela pérola perola pérolas cristal diamante diamantes ouro prata flor luz estrela
@@ -341,18 +413,28 @@ const NAME_EXCEPTIONS = `rosa branco branca amarelo amarela pérola perola péro
   ágata agata malaquite zircónia zirconia titânio titanio aço platina paládio ródio filigrana arrecadas medalha medalhas terço terços
   crucifixo escapulário anel anéis aneis fio fios brinco brincos pulseira pulseiras colar colares pendente pendentes alfinete relógio
   relógios joia joias jóia jóias argola argolas aliança alianças solitário gargantilha berloque berloques charm charms cordão corrente
-  bracelete grilheta piercing coleção colecção edição`;
-// Marcas de joalharia e relojoaria com uma palavra ("Swarovski", "Tous"): não são nomes.
-const JEWELLERY_BRANDS = `swarovski tous guess fossil casio seiko tissot swatch lacoste festina lotus viceroy diesel rolex omega longines
-  tudor breitling bvlgari bulgari chanel dior gucci hermès hermes versace armani boss timex citizen orient certina police nomination
-  morellato skagen`;
+  bracelete grilheta piercing coleção colecção edição moeda moedas libra libras`;
+// Marcas de joalharia e relojoaria com uma palavra ("Swarovski", "Tous", "Hamilton"): não são nomes.
+const JEWELLERY_BRANDS = `swarovski tous guess fossil casio seiko presage prospex tissot swatch lacoste festina lotus viceroy diesel rolex omega
+  longines tudor breitling bvlgari bulgari chanel dior gucci hermès hermes versace armani boss timex citizen orient certina police
+  nomination morellato skagen hamilton garmin amazfit suunto polar huawei xiaomi samsung chopard piaget hublot panerai iwc zenith oris
+  rado mido bulova invicta victorinox edox marea jaguar sector breil liu jo ice watch shock g-shock baby-g timberland nautica tommy
+  hilfiger kors klein lannier cardin hewitt wellington heuer weil jacobs sento pdpaola uno50 aristocrazy agatha majorica lotus`;
 const SAFE_WORDS = new Set(`${FIXED_WORDS} ${NAME_EXCEPTIONS} ${JEWELLERY_BRANDS}`.split(/\s+/).filter(Boolean));
+// Siglas que não são nomes ("CTT", "IVA", "NIF").
+const ACRONYMS = new Set(`ctt dhl ups gls dpd mrw tnt nif iban iva pvp ref pdf sms url faq eua usa uk ue rgpd mb ok vip gps led tv atm sos pt en es fr
+  de br ldo gsp ii iii iv vi vii viii ix xi xii xx xxi kl kt ct ctl cm mm swift bic cc cvv qr nfc ip`.split(/\s+/).filter(Boolean));
 // Marcas e peças com um nome próprio ("Thomas Sabo", "Nossa Senhora"): como as frases da base de conhecimento.
 const BRAND_PHRASES = ["Daniel Wellington", "Michael Kors", "Calvin Klein", "Tommy Hilfiger", "Hugo Boss", "Emporio Armani", "Thomas Sabo",
   "Pierre Lannier", "Pierre Cardin", "Paul Hewitt", "Victoria Cruz", "Tag Heuer", "Raymond Weil", "Marc Jacobs", "Ti Sento", "Lotus Style",
-  "Nossa Senhora", "Virgem Maria", "Menino Jesus", "Sagrado Coração", "Espírito Santo", "Coração de Viana", "Coração de Jesus", "Coração de Maria"];
-// Nomes próprios comuns (sem os que também são palavras ou lojas, como Clara, Graça, Luz ou Fátima): nunca num cartão, em
-// qualquer posição, mesmo de quem não é o cliente ("a sua filha Beatriz").
+  "Maurice Lacroix", "Frederique Constant", "Jaeger LeCoultre", "Patek Philippe", "Audemars Piguet", "Van Cleef", "Agatha Paris", "Liu Jo",
+  "Nossa Senhora", "Virgem Maria", "Menino Jesus", "Sagrado Coração", "Espírito Santo", "Coração de Viana", "Coração de Jesus", "Coração de Maria",
+  "Cristo Rei", "Cabo Verde", "Times New Roman", "Vila Nova de Gaia", "Vila Real", "Vila do Conde", "Vila Franca de Xira", "Póvoa de Varzim",
+  "Figueira da Foz", "Castelo Branco", "Viana do Castelo", "Santa Maria da Feira", "São João da Madeira", "Torres Vedras", "Torres Novas",
+  "Caldas da Rainha", "Ponta Delgada", "Costa da Caparica", "Paços de Ferreira", "Vale de Cambra", "Monte Gordo", "Reino Unido",
+  "Estados Unidos", "Nova Iorque", "Países Baixos", "Arábia Saudita", "Emirados Árabes Unidos"];
+// Nomes próprios comuns (sem os que também são palavras ou lojas, como Clara, Graça, Luz ou Fátima): aviso em qualquer
+// posição e em qualquer forma ("a sua filha Beatriz", "fale com o joão").
 const FIRST_NAMES = new Set(`joão josé antónio antonio manuel francisco carlos paulo pedro luís luis jorge miguel rui tiago bruno ricardo
   nuno filipe fernando hugo vítor vitor sérgio sergio mário mario alberto armando joaquim alexandre marco fábio fabio hélder helder nelson
   daniel david andré andre diogo gonçalo goncalo rodrigo rafael afonso tomás tomas martim duarte henrique guilherme lourenço lourenco
@@ -366,20 +448,22 @@ const FIRST_NAMES = new Set(`joão josé antónio antonio manuel francisco carlo
   angela antónia antonia benedita bianca camila carmen constança débora debora dulce elisa elisabete elsa emília emilia estela eva
   fabiana filomena flávia gisela irene ivone jéssica jessica joaquina judite júlia julia juliana lara liliana lurdes mafalda manuela
   márcia marcia marina marisa marlene micaela milene natália natalia nádia nadia olga paulina regina renata rosário rute ruth sabrina
-  salomé sílvia silvia tânia tania tatiana valentina valéria vanessa yara john james michael robert william mary jennifer jean pierre
-  marie anne thomas kevin emma olivia sophie liam mohammed muhammad ahmed omar`.split(/\s+/).filter(Boolean));
-// Apelidos que também são palavras ("dias úteis", "uma correia", "vale de compras") e palavras de um perfil ("joias"): só
-// contam com maiúscula ou em maiúsculas.
-const COMMON_LOWER = new Set(`dias costa rocha pinto santos lima cruz ramos campos flores leite mota neves coelho cordeiro fontes serra
-  matos correia paz guerra vale valente lobo machado pinheiro reis ribeiro salgado torres franco neto paixão prado rios fonte monte montes
-  bispo frade raposo carneiro pombo pereira oliveira figueira silva moura barros couto vila domingos anjos castelo carvalho cunha brito
-  vieira caldeira joias jóias joia jóia anel aneis anéis fio fios brinco brincos pulseira colar relógio relogio peças peça oficial design
-  moda shop love style home bijuteria ourivesaria joalharia`.split(/\s+/).filter(Boolean));
+  salomé sílvia silvia tânia tania tatiana valentina valéria vanessa yara kátia katia john james michael robert william mary jennifer
+  jean pierre marie anne thomas kevin emma olivia sophie liam mohammed muhammad ahmed omar`.split(/\s+/).filter(Boolean));
+// Apelidos que também são palavras ("Costa", "Rocha", "Flores"): com maiúscula, possíveis nomes; em minúsculas, palavras.
+const SURNAME_WORDS = new Set(`costa rocha pinto santos lima cruz ramos campos flores leite mota neves coelho cordeiro fontes serra matos
+  correia paz guerra valente lobo machado pinheiro reis ribeiro salgado torres franco neto paixão prado rios fonte monte montes bispo frade
+  raposo carneiro pombo pereira oliveira figueira silva moura barros couto vila anjos castelo carvalho cunha brito vieira caldeira`
+  .split(/\s+/).filter(Boolean));
+// Nomes da equipa ou do cliente que também são palavras ("dias úteis", "uma correia", "vale de compras") e palavras de um
+// perfil ("joias"): só contam com maiúscula ou em maiúsculas.
+const COMMON_LOWER = new Set([...SURNAME_WORDS, ...`dias domingos vale joias jóias joia jóia anel aneis anéis fio fios brinco brincos pulseira
+  colar relógio relogio peças peça oficial design moda shop love style home bijuteria ourivesaria joalharia`.split(/\s+/).filter(Boolean)]);
 
 export type Allowlist = {
   emails: Set<string>; phones: Set<string>; numbers: Set<string>; postcodes: Set<string>; handles: Set<string>; codes: Set<string>;
-  // Ligações da base de conhecimento e do apoio (linkNorm): passam tal como estão, mesmo com números ou parâmetros.
-  links: Set<string>;
+  // Ligações da base de conhecimento e do apoio (linkNorm) e os seus domínios: passam tal como estão.
+  links: Set<string>; hosts: Set<string>;
   // Frases com maiúsculas da base de conhecimento, das lojas e de marcas (já numa expressão regular).
   phrases: RegExp | null;
   // Palavras da base de conhecimento e das lojas que não são nomes próprios comuns (lugares, produtos, termos da empresa):
@@ -389,10 +473,45 @@ export type Allowlist = {
   addresses: string;
 };
 
-const phoneDigits = (p: string) => {
-  const d = p.replace(/\D/g, "");
+// Telefone comparado só pelos algarismos, sem o indicativo de Portugal (+351 ou 00351).
+const phoneKey = (digits: string) => {
+  const d = digits.replace(/\D/g, "").replace(/^00/, "");
   return d.length === 12 && d.startsWith("351") ? d.slice(3) : d;
 };
+// Algarismos em grupos separados por espaços (até 3), pontos, hífens ou barras, com ou sem + ("912 345 678",
+// "912  345  678", "912 / 345 / 678", "+351 912 345 678", "0044 20 7946 0958"). Os parênteses contam como espaços.
+const DIGIT_RUN = /(?<![\p{L}\p{N}])\+?\d+(?:(?:[ \t]{1,3}|[ \t]?[.\-–/][ \t]?)\d+)*(?![\p{L}\p{N}])/gu;
+type DigitRun = { raw: string; digits: string; groups: number[]; intl: boolean };
+function digitRuns(text: string): DigitRun[] {
+  return [...text.matchAll(DIGIT_RUN)].map((m) => ({
+    raw: m[0], digits: m[0].replace(/\D/g, ""), groups: m[0].split(/\D+/).filter(Boolean).map((g) => g.length),
+    // Indicativo: + ou 00 seguido de um algarismo de 1 a 9 ("00351", "00 44"; "0002" não é).
+    intl: /^(?:\+|00[ \t]?[1-9])/.test(m[0]),
+  }));
+}
+function luhn(d: string) {
+  let sum = 0;
+  for (let i = 0; i < d.length; i++) {
+    let x = Number(d[d.length - 1 - i]);
+    if (i % 2) x = x * 2 > 9 ? x * 2 - 9 : x * 2;
+    sum += x;
+  }
+  return sum % 10 === 0;
+}
+// Um grupo de algarismos é um telefone (com + ou 00 e 8+ algarismos, ou 9 algarismos em até 4 grupos ou um a um: "912
+// 345 67 8", "9 1 2 3 4 5 6 7 8"), um cartão (13 a 19, Luhn) ou um número longo (9+). Listas de números pequenos
+// ("tamanhos 48 50 52 54 56") não contam.
+function runKind(r: DigitRun): PiiProblem | null {
+  if (r.intl) return r.digits.replace(/^00/, "").length >= 8 ? "telefone" : null;
+  const n = r.digits.length, g = r.groups;
+  if (n < 9) return null;
+  const singles = g.every((x) => x === 1);
+  if (n === 9 && (g.length <= 4 || singles)) return "telefone";
+  if (!(singles || g.length === 1 || g.every((x) => x >= 3) || (g.length <= 4 && g.every((x) => x >= 2)))) return null;
+  if (n === 9) return "telefone";
+  return n >= 13 && n <= 19 && luhn(r.digits) ? "pagamento" : "numero";
+}
+
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Palavra inteira (sem o sinal g, por isso reutilizável): o painel verifica até 300 cartões com os mesmos nomes.
 const wordCache = new Map<string, RegExp>();
@@ -413,12 +532,18 @@ function codesIn(text: string) {
   for (const c of text.match(CODE_TOKEN) || []) if (!NOT_A_CODE.test(c)) out.add(c.toUpperCase());
   for (const m of text.matchAll(CODE_AFTER_WORD)) if (/^(?=.*\p{Lu})[\p{Lu}\p{N}]+$/u.test(m[1])) out.add(m[1].toUpperCase());
   for (const g of text.match(CODE_GROUPS) || []) if (/\d/.test(g) && /[A-Z]/.test(g)) out.add(g.replace(/[ -]/g, ""));
+  for (const c of text.match(CODE_DASH) || []) out.add(c.toUpperCase());
   return out;
 }
 
+function linkList(text: string) {
+  return [...new Set([...(text.match(SCHEME_LINK) || []), ...(text.match(SPECIAL_LINK) || []), ...linksIn(text)].map((u) => u.replace(/[.,;:!?…]+$/, "")))]
+    .sort((a, b) => b.length - a.length);
+}
+
 // Dados da empresa aceites num cartão: os da base de conhecimento, das lojas físicas e das caixas e da assinatura do apoio
-// (emails, telefones, números, códigos postais, perfis, códigos, frases e moradas). Os emails dos domínios próprios só
-// passam se estiverem aqui (uma caixa pessoal "nome@lojadoouro.pt" não).
+// (emails, telefones, números, códigos postais, perfis, códigos, ligações, frases e moradas). Os emails dos domínios
+// próprios só passam sem aviso se estiverem aqui (uma caixa pessoal "nome@lojadoouro.pt" não).
 export function companyAllowlist(o: { knowledge: string; stores: { name: string; city: string | null; code?: string | null }[]; extra?: string[] }): Allowlist {
   const text = [o.knowledge, ...(o.extra || [])].join("\n");
   const storeNames = o.stores.flatMap((s) => [s.name.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim(), (s.city || "").trim()]);
@@ -428,37 +553,31 @@ export function companyAllowlist(o: { knowledge: string; stores: { name: string;
   // caixas e da assinatura do apoio, que podem ter o nome de quem responde).
   const places = new Set<string>();
   for (const w of [o.knowledge, ...storeNames].join("\n").match(/\p{L}[\p{L}'’-]+/gu) || []) if (!FIRST_NAMES.has(w.toLowerCase())) places.add(w.toLowerCase());
+  const links = linkList(text);
+  const runs = digitRuns(text.replace(/[()]/g, " "));
   return {
     emails: new Set((text.match(EMAIL_RE) || []).map((e) => e.toLowerCase())),
-    phones: new Set([...(text.match(PHONE_RE) || []), ...(text.match(INTL_PHONE_RE) || [])].map(phoneDigits)),
-    numbers: new Set(text.match(/\d+/g) || []),
+    phones: new Set(runs.map((r) => phoneKey(r.digits))),
+    numbers: new Set([...(text.match(/\d+/g) || []), ...runs.map((r) => r.digits)]),
     postcodes: new Set(text.match(POSTCODE_RE) || []),
-    handles: new Set((text.match(HANDLE_RE) || []).map((h) => h.toLowerCase().replace(/[._]+$/, ""))),
+    handles: new Set((text.match(HANDLE_RE) || []).map(handleKey)),
     codes: codesIn(text),
-    links: new Set(linkList(text).map(linkNorm)),
+    links: new Set(links.map(linkNorm)),
+    hosts: new Set(links.map(linkHost)),
     phrases: phrases.length ? new RegExp(`(?<!\\p{L})(?:${phrases.map(escapeRe).join("|")})(?!\\p{L})`, "giu") : null,
     places,
     addresses: addressNorm(text),
   };
 }
 
-export const PII_PROBLEMS = [
-  "email", "telefone", "numero", "encomenda", "pagamento", "ligacao", "codigo_postal", "envio", "codigo", "perfil", "morada", "nome", "nome_proprio",
-] as const;
+// Recusas (sem ambiguidade). Os possíveis nomes, moradas, perfis sem @, códigos e ligações externas são avisos.
+export const PII_PROBLEMS = ["email", "telefone", "numero", "encomenda", "pagamento", "ligacao", "envio", "perfil", "nome"] as const;
 export type PiiProblem = (typeof PII_PROBLEMS)[number];
 export const PII_LABEL: Record<PiiProblem, string> = {
-  email: "um email", telefone: "um telefone", numero: "um número longo", encomenda: "um número de encomenda", pagamento: "IBAN, NIF ou documento",
-  ligacao: "uma ligação de conta, com código ou com um número longo", codigo_postal: "um código postal", envio: "um código de envio", codigo: "um código (desconto, vale…)",
-  perfil: "um perfil de rede social", morada: "uma morada", nome: "um nome de pessoa", nome_proprio: "um nome próprio na pergunta",
+  email: "um email que não é da empresa", telefone: "um telefone", numero: "um número longo", encomenda: "um número de encomenda ou de referência",
+  pagamento: "IBAN, NIF ou número de cartão", ligacao: "uma ligação com um id, um número longo ou de uma conta", envio: "um código de envio",
+  perfil: "um perfil de rede social", nome: "o nome do cliente ou de alguém da equipa",
 };
-const RISK_CODE: Record<string, PiiProblem> = {
-  "um endereço de email": "email", "um número de telefone": "telefone", "um código postal": "codigo_postal",
-  "um número de encomenda": "encomenda", "dados de identificação ou pagamento": "pagamento", "um código de envio": "envio",
-};
-
-function linkList(text: string) {
-  return [...new Set([...(text.match(SCHEME_LINK) || []), ...linksIn(text)].map((u) => u.replace(/[.,;:!?…]+$/, "")))].sort((a, b) => b.length - a.length);
-}
 
 // Um segmento do caminho de uma ligação com aspeto de token ("/p/8f3a9c2b1e7d"): 8+ caracteres com letras e algarismos e
 // sem hífens. Os handles de produtos, coleções, páginas e artigos não contam.
@@ -468,28 +587,61 @@ function tokenInPath(u: string) {
     && s.length >= 8 && /\d/.test(s) && /\p{L}/u.test(s) && !s.includes("-"));
 }
 
-// Dados pessoais numa ligação (null = aceite). As ligações da empresa (base de conhecimento) passam tal como estão. Um
-// perfil ou uma conversa de uma rede social só passa se for da empresa (o @ ou o telefone estão na base de conhecimento) e
-// sem parâmetros; as outras ligações não podem ter parâmetros, caminhos de conta ou encomenda, tokens nem 9 ou mais
-// algarismos seguidos (um telefone, um NIF ou um número de cliente).
+// Dados pessoais numa ligação (null = sem recusa). As ligações da empresa (base de conhecimento) passam tal como estão.
+// Um perfil, uma conversa ou uma página de ligações só passa se for da empresa (o @ ou o telefone estão na base de
+// conhecimento) e sem parâmetros; um encurtador nunca (esconde o destino); as outras ligações não podem ter parâmetros,
+// caminhos de conta ou encomenda, tokens nem 7 ou mais algarismos (um telefone, um NIF, um id).
 function linkProblem(u: string, allow: Allowlist): PiiProblem | null {
   const n = linkNorm(u);
   if (allow.links.has(n)) return null;
   const host = n.split(/[/?#:]/)[0];
-  const generic = /[?#]/.test(u) || ACCOUNT_PATH.test(u) || tokenInPath(u) || /\d(?:[.\-_]?\d){8,}/.test(n);
+  const path = n.slice(host.length).replace(/^[/:]+/, "");
   if (SOCIAL_HOST.test(host)) {
-    const first = n.slice(host.length).replace(/^[/:]+/, "").split(/[/?#]/)[0].replace(/^@/, "").replace(/[._]+$/, "");
+    const first = path.split(/[/?#]/)[0].replace(/^@/, "").replace(/[._]+$/, "");
     if (!first && !/[?#]/.test(u)) return null;
-    const own = !!first && (allow.handles.has(`@${first}`) || allow.phones.has(phoneDigits(first)));
+    const own = !!first && (allow.handles.has(`@${first}`) || (/\d{6,}/.test(first) && allow.phones.has(phoneKey(first))));
     if (!own) return "perfil";
     return /[?#]/.test(u) ? "ligacao" : null;
   }
-  return generic ? "ligacao" : null;
+  if (SHORT_HOST.test(host)) return path ? "ligacao" : null;
+  return /[?#]/.test(u) || ACCOUNT_PATH.test(u) || tokenInPath(u) || /\d(?:[.\-_]?\d){6,}/.test(n) ? "ligacao" : null;
 }
 
-// Palavras comuns do português que podem começar uma frase, um item ou vir depois de uma saudação ou de um tratamento sem
-// serem nomes: artigos, pronomes, preposições, advérbios e os verbos e nomes mais usados nas perguntas e respostas de uma
-// joalharia. Sem palavras que também são nomes de pessoas (Clara, Graça, Glória, Vitória, Linda…) nem apelidos.
+// Números de encomenda ou de referência: depois de "encomenda", "pedido", "order", "fatura", "compra", "reparação",
+// "guia", "reserva", "talão", "recibo", "referência" ou "(número/cartão de) cliente", com "nº", "#" ou letras ("n.º 4512",
+// "#4512", "LDO12345", "é 45123"), logo a seguir (3+ algarismos), ou um número de 4+ algarismos na mesma frase ("a
+// encomenda de 12 de outubro, a 4512"). Anos, valores, medidas e horas não contam ("compras acima de 1500 €",
+// "reservas para 2026"); "#1234" e "#LDO1234" sozinhos também são.
+const REF_KEY_RE = /(?<!\p{L})(?:encomendas?|pedidos?|orders?|faturas?|facturas?|compras?|repara[çc](?:[ãa]o|[õo]es)|guias?|reservas?|tal[ãa]o|tal[õo]es|recibos?|refer[êe]ncias?|ref\.|clientes?)(?!\p{L})/giu;
+const REF_MARK = "(?:n\\.?[ \\t]*[ºo°]\\.?|nº|n\\.|n[úu]mero|nr\\.?|no\\.(?=[ \\t]*\\d))";
+const REF_DIRECT = new RegExp(`^[ \\t]*(?:(${REF_MARK})[ \\t]*)?(?:(?:é|:|=)[ \\t]*)?(#)?[ \\t]*([A-Za-z]{1,4}-?)?(\\d{3,})(?!\\d)`, "iu");
+const REF_GAP = new RegExp(`(?:${REF_MARK}|#)[ \\t]*:?[ \\t]*#?[ \\t]*[A-Za-z]{0,4}-?(\\d{3,})`, "iu");
+const NUM_UNIT_AFTER = /^(?:[.,]\d+)?[ \t]*(?:€|\$|£|eur(?:os?)?|%|por[ \t]+cento|h(?:oras?)?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?)(?!\p{L})/iu;
+const isYear = (d: string) => /^(?:19|20)\d\d$/.test(d);
+function orderRefs(text: string, allow: Allowlist) {
+  for (const m of text.matchAll(REF_KEY_RE)) {
+    const from = (m.index ?? 0) + m[0].length;
+    const tail = text.slice(from, from + 80).split(/[!?;\n]|\.(?=[ \t]+\p{Lu})|\.$/u)[0];
+    const d = REF_DIRECT.exec(tail);
+    if (d && !allow.numbers.has(d[4])) {
+      const after = tail.slice(d.index + d[0].length);
+      if (d[1] || d[2] || d[3] || (!isYear(d[4]) && !NUM_UNIT_AFTER.test(after) && !/^[.,:]\d/.test(after))) return true;
+    }
+    const near = tail.slice(0, 40);
+    const g = REF_GAP.exec(near);
+    if (g && !allow.numbers.has(g[1])) return true;
+    for (const n of near.matchAll(/(?<![\p{L}\p{N}.,:])\d{4,}(?![\p{L}\p{N}])/gu)) {
+      const after = near.slice((n.index ?? 0) + n[0].length);
+      if (!isYear(n[0]) && !NUM_UNIT_AFTER.test(after) && !/^[.,:]\d/.test(after) && !allow.numbers.has(n[0])) return true;
+    }
+  }
+  return /#\s?\d{4,}|#[A-Za-z]{2,4}-?\d{3,}/u.test(text);
+}
+
+// Palavras comuns do português que podem começar uma frase, um item ou vir depois de uma saudação, de um parentesco ou
+// de um tratamento sem serem nomes: artigos, pronomes, preposições, advérbios e os verbos e nomes mais usados nas
+// perguntas e respostas de uma joalharia. Sem palavras que também são nomes de pessoas (Clara, Graça, Glória, Vitória,
+// Linda…) nem apelidos.
 const COMMON_WORDS = new Set(`a o as os um uma uns umas à às ao aos este esta estes estas esse essa esses essas aquele aquela aqueles aquelas
   isto isso aquilo neste nesta nestes nestas nesse nessa nesses nessas deste desta destes destas desse dessa desses dessas todo toda todos
   todas tudo cada qualquer quaisquer outro outra outros outras algum alguma alguns algumas nenhum nenhuma nada muito muita muitos muitas
@@ -498,26 +650,53 @@ const COMMON_WORDS = new Set(`a o as os um uma uns umas à às ao aos este esta 
   tua dele dela deles delas quem que qual quais quanto quanta quantos quantas onde aonde como quando porque porquê de do da dos das em no na
   nos nas num numa por pelo pela pelos pelas para com sem sob sobre entre até desde após ante contra durante mediante perante conforme
   segundo exceto salvo e ou mas nem porém contudo todavia logo pois portanto assim então caso embora enquanto apesar também já ainda só
-  apenas sempre nunca jamais hoje amanhã ontem agora aqui ali lá cá aí depois antes cedo tarde bem mal mais menos quase talvez aliás
+  apenas sempre nunca jamais hoje amanhã ontem agora aqui ali lá cá aí depois antes cedo tarde bem mal mais menos quase talvez aliás afinal
   inclusive bastante demais imenso imensa ok é são era eram foi foram será serão seria seriam seja sejam ser sou somos está estão estamos
-  estar estava estavam esteja estejam estará tem têm temos ter tenho tinha tinham teve tiver tiverem tenha tenham terá terão há haver havia
-  houve haverá pode podem podemos poder posso podia poderá poderão poderia poderiam possa possam faz fazem fazemos fazer fiz fez feito feita
-  feitos feitas faça façam fará farão deve devem devemos dever deverá deverão deveria vai vão vamos ir vá iremos vem vêm vir veio vimos venha
-  venham dá dão damos dar dou deu demos dê sei sabe sabem sabemos saber quer querem queremos querer queira queiram queria gostaria
-  gostaríamos preciso consegue conseguem conseguimos conseguir consigo diz dizem dizer diga digam dizemos vê vemos ver veja vejam trazer
-  traga tragam trazemos segue seguem seguir siga sigam sugerimos sugere sugerem pedimos peço peça peças peçam informamos agradecemos
-  lamentamos garantimos oferecemos oferece oferecem oferecer incluímos inclui incluem incluir medimos mede medem medir polimos polir
-  substitui substituem substituímos substituir substituído cobrimos cobrem cobrir coberto coberta horário horários morada moradas contacto
-  contactos telefone telemóvel email site página encomenda encomendas envio envios entrega entregas pagamento pagamentos troca trocas
-  devolução devoluções reembolso reembolsos garantia garantias reparação reparações gravação gravações medida medidas tamanho tamanhos
-  preço preços valor valores prazo prazos produto produtos artigo artigos modelo modelos stock compra compras venda vendas desconto
-  descontos promoção promoções campanha campanhas portes custo custos taxa taxas fatura faturas recibo recibos talão talões informação
-  informações nota notas atenção dúvida dúvidas questão questões pedido pedidos resposta respostas cartão cartões oferta ofertas embalagem
-  embrulho caixa caixas avaliação avaliações limpeza manutenção certificado certificados material materiais qualidade disponibilidade
-  levantamento online internet claro certo perfeito ótimo excelente possível possíveis disponível disponíveis grátis gratuito gratuita
-  gratuitos gratuitas novo nova novos novas importante habitual normal próximo próxima último última primeiro primeira desculpe desculpa
-  felizmente entretanto aproveitamos prezado prezada prezados prezadas estimados estimadas bons fique fiquem dirija dirijam desloque desloquem
-  sabia sim não`.split(/\s+/).filter(Boolean));
+  estar estava estavam esteja estejam estará estou estive tem têm temos ter tenho tinha tinham teve tiver tiverem tenha tenham terá terão há
+  haver havia houve haverá pode podem podemos poder posso podia poderá poderão poderia poderiam possa possam pude faz fazem fazemos fazer fiz
+  fez feito feita feitos feitas faça façam fará farão faço deve devem devemos dever deverá deverão deveria devo vai vão vamos ir vá iremos
+  vou vem vêm vir veio vimos venha venham venho vim dá dão damos dar dou deu demos dê dei sei sabe sabem sabemos saber quer querem queremos
+  querer queira queiram queria quero quis gostaria gostava gostaríamos preciso consegue conseguem conseguimos conseguir consigo diz dizem
+  dizer diga digam dizemos digo disse vê vemos ver veja vejam vejo vi trazer traga tragam trazemos trago trouxe segue seguem seguir siga
+  sigam sigo sugerimos sugere sugerem sugiro pedimos peço peça peças peçam pedi perdi perco informamos agradecemos lamentamos garantimos
+  oferecemos oferece oferecem oferecer ofereci incluímos inclui incluem incluir medimos mede medem medir polimos polir substitui
+  substituem substituímos substituir substituído cobrimos cobrem cobrir coberto coberta prefiro sinto horário horários morada moradas
+  contacto contactos telefone telemóvel email site página encomenda encomendas envio envios entrega entregas pagamento pagamentos troca
+  trocas devolução devoluções reembolso reembolsos garantia garantias reparação reparações gravação gravações medida medidas tamanho
+  tamanhos preço preços valor valores prazo prazos produto produtos artigo artigos modelo modelos stock compra compras venda vendas
+  desconto descontos promoção promoções campanha campanhas portes custo custos taxa taxas fatura faturas recibo recibos talão talões
+  informação informações nota notas atenção dúvida dúvidas questão questões pedido pedidos resposta respostas cartão cartões oferta ofertas
+  embalagem embrulho caixa caixas avaliação avaliações limpeza manutenção certificado certificados material materiais qualidade
+  disponibilidade levantamento online internet claro certo perfeito ótimo excelente possível possíveis disponível disponíveis grátis
+  gratuito gratuita gratuitos gratuitas novo nova novos novas importante habitual normal próximo próxima último última primeiro primeira
+  desculpe desculpa felizmente infelizmente entretanto aproveitamos prezado prezada prezados prezadas estimados estimadas bons fique
+  fiquem dirija dirijam desloque desloquem sabia sim não`.split(/\s+/).filter(Boolean));
+// Mais palavras das perguntas e respostas de uma joalharia (peças, materiais, ocasiões, pessoas, adjetivos): não são nomes.
+const VOCAB = new Set(`moeda corrente correia mostrador pilha bateria fecho mola elo malha pregadeira broche botão punho gemelos tiara diadema
+  coroa medalhão relicário escrava fivela chaveiro saldo unidade pedra gema grama liga banho banhado banhada dourado dourada prateado
+  prateada rodinado lapidação cravação cravado cravada polimento polido polida risco queda defeito fabrico usado usada partido partida
+  antigo antiga velho velha vintage clássico clássica moderno moderna simples elegante bonito bonita lindo maciço maciça oco oca fino fina
+  grosso grossa largo larga estreito estreita comprido comprida curto curta pequeno pequena grande médio média alto alta baixo baixa leve
+  pesado pesada brilhante bicolor tricolor rosé secreto secreta bebé criança menino adulto idoso idosa jovem adolescente recém-nascido
+  recém-nascida batizado batismo comunhão casamento noivado noiva noivo aniversário natal prenda presente lembrança sugestão ideia
+  mãe pai filho filha avó avô neto neta irmão irmã marido mulher esposa esposo namorado namorada amigo amiga sogra sogro tia tio sobrinho
+  sobrinha afilhado afilhada madrinha padrinho colega senhor senhora pessoa família semana mês ano dia hora minuto manhã noite tarde
+  cor feitio estilo número números feriado vale voucher dinheiro numerário cheque transferência crédito débito prestação esgotado
+  esgotada encomendar pagar recolha aplicação app loja centro comercial shopping montra vitrine coleção modelo referência certificado
+  autenticidade orçamento avaliação peso quilate ouro prata platina aço titânio couro pele borracha silicone tecido nylon metal cristal
+  safira vidro mineral automático quartzo digital analógico cronógrafo mergulho resistente estanque água pulso dedo pescoço orelha
+  tornozelo nome inicial iniciais letra letras data datas frase mensagem gravado gravada personalizado personalizada exemplo parte
+  frente verso interior exterior lado tipo tipos género homem senhoras homens unissexo infantil criança
+  quero queria estou pretendo pretendia procuro procurava gostava preciso precisava tenho tinha comprei recebi encomendei ofereci perdi
+  parti pensei pensava vi vou venho sou aumentam aumentar aumenta diminuem diminuir diminui alargam alargar apertam apertar encurtam
+  encurtar compram vendem trocam aceitam fazem enviam reparam gravam ajustam limpam avaliam abrem fecham sugestões
+  ligue liguem pague paguem entregue entreguem chegue cheguem carregue indique indiquem transfira transfiram escreva escrevam abra abram
+  moro mora moram fale falem telefone telefonem clique cliquem aceda acedam preencha preencham selecione escolha escolham insira digite
+  introduza aguarde aguardem responda respondam receba recebam devolva devolvam envie enviem leia leiam junte juntem anexe anexem
+  querido querida queridos queridas rua avenida estrada praça praceta travessa largo quinta bairro urbanização rotunda beco calçada alameda
+  código códigos cupão cupões vale-oferta cartão-oferta iban nif contribuinte atendimento connosco comigo convosco nós equipa
+  gerente colaborador colaboradora funcionário funcionária vendedor vendedora responsável consultor consultora ourives relojoeiro
+  joalheiro técnico técnica colegas`.split(/\s+/).filter(Boolean));
 // Verbos regulares das perguntas e respostas de uma joalharia, em várias formas ("Ajustam?", "Enviámos", "Gravar").
 const VERB_FORMS = new Set((() => {
   const forms = (stems: string, ends: string[]) => stems.split(/\s+/).filter(Boolean).flatMap((s) => ends.map((e) => s + e));
@@ -525,83 +704,62 @@ const VERB_FORMS = new Set((() => {
     ...forms(`aceit aconselh ajud ajust alarg anul apert arranj avali avis banh cheg cobr compr comunic confirm consert consult contact
       costum crav demor desej deix dour efetu embal encaminh encomend encurt engast entreg envi esper explic fech fur gost grav guard indic
       inform lev levant limp mand mud necessit observ pag pass pes personaliz precis procur prolong recomend reembols repar reserv restaur
-      rodi sold solicit test tir trabalh trat troc us utiliz verific visit funcion fic lembr relembr bast`,
+      rodi sold solicit test tir trabalh trat troc us utiliz verific visit funcion fic lembr relembr bast aument pens pergunt gast mostr acompanh cham desloc aproveit
+      oferec`,
     ["ar", "a", "am", "amos", "ámos", "e", "em", "o", "ei", "ou", "ado", "ada", "ados", "adas", "ava", "avam", "aria", "aríamos"]),
-    ...forms("atend devolv entend escolh promet pretend receb respond vend", ["er", "e", "em", "emos", "i", "eu", "ido", "ida", "idos", "idas", "ia", "iam", "eria"]),
-    ...forms("abr assist decid exist garant permit", ["ir", "e", "em", "imos", "i", "iu", "ido", "ida", "idos", "idas", "ia", "iam", "iria"]),
+    ...forms("atend devolv entend escolh promet pretend receb respond vend oferec conhec merec perd", ["er", "e", "em", "emos", "i", "eu", "ido", "ida", "idos", "idas", "ia", "iam", "eria", "o"]),
+    ...forms("abr assist decid exist garant permit diminu adquir prefer sub", ["ir", "e", "em", "imos", "i", "iu", "ido", "ida", "idos", "idas", "ia", "iam", "iria", "o"]),
   ];
 })());
-// Nomes e apelidos com a terminação de um verbo ("-mos"): no início de uma frase continuam a ser possíveis nomes.
+// Nomes e apelidos com a terminação de um verbo ("-mos"): continuam a ser possíveis nomes.
 const VERB_LIKE_NAMES = new Set(["lemos", "ramos", "remos", "cosmos", "erasmos"]);
-// Nomes próprios comuns que, em minúsculas, também são palavras ("margarida" é uma flor, "marina", "marco", "jean"): só com
-// maiúscula.
+// Nomes próprios comuns que, em minúsculas, também são palavras ("margarida" é uma flor, "marina", "marco", "jean"): só
+// com maiúscula.
 const FIRST_NAME_WORDS = new Set(["margarida", "marina", "marco", "marcos", "jean", "pierre", "rosário", "rosario", "augusto", "germano"]);
 // Tratamentos (sozinhos não são um nome; o nome vem a seguir).
 const TITLE_WORDS = new Set(["sr", "sra", "srª", "snr", "snra", "srs", "dr", "dra", "drª", "drs", "eng", "engª", "prof", "profª", "profa", "d", "dª",
-  "dona", "senhor", "senhora", "senhores", "senhoras", "exmo", "exma", "exmos", "exmas"]);
+  "dona", "senhor", "senhora", "senhores", "senhoras", "menina", "meninas", "madame", "doutor", "doutora", "exmo", "exma", "exmos", "exmas"]);
+// Singulares possíveis ("Correntes" → corrente, "anéis" → anel, "Solitários" → solitário, "sugestões" → sugestão).
+const singulars = (w: string) => [...new Set([w, w.replace(/s$/u, ""), w.replace(/es$/u, ""), w.replace(/ões$/u, "ão"), w.replace(/ães$/u, "ão"),
+  w.replace(/ais$/u, "al"), w.replace(/éis$/u, "el"), w.replace(/óis$/u, "ol"), w.replace(/ns$/u, "m")])];
 
-// Uma palavra que não é um nome quando começa uma frase ou vem depois de uma saudação: das listas acima, da base de
-// conhecimento, um advérbio em "-mente" ou um verbo na 1.ª pessoa do plural ("Recebemos", "Verificámos"); nunca um nome
-// próprio comum nem um apelido.
+// Uma palavra que não é um nome: das listas acima (também no plural), da base de conhecimento, um advérbio em "-mente",
+// um verbo na 1.ª pessoa do plural ("Recebemos", "Verificámos") ou com um pronome ("Contacte-nos"); nunca um nome próprio
+// comum nem um apelido.
 function ordinaryWord(low: string, allow: Allowlist): boolean {
-  // Um verbo com um pronome ("Contacte-nos", "Lembre-se"): conta o verbo.
-  const verb = /^(\p{L}{3,})-(?:nos|vos|se|me|te|lhe|lhes|o|a|os|as|lo|la|los|las)$/u.exec(low);
-  if (verb) return ordinaryWord(verb[1], allow);
-  if (FIRST_NAMES.has(low)) return false;
-  if (SAFE_WORDS.has(low) || COMMON_WORDS.has(low) || VERB_FORMS.has(low) || allow.places.has(low)) return true;
-  if (COMMON_LOWER.has(low) || VERB_LIKE_NAMES.has(low)) return false;
+  if (/^\p{L}{2,}-(?:nos|vos|se|me|te|lhe|lhes|o|a|os|as|lo|la|los|las)$/u.test(low)) return true;
+  if (low.includes("-")) return low.split("-").every((p) => p.length < 2 || ordinaryWord(p, allow));
+  if (FIRST_NAMES.has(low) || SURNAME_WORDS.has(low) || VERB_LIKE_NAMES.has(low)) return false;
+  for (const w of singulars(low))
+    if (SAFE_WORDS.has(w) || COMMON_WORDS.has(w) || VOCAB.has(w) || VERB_FORMS.has(w) || allow.places.has(w)) return true;
   return /(?<!cle)mente$/u.test(low) || /\p{L}{2}[aeiáéí]mos$/u.test(low);
 }
 
-// Palavras com maiúscula que podem ser nomes (palavras inteiras; siglas como "MB WAY" ou "CTT" não contam): a meio da
-// frase, as que não são de lugares, lojas, marcas ou da base de conhecimento; no início de uma frase, de uma linha (uma
-// assinatura), de um item ("- Gertrudes") ou depois de dois pontos, também só as que não são palavras comuns
-// ("Gertrudes atende na loja", "Contacto na loja: Gertrudes", "Atenciosamente,\nGertrudes"). Os nomes próprios comuns no
-// início ficam em firstNames.
-function properNouns(text: string, allow: Allowlist) {
+// Palavras com maiúscula ou EM MAIÚSCULAS que podem ser nomes, em qualquer posição ("Gertrudes atende", "Fale com a
+// GERTRUDES", "Atenciosamente,\nGertrudes"): as que não são lugares, lojas, marcas, siglas, palavras da base de
+// conhecimento nem palavras comuns. Os nomes próprios comuns ficam em firstNames.
+function capitalisedNames(text: string, allow: Allowlist) {
   const out: string[] = [];
-  for (const m of text.matchAll(/(?<![\p{L}\p{N}])\p{Lu}[\p{L}'’-]*\p{Ll}[\p{L}'’-]*/gu)) {
-    const low = m[0].toLowerCase();
-    if (SAFE_WORDS.has(low) || allow.places.has(low)) continue;
-    const before = text.slice(0, m.index ?? 0).replace(/[ \t"'«“(*•–—-]+$/u, "");
-    if ((!before || /[.!?…:;\n]$/.test(before)) && (ordinaryWord(low, allow) || FIRST_NAMES.has(low))) continue;
-    out.push(m[0]);
+  for (const m of text.matchAll(/(?<![\p{L}\p{N}])\p{Lu}[\p{L}'’-]*/gu)) {
+    const w = m[0].replace(/[-'’]+$/, "");
+    const low = w.toLowerCase();
+    if (low.length < 2 || FIRST_NAMES.has(low) || TITLE_WORDS.has(low)) continue;
+    if (w === w.toUpperCase() && (low.length < 3 || ACRONYMS.has(low))) continue;
+    if (SAFE_WORDS.has(low) || allow.places.has(low) || ordinaryWord(low, allow)) continue;
+    out.push(w);
   }
   return out;
 }
 
-// Nome do cliente ou da equipa no texto. Um nome escrito com maiúscula (ou um nome comum) apanha-se em qualquer forma
-// ("JOANA", "joana", "McDonald"); um apelido que também é palavra ("Dias") ou uma palavra de um perfil ("joias") só com
-// maiúscula ou em maiúsculas.
-function nameIn(text: string, token: string) {
-  const low = token.toLowerCase();
-  if (low.length < 3 || SAFE_WORDS.has(low)) return false;
-  if (FIRST_NAMES.has(low) || (/^\p{Lu}/u.test(token) && !COMMON_LOWER.has(low))) return wordRe(low, "iu").test(text);
-  return [low[0].toUpperCase() + low.slice(1), low.toUpperCase(), ...(token !== low ? [token] : [])].some((f) => wordRe(f).test(text));
-}
-
-// Recusas (em qualquer campo): um nome depois de uma saudação ("Olá Maria", "obrigado joana"), de um parentesco ou de uma
-// função ("a sua filha beatriz", "a colaboradora Gertrudes", "a responsável da loja, Gertrudes"): com maiúscula, ou um
-// nome próprio comum em qualquer forma. Depois de um tratamento abreviado ("sr.", "sra.", "dr.", "d.") ou de "dona",
-// qualquer palavra que não seja comum ("Bom dia sr. joão", "a sra. gertrudes").
-const GREETING_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|car[oa]s?|estimad[oa]s?|prezad[oa]s?|querid[oa]s?|obrigad[oa]s?|exm[oa]s?\.?|senhor(?:es)?|senhoras?)(?!\p{L})[ \t]*,?[ \t]*(?=(\p{L}[\p{L}'’-]*))/giu;
-const TITLE_RE = /(?<!\p{L})(?:(?:sr|sra|srª|snr|snra|srs|dr|dra|drª|drs|eng|engª|prof|profª|profa)(?:\.|(?=[ \t]))|dª|d\.|dona(?=[ \t]))[ \t]*(?=(\p{L}[\p{L}'’-]*))/giu;
+// Depois de uma saudação, de um tratamento, de uma despedida, de um parentesco ou de uma função: a palavra seguinte, em
+// qualquer forma ("Olá gertrudes", "a sra. GERTRUDES", "a senhora gertrudes", "a menina gertrudes", "Cumprimentos,
+// Gertrudes", "a sua filha GERTRUDES", "a consultora gertrudes", "a responsável da loja, Gertrudes").
+const GREETING_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|obrigad[oa]s?|atenciosamente|cumprimentos|sauda[çc][õo]es|beijinhos|beijos|abra[çc]os?|at[ée]\s+breve|com\s+estima)(?!\p{L})[ \t]*[,.!]?\s*(?=(\p{L}[\p{L}'’-]*))/giu;
+const DEAR_RE = /(?:^|[.!?…\n])[ \t]*(?:car[oa]s?|estimad[oa]s?|prezad[oa]s?|querid[oa]s?|exm[oa]s?\.?)[ \t]+(?=(\p{L}[\p{L}'’-]*))/giu;
+const TITLE_RE = /(?<!\p{L})(?:(?:sr|sra|srª|snr|snra|srs|dr|dra|drª|drs|eng|engª|prof|profª|profa)(?:\.|(?=[ \t]))|dª|d\.|dona|senhor(?:a|es|as)?|menina|madame|doutor(?:a)?)(?!\p{L})[ \t]*(?=(\p{L}[\p{L}'’.-]*))/giu;
 const RELATION_RE = /(?<!\p{L})(?:filh[oa]s?|marid[oa]s?|mulher(?:es)?|espos[oa]s?|m[ãa]es?|pais?|irm[ãa]os?|irm[ãa]s?|namorad[oa]s?|noiv[oa]s?|av[óôo]s?|net[oa]s?|sobrinh[oa]s?|prim[oa]s?|tias?|tios?|sogr[oa]s?|cunhad[oa]s?|afilhad[oa]s?|madrinhas?|padrinhos?|amig[oa]s?|colegas?|colaborador(?:a|es|as)?|funcion[áa]ri[oa]s?|gerentes?|vendedor(?:a|es|as)?|respons[áa]ve(?:l|is)|consultor(?:a|es|as)?|ourives)(?!\p{L})/giu;
-function personAfter(word: string, allow: Allowlist) {
-  const low = word.toLowerCase();
-  if (TITLE_WORDS.has(low)) return false;
-  return FIRST_NAMES.has(low) || (/^\p{Lu}\p{Ll}/u.test(word) && !SAFE_WORDS.has(low) && !allow.places.has(low));
-}
-function namedAfter(text: string, allow: Allowlist) {
-  for (const m of text.matchAll(GREETING_RE)) if (personAfter(m[1], allow)) return true;
-  for (const m of text.matchAll(TITLE_RE)) {
-    const low = m[1].toLowerCase();
-    if (!TITLE_WORDS.has(low) && !ordinaryWord(low, allow)) return true;
-  }
-  return relationCandidates(text).some((w) => personAfter(w, allow));
-}
-// Depois de um parentesco ou de uma função: a palavra a seguir (depois de "de", "da", "do") e a primeira depois de uma
-// vírgula, na mesma frase ("a filha da Beatriz", "a responsável da loja, Gertrudes").
+// A palavra a seguir a um parentesco ou a uma função (depois de "de", "da", "do") e a primeira depois de uma vírgula, na
+// mesma frase ("a filha da Beatriz", "a responsável da loja, Gertrudes").
 function relationCandidates(text: string) {
   const out: string[] = [];
   for (const m of text.matchAll(RELATION_RE)) {
@@ -613,16 +771,27 @@ function relationCandidates(text: string) {
   }
   return out;
 }
-// Palavras em minúsculas que podem ser nomes depois de uma saudação, de uma despedida, de um parentesco ou de uma função
-// ("Olá gertrudes", "Atenciosamente, gertrudes", "Querida gertrudes", "a consultora gertrudes"): as que não são palavras
-// comuns. Aviso, como as palavras com maiúscula.
-const OPENER_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|obrigad[oa]s?|atenciosamente|cumprimentos|sauda[çc][õo]es|beijinhos|beijos|abra[çc]os?|at[ée]\s+breve|com\s+estima)(?!\p{L})[ \t]*[,.!]?\s*(?=(\p{L}[\p{L}'’-]*))/giu;
-const DEAR_RE = /(?:^|[.!?…\n])[ \t]*(?:car[oa]s?|estimad[oa]s?|prezad[oa]s?|querid[oa]s?)[ \t]+(?=(\p{L}[\p{L}'’-]*))/giu;
-function lowerNamesAfterGreeting(text: string, allow: Allowlist) {
-  const words = [...[OPENER_RE, DEAR_RE].flatMap((re) => [...text.matchAll(re)].map((m) => m[1])), ...relationCandidates(text)];
-  return words.filter((w) => {
+// Depois de um verbo que se usa com pessoas ("fale com a gertrudes", "pergunte pela gertrudes", "peça à anacleta",
+// "contacte o anacleto"): a palavra seguinte, em qualquer forma.
+const PERSON_VERB_RE = /(?<!\p{L})(?:fal(?:e|em|ar)|pergunt(?:e|em|ar)|procur(?:e|em|ar)|contact(?:e|em|ar)|pe[çc]a|pe[çc]am|pedir|dirija-se|dirijam-se|entreg(?:ar|ue|uem)|lig(?:ue|uem|ar)|cham(?:e|em|ar))(?!\p{L})[ \t]+(?:(?:com|por|pel[oa]|a|ao|à|o|para)[ \t]+)?(?:(?:o|a)[ \t]+)?(?=(\p{L}[\p{L}'’-]*))/giu;
+function contextNames(text: string, allow: Allowlist) {
+  const words: string[] = [];
+  for (const re of [GREETING_RE, DEAR_RE, PERSON_VERB_RE]) for (const m of text.matchAll(re)) words.push(m[1]);
+  for (const m of text.matchAll(TITLE_RE)) {
+    // "Sra. Dona Maria", "Senhora D. Gertrudes": o nome vem depois do segundo tratamento.
+    const w = m[1].replace(/\.$/, "");
+    if (!TITLE_WORDS.has(w.toLowerCase())) words.push(w);
+    else {
+      const next = /^[\p{L}'’.-]+[ \t]+(\p{L}[\p{L}'’-]*)/u.exec(text.slice((m.index ?? 0) + m[0].length));
+      if (next) words.push(next[1]);
+    }
+  }
+  words.push(...relationCandidates(text));
+  return words.map((w) => w.replace(/[.'’-]+$/, "")).filter((w) => {
     const low = w.toLowerCase();
-    return w === low && !TITLE_WORDS.has(low) && !FIRST_NAMES.has(low) && !ordinaryWord(low, allow);
+    if (low.length < 2 || TITLE_WORDS.has(low) || SAFE_WORDS.has(low) || allow.places.has(low)) return false;
+    if (w === w.toUpperCase() && ACRONYMS.has(low)) return false;
+    return !ordinaryWord(low, allow);
   });
 }
 // Nomes próprios comuns em qualquer posição, também no início da frase ("Beatriz pode levantar a encomenda?") e em
@@ -637,108 +806,152 @@ function firstNames(text: string) {
     }
   return out;
 }
-// Com maiúscula mas sem ser uma pessoa: santos (medalhas de "São Jorge", "Santo António") e o rosário como peça ("um
-// rosário", "Rosário em ouro", "rosário de pérolas"). "Maria do Rosário" e "a Rosário" continuam a ser nomes.
+// Com maiúscula mas sem ser uma pessoa: santos (medalhas de "São Jorge", "Santo António", "São Miguel Arcanjo") e o
+// rosário como peça ("um rosário", "Rosário em ouro", "rosário de pérolas"). "Maria do Rosário" e "a Rosário" continuam
+// a ser nomes.
 const SAINT_RE = /(?<!\p{L})(?:S[ãa]o|Santo|Santa|Sto\.|Sta\.)[ \t]+\p{Lu}[\p{L}'’-]*/gu;
 const ROSARY_RE = /(?<!\p{L})(?:(?:um|uns|o|os|ao|aos|pelo|pelos|este|estes|esse|esses|deste|desse|nosso|nossos|seu|seus)[ \t]+ros[áa]rios?|ros[áa]rios?(?=[ \t]+(?:em|com)[ \t]|[ \t]+de[ \t]+(?:ouro|prata|p[ée]rolas?|contas|madeira|cristal|n[áa]car|a[çc]o|\d)))(?!\p{L})/giu;
 const withoutItems = (t: string) => t.replace(SAINT_RE, " ").replace(ROSARY_RE, " ");
 
-// Palavra da resposta que pode ser o nome de uma pessoa: um nome próprio comum, também em minúsculas (common), ou outra
-// palavra com maiúscula que não é um lugar, uma loja, uma marca ou uma palavra da base de conhecimento (a meio da frase;
-// no início de uma frase, de uma linha, de um item ou depois de dois pontos, só se também não for uma palavra comum), ou
-// uma palavra desconhecida em minúsculas depois de uma saudação, de uma despedida, de um parentesco ou de uma função. Não
-// recusam a resposta: o Super Admin confirma, por cartão, que não são nomes ("Possível nome: X").
-export type NameWarning = { word: string; common: boolean };
+// Perfis escritos sem @ ("Siga gertrudes.joias no Instagram", "Procure por joiasdagertrudes no Instagram", "Siga-nos:
+// instagram gertrudes_joias"): numa frase sobre uma rede social, uma palavra com ponto ou sublinhado, ou a palavra depois
+// de "siga", "procure" ou "pesquise" que não é comum.
+const SOCIAL_WORD = /(?<!\p{L})(?:instagram|insta|facebook|fb|tiktok|tik[ \t]+tok|twitter|whatsapp|telegram|pinterest|youtube|threads|snapchat|perfil|p[áa]gina|conta)(?!\p{L})/iu;
+const HANDLE_LIKE = /(?<![\p{L}\p{N}@./])[\p{L}\p{N}]+(?:[._][\p{L}\p{N}]+)+(?![\p{L}\p{N}])/gu;
+const FOLLOW_RE = /(?<!\p{L})(?:siga|sigam|segue|seguir|procure|procurem|procurar|pesquise|pesquisem|pesquisar|encontre|encontrem)(?:-nos)?(?!\p{L})[ \t]*:?[ \t]*(?:(?:por|o|a|os|as|em|no|na|nosso|nossa|perfil|página|pagina|conta|de|do|da)[ \t]+)*@?([\p{L}\p{N}._]+)/giu;
+function handleWarnings(text: string, allow: Allowlist) {
+  const out: string[] = [];
+  for (const s of text.split(/(?<=[!?…])\s+|\.(?=\s|$)|\n+/u)) {
+    if (!SOCIAL_WORD.test(s)) continue;
+    const words = [...[...s.matchAll(HANDLE_LIKE)].map((m) => m[0]).filter((h) => /\p{L}/u.test(h)), ...[...s.matchAll(FOLLOW_RE)].map((m) => m[1])];
+    for (const raw of words) {
+      const w = raw.replace(/[._]+$/, ""), low = w.toLowerCase();
+      if (!w || SOCIAL_WORD.test(w) || allow.handles.has(`@${low}`) || allow.places.has(low) || SAFE_WORDS.has(low)) continue;
+      if (!/[._]/.test(w) && ordinaryWord(low, allow)) continue;
+      out.push(w);
+    }
+  }
+  return out;
+}
 
-function scan(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[]; question?: boolean }) {
+// Nome do cliente ou da equipa no texto. Um nome escrito com maiúscula (ou um nome comum) apanha-se em qualquer forma
+// ("JOANA", "joana", "McDonald"); um apelido ou nome que também é palavra ("Dias", "Clara") ou uma palavra de um perfil
+// ("joias") só com maiúscula ou em maiúsculas.
+function nameIn(text: string, token: string) {
+  const low = token.toLowerCase();
+  if (low.length < 3 || SAFE_WORDS.has(low)) return false;
+  if (FIRST_NAMES.has(low) || (/^\p{Lu}/u.test(token) && !COMMON_LOWER.has(low) && !COMMON_WORDS.has(low) && !VOCAB.has(low))) return wordRe(low, "iu").test(text);
+  return [low[0].toUpperCase() + low.slice(1), low.toUpperCase(), ...(token !== low ? [token] : [])].some((f) => wordRe(f).test(text));
+}
+const nameTokens = (name: string | null | undefined) => (name || "").split(/[^\p{L}]+/u).filter(Boolean);
+
+export type TextReview = { blocks: PiiProblem[]; warnings: string[] };
+const quote = (s: string) => `«${s.replace(/\s+/g, " ").trim()}»`;
+export const WARNING = {
+  nome: (w: string) => `Possível nome: ${quote(w)}`,
+  morada: (w: string) => `Possível morada: ${quote(clip(w, 80))}`,
+  perfil: (w: string) => `Possível perfil: ${quote(w)}`,
+  codigo: (w: string) => `Possível código ou referência: ${quote(w)}`,
+  email: (w: string) => `Email que não está na base de conhecimento: ${quote(w)}`,
+  ligacao: (w: string) => `Ligação que não está na base de conhecimento: ${quote(clip(w, 80))}`,
+};
+
+function scan(text: string, allow: Allowlist, names: (string | null | undefined)[]): TextReview {
   const found = new Set<PiiProblem>();
+  const warnings: string[] = [];
+  const warn = (s: string) => {
+    if (!warnings.includes(s)) warnings.push(s);
+  };
   const t = text || "";
+  const people = names.flatMap(nameTokens);
   let rest = t;
+  // Emails: fora dos domínios da empresa, recusa; da empresa sem estar na base, aviso; com o nome de alguém, recusa.
   for (const e of t.match(EMAIL_RE) || []) {
-    if (!allow.emails.has(e.toLowerCase())) found.add("email");
+    const low = e.toLowerCase();
+    if (!allow.emails.has(low)) {
+      if (OWN_DOMAIN.test(low.slice(low.lastIndexOf("@") + 1))) warn(WARNING.email(e));
+      else found.add("email");
+    }
+    if (people.some((p) => nameIn(e.slice(0, e.lastIndexOf("@")).replace(/[._+-]+/g, " "), p))) found.add("nome");
     rest = rest.split(e).join(" ");
   }
   if (OBFUSCATED_EMAIL.test(rest)) found.add("email");
   for (const u of linkList(rest)) {
     const p = linkProblem(u, allow);
     if (p) found.add(p);
+    else if (!allow.links.has(linkNorm(u)) && !allow.hosts.has(linkHost(u)) && !OWN_DOMAIN.test(linkHost(u))) warn(WARNING.ligacao(u));
     rest = rest.split(u).join(" ");
   }
-  for (const h of rest.match(HANDLE_RE) || []) if (!allow.handles.has(h.toLowerCase().replace(/[._]+$/, ""))) found.add("perfil");
-  const phone = (p: string) => {
-    if (allow.phones.has(phoneDigits(p))) return " ";
-    found.add("telefone");
-    return p;
-  };
-  rest = rest.replace(PHONE_RE, phone).replace(INTL_PHONE_RE, phone);
-  rest = rest.replace(POSTCODE_RE, (p) => (allow.postcodes.has(p) ? " " : p));
-  if (ORDER_RE.test(rest) || ORDER_GAP_RE.test(rest) || ORDER_ID_RE.test(rest)) found.add("encomenda");
-  if (IBAN_RE.test(rest) || NIF_RE.test(rest)) found.add("pagamento");
-  for (const d of rest.match(/\d{6,}/g) || []) if (!allow.numbers.has(d)) found.add("numero");
-  for (const c of codesIn(rest)) if (!allow.codes.has(c)) found.add("codigo");
-  // Moradas (também em minúsculas e abreviadas): só as da empresa, com o mesmo número, como estão na base de conhecimento.
-  for (const re of [ADDRESS_RE, LOT_RE]) for (const m of rest.matchAll(re)) if (!allow.addresses.includes(addressNorm(m[0]))) found.add("morada");
-  // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria).
-  const named = allow.phrases ? rest.replace(allow.phrases, " ") : rest;
-  for (const r of publicReplyRisks(named)) found.add(RISK_CODE[r] ?? "numero");
-  // Recusas: o nome do cliente ou da equipa (em qualquer forma) e um nome depois de uma saudação, de um tratamento, de um
-  // parentesco ou de uma função.
-  for (const name of opts.names || []) for (const token of (name || "").split(/[^\p{L}]+/u)) if (nameIn(named, token)) found.add("nome");
-  if (namedAfter(named, allow)) found.add("nome");
-  // Nomes próprios comuns (também em minúsculas), palavras com maiúscula desconhecidas (a meio da frase, ou no início sem
-  // serem palavras comuns) e palavras desconhecidas em minúsculas depois de uma saudação ou de uma despedida: recusa na
-  // pergunta e nas variantes, aviso na resposta.
-  const generic = withoutItems(named);
-  const common = firstNames(generic);
-  const proper = [...properNouns(generic, allow), ...lowerNamesAfterGreeting(generic, allow)];
-  const names: NameWarning[] = [];
-  if (opts.question) {
-    if (common.length) found.add("nome");
-    if (proper.length) found.add("nome_proprio");
-  } else {
-    // Um aviso por palavra ("Jean-Pierre" já está em "Jean" e "Pierre").
-    const seen = new Set(common.map((c) => c.toLowerCase()));
-    const others = proper.filter((w) => !w.split(/['’-]/).some((p) => seen.has(p.toLowerCase())));
-    seen.clear();
-    for (const n of [...common.map((word) => ({ word, common: true })), ...others.map((word) => ({ word, common: false }))]) {
-      if (seen.has(n.word.toLowerCase())) continue;
-      seen.add(n.word.toLowerCase());
-      names.push(n);
-    }
+  for (const h of rest.match(HANDLE_RE) || []) if (!allow.handles.has(handleKey(h))) found.add("perfil");
+  rest = rest.replace(HANDLE_RE, " ").replace(/[()]/g, " ");
+  // Telefones, cartões e números longos (os da empresa passam).
+  for (const r of digitRuns(rest)) {
+    const kind = runKind(r);
+    if (!kind) continue;
+    if (allow.phones.has(phoneKey(r.digits)) || allow.numbers.has(r.digits)) rest = rest.split(r.raw).join(" ");
+    else found.add(kind);
   }
-  return { problems: PII_PROBLEMS.filter((p) => found.has(p)), names };
+  if (IBAN_RE.test(rest) || NIF_RE.test(rest)) found.add("pagamento");
+  if (SHIPPING_RE.test(rest)) found.add("envio");
+  if (orderRefs(rest, allow)) found.add("encomenda");
+  for (const d of rest.match(/\d{6,}/g) || []) if (!allow.numbers.has(d)) found.add("numero");
+  // Avisos: códigos, moradas e códigos postais que não estão na base de conhecimento.
+  for (const c of codesIn(rest)) if (!allow.codes.has(c)) warn(WARNING.codigo(c));
+  const spans = addressSpans(rest, allow);
+  for (const s of spans) if (!s.ok) warn(WARNING.morada(s.text.replace(/[\s,.;:–-]+$/u, "")));
+  for (const m of rest.matchAll(POSTCODE_RE)) {
+    const at = m.index ?? 0;
+    if (!allow.postcodes.has(m[0]) && !spans.some((s) => at >= s.at && at < s.end)) warn(WARNING.morada(m[0]));
+  }
+  // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria) nem as
+  // moradas da base de conhecimento. O nome do cliente ou da equipa é uma recusa.
+  const withoutPhrases = (s: string) => (allow.phrases ? s.replace(allow.phrases, (p) => " ".repeat(p.length)) : s);
+  const named = withoutPhrases(blank(rest, spans.filter((s) => s.ok)));
+  if (people.some((p) => nameIn(named, p))) found.add("nome");
+  // Possíveis nomes (aviso, um por palavra; "Jean-Pierre" já está em "Jean" e "Pierre"), sem as moradas assinaladas.
+  const generic = withoutItems(withoutPhrases(blank(rest, spans)));
+  const common = firstNames(generic);
+  const seen = new Set(common.map((c) => c.toLowerCase()));
+  const others = [...capitalisedNames(generic, allow), ...contextNames(generic, allow)]
+    .filter((w) => !w.split(/['’-]/).some((p) => seen.has(p.toLowerCase())));
+  const listed = new Set<string>();
+  for (const w of [...common, ...others]) {
+    if (listed.has(w.toLowerCase())) continue;
+    listed.add(w.toLowerCase());
+    warn(WARNING.nome(w));
+  }
+  for (const h of handleWarnings(rest, allow)) warn(WARNING.perfil(h));
+  return { blocks: PII_PROBLEMS.filter((p) => found.has(p)), warnings };
 }
 
-// Dados pessoais num texto de cartão (lista vazia = aceite). Os dados da empresa (allowlist) passam: telefone, código
-// postal e morada de uma loja, emails, perfis, ligações e códigos da base de conhecimento, horas e anos. names: nomes do
-// cliente e da equipa (nunca num cartão); question: pergunta ou variante, onde também não pode haver os possíveis nomes
-// de NameWarning. Na resposta, essas palavras são avisos (answerNames), não recusas.
-export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[]; question?: boolean } = {}): PiiProblem[] {
-  return scan(text, allow, opts).problems;
+// Recusas e avisos de um texto (pergunta, variante ou resposta). names: nomes do cliente da conversa e da equipa.
+export function reviewText(text: string, allow: Allowlist, names: (string | null | undefined)[] = []): TextReview {
+  return scan(text, allow, names);
 }
-
-// Avisos de nomes na resposta de um cartão ("Possível nome: X", ver NameWarning). Bloqueiam aprovar e publicar até o
-// Super Admin confirmar que não são nomes de pessoas, e impedem sempre "Permitir em respostas automáticas".
-export function answerNames(text: string, allow: Allowlist): NameWarning[] {
-  return scan(text, allow, {}).names;
+// Só as recusas de um texto (lista vazia = sem dados pessoais claros).
+export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[] } = {}): PiiProblem[] {
+  return scan(text, allow, opts.names || []).blocks;
 }
-
-// Avisos que o Super Admin ainda não confirmou (confirmed: as palavras confirmadas para o texto atual; sem distinguir
-// maiúsculas).
-export function unconfirmedNames(warnings: NameWarning[], confirmed: string[] | null | undefined) {
-  const ok = new Set((confirmed || []).map((w) => w.toLowerCase()));
-  return warnings.filter((w) => !ok.has(w.word.toLowerCase()));
+// Um cartão inteiro: a pergunta, as variantes e a resposta.
+export function reviewCard(card: { pergunta: string; variantes: string[] | null; resposta: string }, allow: Allowlist,
+  names: (string | null | undefined)[] = []): TextReview {
+  const parts = [card.pergunta, ...(card.variantes || []), card.resposta].map((t) => scan(t, allow, names));
+  return { blocks: PII_PROBLEMS.filter((p) => parts.some((r) => r.blocks.includes(p))), warnings: [...new Set(parts.flatMap((r) => r.warnings))] };
 }
-export const nameWarningText = (words: string[]) => (words.length === 1 ? `Possível nome: ${words[0]}` : `Possíveis nomes: ${words.join(", ")}`);
-
-// Dados pessoais de um cartão inteiro: a pergunta e as variantes (como perguntas) e a resposta (sem os avisos de nomes).
 export function cardPii(card: { pergunta: string; variantes: string[] | null; resposta: string }, allow: Allowlist, names: (string | null | undefined)[] = []) {
-  const all = [
-    ...scrubPii(card.pergunta, allow, { names, question: true }),
-    ...(card.variantes || []).flatMap((v) => scrubPii(v, allow, { names, question: true })),
-    ...scrubPii(card.resposta, allow, { names }),
-  ];
-  return PII_PROBLEMS.filter((p) => all.includes(p));
+  return reviewCard(card, allow, names).blocks;
+}
+// Todos os avisos de um cartão: os do texto atual e os que ficaram da proposta da IA (avisos: contradições e condições
+// em relação à resposta da equipa, que só se podem ver no momento da proposta).
+export function cardAlerts(card: { pergunta: string; variantes: string[] | null; resposta: string; avisos?: string[] | null }, allow: Allowlist,
+  names: (string | null | undefined)[] = []) {
+  return [...new Set([...reviewCard(card, allow, names).warnings, ...(card.avisos || [])])];
+}
+// Avisos que o Super Admin ainda não confirmou para o texto atual (acked: os confirmados, que a BD apaga quando o texto
+// muda).
+export function unackedWarnings(warnings: string[], acked: string[] | null | undefined) {
+  const ok = new Set(acked || []);
+  return warnings.filter((w) => !ok.has(w));
 }
 
 // ---------------------------------------------------------------- factos que a equipa não escreveu
@@ -801,156 +1014,162 @@ export function numbersInStaffText(answer: string, staff: string, knowledge = ""
   return unsupportedFacts(answer, [...units(staff), ...units(knowledge)]).filter((k) => !/^[cue]:/.test(k));
 }
 
-// Compromissos com o sentido e as condições, frase a frase (falha fechada: na dúvida, o cartão é retirado).
-// Palavras que negam. "no" é português (em + o), nunca a negação inglesa.
-const NEGATORS = new Set(["não", "nao", "nem", "nunca", "jamais", "sem", "nenhum", "nenhuma", "nenhuns", "nenhumas", "nada", "impossível",
-  "impossivel", "impossíveis", "inviável", "indisponível", "indisponivel", "indisponíveis", "not", "never", "without", "nor", "don't", "doesn't",
-  "didn't", "cannot", "can't", "won't", "isn't", "aren't"]);
-// Artigos, preposições e pronomes átonos: não contam entre a negação e o compromisso.
-const NEGATION_FILLERS = new Set(["o", "a", "os", "as", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das", "ao", "à", "aos", "às", "em", "no",
-  "na", "nos", "nas", "num", "numa", "qualquer", "quaisquer", "lhe", "lhes", "me", "vos", "the", "an", "any"]);
-// Verbos e palavras que podem ficar entre a negação e o compromisso sem mudar o que é negado ("não é possível fazer o
-// reembolso", "sem direito a reembolso", "o reembolso não é feito").
-const NEGATION_LIGHT = new Set(["é", "são", "foi", "foram", "será", "serão", "seja", "sejam", "está", "estão", "ser", "estar", "possível",
-  "possíveis", "possivel", "fazemos", "fazer", "faz", "fazem", "feito", "feita", "feitos", "feitas", "podemos", "pode", "podem", "poder", "posso",
-  "conseguimos", "consegue", "conseguem", "conseguir", "aceitamos", "aceita", "aceitam", "aceitar", "aceite", "aceites", "damos", "dá", "dão",
-  "dar", "oferecemos", "oferece", "oferecem", "oferecer", "efetuamos", "efetua", "efetuam", "efetuar", "realizamos", "realiza", "realizam",
-  "realizar", "temos", "tem", "têm", "ter", "há", "haver", "existe", "existem", "disponível", "disponíveis", "disponibilizamos", "dispomos",
-  "direito", "possibilidade", "lugar", "aplicamos", "aplica", "aplicam", "aplicável", "offer", "offers", "provide", "provides", "accept",
-  "accepts", "do", "does", "give", "gives", "issue", "make", "is", "are", "be", "possible", "available", "have", "has"]);
-// Palavras que abrem outra oração ou outro elemento depois do compromisso ("fazemos o reembolso se não gostar": a negação
-// é da condição; "não fazemos descontos nem reembolsos": o "nem" já é do reembolso).
-const NEGATION_STOPS = new Set(["e", "ou", "nem", "nor", "mas", "se", "caso", "que", "quando", "porque", "pois", "embora", "porém", "contudo", "exceto",
-  "excepto", "salvo", "desde", "mediante", "só", "apenas", "somente", "and", "or", "but", "if", "unless", "when"]);
-// Condições e restrições que o cartão tem de manter ("só", "apenas", "exceto", "se", "desde que", "mediante", "com talão"…).
-const RESTRICTORS = new Map<string, string>([
-  ["só", "só"], ["apenas", "apenas"], ["somente", "somente"], ["unicamente", "unicamente"], ["exclusivamente", "exclusivamente"],
-  ["exceto", "exceto"], ["excepto", "exceto"], ["exceção", "exceção"], ["exceções", "exceção"], ["excepção", "exceção"], ["salvo", "salvo"],
-  ["se", "se"], ["caso", "caso"], ["mediante", "mediante"], ["sujeito", "sujeito"], ["sujeita", "sujeito"], ["sujeitos", "sujeito"],
-  ["sujeitas", "sujeito"], ["condição", "condição"], ["condições", "condição"], ["talão", "talão"], ["talões", "talão"], ["fatura", "fatura"],
-  ["faturas", "fatura"], ["factura", "fatura"], ["facturas", "fatura"], ["recibo", "recibo"], ["recibos", "recibo"], ["comprovativo", "comprovativo"],
-  ["comprovativos", "comprovativo"], ["only", "só"], ["except", "exceto"], ["unless", "se"], ["if", "se"], ["receipt", "talão"],
-]);
-// Palavras sem conteúdo próprio para comparar duas frases sobre o mesmo compromisso.
-const OVERLAP_STOP = new Set(["também", "ainda", "sempre", "muito", "muita", "muitos", "muitas", "mais", "menos", "todas", "todos", "toda", "todo",
-  "nossa", "nosso", "nossas", "nossos", "esta", "este", "estas", "estes", "essa", "esse", "essas", "esses", "para", "pela", "pelo", "pelas", "pelos",
-  "como", "quando", "onde", "cliente", "clientes", "loja", "lojas", "infelizmente", "lamentamos", "informamos", "agradecemos", "obrigado",
-  "obrigada", "favor", "desde", "durante", "após", "antes", "depois", "até", "cerca", "mesmo", "mesma", "outro", "outra", "outros", "outras",
-  "sobre", "entre", "dias", "anos", "meses", "semanas", "horas", "minutos"]);
-const TOKEN_RE = /[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*|[,;:?!.()—–]/gu;
-const PUNCT = /^[,;:?!.()—–]$/;
-export type CommitmentSense = "sim" | "não" | "ambíguo";
-type CommitmentUse = { key: string; sentido: CommitmentSense; condicoes: string; palavras: Set<string> };
+// Frases de um texto e as que são afirmações (uma pergunta da equipa, "Pretende o reembolso?", nunca confirma nada).
+const sentencesOf = (text: string) => (text || "").split(/(?<=[.;!?…])\s+|\n+/u).map((s) => s.trim()).filter(Boolean);
+const isQuestion = (s: string) => /\?["'»”)\s]*$/u.test(s);
+const statements = (text: string) => sentencesOf(text).filter((s) => !isQuestion(s));
+const noLinks = (t: string) => linkList(t).reduce((acc, u) => acc.split(u).join(" "), t || "");
+const withoutTitles = (t: string) => (t || "").replace(/^#.*$/gm, "");
 
-// Frases de um texto para os compromissos: "Reembolsos? Não." e "Fazem trocas? Nunca." ficam juntas.
-const commitmentSentences = (text: string) =>
-  (text || "").split(/(?<=[.;…])\s+|(?<=[!?])\s+(?!(?:não|nao|nunca|jamais)(?!\p{L}))|\n+/iu).map((s) => s.trim()).filter(Boolean);
-
-// Cada compromisso de uma frase com o sentido, as condições e as palavras da frase:
-// - "sim": a frase não tem nenhuma negação (fora do próprio compromisso, como em "sem custos");
-// - "não": uma negação rege o compromisso só de um lado: antes, com só artigos, verbos como "fazemos" ou "é possível" e
-//   outros compromissos pelo meio ("não fazemos reembolsos", "não é possível fazer o reembolso", "nem descontos", "sem
-//   direito a reembolso"), ou depois, na mesma oração ("o reembolso não é possível", "a garantia de 2 anos não cobre",
-//   "desconto não disponível", "Reembolsos, não.", "Reembolsos? Não fazemos.");
-// - "ambíguo": a frase tem uma negação que não rege o compromisso ("Se não gostar, fazemos o reembolso", "Não, em caso
-//   algum, fazemos reembolsos") ou que o rege dos dois lados ("Não fazemos reembolso sem talão").
-function sentenceCommitments(s: string): CommitmentUse[] {
-  const hits = commitmentHits(s);
-  if (!hits.length) return [];
-  const toks = [...s.matchAll(TOKEN_RE)].map((m) => {
-    const at = m.index ?? 0;
-    return { t: m[0].toLowerCase().replace(/’/g, "'"), at, end: at + m[0].length, hit: hits.some((h) => at >= h.at && at < h.end) };
-  });
-  const neg = (x: (typeof toks)[number]) => !x.hit && NEGATORS.has(x.t);
-  const anyNeg = toks.some(neg);
-  const conds = new Set<string>();
-  toks.forEach((x, i) => {
-    if (x.hit) return;
-    const r = RESTRICTORS.get(x.t);
-    if (r) conds.add(r);
-    if (x.t === "desde" && toks[i + 1]?.t === "que") conds.add("desde que");
-  });
-  const palavras = new Set(toks.filter((x) => !x.hit && x.t.length >= 4 && /^\p{L}/u.test(x.t) && !NEGATORS.has(x.t) && !NEGATION_FILLERS.has(x.t)
-    && !NEGATION_LIGHT.has(x.t) && !NEGATION_STOPS.has(x.t) && !RESTRICTORS.has(x.t) && !OVERLAP_STOP.has(x.t)).map((x) => x.t));
-  const condicoes = [...conds].sort().join("|");
-  return hits.map((h) => {
-    if (!anyNeg) return { key: h.key, sentido: "sim" as const, condicoes, palavras };
-    const before = toks.filter((x) => x.end <= h.at), after = toks.filter((x) => x.at >= h.end);
-    let antes = false, light = 0;
-    for (let i = before.length - 1; i >= 0; i--) {
-      const x = before[i];
-      if (x.hit) continue;
-      if (neg(x)) {
-        antes = true;
-        break;
-      }
-      if (NEGATION_FILLERS.has(x.t) || /^\d/.test(x.t)) continue;
-      if ((x.t === "e" || x.t === "ou") && before[i - 1]?.hit) continue;
-      if (NEGATION_LIGHT.has(x.t) && ++light <= 4) continue;
-      break;
-    }
-    let depois = false;
-    const [p, n, nn] = after;
-    if (p && /^[,?:!—–]$/.test(p.t) && n && neg(n) && (!nn || PUNCT.test(nn.t) || NEGATION_LIGHT.has(nn.t))) depois = true;
-    let loose = 0, light2 = 0;
-    for (const x of depois ? [] : after) {
-      if (x.hit || PUNCT.test(x.t) || NEGATION_STOPS.has(x.t)) break;
-      if (neg(x)) {
-        depois = true;
-        break;
-      }
-      if (NEGATION_FILLERS.has(x.t) || /^\d/.test(x.t)) continue;
-      if (NEGATION_LIGHT.has(x.t) && ++light2 <= 3) continue;
-      if (++loose > 1) break;
-    }
-    return { key: h.key, sentido: antes !== depois ? ("não" as const) : ("ambíguo" as const), condicoes, palavras };
-  });
-}
-const commitmentsOf = (text: string) => commitmentSentences(text).flatMap(sentenceCommitments);
-
-// Compromissos de um texto com o sentido: "reembolso|sim" (fazemos reembolsos), "reembolso|não" (não fazemos) ou
-// "reembolso|ambíguo" (a frase tem uma negação que não é claramente deste compromisso).
-export function commitmentPolarity(text: string) {
-  return [...new Set(commitmentsOf(text).map((c) => `${c.key}|${c.sentido}`))];
-}
-
-// Contra o envenenamento: cada número (com o contexto), código, ligação e contacto do texto tem de estar numa resposta da
-// equipa enviada pelo dashboard nesta conversa ou na base de conhecimento escrita pela empresa. Cada compromisso
-// (reembolso, desconto, prazo…) de cada frase tem de estar numa frase das respostas da equipa com o mesmo sentido (sim,
-// não ou ambíguo, acima) e as mesmas condições ("só", "apenas", "exceto", "se", "desde que", "mediante", "com talão"…); da
-// base de conhecimento só conta numa frase com o mesmo sentido e as mesmas condições, num parágrafo com todos os números
-// da frase do cartão. E nenhuma frase das fontes com o mesmo compromisso noutro sentido pode ter palavras da frase do
-// cartão que a frase que a confirma não tem ("A garantia não cobre riscos" não deixa passar "A garantia cobre riscos
-// durante 2 anos", mesmo com "Garantia de 2 anos" ao lado). question: pergunta e variantes, onde um compromisso é só o
-// tema da pergunta ("Fazem reembolsos?").
+// Contra o envenenamento, o que não tem ambiguidade retira a proposta da IA: cada número (com o contexto), código,
+// ligação e contacto do texto tem de estar numa resposta da equipa enviada pelo dashboard nesta conversa ou na base de
+// conhecimento, e cada compromisso (reembolso, troca, desconto, garantia, prazo…) numa afirmação da equipa (não numa
+// pergunta) ou da base de conhecimento. O sentido, as condições e o âmbito são avisos (sourceWarnings). question:
+// pergunta e variantes, onde um compromisso é só o tema da pergunta ("Fazem reembolsos?").
 export function poisonReason(o: { text: string; staff: string; knowledge: string; question?: boolean }): KnowledgeDiscard | null {
   const trusted = `${o.staff}\n${o.knowledge}`;
   const emails = new Set((trusted.match(EMAIL_RE) || []).map((e) => e.toLowerCase()));
   if ((o.text.match(EMAIL_RE) || []).some((e) => !emails.has(e.toLowerCase()))) return "contacto_novo";
   if (unverifiedLinks(o.text, trusted).length || newLinks(o.text, trusted).length) return "ligacao_nova";
-  const noLinks = (t: string) => linkList(t).reduce((acc, u) => acc.split(u).join(" "), t);
   const withoutLinks = noLinks(o.text);
-  const paragraphs = units(o.knowledge);
-  if (unsupportedFacts(withoutLinks, [...units(o.staff), ...paragraphs]).length) return "numero_novo";
+  if (unsupportedFacts(withoutLinks, [...units(o.staff), ...units(o.knowledge)]).length) return "numero_novo";
   if (o.question) return null;
-  // Fontes sem ligações (um ".../pages/trocas" não é um compromisso) e sem os títulos da base ("## Devoluções" é o tema).
-  const staff = units(o.staff).flatMap((u) => commitmentsOf(noLinks(u)));
-  const kb = paragraphs.map((p) => ({ keys: textFacts(p, false).keys, uses: commitmentsOf(noLinks(p.replace(/^#.*$/gm, ""))) }));
-  for (const s of commitmentSentences(withoutLinks)) {
-    const nums = [...textFacts(s, true).keys].filter((k) => /^[tpmsn]:/.test(k));
-    for (const c of sentenceCommitments(s)) {
-      const same = (u: CommitmentUse) => u.key === c.key && u.sentido === c.sentido && u.condicoes === c.condicoes;
-      const matches = [
-        ...staff.filter(same),
-        ...(nums.length ? kb.filter((p) => nums.every((k) => p.keys.has(k))).flatMap((p) => p.uses.filter(same)) : []),
-      ];
-      if (!matches.length) return "politica_nova";
-      const explained = new Set(matches.flatMap((u) => [...u.palavras]));
-      const opposite = [...staff, ...kb.flatMap((p) => p.uses)].filter((u) => u.key === c.key && u.sentido !== c.sentido);
-      if (opposite.some((u) => [...c.palavras].some((w) => u.palavras.has(w) && !explained.has(w)))) return "politica_nova";
+  const supported = new Set([...statements(noLinks(o.staff)), ...statements(noLinks(withoutTitles(o.knowledge)))]
+    .flatMap((s) => commitmentHits(s).map((h) => h.key)));
+  return commitmentHits(withoutLinks).some((h) => !supported.has(h.key)) ? "politica_nova" : null;
+}
+
+// ---------------------------------------------------------------- avisos em relação à resposta da equipa
+// Calculados quando a IA propõe o cartão (só aí há a resposta da equipa) e guardados no cartão: o Super Admin tem de os
+// confirmar (ACK_LABEL) antes de aprovar. Falham pelo lado seguro: na dúvida, há aviso.
+
+// Recusas e negações. Sem as fórmulas que não recusam nada ("não hesite", "não se esqueça", "sem custos", "sem dúvida",
+// "de nada", "acabou de chegar").
+const REFUSAL_RE = /(?<!\p{L})(?:n[ãa]o|nem|nunca|jamais|sem|nenhum|nenhuma|nenhuns|nenhumas|nada|infelizmente|lamentamos|lamento|lamentavelmente|imposs[íi]ve(?:l|is)|invi[áa]ve(?:l|is)|indispon[íi]ve(?:l|is)|deix[áa]mos[ \t]+de|deixou[ \t]+de|deixaram[ \t]+de|exclu(?:i|em|ir|[íi]d[oa]s?|s[ãa]o)|recus(?:a|am|amos|ou|ado|ada|ados|adas)|acab(?:ou|aram|ado|ada|ados|adas)|termin(?:ou|aram)|expir(?:ou|aram|ado|ada|ados|adas)|esgotad[oa]s?|caduc(?:ou|aram|ado|ada)|j[áa][ \t]+passou|fora[ \t]+de[ \t]+quest[ãa]o|unfortunately|sorry|not|never|cannot|can't|won't|don't|doesn't|isn't|aren't)(?!\p{L})/giu;
+const REFUSAL_IDIOMS = /(?<!\p{L})(?:n[ãa]o[ \t]+hesite\p{L}*|n[ãa]o[ \t]+se[ \t]+esque[çc]a\p{L}*|sem[ \t]+(?:qualquer[ \t]+|nenhum[ \t]+)?(?:custos?|encargos?|despesas?|juros|compromisso|d[úu]vidas?|problemas?)|de[ \t]+nada|n[ãa]o[ \t]+h[áa][ \t]+de[ \t]+qu[êe]|acab(?:ou|aram)[ \t]+de)(?!\p{L})/giu;
+type Refusal = { marker: string; phrase: string };
+// Sem dados da empresa: para saber se uma palavra é comum.
+const NO_ALLOW = companyAllowlist({ knowledge: "", stores: [] });
+// Cada recusa com a frase em que aparece (a recusa e até duas palavras comuns a seguir: "não é possível").
+function refusalsIn(text: string): Refusal[] {
+  const t = (text || "").replace(REFUSAL_IDIOMS, (m) => " ".repeat(m.length));
+  const out: Refusal[] = [];
+  for (const m of t.matchAll(REFUSAL_RE)) {
+    const marker = m[0].toLowerCase().replace(/\s+/g, " ");
+    const after = t.slice((m.index ?? 0) + m[0].length).split(/[.!?;:\n]/)[0].match(/[\p{L}'’-]+/gu) || [];
+    const more: string[] = [];
+    for (const w of after.slice(0, 2)) {
+      if (!ordinaryWord(w.toLowerCase(), NO_ALLOW)) break;
+      more.push(w.toLowerCase());
+    }
+    out.push({ marker, phrase: [marker, ...more].join(" ") });
+  }
+  return out;
+}
+// O cartão diz o que a empresa faz ou não faz (um compromisso ou um verbo de política: "fazemos", "aceitamos", "pode",
+// "é possível", "temos"…).
+const POLICY_RE = /(?<!\p{L})(?:\p{L}{2,}(?:amos|emos|imos|ámos|êmos)|pode|podem|poder[áa]|aceita|aceitam|inclui|incluem|cobre|cobrem|oferece|oferecem|faz|fazem|tem|têm|h[áa]|é[ \t]+poss[íi]vel|s[ãa]o[ \t]+poss[íi]veis|est[áa][ \t]+dispon[íi]vel|est[ãa]o[ \t]+dispon[íi]veis)(?!\p{L})/iu;
+const statesPolicy = (text: string) => commitmentHits(text).length > 0 || POLICY_RE.test(text);
+// Condições e limites que o cartão tem de manter ("só", "apenas", "acima de", "a partir de", "mediante", "desde que",
+// "exceto", "com talão", "no prazo de", "quando"…). "se" não conta como pronome ("não se aceitam", "trata-se").
+const CONDITION_RE = /(?<![\p{L}-])(?:s[óo]|apenas|somente|unicamente|exclusivamente|exclusiv[oa]s?|exceto|excepto|salvo|exce[çc][ãa]o|exce[çc][õo]es|acima[ \t]+de|a[ \t]+partir[ \t]+d[eoa]s?|superior(?:es)?[ \t]+a|mais[ \t]+de|m[íi]nimo|m[áa]ximo|at[ée](?![ \t]+(?:breve|j[áa]|logo|amanh[ãa]|[àa][ \t]+pr[óo]xima))|no[ \t]+prazo[ \t]+de|prazo[ \t]+de|dentro[ \t]+de|mediante|desde[ \t]+que|(?<!(?:n[ãa]o|que|j[áa]|tamb[ée]m|nunca|ainda|onde|como|quando|lhe|nos|vos|me|te)[ \t])se|caso|quando|com[ \t]+(?:o[ \t]+|a[ \t]+|os[ \t]+|as[ \t]+)?(?:tal[ãa]o|tal[õo]es|fatura|factura|recibo|comprovativo)|apresenta[çc][ãa]o|sujeit[oa]s?[ \t]+a|para[ \t]+(?:membros|s[óo]cios)|na[ \t]+compra[ \t]+de|em[ \t]+compras?[ \t]+de|por[ \t]+cada|limitad[oa]s?|enquanto|v[áa]lid[oa]s?[ \t]+at[ée]|condi[çc](?:[ãa]o|[õo]es))(?!\p{L})/giu;
+// Palavras sem conteúdo próprio (para ligar uma frase da equipa ao cartão e para as palavras novas).
+const PLAIN_WORDS = new Set(`para pela pelo pelas pelos como mais menos onde este esta estes estas esse essa esses essas isto isso aquele aquela
+  todo toda todos todas tudo cada qualquer quaisquer outro outra outros outras algum alguma alguns algumas muito muita muitos muitas mesmo
+  mesma nosso nossa nossos nossas também ainda sempre apenas quando então assim porque porém contudo entre sobre desde durante após antes
+  depois até cerca através caso seja sejam será serão está estão estamos estar estou temos tenha tiver podemos poder pode podem possa
+  poderá poderão fazer fazemos fazem feito feita damos dar ficamos fica ficar deve devem dever possível possíveis disponível disponíveis
+  cliente clientes equipa obrigado obrigada obrigados agradecemos lamentamos infelizmente felizmente informamos informar informação
+  informações contacto contactos contactar contacte contacte-nos dúvida dúvidas questão questões ajuda ajudar disposição dispor gosto
+  atenção cumprimentos atenciosamente saudações caro cara estimado estimada prezado prezada olá bom boa dia dias tarde noite hora horas
+  anos meses semanas minutos peça peças loja lojas mensagem resposta pedido pedidos caso casos forma formas vez vezes favor exemplo nossa
+  sentido certo certa claro claramente melhor maior menor primeiro primeira seguinte seguintes respetivo respetiva conforme segundo
+  sendo havia haver existe existem tenho tinha quer querem pretende pretender deseja desejar precisa precisar necessita`.split(/\s+/).filter(Boolean));
+const REFUSAL_WORDS = new Set(["não", "nao", "nunca", "jamais", "nenhum", "nenhuma", "nada", "infelizmente", "lamentamos", "lamento"]);
+const stemOf = (w: string) => w.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").slice(0, 5);
+const contentWords = (text: string) => (text.match(/\p{L}[\p{L}'’-]*/gu) || []).map((w) => w.toLowerCase())
+  .filter((w) => w.length >= 4 && !PLAIN_WORDS.has(w) && !REFUSAL_WORDS.has(w));
+const stemsOf = (text: string) => new Set(contentWords(text).map(stemOf));
+const keysOf = (text: string) => new Set(commitmentHits(text).map((h) => h.key));
+const quoteList = (items: string[]) => [...new Set(items)].slice(0, 3).map(quote).join(", ");
+
+// Avisos de uma proposta da IA em relação à resposta da equipa (e à base de conhecimento):
+// - "Possível contradição": a resposta da equipa tem uma recusa ou negação em qualquer ponto (também numa pergunta) e o
+//   cartão diz o que a empresa faz; o cartão tem uma recusa que a equipa (ou a base de conhecimento, sobre o mesmo
+//   compromisso) não tem; ou a base de conhecimento recusa o mesmo compromisso com as mesmas palavras.
+// - "Condição em falta": uma condição ou um limite de uma afirmação da equipa sobre o mesmo assunto (com um compromisso
+//   ou uma palavra em comum) que o cartão não tem (com o número, se o limite tiver um), ou um número dessa afirmação que
+//   o cartão deixou cair (um prazo, um valor).
+// - "Compromisso que a resposta da equipa não tem": um compromisso que só a base de conhecimento tem.
+// - "Palavras que não estão na resposta da equipa": palavras do cartão que não estão nas respostas da equipa nem na base
+//   de conhecimento (o âmbito mudou: "quedas e riscos" onde a equipa escreveu "defeitos de fabrico").
+export function sourceWarnings(o: { text: string; staff: string; knowledge?: string }): string[] {
+  const out: string[] = [];
+  const text = noLinks(o.text), staff = noLinks(o.staff), kb = noLinks(withoutTitles(o.knowledge || ""));
+  const policy = statesPolicy(text);
+  const staffRefusals = refusalsIn(staff);
+  if (staffRefusals.length && policy)
+    out.push(`Possível contradição: a resposta da equipa tem uma recusa (${quoteList(staffRefusals.map((r) => r.phrase))})`);
+  const cardKeys = keysOf(text);
+  const kbSentences = statements(kb);
+  const kbRefusals = kbSentences.filter((s) => [...keysOf(s)].some((k) => cardKeys.has(k))).flatMap(refusalsIn);
+  const allowedMarkers = new Set([...staffRefusals, ...kbRefusals].map((r) => r.marker));
+  const extra = refusalsIn(text).filter((r) => !allowedMarkers.has(r.marker));
+  if (extra.length) out.push(`Possível contradição: o cartão tem uma recusa que a resposta da equipa não tem (${quoteList(extra.map((r) => r.phrase))})`);
+  for (const s of sentencesOf(text)) {
+    if (refusalsIn(s).length) continue;
+    const keys = keysOf(s);
+    const words = new Set([...stemsOf(s)].filter((w) => ![...keys].some((k) => stemOf(k) === w)));
+    for (const k of kbSentences) {
+      const refusals = refusalsIn(k);
+      if (!refusals.length || ![...keysOf(k)].some((x) => keys.has(x))) continue;
+      if ([...stemsOf(k)].some((w) => words.has(w)))
+        out.push(`Possível contradição: a base de conhecimento tem uma recusa (${quoteList(refusals.map((r) => r.phrase))})`);
     }
   }
-  return null;
+  // Condições em falta.
+  const cardStems = stemsOf(text);
+  const norm = (s: string) => ` ${s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
+  const cardNorm = norm(text);
+  for (const s of statements(staff)) {
+    const related = [...keysOf(s)].some((k) => cardKeys.has(k)) || [...stemsOf(s)].some((w) => cardStems.has(w));
+    if (!related) continue;
+    const reported = new Set<string>();
+    for (const m of s.matchAll(CONDITION_RE)) {
+      const after = s.slice((m.index ?? 0) + m[0].length).split(/[,;:.!?()\n]/)[0].match(/[\p{L}\p{N}%€$'’-]+/gu) || [];
+      const phrase = [m[0], ...after.slice(0, 3)].join(" ").replace(/\s+/g, " ");
+      if (/d[úu]vida|quest[ãa]o|quest[õo]es|ajuda|esclarec|informa[çc]/iu.test(phrase)) continue;
+      const number = after.slice(0, 3).find((w) => /^\d/.test(w))?.match(/\d+(?:[.,]\d+)?/)?.[0];
+      // "se", "caso", "quando" e "até" são palavras curtas e comuns: contam com a palavra seguinte ("se a peça…").
+      const short = /^(?:se|caso|quando|at[ée])$/iu.test(m[0]);
+      const hasMarker = cardNorm.includes(norm(short && after[0] ? `${m[0]} ${after[0]}` : m[0]));
+      const hasNumber = !number || cardNorm.includes(` ${number.replace(/[.,]/, " ")} `) || wordIn(number, text);
+      if (!hasMarker || !hasNumber) {
+        out.push(`Condição em falta: ${quote(phrase)}`);
+        if (number) reported.add(number);
+      }
+    }
+    // Um número da mesma frase da equipa (um prazo, um valor, um limite) que o cartão deixou cair ("Pode devolver em 14
+    // dias" → "Pode devolver a peça").
+    const cardNumbers = new Set(numberHits(text).map((h) => h.n));
+    for (const h of numberHits(s)) {
+      if (cardNumbers.has(h.n) || reported.has(h.raw)) continue;
+      const before = s.slice(0, h.at).match(/[\p{L}€$£]+[ \t]*$/u)?.[0].trim();
+      const after = /^[ \t]*([\p{L}%€$£]+)/u.exec(s.slice(h.at + h.raw.length))?.[1];
+      out.push(`Condição em falta: ${quote([before, h.raw, after].filter(Boolean).join(" "))}`);
+    }
+  }
+  // Compromissos que a equipa não escreveu (só na base de conhecimento): o cartão deve vir da resposta da equipa.
+  // (Um compromisso que nem a base tem retira a proposta: poisonReason.)
+  const staffKeys = new Set(statements(staff).flatMap((s) => [...keysOf(s)]));
+  const kbKeys = new Set(kbSentences.flatMap((s) => [...keysOf(s)]));
+  const kbOnly = [...cardKeys].filter((key) => !staffKeys.has(key) && kbKeys.has(key));
+  if (kbOnly.length) out.push(`Compromisso que a resposta da equipa não tem (só na base de conhecimento): ${quoteList(kbOnly)}`);
+  // Palavras que não estão na resposta da equipa nem na base de conhecimento.
+  const known = new Set([...stemsOf(staff), ...stemsOf(kb)]);
+  const fresh = [...new Set(sentencesOf(text).filter(statesPolicy).flatMap((s) => contentWords(s)).filter((w) => !known.has(stemOf(w))))];
+  if (fresh.length) out.push(`Palavras que não estão na resposta da equipa: ${fresh.slice(0, 6).map(quote).join(", ")}`);
+  return [...new Set(out)].slice(0, 20);
 }
 
 // O cartão repete 12 ou mais palavras seguidas de uma mensagem do cliente (as mensagens nunca são copiadas).
@@ -1024,8 +1243,8 @@ export const AUTO_OK_TEXT = {
   loja: "Indique a loja: as respostas sobre horários, moradas e contactos só podem ser automáticas para uma loja.",
   conflito: "Há outra resposta automática sobre esta loja; junte-as primeiro.",
   base: "A base de conhecimento tem outra informação sobre esta loja: confirme qual está certa e corrija a outra antes de a usar em respostas automáticas.",
-  dados: "A resposta parece ter dados pessoais: corrija-a antes de a usar em respostas automáticas.",
-  nomes: "Tem palavras que podem ser nomes de pessoas: mesmo confirmadas, uma resposta com elas não pode ser usada em respostas automáticas. Reescreva-a sem elas",
+  dados: "O texto tem dados pessoais: corrija-o antes de o usar em respostas automáticas.",
+  avisos: "Tem avisos por confirmar: confirme que o texto não tem dados pessoais nem contradiz a resposta da equipa",
 } as const;
 
 // Nomes pelos quais a base de conhecimento fala de uma loja: o nome sem o que está entre parênteses e as palavras só
@@ -1050,6 +1269,8 @@ export function curatedConflict(resposta: string, knowledge: string, storeNames:
 
 export type AutoCard = {
   id: string; estado: string; intent: string; brand: string; loja_id: string | null; resposta: string;
+  // Pergunta e variantes (também verificadas), avisos da proposta da IA e os avisos confirmados para o texto atual.
+  pergunta?: string; variantes?: string[] | null; avisos?: string[] | null; avisos_ok?: string[] | null;
   aprovada_em: string | null; revisto_em: string | null; publicado: boolean; por_publicar: boolean; auto_ok: boolean;
   // Aprovação ou última correção do texto (os 7 dias contam daqui).
   texto_em: string | null;
@@ -1059,14 +1280,15 @@ export type AutoCard = {
 // revisão, a loja e o conflito; o texto (português do Brasil, ligações, marca, base de conhecimento) só aqui.
 export function autoOkBlockers(card: AutoCard, ctx: {
   now: Date; knowledge: string; storeNames: string[]; others: Pick<AutoCard, "id" | "estado" | "intent" | "brand" | "loja_id" | "auto_ok">[];
-  // Dados da empresa aceites e nomes da equipa: dados pessoais e avisos de nomes na resposta.
+  // Dados da empresa aceites e nomes da equipa: dados pessoais (recusas) e avisos por confirmar no cartão.
   allow: Allowlist; staffNames?: (string | null | undefined)[];
 }): string[] {
   const out: string[] = [];
   if (card.estado !== "aprovada") return [AUTO_OK_TEXT.estado];
-  if (scrubPii(card.resposta, ctx.allow, { names: ctx.staffNames }).length) out.push(AUTO_OK_TEXT.dados);
-  const names = answerNames(card.resposta, ctx.allow);
-  if (names.length) out.push(`${AUTO_OK_TEXT.nomes} (${names.map((n) => `«${n.word}»`).join(", ")}).`);
+  const text = { pergunta: card.pergunta || "", variantes: card.variantes || [], resposta: card.resposta, avisos: card.avisos };
+  if (cardPii(text, ctx.allow, ctx.staffNames || []).length) out.push(AUTO_OK_TEXT.dados);
+  const pending = unackedWarnings(cardAlerts(text, ctx.allow, ctx.staffNames || []), card.avisos_ok);
+  if (pending.length) out.push(`${AUTO_OK_TEXT.avisos} (${pending.slice(0, 5).join("; ")}${pending.length > 5 ? "…" : ""}).`);
   if (!card.publicado || card.por_publicar) out.push(AUTO_OK_TEXT.publicar);
   if (!card.texto_em || ctx.now.getTime() - Date.parse(card.texto_em) < 7 * 86_400_000) out.push(AUTO_OK_TEXT.seteDias);
   const limit = new Date(`${lisbonToday(ctx.now)}T00:00:00Z`);
