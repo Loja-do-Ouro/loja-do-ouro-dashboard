@@ -71,11 +71,12 @@ create table public.ldo_support_knowledge_cards (
   estado text not null default 'proposta' check (estado in ('proposta', 'aprovada', 'arquivada')),
   auto_ok boolean not null default false,
   auto_ok_em timestamptz,
+  -- Conversas que confirmaram a resposta (cada conversa conta no máximo uma vez: ldo_support_knowledge_seen.contada).
   fontes integer not null default 0 check (fontes >= 0),
   ultima_vez timestamptz not null default now(),
   amostras uuid[] not null default '{}' check (cardinality(amostras) <= 3),
-  -- Cartões juntos a este ("Juntar a…", também os que já tinham sido juntos a esses): as fontes deles contam como deste
-  -- (o mesmo contacto conta uma vez).
+  -- Cartões juntos a este ("Juntar a…", também os que já tinham sido juntos a esses): uma confirmação de um deles que
+  -- chegue depois conta para este.
   juntadas uuid[] not null default '{}',
   valido_ate date,
   revisto_em date,
@@ -84,11 +85,14 @@ create table public.ldo_support_knowledge_cards (
   aprovada_em timestamptz,
   -- Aprovação ou última correção do texto de uma resposta aprovada (os 7 dias de "Permitir em respostas automáticas").
   texto_em timestamptz,
-  -- Palavras da resposta assinaladas como possíveis nomes que o Super Admin confirmou não o serem ("Confirmo que não é o
-  -- nome de uma pessoa"), para o texto atual da resposta: apagadas quando a resposta muda.
-  nomes_ok text[] not null default '{}' check (cardinality(nomes_ok) <= 20),
-  nomes_ok_por uuid references public.ldo_app_users (id) on delete set null,
-  nomes_ok_em timestamptz,
+  -- Avisos da proposta da IA em relação à resposta da equipa (possíveis contradições, condições em falta, palavras que a
+  -- equipa não escreveu), calculados no servidor no momento da proposta (depois já não há a resposta da equipa).
+  avisos text[] not null default '{}' check (cardinality(avisos) <= 20 and length(array_to_string(avisos, '|')) <= 6100),
+  -- "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa": os avisos (do texto e da
+  -- proposta) que o Super Admin viu e confirmou para o texto atual, quem e quando; apagados quando o texto muda.
+  avisos_ok text[] not null default '{}' check (cardinality(avisos_ok) <= 60 and length(array_to_string(avisos_ok, '|')) <= 18100),
+  avisos_ok_por uuid references public.ldo_app_users (id) on delete set null,
+  avisos_ok_em timestamptz,
   publicada_em timestamptz,
   -- Texto em uso pela IA desde a última publicação (tema, marca, loja, pergunta, variantes, resposta e validade); null =
   -- não publicado.
@@ -111,42 +115,31 @@ create unique index ldo_support_knowledge_cards_auto_loja_idx on public.ldo_supp
 alter table public.ldo_support_knowledge_cards enable row level security;
 revoke all on public.ldo_support_knowledge_cards from anon, authenticated;
 
--- Conversas já lidas pela passagem diária: o id e até que resposta da equipa foram lidas (processed_at = a hora da última
--- resposta da equipa lida, não a hora do pedido, que ligaria a conversa ao pedido e ao cartão).
+-- Conversas lidas, sem o cartão: até que resposta da equipa a passagem diária leu (processed_at = a hora dessa resposta,
+-- não a do pedido; null se só o botão a usou) e se a conversa já contou como fonte de um cartão (contada: cada conversa
+-- conta uma vez). atualizada_em: o dia da última escrita (a limpeza apaga-as 180 dias depois).
 create table public.ldo_support_knowledge_seen (
   conversation_id uuid primary key references public.ldo_support_conversations (id) on delete cascade,
-  processed_at timestamptz not null default now()
+  processed_at timestamptz,
+  contada boolean not null default false,
+  atualizada_em date not null default ((now() at time zone 'Europe/Lisbon')::date)
 );
 alter table public.ldo_support_knowledge_seen enable row level security;
 revoke all on public.ldo_support_knowledge_seen from anon, authenticated;
 
--- Segredo das chaves pseudónimas (contactos que confirmaram uma resposta e respostas já guardadas pelo botão): 32 bytes
--- aleatórios gerados aqui, que não saem da BD. Ninguém da API o lê (nem service_role); só as funções desta migração.
-create table ldo_private.support_knowledge_secret (
-  id integer primary key check (id = 1),
-  secret bytea not null check (length(secret) = 32)
-);
-insert into ldo_private.support_knowledge_secret (id, secret) values (1, extensions.gen_random_bytes(32));
-alter table ldo_private.support_knowledge_secret enable row level security;
-revoke all on ldo_private.support_knowledge_secret from public, anon, authenticated, service_role;
-
 -- Respostas já guardadas pelo botão "Guardar como resposta aprovada" (uma proposta por resposta, mesmo depois de o
--- pedido deixar de guardar a mensagem): só a chave pseudónima da mensagem e o dia, sem o cartão nem a conversa.
--- Apagadas ao fim de 365 dias.
+-- pedido deixar de guardar a mensagem): a mensagem e o dia, sem o cartão. Apagadas ao fim de 365 dias.
 create table public.ldo_support_knowledge_used (
-  message_key text primary key check (message_key ~ '^[0-9a-f]{64}$'),
+  message_id uuid primary key references public.ldo_support_messages (id) on delete cascade,
   used_on date not null default ((now() at time zone 'Europe/Lisbon')::date)
 );
 alter table public.ldo_support_knowledge_used enable row level security;
 revoke all on public.ldo_support_knowledge_used from anon, authenticated;
 
--- Pedidos à IA (hora, origem, quem carregou no botão, custo, resultado e o cartão), sem texto: o motivo de uma proposta
--- retirada é só um código. A conversa e a mensagem de origem só ficam nos pedidos sem cartão (a decorrer, com erro, sem
--- pergunta geral ou retirados), até 180 dias: um pedido que acaba num cartão perde-as ao gravar o resultado.
--- contact_key: chave pseudónima do contacto (HMAC-SHA256 com o segredo acima, igual em todos os cartões), só nos pedidos
--- que contaram uma fonte, para não contar o mesmo contacto duas vezes. Nunca no mesmo pedido que a conversa ou a
--- mensagem (último check); ainda assim, enquanto uma proposta guarda as conversas de origem (amostras), quem lê as
--- tabelas pode ligar a chave dos pedidos dessa proposta ao contacto. Apagada com o pedido, ao fim de 365 dias.
+-- Pedidos à IA (hora, origem, quem carregou no botão, cartão, modelo, custo, duração e resultado), sem texto: o motivo de
+-- uma proposta retirada é só um código. A conversa e a mensagem de origem só ficam nos pedidos sem cartão (a decorrer,
+-- com erro, sem pergunta geral ou retirados), até 180 dias: um pedido que acaba num cartão perde-as ao gravar o
+-- resultado (último check). conta: o pedido contou uma conversa como fonte. Apagados ao fim de 365 dias.
 create table public.ldo_support_knowledge_runs (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
@@ -155,38 +148,28 @@ create table public.ldo_support_knowledge_runs (
   user_id uuid references public.ldo_app_users (id) on delete set null,
   conversation_id uuid references public.ldo_support_conversations (id) on delete set null,
   message_id uuid references public.ldo_support_messages (id) on delete set null,
-  contact_key text check (contact_key ~ '^[0-9a-f]{64}$'),
   status text not null default 'pending' check (status in ('pending', 'done', 'error')),
   resultado text check (resultado in ('novo', 'existente', 'nao_aproveitavel', 'descartado')),
   descartado text check (descartado in ('dados_pessoais', 'numero_novo', 'ligacao_nova', 'politica_nova', 'contacto_novo', 'copia_cliente',
     'marca', 'formato', 'limite')),
   card_id uuid references public.ldo_support_knowledge_cards (id) on delete set null,
+  conta boolean not null default false,
   model text check (length(model) <= 60),
   cost_usd numeric(10, 5) not null default 0 check (cost_usd >= 0),
   latency_ms integer check (latency_ms >= 0),
   error text check (length(error) <= 500),
-  -- Um pedido com cartão ou com a chave do contacto nunca guarda a conversa nem a mensagem de origem.
-  check ((card_id is null and contact_key is null) or (conversation_id is null and message_id is null))
+  -- Um pedido com cartão nunca guarda a conversa nem a mensagem de origem.
+  check (card_id is null or (conversation_id is null and message_id is null))
 );
 create index ldo_support_knowledge_runs_created_idx on public.ldo_support_knowledge_runs (created_at);
 create index ldo_support_knowledge_runs_user_idx on public.ldo_support_knowledge_runs (user_id, created_at);
 create index ldo_support_knowledge_runs_message_idx on public.ldo_support_knowledge_runs (message_id);
-create index ldo_support_knowledge_runs_card_idx on public.ldo_support_knowledge_runs (card_id, contact_key);
+create index ldo_support_knowledge_runs_card_idx on public.ldo_support_knowledge_runs (card_id);
 create index ldo_support_knowledge_runs_conversation_idx on public.ldo_support_knowledge_runs (conversation_id, created_at);
 alter table public.ldo_support_knowledge_runs enable row level security;
 revoke all on public.ldo_support_knowledge_runs from anon, authenticated;
 
 -- ---------------------------------------------------------------- auxiliares
-
--- Chave pseudónima (64 algarismos hexadecimais) de um contacto ('contacto') ou de uma mensagem ('mensagem'):
--- HMAC-SHA256 com o segredo de ldo_private.support_knowledge_secret (pgcrypto, no esquema extensions). Igual para o mesmo
--- id, seja qual for o cartão; null sem id ou sem segredo (quem a usa decide: não contar, ou recusar o pedido).
-create function ldo_private.support_knowledge_key(p_kind text, p_id uuid) returns text
-language sql stable security definer set search_path = '' as $$
-  select encode(extensions.hmac(convert_to(p_kind || ':' || p_id::text, 'UTF8'), s.secret, 'sha256'), 'hex')
-  from ldo_private.support_knowledge_secret s
-  where s.id = 1 and p_id is not null and p_kind in ('contacto', 'mensagem');
-$$;
 
 create function ldo_private.support_card_fts() returns trigger
 language plpgsql set search_path = '' as $$
@@ -207,8 +190,9 @@ language sql immutable set search_path = '' as $$
 $$;
 
 -- Dados que nunca ficam num cartão (mesmas regras no servidor, com mais algumas): emails fora dos domínios da empresa,
--- IBAN ou NIF e números de encomenda (logo a seguir, com palavras pelo meio e "nº" ou "#", ou com letras: "LDO12345").
--- Devolve o motivo (ou null).
+-- IBAN ou NIF e números de encomenda (logo a seguir, com palavras pelo meio e "nº" ou "#", ou com letras: "LDO12345") ou
+-- de referência com "nº" (compra, reparação, guia, reserva, talão, recibo, referência, cliente). Devolve o motivo (ou
+-- null).
 create function ldo_private.support_card_problem(p_text text) returns text
 language sql immutable set search_path = '' as $$
   select case
@@ -222,7 +206,8 @@ language sql immutable set search_path = '' as $$
       or coalesce(p_text, '') ~* '\m(encomenda|pedido|order|fatura|factura)s?\M[^0-9]{0,25}(n\.?[[:space:]]*[ºo°]|nº|número|numero|nr\.?|#)[[:space:]]*:?[[:space:]]*#?[[:space:]]*[a-z]{0,4}-?[0-9]{3,}'
       or coalesce(p_text, '') ~* '\m(encomenda|pedido|order|fatura|factura)s?[[:space:]]+#?[a-z]{2,4}-?[0-9]{3,}'
       or coalesce(p_text, '') ~* '#[a-z]{2,4}-?[0-9]{3,}'
-      then 'O texto tem um número de encomenda.'
+      or coalesce(p_text, '') ~* '\m(compras?|repara(ção|cao|ções|coes)|guias?|reservas?|tal(ão|ao|ões|oes)|recibos?|refer(ê|e)ncias?|clientes?)\M[[:space:]]*(n\.?[[:space:]]*[ºo°]\.?|nº|n\.|número|numero|nr\.?)[[:space:]]*:?[[:space:]]*[0-9]{3,}'
+      then 'O texto tem um número de encomenda ou de referência.'
   end;
 $$;
 
@@ -370,7 +355,6 @@ declare
   v_super boolean := ldo_private.support_super(p_session) is not null;
   v_s public.ldo_support_settings;
   v_m public.ldo_support_messages;
-  v_key text;
   v_id uuid;
 begin
   select * into v_m from public.ldo_support_messages where id = p_message_id;
@@ -390,17 +374,13 @@ begin
     raise exception 'Resposta demasiado curta para guardar como resposta aprovada.' using errcode = '22023';
   end if;
   select * into v_s from public.ldo_support_settings where id = 1;
-  v_key := ldo_private.support_knowledge_key('mensagem', v_m.id);
-  if v_key is null then
-    raise exception 'Falta o segredo da base de conhecimento aprendida (migração incompleta).' using errcode = '55000';
-  end if;
   -- Um pedido de cada vez por pessoa na contagem e por resposta (dois cliques seguidos, da pessoa e do Super Admin, não
   -- passam ambos).
   perform pg_advisory_xact_lock(hashtextextended('ldo_support_knowledge:' || v_me::text, 0));
   perform pg_advisory_xact_lock(hashtextextended('ldo_support_knowledge_msg:' || v_m.id::text, 0));
-  -- Uma proposta por resposta: as já guardadas ficam em ldo_support_knowledge_used (só a chave, sem o cartão), porque um
+  -- Uma proposta por resposta: as já guardadas ficam em ldo_support_knowledge_used (a mensagem, sem o cartão), porque um
   -- pedido que acaba num cartão deixa logo de guardar a mensagem.
-  if exists (select 1 from public.ldo_support_knowledge_used u where u.message_key = v_key)
+  if exists (select 1 from public.ldo_support_knowledge_used u where u.message_id = v_m.id)
      or exists (select 1 from public.ldo_support_knowledge_runs r where r.message_id = v_m.id
        and r.status = 'pending' and r.created_at > now() - interval '2 minutes') then
     raise exception 'Esta resposta já foi guardada (ou está a ser preparada).' using errcode = '22023';
@@ -446,7 +426,7 @@ begin
     left join public.ldo_support_knowledge_seen s on s.conversation_id = c.id
     where r.last_reply is not null
       and (c.status = 'resolvido' or coalesce(c.last_message_at, c.created_at) < now() - interval '72 hours')
-      and (s.conversation_id is null or s.processed_at < r.last_reply)
+      and (s.conversation_id is null or s.processed_at is null or s.processed_at < r.last_reply)
       -- Falhas: erro ou pedido que ficou a meio (a função terminou antes de gravar o resultado).
       and not exists (select 1 from public.ldo_support_knowledge_runs e where e.conversation_id = c.id and e.trigger = 'diaria'
         and (e.status = 'error' or (e.status = 'pending' and e.created_at < now() - interval '15 minutes'))
@@ -481,14 +461,13 @@ $$;
 
 -- Resultado de um pedido (só o servidor), gravado logo a seguir à chamada à IA, uma vez. p_values: status ('done' ou
 -- 'error'), resultado ('novo', 'existente', 'nao_aproveitavel', 'descartado'), descartado (código), cost, model,
--- latency_ms, error, card_id (cartão existente) e card (tema, marca, loja_id, pergunta, variantes, resposta, valido_ate).
--- Um cartão que a BD recusa fica como proposta retirada, sem perder o custo. Uma fonte conta uma vez por contacto e só
--- se o contacto for identificável (no chat do site, sessão confirmada na loja ou email associado pela equipa); para isso
--- fica no pedido a chave pseudónima do contacto (support_knowledge_key), não o contacto, e conta-se contra o cartão e os
--- que lhe foram juntos. Um pedido que acaba num cartão (novo ou existente) deixa de guardar a conversa e a mensagem no
--- mesmo update que grava o cartão e a chave (depois disso nada as lê: as falhas e os pedidos a decorrer guardam-nas).
--- Um cartão existente que entretanto foi junto a outro conta para esse outro. Uma resposta guardada pelo botão fica em
--- ldo_support_knowledge_used (só a chave da mensagem). Na passagem diária, um pedido acabado (status 'done') marca a
+-- latency_ms, error, card_id (cartão existente) e card (tema, marca, loja_id, pergunta, variantes, resposta, valido_ate e
+-- avisos: os avisos do servidor em relação à resposta da equipa). Um cartão que a BD recusa fica como proposta retirada,
+-- sem perder o custo. Uma conversa conta como fonte uma vez (ldo_support_knowledge_seen.contada) e só se o contacto for
+-- identificável (no chat do site, sessão confirmada na loja ou email associado pela equipa). Um pedido que acaba num
+-- cartão (novo ou existente) deixa de guardar a conversa e a mensagem no mesmo update que grava o cartão. Um cartão
+-- existente que entretanto foi junto a outro conta para esse outro. Uma resposta guardada pelo botão fica em
+-- ldo_support_knowledge_used (a mensagem, sem o cartão). Na passagem diária, um pedido acabado (status 'done') marca a
 -- conversa como vista até à última resposta da equipa lida.
 create function public.ldo_support_knowledge_propose(p_token text, p_run uuid, p_values jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
@@ -507,7 +486,7 @@ declare
   v_variantes text[];
   v_problem text;
   v_counts boolean := false;
-  v_key text;
+  v_avisos text[];
   v_card_id uuid;
 begin
   perform ldo_private.bi_check(p_token);
@@ -544,6 +523,10 @@ begin
       v_valido := null;
     end;
     v_variantes := ldo_private.support_card_variants(v_card -> 'variantes', v_card ->> 'pergunta');
+    select coalesce(array_agg(left(btrim(e.x), 300) order by e.pos), '{}') into v_avisos
+    from jsonb_array_elements_text(case when jsonb_typeof(v_card -> 'avisos') = 'array' then v_card -> 'avisos' else '[]'::jsonb end)
+      with ordinality as e(x, pos)
+    where btrim(e.x) <> '' and e.pos <= 20;
     v_problem := ldo_private.support_card_invalid(v_card ->> 'intent', coalesce(v_card ->> 'brand', 'ldo'), v_loja, btrim(v_card ->> 'pergunta'),
       v_variantes, btrim(v_card ->> 'resposta'), v_valido);
     if v_problem is not null then
@@ -556,21 +539,18 @@ begin
     end if;
   end if;
   if v_res in ('novo', 'existente') and v_conv.id is not null and v_conv.contact_id is not null then
+    -- Uma conversa conta uma vez (dois pedidos da mesma conversa, do botão e da passagem diária, esperam um pelo outro).
+    perform pg_advisory_xact_lock(hashtextextended('ldo_support_knowledge_conv:' || v_conv.id::text, 0));
     v_counts := not (v_conv.channel = 'site'
       and not exists (select 1 from public.ldo_support_site_visitors v where v.conversation_id = v_conv.id and v.verified)
-      and not exists (select 1 from public.ldo_support_contacts k where k.id = v_conv.contact_id and k.linked_email is not null));
-    v_key := ldo_private.support_knowledge_key('contacto', v_conv.contact_id);
-    -- Sem chave (sem segredo) não se conta: nunca a mesma pessoa duas vezes.
-    v_counts := v_counts and v_key is not null;
-    if v_counts and v_res = 'existente' then
-      v_counts := not exists (select 1 from public.ldo_support_knowledge_runs r
-        where r.id <> p_run and r.contact_key = v_key and (r.card_id = v_target.id or r.card_id = any (v_target.juntadas)));
-    end if;
+      and not exists (select 1 from public.ldo_support_contacts k where k.id = v_conv.contact_id and k.linked_email is not null))
+      and not exists (select 1 from public.ldo_support_knowledge_seen s where s.conversation_id = v_conv.id and s.contada);
   end if;
   if v_res = 'novo' then
-    insert into public.ldo_support_knowledge_cards (intent, brand, loja_id, pergunta, variantes, resposta, valido_ate, fontes, amostras, criada_por)
+    insert into public.ldo_support_knowledge_cards (intent, brand, loja_id, pergunta, variantes, resposta, valido_ate, fontes, amostras, avisos,
+      criada_por)
     values (v_card ->> 'intent', coalesce(v_card ->> 'brand', 'ldo'), v_loja, btrim(v_card ->> 'pergunta'), v_variantes, btrim(v_card ->> 'resposta'),
-      v_valido, case when v_counts then 1 else 0 end, case when v_conv.id is null then '{}'::uuid[] else array[v_conv.id] end, 'ia')
+      v_valido, case when v_counts then 1 else 0 end, case when v_conv.id is null then '{}'::uuid[] else array[v_conv.id] end, v_avisos, 'ia')
     returning id into v_card_id;
   elsif v_res = 'existente' then
     update public.ldo_support_knowledge_cards set
@@ -587,8 +567,8 @@ begin
     descartado = case when v_res = 'descartado' then coalesce(case when v_desc in ('dados_pessoais', 'numero_novo', 'ligacao_nova', 'politica_nova',
       'contacto_novo', 'copia_cliente', 'marca', 'formato', 'limite') then v_desc end, 'formato') end,
     card_id = v_card_id,
-    -- Com cartão, a chave entra e a conversa e a mensagem saem no mesmo update (a tabela não aceita as duas juntas).
-    contact_key = case when v_counts and v_card_id is not null then v_key end,
+    conta = v_counts and v_card_id is not null,
+    -- Com cartão, a conversa e a mensagem saem no mesmo update (a tabela não aceita as duas juntas).
     conversation_id = case when v_card_id is null then conversation_id end,
     message_id = case when v_card_id is null then message_id end,
     model = left(coalesce(p_values ->> 'model', model), 60),
@@ -597,11 +577,14 @@ begin
     error = left(p_values ->> 'error', 500),
     finished_at = now()
   where id = p_run;
-  -- Botão: a resposta fica guardada (uma proposta por resposta), só pela chave da mensagem e o dia.
+  -- Botão: a resposta fica guardada (uma proposta por resposta), só a mensagem e o dia.
   if v_res in ('novo', 'existente') and v_r.message_id is not null then
-    insert into public.ldo_support_knowledge_used (message_key)
-    select k from (select ldo_private.support_knowledge_key('mensagem', v_r.message_id) as k) x where x.k is not null
-    on conflict (message_key) do nothing;
+    insert into public.ldo_support_knowledge_used (message_id) values (v_r.message_id) on conflict (message_id) do nothing;
+  end if;
+  -- A conversa contou: não volta a contar (para nenhum cartão).
+  if v_counts and v_card_id is not null then
+    insert into public.ldo_support_knowledge_seen (conversation_id, contada) values (v_conv.id, true)
+    on conflict (conversation_id) do update set contada = true, atualizada_em = excluded.atualizada_em;
   end if;
   -- Passagem diária: só com o pedido acabado (um erro tenta-se outra vez), a conversa fica vista até à última resposta da
   -- equipa que a IA leu (não à hora do pedido, que ligaria a conversa ao pedido e ao cartão).
@@ -611,7 +594,8 @@ begin
     from public.ldo_support_messages m
     where m.conversation_id = v_conv.id and m.kind = 'outbound' and m.author_user_id is not null and m.deleted_at is null
       and coalesce(m.delivery, 'accepted') not in ('failed', 'sending', 'uncertain') and m.created_at <= v_r.created_at
-    on conflict (conversation_id) do update set processed_at = greatest(public.ldo_support_knowledge_seen.processed_at, excluded.processed_at);
+    on conflict (conversation_id) do update set processed_at = greatest(public.ldo_support_knowledge_seen.processed_at, excluded.processed_at),
+      atualizada_em = excluded.atualizada_em;
   end if;
   if v_res in ('novo', 'existente') then
     insert into public.ldo_support_audit (actor, action, details)
@@ -623,8 +607,8 @@ begin
 end;
 $$;
 
--- Limpeza diária (só o servidor): pedidos com mais de 365 dias (com as chaves dos contactos; a conversa e a mensagem de
--- origem dos pedidos sem cartão ao fim de 180), respostas já guardadas há mais de 365, conversas vistas há mais de 180,
+-- Limpeza diária (só o servidor): pedidos com mais de 365 dias (a conversa e a mensagem de origem dos pedidos sem cartão
+-- ao fim de 180), respostas já guardadas há mais de 365, conversas vistas 180 dias depois da última vez,
 -- propostas sem novas fontes há 180 dias e cartões arquivados há 365. As respostas marcadas para respostas automáticas que expiraram ou não
 -- são revistas há mais de 90 dias perdem a marca.
 create function public.ldo_support_knowledge_purge(p_token text) returns integer
@@ -653,7 +637,7 @@ begin
   delete from public.ldo_support_knowledge_used where used_on < v_today - 365;
   get diagnostics v_n = row_count;
   v_total := v_total + v_n;
-  delete from public.ldo_support_knowledge_seen where processed_at < now() - interval '180 days';
+  delete from public.ldo_support_knowledge_seen where atualizada_em < v_today - 180;
   get diagnostics v_n = row_count;
   v_total := v_total + v_n;
   delete from public.ldo_support_knowledge_cards
@@ -743,7 +727,7 @@ begin
         'valido_ate', x.valido_ate, 'revisto_em', x.revisto_em, 'criada_por', x.criada_por,
         'aprovada_por', (select coalesce(u.full_name, u.username) from public.ldo_app_users u where u.id = x.aprovada_por),
         'aprovada_em', x.aprovada_em, 'texto_em', x.texto_em, 'publicada_em', x.publicada_em, 'publicado', x.publicado is not null,
-        'nomes_ok', to_jsonb(x.nomes_ok),
+        'avisos', to_jsonb(x.avisos), 'avisos_ok', to_jsonb(x.avisos_ok),
         'por_publicar', x.estado = 'aprovada' and x.dif, 'updated_at', x.updated_at) order by x.n)
       from (select c.*, c.publicado is distinct from ldo_private.support_card_content(c) as dif,
               row_number() over (order by case when v_estado = 'proposta' then c.fontes end desc nulls last,
@@ -774,8 +758,9 @@ $$;
 
 -- Cria (p_id null: proposta escrita pelo Super Admin) ou corrige um cartão. p_values: {"intent", "brand", "loja_id",
 -- "pergunta", "variantes": [...], "resposta", "valido_ate"}. Corrigir uma resposta aprovada conta como revista e recomeça
--- os 7 dias (texto_em); qualquer correção tira a marca de resposta automática; uma resposta diferente apaga as palavras
--- confirmadas como não sendo nomes (os avisos voltam). Devolve {id, estado, alterada, auto_retirada, nomes_ok}.
+-- os 7 dias (texto_em); qualquer correção tira a marca de resposta automática; outro texto (pergunta, variantes ou
+-- resposta) apaga a confirmação dos avisos (têm de ser confirmados de novo). Devolve {id, estado, alterada,
+-- auto_retirada, avisos, avisos_ok}.
 create function public.ldo_support_knowledge_card_save(p_session text, p_id uuid, p_values jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -790,6 +775,7 @@ declare
   v_valido date;
   v_problem text;
   v_id uuid;
+  v_txt boolean;
 begin
   if v_me is null then
     raise exception 'Só o Super Admin configura o Apoio ao Cliente.' using errcode = '42501';
@@ -816,7 +802,7 @@ begin
     insert into public.ldo_support_knowledge_cards (intent, brand, loja_id, pergunta, variantes, resposta, valido_ate, criada_por, updated_by)
     values (v_intent, v_brand, v_loja, v_pergunta, v_variantes, v_resposta, v_valido, 'pessoa', v_me) returning id into v_id;
     insert into public.ldo_support_audit (actor, action, details) values (v_me, 'ai.knowledge.card', jsonb_build_object('id', v_id, 'acao', 'criada'));
-    return jsonb_build_object('id', v_id, 'estado', 'proposta', 'alterada', true, 'auto_retirada', false, 'nomes_ok', '[]'::jsonb);
+    return jsonb_build_object('id', v_id, 'estado', 'proposta', 'alterada', true, 'auto_retirada', false, 'avisos', '[]'::jsonb, 'avisos_ok', '[]'::jsonb);
   end if;
   select * into v_c from public.ldo_support_knowledge_cards where id = p_id for update;
   if v_c.id is null then
@@ -824,8 +810,10 @@ begin
   end if;
   if (v_c.intent, v_c.brand, v_c.loja_id, v_c.pergunta, v_c.variantes, v_c.resposta, v_c.valido_ate)
       is not distinct from (v_intent, v_brand, v_loja, v_pergunta, v_variantes, v_resposta, v_valido) then
-    return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', false, 'auto_retirada', false, 'nomes_ok', to_jsonb(v_c.nomes_ok));
+    return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', false, 'auto_retirada', false, 'avisos', to_jsonb(v_c.avisos),
+      'avisos_ok', to_jsonb(v_c.avisos_ok));
   end if;
+  v_txt := (v_c.pergunta, v_c.variantes, v_c.resposta) is distinct from (v_pergunta, v_variantes, v_resposta);
   -- Qualquer correção (também da pergunta e das variantes, que escolhem a resposta nas respostas automáticas) tira a marca
   -- de resposta automática; numa aprovada, os 7 dias contam de novo.
   update public.ldo_support_knowledge_cards set
@@ -833,23 +821,25 @@ begin
     revisto_em = case when estado = 'aprovada' then (now() at time zone 'Europe/Lisbon')::date else revisto_em end,
     texto_em = case when estado = 'aprovada' then now() else texto_em end,
     auto_ok = false, auto_ok_em = null,
-    -- Outra resposta: os avisos de nomes voltam a aparecer até o Super Admin os confirmar de novo.
-    nomes_ok = case when resposta is distinct from v_resposta then '{}' else nomes_ok end,
-    nomes_ok_por = case when resposta is distinct from v_resposta then null else nomes_ok_por end,
-    nomes_ok_em = case when resposta is distinct from v_resposta then null else nomes_ok_em end,
+    -- Outro texto: os avisos têm de ser confirmados de novo.
+    avisos_ok = case when v_txt then '{}' else avisos_ok end,
+    avisos_ok_por = case when v_txt then null else avisos_ok_por end,
+    avisos_ok_em = case when v_txt then null else avisos_ok_em end,
     updated_at = now(), updated_by = v_me
   where id = p_id;
   insert into public.ldo_support_audit (actor, action, details)
-  values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'editada', 'estado', v_c.estado, 'auto_retirada', v_c.auto_ok));
-  return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', true, 'auto_retirada', v_c.auto_ok,
-    'nomes_ok', case when v_c.resposta is distinct from v_resposta then '[]'::jsonb else to_jsonb(v_c.nomes_ok) end);
+  values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'editada', 'estado', v_c.estado, 'auto_retirada', v_c.auto_ok,
+    'avisos_retirados', v_txt and cardinality(v_c.avisos_ok) > 0));
+  return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', true, 'auto_retirada', v_c.auto_ok, 'avisos', to_jsonb(v_c.avisos),
+    'avisos_ok', case when v_txt then '[]'::jsonb else to_jsonb(v_c.avisos_ok) end);
 end;
 $$;
 
 -- Aprovar (de uma proposta ou de arquivada; numa resposta já aprovada, confirma que continua certa: revisto_em) ou
--- arquivar (sai logo da IA e das respostas automáticas). As amostras (as conversas de origem) apagam-se nos dois casos
--- (os pedidos já não as guardam; das fontes ficam a contagem e as chaves pseudónimas dos contactos; a regra de uma
--- proposta por resposta continua em ldo_support_knowledge_used).
+-- arquivar (sai logo da IA e das respostas automáticas). Aprovar exige os avisos da proposta confirmados para o texto
+-- atual (os avisos do texto são vistos no servidor). As amostras (as conversas de origem) apagam-se nos dois casos (os
+-- pedidos já não as guardam; das fontes fica a contagem; a regra de uma proposta por resposta continua em
+-- ldo_support_knowledge_used).
 create function public.ldo_support_knowledge_card_state(p_session text, p_id uuid, p_estado text) returns void
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -872,6 +862,10 @@ begin
     if v_problem is not null then
       raise exception '%', v_problem using errcode = '22023';
     end if;
+    if not (v_c.avisos <@ v_c.avisos_ok) then
+      raise exception 'Confirme primeiro os avisos desta resposta («Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa»).'
+        using errcode = '22023';
+    end if;
     update public.ldo_support_knowledge_cards set
       estado = 'aprovada',
       aprovada_por = case when estado = 'aprovada' then aprovada_por else v_me end,
@@ -893,45 +887,51 @@ begin
 end;
 $$;
 
--- "Confirmo que não é o nome de uma pessoa": guarda as palavras da resposta que o servidor assinalou como possíveis nomes
--- e que o Super Admin confirmou não o serem (p_nomes: 1 a 20 palavras), só se a resposta for ainda a que o Super Admin
--- viu (p_resposta). No registo de auditoria ficam quem, quando e quantas palavras, não as palavras (podiam ser um nome).
-create function public.ldo_support_knowledge_card_names(p_session text, p_id uuid, p_resposta text, p_nomes jsonb) returns void
+-- "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa": guarda os avisos que o servidor
+-- mostrou para o texto atual (p_avisos: 1 a 60 textos), só se o texto for ainda o que o Super Admin viu (p_texto:
+-- pergunta, variantes e resposta) e se incluírem os avisos guardados na proposta. No registo de auditoria ficam quem,
+-- quando e a lista dos avisos confirmados.
+create function public.ldo_support_knowledge_card_ack(p_session text, p_id uuid, p_texto jsonb, p_avisos jsonb) returns void
 language plpgsql volatile security definer set search_path = '' as $$
 declare
   v_me uuid := ldo_private.support_super(p_session);
   v_c public.ldo_support_knowledge_cards;
-  v_nomes text[];
+  v_avisos text[];
+  v_pergunta text;
 begin
   if v_me is null then
     raise exception 'Só o Super Admin configura o Apoio ao Cliente.' using errcode = '42501';
   end if;
   -- Em dois passos: o SQL não garante a ordem de um "or" (jsonb_array_length falha num objeto).
-  if jsonb_typeof(p_nomes) is distinct from 'array' then
-    raise exception 'Palavras inválidas.' using errcode = '22023';
+  if jsonb_typeof(p_avisos) is distinct from 'array' or jsonb_typeof(p_texto) is distinct from 'object' then
+    raise exception 'Avisos inválidos.' using errcode = '22023';
   end if;
-  if jsonb_array_length(p_nomes) not between 1 and 20
-     or exists (select 1 from jsonb_array_elements(p_nomes) e(x) where jsonb_typeof(e.x) <> 'string'
-       or (e.x #>> '{}') !~ '^[[:alpha:]][[:alpha:]''’-]{0,39}$') then
-    raise exception 'Palavras inválidas.' using errcode = '22023';
+  if jsonb_array_length(p_avisos) not between 1 and 60
+     or exists (select 1 from jsonb_array_elements(p_avisos) e(x) where jsonb_typeof(e.x) <> 'string' or length(e.x #>> '{}') not between 1 and 300) then
+    raise exception 'Avisos inválidos.' using errcode = '22023';
   end if;
-  select coalesce(array_agg(distinct e.x order by e.x), '{}') into v_nomes from jsonb_array_elements_text(p_nomes) e(x);
+  select coalesce(array_agg(distinct e.x order by e.x), '{}') into v_avisos from jsonb_array_elements_text(p_avisos) e(x);
   select * into v_c from public.ldo_support_knowledge_cards where id = p_id for update;
   if v_c.id is null then
     raise exception 'Resposta não encontrada.' using errcode = 'P0002';
   end if;
-  if v_c.resposta is distinct from btrim(coalesce(p_resposta, '')) then
-    raise exception 'A resposta mudou entretanto: veja os avisos de novo.' using errcode = '22023';
+  v_pergunta := regexp_replace(btrim(coalesce(p_texto ->> 'pergunta', '')), '\s+', ' ', 'g');
+  if (v_c.pergunta, v_c.variantes, v_c.resposta) is distinct from
+     (v_pergunta, ldo_private.support_card_variants(p_texto -> 'variantes', v_pergunta), btrim(coalesce(p_texto ->> 'resposta', ''))) then
+    raise exception 'O texto mudou entretanto: veja os avisos de novo.' using errcode = '22023';
   end if;
-  update public.ldo_support_knowledge_cards set nomes_ok = v_nomes, nomes_ok_por = v_me, nomes_ok_em = now() where id = p_id;
+  if not (v_c.avisos <@ v_avisos) then
+    raise exception 'Faltam avisos desta resposta: veja-os de novo.' using errcode = '22023';
+  end if;
+  update public.ldo_support_knowledge_cards set avisos_ok = v_avisos, avisos_ok_por = v_me, avisos_ok_em = now() where id = p_id;
   insert into public.ldo_support_audit (actor, action, details)
-  values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'nomes_confirmados', 'palavras', cardinality(v_nomes)));
+  values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'avisos_confirmados', 'avisos', to_jsonb(v_avisos)));
 end;
 $$;
 
 -- "Permitir em respostas automáticas" (só marca o cartão; nada é enviado aqui). Ligar exige: aprovada (ou corrigida)
--- há 7 dias ou mais (texto_em), revista nos últimos 90 dias, publicada tal como está, a loja nos temas de uma loja e
--- nenhuma outra resposta automática para o mesmo tema, loja e marca. O texto (português do Brasil, ligações, marca, base
+-- há 7 dias ou mais (texto_em), revista nos últimos 90 dias, publicada tal como está, os avisos da proposta confirmados,
+-- a loja nos temas de uma loja e nenhuma outra resposta automática para o mesmo tema, loja e marca. O texto (português do Brasil, ligações, marca, base
 -- de conhecimento) é visto no servidor.
 create function public.ldo_support_knowledge_card_auto(p_session text, p_id uuid, p_auto_ok boolean) returns void
 language plpgsql volatile security definer set search_path = '' as $$
@@ -959,6 +959,9 @@ begin
     if v_c.publicado is distinct from ldo_private.support_card_content(v_c) then
       raise exception 'Publique primeiro as alterações desta resposta.' using errcode = '22023';
     end if;
+    if not (v_c.avisos <@ v_c.avisos_ok) then
+      raise exception 'Confirme primeiro os avisos desta resposta.' using errcode = '22023';
+    end if;
     if v_c.intent in ('horario_loja', 'morada_loja', 'contactos') then
       if v_c.loja_id is null then
         raise exception 'Indique a loja: as respostas sobre horários, moradas e contactos só podem ser automáticas para uma loja.' using errcode = '22023';
@@ -977,13 +980,12 @@ begin
 end;
 $$;
 
--- "Juntar a…": a pergunta e as variantes de p_id passam a variantes de p_into (até 5), as fontes somam-se (um contacto
--- que confirmou as duas conta uma vez, pela chave pseudónima) e p_id fica arquivado e em p_into.juntadas, com os que já
--- lhe tinham sido juntos (os pedidos que o confirmaram passam a contar para p_into, e uma confirmação nova do mesmo
--- contacto não conta outra vez). Recusa quando a
--- pergunta de p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Se as
--- variantes de p_into mudarem, perde a marca de resposta automática e, se estiver aprovada, os 7 dias contam de novo.
--- Devolve {estado (de p_into), alterada, auto_retirada}.
+-- "Juntar a…": a pergunta e as variantes de p_id passam a variantes de p_into (até 5), as fontes somam-se (cada conversa
+-- só conta uma vez em todos os cartões, por isso a soma não repete nenhuma) e p_id fica arquivado e em p_into.juntadas,
+-- com os que já lhe tinham sido juntos (uma confirmação nova de um deles conta para p_into). Recusa quando a pergunta de
+-- p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Se as variantes de
+-- p_into mudarem, perde a marca de resposta automática e a confirmação dos avisos e, se estiver aprovada, os 7 dias
+-- contam de novo. Devolve {estado (de p_into), alterada, auto_retirada}.
 create function public.ldo_support_knowledge_card_merge(p_session text, p_id uuid, p_into uuid) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -992,7 +994,6 @@ declare
   v_into public.ldo_support_knowledge_cards;
   v_variantes text[];
   v_changed boolean;
-  v_both integer;
 begin
   if v_me is null then
     raise exception 'Só o Super Admin configura o Apoio ao Cliente.' using errcode = '42501';
@@ -1019,15 +1020,9 @@ begin
     raise exception 'A outra resposta já tem 5 formas da pergunta (ou esta pergunta passa de 200 caracteres): encurte ou retire uma primeiro.' using errcode = '22023';
   end if;
   v_changed := v_variantes is distinct from v_into.variantes;
-  -- Contactos que já confirmaram as duas respostas (a mesma chave pseudónima): contam uma vez.
-  select count(distinct a.contact_key) into v_both
-  from public.ldo_support_knowledge_runs a
-  where a.contact_key is not null and a.card_id is distinct from p_id and (a.card_id = p_into or a.card_id = any (v_into.juntadas))
-    and exists (select 1 from public.ldo_support_knowledge_runs b
-      where b.contact_key = a.contact_key and b.card_id is distinct from p_into and (b.card_id = p_id or b.card_id = any (v_from.juntadas)));
   update public.ldo_support_knowledge_cards set
     variantes = v_variantes,
-    fontes = greatest(fontes + v_from.fontes - v_both, 0),
+    fontes = fontes + v_from.fontes,
     juntadas = (select coalesce(array_agg(distinct j), '{}') from unnest(juntadas || p_id || v_from.juntadas) as j where j <> p_into),
     ultima_vez = greatest(ultima_vez, v_from.ultima_vez),
     amostras = case when estado = 'proposta' then (select coalesce(array_agg(a), '{}') from (
@@ -1035,9 +1030,12 @@ begin
     texto_em = case when estado = 'aprovada' and v_changed then now() else texto_em end,
     auto_ok = auto_ok and not v_changed,
     auto_ok_em = case when auto_ok and not v_changed then auto_ok_em end,
+    avisos_ok = case when v_changed then '{}' else avisos_ok end,
+    avisos_ok_por = case when v_changed then null else avisos_ok_por end,
+    avisos_ok_em = case when v_changed then null else avisos_ok_em end,
     updated_at = now(), updated_by = v_me
   where id = p_into;
-  -- As fontes de p_id passam para p_into (com os pedidos que as contaram).
+  -- As fontes de p_id passam para p_into (e os pedidos que as contaram, para o registo do mês).
   update public.ldo_support_knowledge_cards set estado = 'arquivada', auto_ok = false, auto_ok_em = null, publicado = null, amostras = '{}',
     fontes = 0, updated_at = now(), updated_by = v_me
   where id = p_id;
@@ -1049,7 +1047,8 @@ end;
 $$;
 
 -- "Publicar alterações": o texto das respostas aprovadas passa a ser o que a IA usa (uma reescrita da cache por
--- publicação). No máximo 200 respostas em uso e 80 000 caracteres.
+-- publicação). No máximo 200 respostas em uso e 80 000 caracteres; nenhuma com avisos da proposta por confirmar (os
+-- avisos do texto são vistos no servidor).
 create function public.ldo_support_knowledge_publish(p_session text) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -1069,6 +1068,9 @@ begin
   end if;
   if v_chars > 80000 then
     raise exception 'As respostas aprovadas passam de 80 000 caracteres (%): arquive ou encurte algumas.', v_chars using errcode = '22023';
+  end if;
+  if exists (select 1 from public.ldo_support_knowledge_cards where estado = 'aprovada' and not (avisos <@ avisos_ok)) then
+    raise exception 'Há respostas aprovadas com avisos por confirmar: confirme-os nas Aprovadas antes de publicar.' using errcode = '22023';
   end if;
   update public.ldo_support_knowledge_cards c set publicado = ldo_private.support_card_content(c), publicada_em = now()
   where c.estado = 'aprovada' and c.publicado is distinct from ldo_private.support_card_content(c);
@@ -1162,7 +1164,6 @@ $do$;
 
 revoke all on function
   ldo_private.support_card_fts(),
-  ldo_private.support_knowledge_key(text, uuid),
   ldo_private.support_card_content(public.ldo_support_knowledge_cards),
   ldo_private.support_card_problem(text),
   ldo_private.support_card_variants(jsonb, text),
@@ -1184,7 +1185,7 @@ revoke all on function
   public.ldo_support_knowledge_card_state(text, uuid, text),
   public.ldo_support_knowledge_card_auto(text, uuid, boolean),
   public.ldo_support_knowledge_card_merge(text, uuid, uuid),
-  public.ldo_support_knowledge_card_names(text, uuid, text, jsonb),
+  public.ldo_support_knowledge_card_ack(text, uuid, jsonb, jsonb),
   public.ldo_support_knowledge_publish(text)
 from public, authenticated;
 grant execute on function
@@ -1200,6 +1201,6 @@ grant execute on function
   public.ldo_support_knowledge_card_state(text, uuid, text),
   public.ldo_support_knowledge_card_auto(text, uuid, boolean),
   public.ldo_support_knowledge_card_merge(text, uuid, uuid),
-  public.ldo_support_knowledge_card_names(text, uuid, text, jsonb),
+  public.ldo_support_knowledge_card_ack(text, uuid, jsonb, jsonb),
   public.ldo_support_knowledge_publish(text)
 to anon;
