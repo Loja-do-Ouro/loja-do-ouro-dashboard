@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Icon } from "@/components/dashboard/ui";
+import { MenuToggle } from "@/components/menu-toggle";
 import { NavScroll } from "@/components/nav-scroll";
+import { MENU_COOKIE, menuCollapsed } from "@/lib/menu";
 import { canCompareStores, canManageAuction, canManagePrivateSelection, canManageStores, canManageUsers, canSeeOnline, canSupport, initials } from "@/lib/permissions";
 import type { Viewer } from "@/lib/viewer";
 
@@ -16,7 +19,7 @@ export const ONLINE_SECTIONS = [
 type Item = { key: string; label: string; href: string; icon: string; badge?: number };
 
 // Sidebar and top bar shared by every page; each person only sees what they can open.
-export function AppShell({
+export async function AppShell({
   viewer,
   current,
   title,
@@ -95,9 +98,11 @@ export function AppShell({
       ],
     });
   const name = viewer.fullName || viewer.username;
+  // Estado inicial do botão do menu, o mesmo que o layout pôs no <html> (depois manda o <html>).
+  const collapsed = menuCollapsed((await cookies()).get(MENU_COOKIE)?.value);
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className="sidebar" id="menu-lateral">
         <Link href="/" className="brand" aria-label="Loja do Ouro · início">
           <img
             className="official-logo"
@@ -152,6 +157,9 @@ export function AppShell({
       </aside>
       <div className="main-wrap">
         <header className="topbar">
+          <MenuToggle collapsed={collapsed}>
+            <Icon name="panel" />
+          </MenuToggle>
           <span>
             Loja do Ouro <i>/</i> <strong>{title}</strong>
           </span>

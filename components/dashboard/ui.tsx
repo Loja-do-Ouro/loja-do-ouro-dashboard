@@ -29,6 +29,8 @@ export function Icon({ name = "grid" }: { name?: string }) {
     user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
     key: "M7.5 21a5 5 0 1 0 0-10 5 5 0 0 0 0 10 M11 12.5L20.5 3 M15.5 8l3 3 M18.5 5l2 2",
     gavel: "M14 3l7 7 M11 6l7 7 M12.5 4.5l-5 5 M17.5 9.5l-5 5 M10 12l-7 7 M3 21h9",
+    // Botão do menu lateral (recolher e mostrar), na barra de cima.
+    panel: "M4 4h16v16H4z M9 4v16",
   };
   return (
     <svg

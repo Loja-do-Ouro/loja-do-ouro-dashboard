@@ -15,6 +15,8 @@ import {
   CHANNEL_LABEL,
   gmailThreadLink,
   DELIVERY_LABEL,
+  historyDateLabel,
+  historySplit,
   LOCALE_LABEL,
   orderNumbersIn,
   previewKind,
@@ -42,6 +44,8 @@ type AutoCounts = { support: number; thanks: number; email: number };
 type List = {
   items: Item[]; counts: { all: number; mine: number; unassigned: number; unread: number; auto?: number }; sources: Source[]; poll_seconds: number;
   automatic?: { today: AutoCounts; week: AutoCounts };
+  // Histórico visível (configuração do apoio): só conversas com atividade desde esta data. Ausente antes da migração.
+  history_from?: string;
 };
 type Message = {
   id: string; kind: Kind; author_name: string | null; author_user_id: string | null; body: string;
@@ -72,6 +76,8 @@ type Detail = {
   users: User[];
   me: string;
   super: boolean;
+  // Mensagens anteriores a esta data ficam recolhidas (conversa antiga em que o cliente voltou a escrever).
+  history_from?: string | null;
 };
 type AuditEntry = Detail["audit"][number];
 type ShopOrder = {
@@ -320,6 +326,8 @@ export function SupportInbox({
   const [aiRequest, setAiRequest] = useState<{ n: number } | null>(null);
   // Miniaturas que não carregaram (ex.: endereço da Meta expirado): mostram-se como aviso, nunca vazias.
   const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set());
+  // Conversa em que se abriram as mensagens anteriores ao histórico visível (noutra conversa voltam a ficar recolhidas).
+  const [olderShown, setOlderShown] = useState<string | null>(null);
   // Cartão da publicação (comentários): aberto por omissão só em ecrãs grandes; a escolha vale para todas as conversas.
   const [postOpen, setPostOpen] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1191px) and (min-height: 900px)").matches);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -773,15 +781,25 @@ export function SupportInbox({
       ),
     [c],
   );
-  // A conversa com as mudanças de responsável pelo meio, por ordem de hora.
+  // A conversa com as mudanças de responsável pelo meio, por ordem de hora. Numa conversa antiga que voltou a ter
+  // atividade, as mensagens anteriores ao histórico visível ficam recolhidas atrás de um separador.
+  const olderOpen = Boolean(c && olderShown === c.conversation.id);
   const timeline = useMemo(() => {
-    type Row = { key: string; at: string; message?: Message; event?: AuditEntry };
+    type Row = { key: string; at: string; message?: Message; event?: AuditEntry; older?: number };
     if (!c) return [] as Row[];
     const events: Row[] = c.audit.filter((a) => THREAD_EVENTS.has(a.action)).map((a, i) => ({ key: `ev-${i}-${a.created_at}`, at: a.created_at, event: a }));
     const messages: Row[] = c.messages.map((m) => ({ key: m.id, at: m.created_at, message: m }));
-    return [...messages, ...events].sort((x, y) => x.at.localeCompare(y.at));
-  }, [c]);
+    const rows = [...messages, ...events].sort((x, y) => x.at.localeCompare(y.at));
+    // Antes da data vão também as mudanças de responsável (a ordem de hora mantém-se); o separador conta só as mensagens.
+    const { older, rest } = historySplit(rows, c.history_from);
+    const n = older.filter((r) => r.message).length;
+    if (!n) return rows;
+    const divider: Row = { key: "historico", at: c.history_from!, older: n };
+    return olderOpen ? [...older, divider, ...rest] : [divider, ...rest];
+  }, [c, olderOpen]);
   const sources = list?.sources || [];
+  // Histórico visível: a data da configuração do apoio, no fim da lista.
+  const historySince = historyDateLabel(list?.history_from);
   // Estado dos canais: os comentários do Facebook e do Instagram num só indicador (o pior estado dos dois), para a
   // barra não crescer; o detalhe de cada um fica no texto de ajuda.
   const sourceChips = useMemo(() => {
@@ -914,6 +932,7 @@ export function SupportInbox({
             ))}
           </ul>
           {list && !list.items.length && <p className="support-empty">Sem conversas com estes filtros.</p>}
+          {historySince && <p className="support-history-note">A mostrar conversas com atividade desde {historySince} e as que estão por resolver.</p>}
         </section>
 
         <section className="support-conversation" aria-label="Conversa">
@@ -967,6 +986,12 @@ export function SupportInbox({
               <div className="support-messages" ref={messagesBox}>
                 {timeline.map((t) => {
                   if (t.event) return <p key={t.key} className="msg-event" role="note">{assignText(t.event)} · <time dateTime={t.at}>{time(t.at)}</time></p>;
+                  if (t.older)
+                    return (
+                      <button key={t.key} type="button" className="msg-history" aria-expanded={olderOpen} onClick={() => setOlderShown(olderOpen ? null : c.conversation.id)}>
+                        Mensagens anteriores a {historyDateLabel(t.at)} ({t.older}) — {olderOpen ? "Esconder" : "Mostrar"}
+                      </button>
+                    );
                   const m = t.message!;
                   // Erros técnicos da Metricool gravados antes da explicação (ligação da rede em falta) passam pelo mesmo texto.
                   const deliveryText = metricoolDetail(m.delivery_detail, c.conversation.channel.startsWith("instagram") ? "Instagram" : "Facebook");

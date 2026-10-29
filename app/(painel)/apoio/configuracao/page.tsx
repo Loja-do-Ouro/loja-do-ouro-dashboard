@@ -22,6 +22,7 @@ import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
 import { deleteKnowledge, disableZendesk, disconnectGmail, disconnectZendesk, enableZendesk, saveAiSettings, saveEmailSettings, saveKnowledge, savePolling, saveSocialSettings, setSupportAccess, syncNow } from "./actions";
+import { PainelHistorico } from "./painel-historico";
 
 export const dynamic = "force-dynamic";
 // "Sincronizar agora" corre aqui: uma listagem lenta da Metricool pode levar até 55 s.
@@ -286,6 +287,8 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
           <p className="panel-note">WhatsApp Cloud API, independente do Zendesk. Nada foi ligado: o número e o WhatsApp atual nos telemóveis não foram alterados.</p>
         </Panel>
       </div>
+
+      <PainelHistorico session={viewer.session} q={q} />
 
       <Panel title="Email (Gmail)" eyebrow="CAIXA DO APOIO" id="email">
         {emailFlash && (gmailFlash
