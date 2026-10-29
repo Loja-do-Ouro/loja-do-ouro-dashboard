@@ -30,9 +30,15 @@ import {
   type Delivery,
   type Kind,
   type Ownership,
+  type SiteKey,
+  type SiteLocale,
   type Status,
 } from "@/lib/support/rules";
 import { COMMENT_MAX_CHARS, isCommentChannel, POST_KIND_LABEL, POST_KIND_TITLE, publicReplyRisks, type CommentChannel, type PostKind } from "@/lib/support/comment-rules";
+import {
+  changedShare, DISCARD_TEXT, localReviewProblems, mergeProblems, numbersChanged, REVIEW_CLIENT_TIMEOUT_MS, REVIEW_MAX_CHANGE, shouldReview, wordDiff,
+  type DiffOp, type DiscardReason, type ReviewProblem, type ReviewTag,
+} from "@/lib/support/review-rules";
 
 type Source = { id: string; platform: string; channel: Channel; label: string; status: string; status_detail: string | null; last_success_at: string | null; last_attempt_at: string | null; last_error: string | null };
 type Item = {
@@ -192,12 +198,13 @@ function assignText(a: AuditEntry) {
 }
 
 // Pedidos à API do Apoio ao Cliente. Uma sessão expirada devolve a página de login (não JSON).
-async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+async function api<T>(path: string, init?: { method?: string; body?: unknown; signal?: AbortSignal }): Promise<T> {
   const r = await fetch(path, {
     method: init?.method || "GET",
     headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
     cache: "no-store",
+    signal: init?.signal,
   });
   const isJson = (r.headers.get("content-type") || "").includes("application/json");
   if (r.status === 401 || (r.redirected && new URL(r.url).pathname === "/login"))
@@ -211,6 +218,34 @@ async function api<T>(path: string, init?: { method?: string; body?: unknown }):
 type Pending = { id: string; name: string; type: string; size: number; preview: string | null };
 const dropPreview = (u: Pending) => {
   if (u.preview?.startsWith("blob:")) URL.revokeObjectURL(u.preview);
+};
+
+// Revisão da IA antes de enviar: resposta do servidor (uma falha da IA também chega aqui; a resposta segue na mesma).
+type ReviewResult =
+  | { id: string; veredicto: "aprovada" | "melhorar"; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null }
+  | { id: string; falhou: "timeout" | "erro"; motivo: string };
+// Painel da revisão de uma conversa: fica guardado e volta a aparecer quando se regressa à conversa.
+type ReviewPanel = {
+  id: string; slot: string; body: string; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null;
+  diff: DiffOp[] | null; muda: boolean; numeros: boolean; ver: "diff" | "sugestao";
+};
+// Um envio com tudo o que é preciso (a conversa pode já não ser a que está aberta). draftWas: o rascunho que o originou,
+// que só se apaga se ainda for esse.
+type Outgoing = {
+  id: string; which: "reply" | "note"; body: string; uploads: string[]; slot: string; draftWas: string;
+  review?: ReviewTag; aiDraftId?: string; note?: string;
+};
+const REVIEW_OK = "Resposta revista pela IA e enviada.";
+const REVIEW_TIMEOUT = "A revisão da IA não respondeu a tempo; a resposta foi enviada sem revisão.";
+const reviewFailed = (motivo?: string) => {
+  const m = (motivo || "").trim().replace(/[.\s]+$/, "");
+  return `Não foi possível rever a resposta (${m ? m.charAt(0).toLowerCase() + m.slice(1) : "IA indisponível"}); foi enviada sem revisão.`;
+};
+const omit = <T,>(o: Record<string, T>, key: string) => {
+  if (!(key in o)) return o;
+  const next = { ...o };
+  delete next[key];
+  return next;
 };
 
 // As fotografias do telemóvel têm muitas vezes 5–10 MB; o servidor aceita até 4 MB por pedido. As imagens
@@ -278,6 +313,7 @@ export function SupportInbox({
   myZendesk,
   flash,
   initialConversation = null,
+  review = { mode: "desligada", pref: true },
 }: {
   zendeskSubdomain: string;
   zendeskReady: boolean;
@@ -285,6 +321,8 @@ export function SupportInbox({
   flash: { ok?: string; error?: string };
   // Ligação direta (ex.: email de transferência): /apoio?conversa=<id>.
   initialConversation?: string | null;
+  // Revisão da IA antes de enviar: modo da configuração e preferência da pessoa (só conta no modo "opcional").
+  review?: { mode: string; pref: boolean };
 }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
   const [channel, setChannel] = useState("");
@@ -299,7 +337,22 @@ export function SupportInbox({
   const [pane, setPane] = useState<"list" | "conversation" | "info">(initialConversation ? "conversation" : "list");
   const [mode, setMode] = useState<"reply" | "note">("reply");
   const [drafts, setDrafts] = useState<Record<string, { reply: string; note: string }>>({});
-  const [sendingId, setSendingId] = useState<string | null>(null);
+  // Envios em curso, por conversa e separador (uma revisão da IA aprovada pode enviar noutra conversa, ou a resposta
+  // enquanto segue uma nota, sem se bloquearem).
+  const [sendingIds, setSendingIds] = useState<Record<string, true>>({});
+  const sendingRef = useRef(new Set<string>());
+  // Revisão da IA antes de enviar, por conversa: em curso (para "Enviar sem revisão"), painel com a sugestão e aviso
+  // do resultado.
+  const [reviewing, setReviewing] = useState<Record<string, { skip: () => void }>>({});
+  const reviewingRef = useRef(new Set<string>());
+  const [reviewPanels, setReviewPanels] = useState<Record<string, ReviewPanel>>({});
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewPref, setReviewPref] = useState(review.pref);
+  // Já revista neste ciclo (por conversa e separador): o envio seguinte leva o id da revisão e não volta a ser revisto.
+  const reviewCycle = useRef<Record<string, string>>({});
+  // Proposta da IA posta no campo com "Usar na resposta" (id e texto), por conversa.
+  const aiDraftRef = useRef<Record<string, { id: string; text: string }>>({});
+  const reviewPanelRef = useRef<HTMLDivElement>(null);
   const [sendError, setSendError] = useState("");
   // O aviso "emoji não inserido" deixa de valer quando o texto muda ou se troca de conversa ou separador.
   const clearEmojiLimit = () => setSendError((e) => (/^Limite de \d+ caracteres atingido: o emoji/.test(e) ? "" : e));
@@ -333,8 +386,8 @@ export function SupportInbox({
   const fileInput = useRef<HTMLInputElement>(null);
   const viewerOpener = useRef<HTMLElement | null>(null);
   // Chave de cada envio pendente, ligada ao texto exato: um pedido perdido repete-se com a mesma chave
-  // (sem duplicar); um texto diferente leva sempre uma chave nova.
-  const pendingKey = useRef<Record<string, { key: string; body: string }>>({});
+  // (sem duplicar); um texto diferente leva sempre uma chave nova. review: a revisão da IA desse envio.
+  const pendingKey = useRef<Record<string, { key: string; body: string; review?: ReviewTag }>>({});
   const lastTyped = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
   const messagesBox = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<string | null>(null);
@@ -348,7 +401,7 @@ export function SupportInbox({
 
   useEffect(() => {
     setDrafts(loadStored("ldo-support-drafts") as Record<string, { reply: string; note: string }>);
-    pendingKey.current = loadStored("ldo-support-pending") as Record<string, { key: string; body: string }>;
+    pendingKey.current = loadStored("ldo-support-pending") as Record<string, { key: string; body: string; review?: ReviewTag }>;
     return () => {
       if (continuation.current) clearTimeout(continuation.current);
     };
@@ -534,10 +587,18 @@ export function SupportInbox({
     if (!selected) return;
     clearEmojiLimit();
     if (mode === "reply") lastTyped.current = { id: selected, at: Date.now() };
+    setReviewNotes((n) => omit(n, selected));
     setText(v);
   };
-  const sending = sendingId === selected;
+  const sending = Boolean(selected && sendingIds[`${selected}:${mode}`]);
+  // Revisão da IA desta conversa: em curso (o texto fica só de leitura) ou painel aberto (no separador da resposta).
+  const reviewingHere = Boolean(selected && reviewing[selected]);
+  const panel = selected && mode === "reply" ? reviewPanels[selected] : undefined;
+  const reviewNote = (selected && reviewNotes[selected]) || "";
   const slotOf = (id: string, m: "reply" | "note") => `${id}:${m}`;
+  // Anexos por enviar no momento do envio (um envio depois da revisão corre já com outra renderização).
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
   const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
   // Zendesk: até 5 anexos (imagens ou PDF). Email: até 5, só em respostas. Facebook/Instagram: uma imagem por mensagem, só em respostas.
   // Comentários das publicações: só texto.
@@ -688,17 +749,171 @@ export function SupportInbox({
     if (sideOverlays()) setPane("info");
     setAiRequest({ n: Date.now() });
   };
-  const useAiDraft = (value: string, how: "replace" | "append") => {
+  // aiId: a proposta usada. A resposta enviada fica ligada a ela e, se seguir sem alterações, não volta a ser revista.
+  const useAiDraft = (value: string, how: "replace" | "append", aiId?: string) => {
     if (!selected) return;
     const current = drafts[selected]?.reply || "";
     if (how === "replace" && current.trim() && current.trim() !== value.trim() && !confirm("Substituir o texto que já está no campo de resposta pela proposta da IA?")) return;
     setDraft(selected, "reply", how === "append" && current.trim() ? `${current.replace(/\s+$/, "")}\n\n${value}` : value);
+    if (aiId) aiDraftRef.current[selected] = { id: aiId, text: value };
     setMode("reply");
     if (sideOverlays()) setPane("conversation");
   };
 
+  // Preferência da pessoa (modo "opcional"): rever ou não as suas respostas com a IA.
+  async function saveReviewPref(on: boolean) {
+    setReviewPref(on);
+    try {
+      await api("/api/support/prefs", { method: "POST", body: { aiReview: on } });
+    } catch (e) {
+      setReviewPref(!on);
+      setSendError(`Preferência da revisão não guardada: ${e instanceof Error ? e.message : "tente de novo."}`);
+    }
+  }
+
+  // Envio de uma resposta ou nota já decidida (revista ou não). Usa só o que vem em o: a revisão pode acabar depois de
+  // se ter mudado de conversa.
+  async function deliver(o: Outgoing) {
+    if (sendingRef.current.has(o.slot)) return;
+    const sig = o.body + "|" + o.uploads.join(",");
+    // A mesma chave só se reutiliza para o mesmo texto (pedido perdido): o servidor nunca envia duas vezes.
+    const prev = pendingKey.current[o.slot];
+    const same = Boolean(prev && prev.body === sig);
+    const key = same ? prev.key : crypto.randomUUID();
+    const tag = same && prev.review ? prev.review : o.review;
+    pendingKey.current[o.slot] = { key, body: sig, ...(tag ? { review: tag } : {}) };
+    store("ldo-support-pending", pendingKey.current);
+    const here = () => selectedRef.current === o.id;
+    sendingRef.current.add(o.slot);
+    setSendingIds((s) => ({ ...s, [o.slot]: true }));
+    if (here()) setSendError("");
+    try {
+      const r = await api<{ delivery: Delivery | null; detail?: string | null; repeated: boolean }>(`/api/support/conversations/${o.id}`, {
+        method: "POST",
+        body: {
+          action: o.which === "reply" ? "reply" : "note", body: o.body, clientKey: key, uploads: o.uploads,
+          ...(o.which === "reply" && tag ? { review: tag } : {}), ...(o.which === "reply" && o.aiDraftId ? { aiDraftId: o.aiDraftId } : {}),
+        },
+      });
+      delete pendingKey.current[o.slot];
+      store("ldo-support-pending", pendingKey.current);
+      if (r.delivery === "failed") {
+        // Falhou com certeza: o texto fica no rascunho para corrigir e voltar a enviar.
+        if (here()) setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
+      } else {
+        // O rascunho só se apaga se ainda for o texto que originou o envio.
+        setDrafts((d) => ((d[o.id]?.[o.which] ?? "").trim() === o.draftWas ? { ...d, [o.id]: { ...(d[o.id] || { reply: "", note: "" }), [o.which]: "" } } : d));
+        if (lastTyped.current.id === o.id) lastTyped.current = { id: null, at: 0 };
+        (pendingRef.current[o.slot] || []).forEach(dropPreview);
+        setPending((p) => ({ ...p, [o.slot]: [] }));
+        delete reviewCycle.current[o.slot];
+        if (o.which === "reply") delete aiDraftRef.current[o.id];
+        if (o.note) setReviewNotes((n) => ({ ...n, [o.id]: o.note! }));
+        if (r.delivery === "uncertain" && here()) setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
+      }
+      if (here()) await loadDetail(o.id);
+      loadList();
+    } catch (e) {
+      // Sem resposta: rascunho e chave mantêm-se; voltar a carregar em Enviar com o mesmo texto não duplica.
+      if (here()) setSendError(`${e instanceof Error ? e.message : "Sem resposta."} O texto ficou no rascunho; pode tentar de novo sem risco de duplicar.`);
+    } finally {
+      sendingRef.current.delete(o.slot);
+      setSendingIds((s) => omit(s, o.slot));
+    }
+  }
+
+  // Revisão da IA antes de enviar. Nunca impede o envio: sem resposta em 10 s, com erro ou com "Enviar sem revisão", a
+  // resposta segue; aprovada, segue logo (também se entretanto se mudou de conversa). Com sugestão, fica um painel
+  // guardado nesta conversa.
+  async function runReview(out: Outgoing, local: { site: SiteKey | null; locale: SiteLocale | null }) {
+    const { id } = out;
+    const reviewId = crypto.randomUUID();
+    const controller = new AbortController();
+    const why: { current: "timeout" | "skip" | null } = { current: null };
+    const timer = setTimeout(() => {
+      why.current = "timeout";
+      controller.abort();
+    }, REVIEW_CLIENT_TIMEOUT_MS);
+    reviewingRef.current.add(id);
+    setReviewing((r) => ({ ...r, [id]: { skip: () => { why.current = "skip"; controller.abort(); } } }));
+    setReviewNotes((n) => omit(n, id));
+    if (selectedRef.current === id) {
+      setSendError("");
+      // O texto fica como foi revisto: sem emojis nem produtos acrescentados a meio.
+      setShowEmoji(false);
+      setShowCatalog(false);
+    }
+    let next: Outgoing | null = null;
+    try {
+      const r = await api<ReviewResult>(`/api/support/conversations/${id}`, {
+        method: "POST", body: { action: "review", reviewId, body: out.body }, signal: controller.signal,
+      });
+      if ("falhou" in r) next = { ...out, review: { id: reviewId, choice: r.falhou }, note: r.falhou === "timeout" ? REVIEW_TIMEOUT : reviewFailed(r.motivo) };
+      else {
+        reviewCycle.current[out.slot] = reviewId;
+        const problemas = mergeProblems(r.problemas, localReviewProblems(out.body, local));
+        if (r.veredicto === "aprovada" && !problemas.length) next = { ...out, review: { id: reviewId }, note: REVIEW_OK };
+        else {
+          const sugestao = r.sugestao;
+          const diff = sugestao ? wordDiff(out.body, sugestao) : null;
+          setReviewPanels((p) => ({
+            ...p,
+            [id]: {
+              id: reviewId, slot: out.slot, body: out.body, problemas, sugestao, descartada: r.descartada, diff,
+              muda: Boolean(sugestao) && (!diff || changedShare(diff) > REVIEW_MAX_CHANGE),
+              numeros: Boolean(sugestao) && numbersChanged(out.body, sugestao || ""), ver: diff ? "diff" : "sugestao",
+            },
+          }));
+        }
+      }
+    } catch {
+      next = why.current === "skip" ? { ...out, review: { id: reviewId, choice: "sem_revisao" } }
+        : why.current === "timeout" ? { ...out, review: { id: reviewId, choice: "timeout" }, note: REVIEW_TIMEOUT }
+        : { ...out, review: { id: reviewId, choice: "erro" }, note: reviewFailed() };
+    } finally {
+      clearTimeout(timer);
+      reviewingRef.current.delete(id);
+      setReviewing((r) => omit(r, id));
+    }
+    if (next) await deliver(next);
+  }
+
+  // Painel da revisão: a escolha da colaboradora. A sugestão passa primeiro para o rascunho (se o envio falhar, fica lá).
+  const closePanel = (id: string) => setReviewPanels((p) => omit(p, id));
+  const focusComposer = () => requestAnimationFrame(() => composerText.current?.focus({ preventScroll: true }));
+  function panelSend(p: ReviewPanel, what: "sugestao" | "propria") {
+    if (!selected) return;
+    const id = selected;
+    const body = what === "sugestao" && p.sugestao ? p.sugestao.trim() : p.body;
+    closePanel(id);
+    if (body !== p.body) setDraft(id, "reply", body);
+    const aiDraft = aiDraftRef.current[id];
+    deliver({
+      id, which: "reply", body, uploads: (pendingRef.current[p.slot] || []).map((u) => u.id), slot: p.slot, draftWas: body,
+      review: { id: p.id }, ...(aiDraft ? { aiDraftId: aiDraft.id } : {}),
+    });
+  }
+  function panelEdit(p: ReviewPanel) {
+    if (!selected) return;
+    closePanel(selected);
+    if (p.sugestao) setDraft(selected, "reply", p.sugestao);
+    focusComposer();
+  }
+  function panelCancel() {
+    if (!selected) return;
+    closePanel(selected);
+    focusComposer();
+  }
+  // O painel recebe o foco ao aparecer (o Esc fecha-o).
+  useEffect(() => {
+    if (panel) reviewPanelRef.current?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panel?.id]);
+
   async function send() {
-    if (!selected || !c || (!text.trim() && !pendingHere.length) || sendingId || uploading) return;
+    if (!selected || !c || (!text.trim() && !pendingHere.length) || sendingRef.current.has(slotOf(selected, mode)) || uploading) return;
+    // Resposta em revisão ou com o painel da revisão aberto: a escolha faz-se ali.
+    if (mode === "reply" && (reviewingRef.current.has(selected) || reviewPanels[selected])) return;
     const blocked = mode === "reply" ? replyBlocked : noteBlocked;
     if (blocked) return;
     const id = selected, which = mode, body = text.trim();
@@ -713,38 +928,18 @@ export function SupportInbox({
     }
     const slot = slotOf(id, which);
     const uploads = (pending[slot] || []).map((u) => u.id);
-    // A mesma chave só se reutiliza para o mesmo texto (pedido perdido): o servidor nunca envia duas vezes.
+    // Pedido perdido com o mesmo texto: segue com a mesma chave, sem nova revisão.
     const prev = pendingKey.current[slot];
-    const key = prev && prev.body === body + "|" + uploads.join(",") ? prev.key : crypto.randomUUID();
-    pendingKey.current[slot] = { key, body: body + "|" + uploads.join(",") };
-    store("ldo-support-pending", pendingKey.current);
-    const here = () => selectedRef.current === id;
-    setSendingId(id);
-    setSendError("");
-    try {
-      const r = await api<{ delivery: Delivery | null; detail?: string | null; repeated: boolean }>(`/api/support/conversations/${id}`, {
-        method: "POST", body: { action: which === "reply" ? "reply" : "note", body, clientKey: key, uploads },
-      });
-      delete pendingKey.current[slot];
-      store("ldo-support-pending", pendingKey.current);
-      if (r.delivery === "failed") {
-        // Falhou com certeza: o texto fica no rascunho para corrigir e voltar a enviar.
-        if (here()) setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
-      } else {
-        setDraft(id, which, "");
-        if (lastTyped.current.id === id) lastTyped.current = { id: null, at: 0 };
-        (pending[slot] || []).forEach(dropPreview);
-        setPending((p) => ({ ...p, [slot]: [] }));
-        if (r.delivery === "uncertain" && here()) setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
-      }
-      if (here()) await loadDetail(id);
-      loadList();
-    } catch (e) {
-      // Sem resposta: rascunho e chave mantêm-se; voltar a carregar em Enviar com o mesmo texto não duplica.
-      if (here()) setSendError(`${e instanceof Error ? e.message : "Sem resposta."} O texto ficou no rascunho; pode tentar de novo sem risco de duplicar.`);
-    } finally {
-      setSendingId(null);
-    }
+    const retry = Boolean(prev && prev.body === body + "|" + uploads.join(","));
+    const aiDraft = which === "reply" ? aiDraftRef.current[id] : undefined;
+    const reviewed = reviewCycle.current[slot];
+    const out: Outgoing = {
+      id, which, body, uploads, slot, draftWas: body,
+      ...(reviewed ? { review: { id: reviewed } } : {}), ...(aiDraft ? { aiDraftId: aiDraft.id } : {}),
+    };
+    if (shouldReview({ which, mode: review.mode, pref: reviewPref, body, retry, aiDraft: aiDraft?.text ?? null, reviewed: Boolean(reviewed) }))
+      return runReview(out, { site: site?.site ?? null, locale: site?.locale ?? null });
+    return deliver(out);
   }
 
   async function act(body: Record<string, unknown>, after?: () => void) {
@@ -1077,7 +1272,15 @@ export function SupportInbox({
 
               {/* Entre as mensagens e a caixa de resposta: no telemóvel ocupa o lugar das mensagens, não o do texto. */}
               {showEmoji && !(mode === "reply" ? replyBlocked : noteBlocked) && <EmojiPicker onPick={insertEmoji} onClose={closeEmoji} />}
-              <div className={`support-composer ${mode}${publicReply ? " public" : ""}`}>
+              <div
+                className={`support-composer ${mode}${publicReply ? " public" : ""}${panel ? " reviewing" : ""}`}
+                onKeyDown={panel ? (e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    panelCancel();
+                  }
+                } : undefined}
+              >
                 {/* Parte de cima com scroll; os botões ficam sempre à vista por baixo (nunca por cima do texto). */}
                 <div className="composer-scroll">
                 <div className="composer-tabs" role="tablist">
@@ -1108,6 +1311,37 @@ export function SupportInbox({
                       <form method="post" action="/api/support/zendesk/connect"><button type="submit" className="secondary-button">Ligar Zendesk</button></form>
                     )}
                   </div>
+                ) : panel ? (
+                  // Revisão da IA com problemas: a colaboradora escolhe o que envia (botões em baixo; Esc fecha).
+                  <div className="review-panel" ref={reviewPanelRef} tabIndex={-1} role="region" aria-labelledby="review-title">
+                    <p id="review-title" className="review-title">Revisão da IA antes de enviar</p>
+                    <p className="review-sub">A IA sugere melhorar esta resposta:</p>
+                    <ul className="review-problems">
+                      {panel.problemas.map((p, i) => <li key={i}><strong>{p.criterio}:</strong> {p.descricao}</li>)}
+                    </ul>
+                    {panel.descartada && <p className="review-warning">{DISCARD_TEXT[panel.descartada]}</p>}
+                    {panel.sugestao && (
+                      <>
+                        {panel.diff && (
+                          <div className="review-view" role="group" aria-label="Mostrar a sugestão">
+                            <button type="button" className="secondary-button" aria-pressed={panel.ver === "diff"}
+                              onClick={() => setReviewPanels((p) => (selected && p[selected] ? { ...p, [selected]: { ...p[selected], ver: "diff" } } : p))}>Ver diferenças</button>
+                            <button type="button" className="secondary-button" aria-pressed={panel.ver === "sugestao"}
+                              onClick={() => setReviewPanels((p) => (selected && p[selected] ? { ...p, [selected]: { ...p[selected], ver: "sugestao" } } : p))}>Ver só a sugestão</button>
+                          </div>
+                        )}
+                        {panel.ver === "diff" && panel.diff ? (
+                          <p className="review-text review-diff" aria-label="Sugestão com as diferenças: riscado sai, sublinhado entra">
+                            {panel.diff.map((op, i) => (op.t === "eq" ? <span key={i}>{op.s}</span> : op.t === "del" ? <del key={i}>{op.s}</del> : <ins key={i}>{op.s}</ins>))}
+                          </p>
+                        ) : (
+                          <p className="review-text" aria-label="Sugestão da IA">{panel.sugestao}</p>
+                        )}
+                        {panel.muda && <p className="review-warning">A sugestão muda muito o texto: edite-a antes de enviar.</p>}
+                        {panel.numeros && <p className="review-warning">A sugestão altera números ou datas: confirme antes de enviar.</p>}
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <>
                     {showCatalog && (
@@ -1115,9 +1349,16 @@ export function SupportInbox({
                     )}
                     <textarea
                       ref={composerText}
+                      readOnly={reviewingHere && mode === "reply"}
+                      aria-busy={(reviewingHere && mode === "reply") || undefined}
                       onSelect={(e) => keepCaret(e.currentTarget)}
                       onBlur={(e) => keepCaret(e.currentTarget)}
                       onPaste={(e) => {
+                        // Em revisão pela IA, o texto e os anexos ficam como estão até à escolha.
+                        if (reviewingHere && mode === "reply") {
+                          e.preventDefault();
+                          return;
+                        }
                         // Resposta pública: um texto colado acima do limite do comentário não é cortado sem aviso.
                         if (publicReply) {
                           const el = e.currentTarget, pasted = e.clipboardData.getData("text/plain");
@@ -1166,9 +1407,25 @@ export function SupportInbox({
                   </>
                 )}
                 </div>
-                {!(mode === "reply" ? replyBlocked : noteBlocked) && (
+                {!(mode === "reply" ? replyBlocked : noteBlocked) && (panel ? (
+                    <div className="composer-actions review-actions">
+                      {sendError && <span className="support-error" role="alert">{sendError}</span>}
+                      <button type="button" className="secondary-button" onClick={panelCancel} title="Fecha a revisão e volta ao texto (Esc)">Cancelar</button>
+                      <button type="button" className="secondary-button" onClick={() => panelEdit(panel)}>{panel.sugestao ? "Editar a sugestão" : "Editar a resposta"}</button>
+                      <button type="button" className={panel.sugestao && !panel.muda ? "secondary-button" : ""} disabled={sending} onClick={() => panelSend(panel, "propria")}>Enviar a minha versão</button>
+                      {panel.sugestao && !panel.muda && (
+                        <button type="button" disabled={sending} onClick={() => panelSend(panel, "sugestao")}>Enviar a sugestão</button>
+                      )}
+                    </div>
+                  ) : reviewingHere && mode === "reply" ? (
+                    <div className="composer-actions">
+                      <span className="review-running" role="status">A rever a resposta com a IA…</span>
+                      <button type="button" className="secondary-button" onClick={() => selected && reviewing[selected]?.skip()}>Enviar sem revisão</button>
+                    </div>
+                  ) : (
                     <div className="composer-actions">
                       {sendError && <span className="support-error" role="alert">{sendError}</span>}
+                      {!sendError && reviewNote && <span className="support-note" role="status">{reviewNote}</span>}
                       <input
                         ref={fileInput}
                         type="file"
@@ -1192,6 +1449,12 @@ export function SupportInbox({
                       {mode === "reply" && (
                         <button type="button" className="secondary-button" onClick={suggestReply} title="A IA propõe uma resposta (não envia nada)." aria-label="Sugerir resposta com a IA"><span aria-hidden="true">✨</span><span className="btn-label"> Sugerir resposta</span></button>
                       )}
+                      {mode === "reply" && review.mode === "opcional" && (
+                        <label className="review-toggle secondary-button" title="Rever as minhas respostas com a IA antes de enviar">
+                          <input type="checkbox" checked={reviewPref} onChange={(e) => saveReviewPref(e.target.checked)} aria-label="Rever as minhas respostas com a IA antes de enviar" />
+                          <span aria-hidden="true">🔎</span><span className="btn-label"> Revisão IA</span>
+                        </label>
+                      )}
                       {publicReply ? (
                         <small className={overLimit ? "over-limit" : ""} title={overLimit ? "Acima do limite de um comentário" : "Caracteres usados / limite do comentário"}>
                           {text.length}/{maxChars}{overLimit ? " — acima do limite" : ""}
@@ -1203,7 +1466,7 @@ export function SupportInbox({
                         {sending ? (publicReply ? "A publicar…" : "A enviar…") : publicReply ? <>Publicar<span className="btn-label"> resposta</span></> : mode === "reply" ? <>Enviar<span className="btn-label"> ao cliente</span></> : "Guardar nota"}
                       </button>
                     </div>
-                )}
+                ))}
               </div>
             </>
           )}

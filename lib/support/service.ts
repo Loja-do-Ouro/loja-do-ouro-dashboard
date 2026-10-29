@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { ingest, serverRpc, sessionRpc } from "./db";
 import { metricoolComment, metricoolSend } from "./metricool";
 import { commentReplyProblem } from "./comment-rules";
@@ -12,6 +13,8 @@ import { readTicket, zendeskComment, zendeskOff, zendeskUpdate, ZendeskError, ty
 import { emailSettings, gmailMailbox, gmailRecheck, gmailSendReply, GmailError } from "./gmail";
 import { contactAddress } from "./gmail-rules";
 import { firstName } from "./rules";
+import { recordReplyLinks } from "./review";
+import type { ReviewTag } from "./review-rules";
 import type { Viewer } from "@/lib/viewer";
 
 type Begin = {
@@ -36,11 +39,18 @@ const COMMENT_PROVIDER: Record<string, string> = { "metricool-facebook-comments"
 // Uma nota interna nunca segue por um caminho de envio ao cliente: no Zendesk é um comentário
 // privado (public:false); nos outros canais fica só no dashboard.
 // Anexos: imagens (e PDF no Zendesk) carregados antes pela mesma pessoa nesta conversa; a BD confirma.
+// links (só respostas): a revisão da IA feita e a proposta da IA usada; registados à parte, nunca atrasam nem impedem o envio.
 export async function sendMessage(viewer: Viewer, conversationId: string, kind: "outbound" | "note", body: string, clientKey: string,
-  uploads: string[], requestUrl: string) {
+  uploads: string[], requestUrl: string, links: { review?: ReviewTag | null; aiDraftId?: string | null } = {}) {
   const begin = await sessionRpc<Begin>(viewer.session, "ldo_support_begin_send", {
     p_id: conversationId, p_kind: kind, p_body: body, p_client_key: clientKey, p_uploads: uploads,
   });
+  // A escolha feita com a revisão (pelo hash do texto gravado) e a proposta usada; também num pedido repetido (a BD
+  // só grava uma vez). Corre ao lado do envio e acaba depois da resposta, se for preciso.
+  if (kind === "outbound" && (links.review || links.aiDraftId)) {
+    const recorded = recordReplyLinks(viewer.id, begin.message, links);
+    after(() => recorded);
+  }
   // Pedido repetido (duplo clique, nova tentativa do browser): devolve o que já existe, sem reenviar.
   if (begin.existing) return { messageId: begin.message.id, delivery: begin.message.delivery, repeated: true };
   if (kind === "note" && (begin.platform !== "zendesk" || begin.zendesk_off)) return { messageId: begin.message.id, delivery: null, repeated: false };

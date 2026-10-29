@@ -35,7 +35,8 @@ export function AiPanel({
   replyBlocked: string;
   // Comentário numa publicação: a resposta proposta fica PÚBLICA.
   publicReply?: boolean;
-  onUseDraft: (text: string, how: "replace" | "append") => void;
+  // id: a proposta usada (a resposta enviada fica ligada a ela).
+  onUseDraft: (text: string, how: "replace" | "append", id: string) => void;
   onBack: () => void;
 }) {
   const [history, setHistory] = useState<History | null>(null);
@@ -204,8 +205,8 @@ export function AiPanel({
                   <span className="eyebrow">{publicReply ? "Proposta de resposta PÚBLICA (comentário na publicação)" : "Proposta de resposta ao cliente"}</span>
                   <p className="ai-text">{i.draft}</p>
                   <div className="ai-draft-actions">
-                    <button type="button" onClick={() => onUseDraft(i.draft!, "replace")} disabled={Boolean(replyBlocked)} title={replyBlocked || "Coloca a proposta no campo de resposta (não envia)."}>Usar na resposta</button>
-                    <button type="button" className="secondary-button" onClick={() => onUseDraft(i.draft!, "append")} disabled={Boolean(replyBlocked)} title={replyBlocked || "Acrescenta ao texto que já está no campo de resposta."}>Acrescentar</button>
+                    <button type="button" onClick={() => onUseDraft(i.draft!, "replace", i.id)} disabled={Boolean(replyBlocked)} title={replyBlocked || "Coloca a proposta no campo de resposta (não envia)."}>Usar na resposta</button>
+                    <button type="button" className="secondary-button" onClick={() => onUseDraft(i.draft!, "append", i.id)} disabled={Boolean(replyBlocked)} title={replyBlocked || "Acrescenta ao texto que já está no campo de resposta."}>Acrescentar</button>
                     <button type="button" className="secondary-button" onClick={() => copy(i)}>{copied === i.id ? "Copiado" : "Copiar"}</button>
                   </div>
                 </div>

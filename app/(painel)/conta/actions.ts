@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { setSession } from "@/lib/session";
-import { homePath } from "@/lib/permissions";
+import { canSupport, homePath } from "@/lib/permissions";
 import { rpc, userMessage } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 
@@ -27,4 +27,17 @@ export async function changePassword(form: FormData) {
   if (error || !token) redirect(`/conta?${new URLSearchParams({ erro: error || "Não foi possível mudar a palavra-passe.", ...(viewer.mustChangePassword ? { primeiro: "1" } : {}) })}`);
   setSession(await cookies(), token);
   redirect(viewer.mustChangePassword ? homePath(viewer) || "/conta?ok=1" : "/conta?ok=1");
+}
+
+// Apoio ao Cliente: rever ou não as próprias respostas com a IA antes de enviar (só conta no modo "Opcional").
+export async function saveReviewPref(form: FormData) {
+  const viewer = await requireViewer();
+  if (!canSupport(viewer)) redirect("/conta");
+  let error = "";
+  try {
+    await rpc("ldo_support_user_prefs_save", { p_session: viewer.session, p_values: { ai_review: form.get("ai_review") === "on" } });
+  } catch (e) {
+    error = userMessage(e);
+  }
+  redirect(`/conta?${new URLSearchParams(error ? { revisao_erro: error } : { revisao_ok: "1" })}#revisao`);
 }

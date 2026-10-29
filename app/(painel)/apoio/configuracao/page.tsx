@@ -8,6 +8,7 @@ import { homePath } from "@/lib/permissions";
 import { aiConfigured, aiWorkspaceStatus } from "@/lib/support/ai";
 import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
+import { REVIEW_MODE_LABEL, REVIEW_MODEL_LABEL, type ReviewMode, type ReviewModel } from "@/lib/support/review-rules";
 import { emailSettings, gmailConfigured, gmailMailbox, gmailPushAudience, gmailPushReady, gmailRedirectUri, type EmailSettings } from "@/lib/support/gmail";
 import { serverConfigured, serverRpc, sessionRpc } from "@/lib/support/db";
 import type { SocialSettings } from "@/lib/support/social-rules";
@@ -42,6 +43,8 @@ type AiAdmin = {
   settings: { ai_enabled: boolean; ai_daily_limit: number; ai_monthly_budget: number };
   knowledge: { id: string; title: string; body: string; position: number; updated_at: string; updated_by_name: string | null }[];
   usage: { month_cost: number; month_requests: number; month_errors: number; by_user: { name: string; requests: number; cost: number }[] };
+  // Revisão antes de enviar (totais da equipa): só com a migração 20261030110000.
+  review?: { mode: string; model: string; monthly_budget: number; month_cost: number; month_reviews: number; month_errors: number };
 };
 type GmailStatus = { email: string; status: "active" | "reconnect"; status_detail: string | null; scope: string | null; watch_expires_at: string | null; connected_at: string; connected_by: string | null } | null;
 // Resultado da ligação ao Gmail (código no URL, vindo das rotas /api/support/gmail/*).
@@ -432,6 +435,17 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
                 )}
               </dd>
               <dt>Este mês</dt><dd>{usd(ai.usage.month_cost)} estimados · {ai.usage.month_requests} pedidos{ai.usage.month_errors ? ` (${ai.usage.month_errors} com erro)` : ""}</dd>
+              <dt>Revisão antes de enviar</dt>
+              <dd>
+                {ai.review ? (
+                  <>
+                    {REVIEW_MODE_LABEL[ai.review.mode as ReviewMode] || ai.review.mode}
+                    {ai.review.mode !== "desligada" && ` · ${REVIEW_MODEL_LABEL[ai.review.model as ReviewModel] || ai.review.model}`}
+                    {" · "}{usd(ai.review.month_cost)} de {usd(ai.review.monthly_budget)} este mês · {ai.review.month_reviews} revisões{ai.review.month_errors ? ` (${ai.review.month_errors} com erro)` : ""}
+                  </>
+                ) : "Por instalar (falta a atualização na base de dados)."}
+                {" "}<Link href="/apoio/configuracao/ia">Configurar a revisão</Link>
+              </dd>
             </dl>
             {ai.usage.by_user.length > 0 && (
               <div className="table-scroll">

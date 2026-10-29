@@ -2,6 +2,8 @@ import { after } from "next/server";
 import { sessionRpc } from "@/lib/support/db";
 import { notifyHandover } from "@/lib/support/notify";
 import { body, handle, HttpError, json, supportViewer } from "@/lib/support/http";
+import { reviewReply } from "@/lib/support/review";
+import { reviewTag } from "@/lib/support/review-rules";
 import { isUuid } from "@/lib/support/rules";
 import { confirmSentInZendesk, markNotSent, sendMessage, updateConversation, verifyMessage } from "@/lib/support/service";
 
@@ -29,7 +31,7 @@ export async function GET(request: Request, ctx: Ctx) {
 }
 
 type Action = {
-  action: "read" | "unread" | "presence" | "reply" | "note" | "update" | "verify" | "confirm_sent" | "not_sent";
+  action: "read" | "unread" | "presence" | "review" | "reply" | "note" | "update" | "verify" | "confirm_sent" | "not_sent";
   composing: boolean;
   body: string;
   clientKey: string;
@@ -38,6 +40,11 @@ type Action = {
   assigneeId: string | null;
   messageId: string;
   seen: string;
+  // Revisão da IA: id gerado no browser (o mesmo no pedido de revisão e no envio) e, sem revisão feita, o motivo.
+  reviewId: string;
+  review: unknown;
+  // Proposta da IA posta no campo de resposta com "Usar na resposta".
+  aiDraftId: string;
 };
 
 // Uma ação por pedido. "reply" é sempre resposta pública ao cliente pelo canal da conversa;
@@ -57,11 +64,16 @@ export async function POST(request: Request, ctx: Ctx) {
         return json({ ok: true });
       case "presence":
         return json({ presence: await sessionRpc(viewer.session, "ldo_support_presence_ping", { p_id: id, p_composing: Boolean(b.composing) }) });
+      // Revisão da IA antes de enviar: não envia nada. Uma falha da IA volta como resposta normal e o browser envia.
+      case "review":
+        if (typeof b.body !== "string" || !isUuid(b.reviewId)) throw new HttpError(400, "Pedido inválido.");
+        return json(await reviewReply(viewer, id, b.reviewId, b.body));
       case "reply":
       case "note": {
         const uploads = Array.isArray(b.uploads) ? b.uploads.filter(isUuid).slice(0, 5) : [];
         if (typeof b.body !== "string" || !isUuid(b.clientKey)) throw new HttpError(400, "Pedido inválido.");
-        return json(await sendMessage(viewer, id, b.action === "reply" ? "outbound" : "note", b.body, b.clientKey, uploads, request.url));
+        const links = b.action === "reply" ? { review: reviewTag(b.review), aiDraftId: isUuid(b.aiDraftId) ? b.aiDraftId : null } : {};
+        return json(await sendMessage(viewer, id, b.action === "reply" ? "outbound" : "note", b.body, b.clientKey, uploads, request.url, links));
       }
       case "update": {
         const handover = await updateConversation(viewer, id, {
