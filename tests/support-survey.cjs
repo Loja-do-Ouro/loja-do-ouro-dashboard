@@ -97,6 +97,7 @@ test("surveyEligibility: each rule alone blocks the request, in the database's o
     [{ lastKind: "inbound" }, "ultima_cliente"],
     [{ lastInboundAt: ago(23.5) }, "janela_24h"],
     [{ lastInboundAt: null }, "janela_24h"],
+    [{ lastDashboardReplyAt: ago(24 * 8) }, "antiga"],
     [{ noSurveys: true }, "sem_pedidos"],
     [{ lastConversationSurveyAt: ago(24 * 6) }, "conversa_recente"],
     [{ lastContactSurveyAt: ago(24 * 29) }, "contacto_recente"],
@@ -108,6 +109,9 @@ test("surveyEligibility: each rule alone blocks the request, in the database's o
   assert.equal(s.surveyEligibility({ ...ok, channel: "email", lastInboundAt: ago(24 * 5) }), null);
   assert.equal(s.surveyEligibility({ ...ok, channel: "site", lastInboundAt: null, siteChatOpen: true }), null);
   assert.equal(s.surveyEligibility({ ...ok, channel: "site", siteChatOpen: false }), "chat_terminado");
+  // Conversa antiga arrumada agora (email, chat do site): a última resposta pelo dashboard tem mais de 7 dias.
+  assert.equal(s.surveyEligibility({ ...ok, channel: "email", lastInboundAt: null, lastDashboardReplyAt: ago(24 * 8) }), "antiga");
+  assert.equal(s.surveyEligibility({ ...ok, channel: "email", lastInboundAt: null, lastDashboardReplyAt: ago(24 * 6) }), null);
 });
 
 test("The reasons shown when there is no survey are the agreed texts", () => {
@@ -119,7 +123,9 @@ test("The reasons shown when there is no survey are the agreed texts", () => {
   assert.equal(s.skipText("sem_pedidos"), "Sem pedido de avaliação: o cliente pediu para não receber pedidos de avaliação");
   // Nota ao resolver: agendado (com quem é avaliado), mostrado no chat do site, ou o motivo; nada sem decisão.
   assert.equal(s.surveyCreateNote({ created: true, agent_name: "Diana Costa", channel: "facebook" }), "Pedido de avaliação agendado (atendimento de Diana Costa).");
-  assert.equal(s.surveyCreateNote({ created: true, agent_name: "Diana Costa", channel: "site" }), "Pedido de avaliação mostrado no chat do site (atendimento de Diana Costa).");
+  assert.equal(s.surveyCreateNote({ created: true, agent_name: "Diana Costa", channel: "site" }),
+    "Pedido de avaliação no chat do site: aparece quando o cliente abrir o chat (atendimento de Diana Costa).", "só conta como enviado quando aparece");
+  assert.equal(s.skipText("antiga"), "Sem pedido de avaliação: a última resposta pelo dashboard tem mais de 7 dias");
   assert.equal(s.surveyCreateNote({ created: false, reason: "janela_24h" }), "Sem pedido de avaliação: fora da janela de 24 h do Messenger/Instagram.");
   for (const reason of ["desligado", "nao_pedido", "nao_resolvida"]) assert.equal(s.surveyCreateNote({ created: false, reason }), null, reason);
   assert.equal(s.surveyCreateNote(null), null);
@@ -209,6 +215,18 @@ test("Thread events: the score only for whoever the database lets see it", () =>
   assert.equal(ev("survey.rated", { agent_name: "Diana Costa" }), "O cliente respondeu ao pedido de avaliação", "sem a nota (outros colegas)");
   assert.equal(ev("survey.followup", { score: 1 }), "Avaliação baixa (1/5): conversa reaberta para acompanhamento.");
   assert.equal(ev("survey.followup", {}), "Avaliação baixa: conversa reaberta para acompanhamento.");
+  // Chat do site: só "mostrado" quando o visitante tem o chat aberto.
+  assert.equal(ev("survey.created", { agent_name: "Diana Costa", channel: "site" }), "Pedido de avaliação no chat do site: aparece quando o cliente abrir o chat (atendimento de Diana Costa)");
+  assert.equal(ev("survey.sent", { channel: "site" }), "Pedido de avaliação mostrado ao cliente no chat do site");
+  // Quem mudou fica com o nome.
+  assert.equal(ev("survey.declined", { agent_name: "Diana Costa" }, "Rui Matos"), "Rui Matos resolveu sem pedir avaliação ao cliente (atendimento de Diana Costa)");
+  assert.equal(ev("survey.contact", { no_surveys: true }, "Rui Matos"), "Rui Matos marcou que o cliente não quer pedidos de avaliação");
+  assert.equal(ev("survey.contact", { no_surveys: false }, "Luís Rocha"), "Luís Rocha voltou a ativar os pedidos de avaliação para este cliente");
+  assert.equal(ev("survey.skipped", { reason: "sem_pedidos" }, "Rui Matos"), "Pedido de avaliação não enviado: Rui Matos marcou que o cliente não quer pedidos de avaliação");
+  assert.equal(ev("survey.skipped", { reason: "sem_pedidos" }), "Pedido de avaliação não enviado: o cliente pediu para não receber pedidos de avaliação");
+  assert.equal(ev("survey.skipped", { reason: "interno" }), "Pedido de avaliação não enviado: o endereço de email é da própria loja, de um sistema automático ou inválido");
+  assert.equal(s.surveyStateText({ status: "pending", skip_reason: null, channel: "site" }), "Por mostrar: aparece quando o cliente abrir o chat do site");
+  assert.equal(s.surveyStateText({ status: "skipped", skip_reason: "nao_visto", channel: "site" }), "Não enviado: o cliente não voltou a abrir o chat do site em 72 h");
   assert.equal(ev("assign", {}), null);
   assert.equal(s.surveyStateText({ status: "skipped", skip_reason: "janela_24h" }), "Não enviado: fora da janela de 24 h do Messenger/Instagram");
   assert.equal(s.surveyStateText({ status: "expired", skip_reason: "nova_mensagem" }), "Fechado sem nota: a conversa continuou depois do pedido");
@@ -223,9 +241,18 @@ test("Report periods are Lisbon months and quarters; small samples are flagged",
   assert.equal(s.reportPeriod("lixo", now).key, "2026-10");
   assert.equal(s.reportPeriod(null, new Date("2026-08-31T23:30:00Z")).key, "2026-09", "já é setembro em Lisboa (hora de verão)");
   assert.equal(s.reportPeriod(null, new Date("2026-10-31T23:30:00Z")).key, "2026-10", "ainda é outubro em Lisboa (hora de inverno)");
+  // Períodos longos (10 avaliações por pessoa num mês são raras): os últimos 12 meses e o ano.
+  assert.deepEqual(s.reportPeriod("12m", now), { key: "12m", label: "últimos 12 meses", from: "2025-11-01", to: "2026-11-01" });
+  assert.deepEqual(s.reportPeriod("12m", new Date("2026-12-15T12:00:00Z")), { key: "12m", label: "últimos 12 meses", from: "2026-01-01", to: "2027-01-01" });
+  assert.deepEqual(s.reportPeriod("2026", now), { key: "2026", label: "ano de 2026", from: "2026-01-01", to: "2027-01-01" });
   const keys = s.reportPeriods(now).map((p) => p.key);
-  assert.deepEqual(keys, ["2026-10", "2026-09", "2026-08", "2026-07", "2026-06", "2026-05", "2026-T4", "2026-T3"]);
-  assert.deepEqual(s.reportPeriods(new Date("2026-02-10T12:00:00Z")).map((p) => p.key).slice(-2), ["2026-T1", "2025-T4"]);
+  assert.deepEqual(keys, ["12m", "2026-10", "2026-09", "2026-08", "2026-07", "2026-06", "2026-05", "2026-T4", "2026-T3", "2026"]);
+  assert.deepEqual(s.reportPeriods(new Date("2026-02-10T12:00:00Z")).map((p) => p.key).slice(-3), ["2026-T1", "2025-T4", "2026"]);
+  // A BD aceita até 400 dias.
+  for (const k of keys) {
+    const x = s.reportPeriod(k, now);
+    assert.ok((Date.parse(x.to) - Date.parse(x.from)) / 86_400_000 <= 400, k);
+  }
   assert.equal(s.reliable(9), false);
   assert.equal(s.reliable(10), true);
   assert.equal(s.pct(3, 4), 75);
@@ -265,17 +292,31 @@ test("Sending: claimed once, written before it leaves, never resent; the sweep r
   const order = ["ldo_support_system_send_begin", "metricoolSend(", "ldo_support_finish_send", "ldo_support_survey_sent"].map((k) => sv.indexOf(k));
   assert.ok(order.every((i) => i > 0), JSON.stringify(order));
   assert.ok(sv.indexOf("ldo_support_system_send_begin") < sv.indexOf("ldo_support_finish_send"));
-  assert.ok(sv.includes('p_client_key: kind === "survey" ? s.id : randomUUID()'), "o pedido usa o próprio id como chave");
+  assert.ok(sv.includes('await sendOne("survey", s, s.id, body, s.agent_first)'), "o pedido usa o próprio id como chave");
+  assert.ok(sv.includes('await sendOne("thanks", t, t.client_key,'), "o agradecimento usa a chave fixa dada pela BD");
+  assert.ok(!sv.includes("randomUUID"), "nunca uma chave nova (um envio interrompido tem de ser reconhecido)");
+  // Um de cada vez e só com tempo para enviar e registar antes do fim da função.
+  assert.ok(sv.includes('serverRpc<Due[]>("ldo_support_survey_due", { p_limit: 1 })') && sv.includes('serverRpc<ThanksDue[]>("ldo_support_survey_thanks_due", { p_limit: 1 })'));
+  assert.ok(sv.includes("const time = () => Date.now() + SEND_RESERVE_MS < deadline;") && sv.includes("const SEND_RESERVE_MS = 40_000;"));
+  assert.ok(sv.indexOf("while (surveys < PER_RUN && time())") < sv.indexOf('"ldo_support_survey_due"'), "o tempo é visto antes de pedir");
+  // Email para a própria loja ou para um sistema automático: não sai.
+  assert.ok(sv.includes('recipientAllowed(contactAddress(s.contact_external_id) || "", [gmailMailbox().split("@")[1] || ""])'));
+  assert.ok(sv.indexOf("if (internalAddress(s))") < sv.indexOf('await sendOne("survey"'));
   assert.ok(sv.includes("autoSubmitted: true") && sv.includes("senderFirstName"), "email automático com o primeiro nome de quem atendeu na assinatura");
   assert.ok(!/retry|tentar de novo|for \(let attempt/i.test(sv.replace(/Uma segunda tentativa de registo[^\n]*/, "")), "sem novas tentativas de envio");
   const tick = read("app/api/support/webhooks/tick/route.ts");
-  assert.ok(tick.includes("Promise.all([social, mail]).then(() => sendDueSurveys())"));
-  // O chat do site não precisa de envio: o pedido aparece no widget no mesmo momento em que se resolve.
+  assert.ok(tick.includes("Promise.all([social, mail]).then(() => sendDueSurveys({ deadline: start + SURVEYS_UNTIL_MS }))"));
+  assert.ok(tick.includes("const SURVEYS_UNTIL_MS = 110_000;") && tick.includes("export const maxDuration = 120;"));
+  // Chat do site: o pedido fica por enviar até o visitante ter o chat aberto (só então conta como enviado).
   const create = fn(SQL, "create function public.ldo_support_survey_create(");
-  assert.ok(create.includes("case when v_site then 'sent' else 'pending' end"));
+  assert.ok(!create.includes("'sent'") && !create.includes("'survey.sent'"), "nunca enviado ao resolver");
+  assert.ok(create.includes("case when v_site then coalesce(v_v.locale, 'pt') end, 'pending',"));
   // Respostas automáticas das redes sociais: nunca a uma nota (no código e na BD).
   const mc = read("lib/support/metricool.ts");
   assert.ok(mc.includes("if (isRatingReply(conv.messages.find((m) => m.external_id === decision.anchor)?.body)) continue;"));
+  // Na BD: também quando a nota não é a última mensagem nova do cliente ("5" e logo "Obrigada 😊").
+  assert.ok(fn(SQL, "create or replace function public.ldo_support_social_autoreply_claim(")
+    .includes("(m.external_id = p_anchor or m.created_at >= coalesce(p_since, 'infinity'::timestamptz))"));
   // Email automático do cliente (ausência): marcado na leitura do Gmail.
   assert.ok(read("lib/support/gmail.ts").includes("...(!own && isAutoSubmitted(m) ? { auto_submitted: true } : {}),"));
 });
@@ -302,7 +343,9 @@ test("Survey settings start off: mode 'desligado', 10 minutes, the four channels
   assert.ok(SQL.includes("add column if not exists survey_delay_minutes integer not null default 10"));
   assert.ok(SQL.includes("add column if not exists survey_channels text[] not null default '{facebook,instagram,email,site}'"));
   assert.ok(SQL.includes("alter table public.ldo_support_contacts add column if not exists no_surveys boolean not null default false;"));
-  assert.ok(SQL.includes("add column if not exists origin text check (origin in ('ai', 'handover', 'survey', 'rule'));"));
+  assert.ok(SQL.includes("add column if not exists origin text check (origin in ('ai', 'handover', 'survey', 'rule')),"));
+  assert.ok(SQL.includes("add column if not exists auto_submitted boolean not null default false;"));
+  assert.ok(SQL.includes("add column if not exists survey_enabled_at timestamptz;"));
   for (const name of ["ldo_support_survey_settings", "ldo_support_survey_settings_save", "ldo_support_survey_cancel"]) {
     assert.ok(fn(SQL, `create function public.${name}(`).includes("ldo_private.support_super(p_session)"), name);
   }
@@ -326,7 +369,7 @@ test("Survey functions: session or server token, anon-only grants, private helpe
   const PUBLIC = [
     "public.ldo_support_system_send_begin(text, uuid, text, text, uuid)", "public.ldo_support_survey_preview(text, uuid)",
     "public.ldo_support_survey_create(text, uuid, boolean)", "public.ldo_support_survey_cancel(text, uuid, text)",
-    "public.ldo_support_contact_surveys_save(text, uuid, boolean)", "public.ldo_support_survey_due(text, integer)",
+    "public.ldo_support_contact_surveys_save(text, uuid, boolean, uuid)", "public.ldo_support_survey_due(text, integer)",
     "public.ldo_support_survey_sent(text, uuid, text, uuid, text)", "public.ldo_support_survey_thanks_due(text, integer)",
     "public.ldo_support_survey_thanks_sent(text, uuid, text, uuid)", "public.ldo_support_site_rate(text, text, text, uuid, integer, text)",
     "public.ldo_support_survey_purge(text)", "public.ldo_support_ratings_report(text, date, date)", "public.ldo_support_survey_settings(text)",
@@ -343,7 +386,7 @@ test("Survey functions: session or server token, anon-only grants, private helpe
   const created = [...SQL.matchAll(/^create function (public\.[a-z_]+)\(/gm)].map((m) => m[1]);
   assert.deepEqual(created.sort(), PUBLIC.map((x) => x.slice(0, x.indexOf("("))).sort(), "todas as funções públicas novas têm acessos");
   const PRIVATE = [...SQL.matchAll(/^create function (ldo_private\.[a-z_]+)\(/gm)].map((m) => m[1]);
-  assert.equal(PRIVATE.length, 11);
+  assert.equal(PRIVATE.length, 13);
   const revoke = stmts.find((x) => x.startsWith("revoke all on function ldo_private.support_team_outbound_since"));
   assert.ok(revoke && revoke.endsWith(" from public, anon, authenticated"));
   for (const p of PRIVATE) assert.ok(revoke.includes(`${p}(`), p);
@@ -398,23 +441,26 @@ test("Taking a rating: open survey, last outbound, first reply; a score alone ke
 
 test("Creating and sending: own recent resolve, no choice in automatic mode, everything checked again before it leaves", () => {
   const create = fn(SQL, "create function public.ldo_support_survey_create(");
-  assert.ok(create.includes("if v_s.survey_mode = 'perguntar' and p_request is not true then"));
+  assert.ok(create.includes("v_ask := v_s.survey_mode <> 'perguntar' or p_request is true;"));
   assert.ok(!/survey_mode = 'automatico'/.test(create), "no automático a caixa não conta");
   assert.ok(create.includes("v_a.actor is distinct from v_me or v_a.details ->> 'to' is distinct from 'resolvido'"));
   assert.ok(create.includes("or v_a.created_at < now() - interval '5 minutes'"));
   const due = fn(SQL, "create function public.ldo_support_survey_due(");
-  assert.ok(due.includes("then 'reaberta'") && due.includes("ldo_private.support_survey_block(v.conversation_id, v.created_at)"));
+  const hold = fn(SQL, "create function ldo_private.support_survey_hold(");
+  assert.ok(hold.includes("then 'reaberta'") && hold.includes("ldo_private.support_survey_block(s.conversation_id, s.created_at)"));
+  assert.ok(due.includes("v_reason := ldo_private.support_survey_hold(v.id);"));
   assert.ok(due.includes("set status = 'sending', attempt_at = now()") && due.includes("for update skip locked"));
-  assert.ok(due.includes("where status = 'sending' and attempt_at < now() - interval '30 minutes'"), "sem resultado: falhado, nunca repetido");
+  assert.ok(due.includes("exit when jsonb_array_length(v_out) >= v_limit;"), "só os que vão sair ficam a enviar");
   const block = fn(SQL, "create function ldo_private.support_survey_block(");
   const order = ["'desligado'", "'comentario'", "'canal'", "'canal_desligado'", "'sem_resposta'", "'ultima_cliente'", "'janela_24h'", "'chat_terminado'",
-    "'sem_pedidos'", "'conversa_recente'", "'contacto_recente'"].map((k) => block.indexOf(`return ${k};`));
+    "'antiga'", "'sem_pedidos'", "'conversa_recente'", "'contacto_recente'"].map((k) => block.indexOf(`return ${k};`));
   assert.ok(order.every((i, n) => i > 0 && (n === 0 || i > order[n - 1])), JSON.stringify(order));
   assert.ok(block.includes("v_c.last_inbound_at <= now() - interval '23 hours'"));
   const agent = fn(SQL, "create function ldo_private.support_survey_agent(");
   assert.ok(agent.includes("order by count(*) desc, max(m.created_at) desc") && agent.includes("m.author_user_id is not null and m.origin is null"));
   const sent = fn(SQL, "create function public.ldo_support_survey_sent(");
-  assert.ok(sent.includes("status = case when p_outcome = 'failed' then 'failed' else 'sent' end"), "incerto = enviado (pode ter chegado)");
+  assert.ok(sent.includes("status = case p_outcome when 'failed' then 'failed' when 'skipped' then 'skipped' else 'sent' end"), "incerto = enviado (pode ter chegado)");
+  assert.ok(sent.includes("skip_reason = case when p_outcome = 'skipped' then 'interno' end"));
 });
 
 test("The conversation shows survey events beyond the 30 latest actions and the score only to the Super Admin and the rated person", () => {
@@ -453,7 +499,7 @@ test("The copied functions start from the production text (md5 in the header) an
     ["20261015120000_ldo_support_site_locale.sql", "create or replace function public.ldo_support_site_messages(", "6ea15123173245bcd5a22134acb4478c",
       ["    'messages', v_list || v_notices"]],
     ["20261009150000_ldo_support_social_fixes2.sql", "create function public.ldo_support_social_autoreply_claim(", "f426f91c0926e25ed35ec76c10e8327d", []],
-    ["20261030100000_ldo_support_history_from.sql", "create or replace function public.ldo_support_conversation(", null, [
+    ["20261030100000_ldo_support_history_from.sql", "create or replace function public.ldo_support_conversation(", "c9ccc831d7588e2bd4d30b618cd70b6a", [
       "        'author_user_id', m.author_user_id, 'body', m.body, 'attachments', m.attachments, 'created_at', m.created_at,",
       "        'delivery', m.delivery, 'delivery_detail', m.delivery_detail, 'external', m.external_id is not null) order by m.created_at, m.inserted_at)",
       "      select jsonb_agg(jsonb_build_object('action', l.action, 'details', l.details, 'created_at', l.created_at,",
@@ -475,17 +521,25 @@ test("The copied functions start from the production text (md5 in the header) an
     assert.ok(SQL.includes(`create or replace function ${head}`), head);
 });
 
-test("Sync patch: four anchors in the production text of ldo_support_ingest, each exactly once, or the migration stops", () => {
+test("Sync patch: seven anchors in the production text of ldo_support_ingest, each exactly once, or the migration stops", () => {
   const block = SQL.slice(SQL.indexOf("pg_get_functiondef('public.ldo_support_ingest(text,text,jsonb)'"), SQL.indexOf("execute v_def;"));
   assert.ok(block.includes("if length(v_def) - length(replace(v_def, v_old[i], '')) <> length(v_old[i]) then"));
   assert.ok(block.includes("raise exception 'ldo_support_ingest: âncora % não encontrada ou repetida: %', i, v_old[i];"));
   const live = source("20261013100000_ldo_support_post_comments.sql", "create or replace function public.ldo_support_ingest(");
   assert.equal(crypto.createHash("md5").update(live).digest("hex"), "246628003beab3ce0a50c26aca3e950f", "texto de produção");
   for (const anchor of ["  v_deleted boolean;", "on conflict (conversation_id, external_id) do nothing;", "        v_new_msgs := v_new_msgs + 1;",
-    "and abs(extract(epoch from (created_at - (m ->> 'created_at')::timestamptz))) < 900"]) {
+    "and abs(extract(epoch from (created_at - (m ->> 'created_at')::timestamptz))) < 900",
+    "    for m in select value from jsonb_array_elements(coalesce(c -> 'messages', '[]'::jsonb)) loop", "    v_new_inbound := 0;"]) {
     assert.equal(live.split(anchor).length - 1, 1, anchor);
     assert.ok(block.includes(`'${anchor.replace(/'/g, "''")}'`), anchor);
   }
+  assert.equal(live.split("    perform ldo_private.support_summarize(v_conv.id);\n  end loop;").length - 1, 1);
+  assert.ok(block.includes("E'    perform ldo_private.support_summarize(v_conv.id);\\n  end loop;'"));
+  // As mensagens de cada conversa pela ordem em que foram escritas (texto ISO, byte a byte; a ordem de chegada desempata).
+  assert.ok(block.includes("with ordinality as x(value, n)") && block.includes("order by (x.value ->> ''created_at'') collate \"C\", x.n loop"));
+  // A nota de 3 a 5 só deixa a conversa lida no fim, se nada mais do cliente chegou na mesma leitura.
+  assert.ok(block.includes("v_rated_read := v_rated_read or v_rating = ''read'';") && block.includes("perform ldo_private.support_rating_read(v_conv.id);"));
+  assert.ok(block.includes("update public.ldo_support_messages set auto_submitted = true where id = v_mid;"));
   assert.ok(block.includes("returning id into v_mid;"));
   assert.ok(block.includes("ldo_private.support_take_rating(v_conv.id, v_mid, m ->> ''body'')"));
   assert.ok(block.includes("coalesce(m ->> ''auto_submitted'', '''') = ''true''"));
@@ -493,7 +547,154 @@ test("Sync patch: four anchors in the production text of ldo_support_ingest, eac
   assert.ok(block.indexOf("v_new_msgs := v_new_msgs + 1;\\n'") < block.indexOf("support_take_rating"));
   // Chat do site: o mesmo, antes da reabertura.
   const send = fn(SQL, "create or replace function public.ldo_support_site_send(");
-  assert.ok(send.indexOf("v_rated := ldo_private.support_take_rating(v_c.id, v_m.id, v_body);") < send.indexOf("if not v_rated and v_c.status in ('resolvido', 'aguarda_cliente') then"));
+  assert.ok(send.indexOf("v_rating := ldo_private.support_take_rating(v_c.id, v_m.id, v_body);") < send.indexOf("if v_rating is null and v_c.status in ('resolvido', 'aguarda_cliente') then"));
+  assert.ok(send.includes("if v_rating = 'read' then\n    perform ldo_private.support_rating_read(v_c.id);"));
+});
+
+// ---------------------------------------------------------------- correções da revisão
+
+// Simula as substituições ancoradas de um bloco "do $$" sobre o texto de origem (o mesmo md5 que em produção).
+function anchored(marker, src) {
+  const i = SQL.indexOf(marker);
+  assert.ok(i >= 0, marker);
+  const blk = SQL.slice(i, SQL.indexOf("\nend;\n$$;", i));
+  const lit = (text, pos) => {
+    let out = "";
+    for (;;) {
+      while (/\s/.test(text[pos])) pos++;
+      let e = false;
+      if (text[pos] === "E" && text[pos + 1] === "'") { e = true; pos++; }
+      assert.equal(text[pos], "'");
+      pos++;
+      for (;;) {
+        const ch = text[pos];
+        if (ch === "'" && text[pos + 1] === "'") { out += "'"; pos += 2; continue; }
+        if (ch === "'") { pos++; break; }
+        if (e && ch === "\\") { out += text[pos + 1] === "n" ? "\n" : text[pos + 1]; pos += 2; continue; }
+        out += ch; pos++;
+      }
+      let q = pos;
+      while (/\s/.test(text[q])) q++;
+      if (text.slice(q, q + 2) === "||") { pos = q + 2; continue; }
+      return [out, pos];
+    }
+  };
+  const arr = (name) => {
+    let pos = blk.indexOf(`${name} text[] := array[`) + `${name} text[] := array[`.length;
+    const out = [];
+    for (;;) {
+      const [v, q] = lit(blk, pos);
+      out.push(v);
+      pos = q;
+      while (/\s/.test(blk[pos])) pos++;
+      if (blk[pos] === ",") { pos++; continue; }
+      assert.equal(blk[pos], "]");
+      return out;
+    }
+  };
+  const olds = arr("v_old"), news = arr("v_new");
+  let t = src;
+  olds.forEach((o, k) => {
+    assert.equal(t.split(o).length - 1, 1, `âncora ${k + 1}: ${o}`);
+    t = t.replace(o, () => news[k]);
+  });
+  return t;
+}
+const md5 = (t) => crypto.createHash("md5").update(t).digest("hex");
+
+test("Ingest result: messages in written order, the rating before the reopen rule, read only when nothing else arrived", () => {
+  const live = source("20261013100000_ldo_support_post_comments.sql", "create or replace function public.ldo_support_ingest(");
+  const out = anchored("pg_get_functiondef('public.ldo_support_ingest(", live);
+  const at = (k) => {
+    const i = out.indexOf(k);
+    assert.ok(i > 0, k);
+    return i;
+  };
+  // "2" a uma pergunta da equipa no Meta Business Suite, entregue antes da pergunta: a pergunta é gravada primeiro.
+  assert.ok(out.includes("order by (x.value ->> 'created_at') collate \"C\", x.n loop"));
+  assert.ok(at("v_new_msgs := v_new_msgs + 1;") < at("support_take_rating(v_conv.id, v_mid, m ->> 'body')"));
+  assert.ok(at("support_take_rating(v_conv.id, v_mid, m ->> 'body')") < at("v_new_inbound := v_new_inbound + 1;"), "a nota não conta como nova do cliente");
+  assert.ok(at("v_rated_read := false;") < at("for m in select x.value"));
+  assert.ok(at("perform ldo_private.support_rating_read(v_conv.id);") < at("perform ldo_private.support_summarize(v_conv.id);\n  end loop;"));
+  // A sincronização já não lia tudo como lido a meio (a nota marcava como lida a mensagem que vinha a seguir).
+  const take = fn(SQL, "create function ldo_private.support_take_rating(");
+  assert.ok(!take.includes("support_read_all"), "quem chama decide, depois de gravar tudo");
+  assert.ok(take.includes("returns text") && take.includes("return case when v_score >= 3 then 'read' else 'unread' end;"));
+  const read = fn(SQL, "create function ldo_private.support_rating_read(");
+  assert.ok(read.includes("i.kind = 'inbound' and i.inserted_at >= now()") && read.includes("perform ldo_private.support_read_all(p_conv);"));
+  // Uma ausência por email guardada não estraga a nota seguinte; no chat do site, sem folga de relógio.
+  assert.ok(take.includes("and not i.auto_submitted") && take.includes("v_margin := case when v_s.channel = 'site' then interval '0' else interval '1 minute' end;"));
+});
+
+test("The score never reaches the list: the preview of a rating-only reply is masked; automatic messages do not ask for attention", () => {
+  const summarize = source("20261007120000_ldo_support.sql", "create function ldo_private.support_summarize(");
+  assert.equal(md5(summarize), "aa518ccb25b476ab91ff06967bee05bf", "texto de produção");
+  const preview = anchored("pg_get_functiondef('ldo_private.support_summarize(", summarize);
+  assert.ok(preview.includes("when exists (select 1 from public.ldo_support_surveys s where s.rating_message_id = m.id and s.score is not null)"));
+  assert.ok(preview.includes("and ldo_private.support_rating_score(m.body) is not null then 'Respondeu ao pedido de avaliação'"));
+  const list = source("20261030100000_ldo_support_history_from.sql", "create or replace function public.ldo_support_list(");
+  assert.equal(md5(list), "b9516359450595555d97ff170f1fb8a3", "texto de produção");
+  const out = anchored("pg_get_functiondef('public.ldo_support_list(", list);
+  assert.ok(out.includes("m.conversation_id = c.id and m.origin is null and m.delivery in ('failed', 'uncertain', 'sending'))"));
+  assert.ok(out.includes("'history_from', v_from"), "o resto fica igual");
+  assert.ok(fn(SQL, "create or replace function public.ldo_support_conversation(").includes("'message_id', s.message_id, 'thanks_message_id', s.thanks_message_id,"));
+});
+
+test("Opt-out: anyone records the customer's «não» (with their name, in the thread); only the Super Admin turns surveys back on", () => {
+  const save = fn(SQL, "create function public.ldo_support_contact_surveys_save(");
+  assert.ok(save.includes("if not p_no_surveys and ldo_private.support_super(p_session) is null then"));
+  assert.ok(save.includes("select v_me, x.conversation_id, 'survey.skipped'"), "o pedido que deixa de sair fica com o nome");
+  assert.ok(save.includes("values (v_me, p_conv, 'survey.contact'"));
+  assert.ok(save.includes("where id = p_conv and contact_id = p_contact"), "a conversa tem de ser deste contacto");
+  const route = read("app/api/support/contacts/[id]/route.ts");
+  assert.ok(route.includes("p_conv: isUuid(b.conversation) ? b.conversation : null"));
+});
+
+test("Site chat: the request counts as sent only when the visitor has the chat open; stars only while it is still open", () => {
+  const messages = fn(SQL, "create or replace function public.ldo_support_site_messages(");
+  assert.ok(messages.includes("if coalesce(p_open, false) then") && messages.includes("v_reason := ldo_private.support_survey_hold(v_p.id);"));
+  assert.ok(messages.includes("set status = 'sent', sent_at = now(), expires_at = now() + interval '72 hours'"));
+  assert.ok(messages.includes("x.survey_mode <> 'desligado' and 'site' = any (x.survey_channels)"), "desligado: as estrelas deixam de aparecer");
+  const due = fn(SQL, "create function public.ldo_support_survey_due(");
+  assert.ok(due.includes("where s.status = 'pending' and s.channel <> 'site' and s.send_after <= now()"));
+  assert.ok(due.includes("v_reason := case when v.created_at < now() - interval '72 hours' then 'nao_visto'"));
+  const rate = fn(SQL, "create function public.ldo_support_site_rate(");
+  // Mesma ordem de bloqueios que ldo_support_site_send (conversa, depois o pedido): sem deadlock.
+  assert.ok(rate.indexOf("from public.ldo_support_conversations where id = v.conversation_id for update") < rate.indexOf("from public.ldo_support_surveys"));
+  const send = fn(SQL, "create or replace function public.ldo_support_site_send(");
+  assert.ok(send.indexOf("from public.ldo_support_conversations where id = v.conversation_id for update") < send.indexOf("support_take_rating"));
+  assert.ok(rate.includes("or v_c.status <> 'resolvido'") && rate.includes("or ldo_private.support_team_outbound_since(v_c.id, v_s.sent_at)"));
+});
+
+test("Sending is safe: fresh read first, an interrupted send counts as uncertain, thanks respect the window, the mode and new messages", () => {
+  const due = fn(SQL, "create function public.ldo_support_survey_due(");
+  assert.ok(due.includes("src.failures = 0 and src.last_success_at > now() - interval '3 minutes'"), "leitura recente e sem erros");
+  assert.ok(due.includes("status = case when x.message_id is null then 'failed' else 'sent' end"), "interrompido com a mensagem gravada: enviado (incerto)");
+  assert.ok(due.includes("'uncertain', d.status = 'sent'"));
+  assert.ok(due.includes("where m.client_key = md5(s.id::text || ':thanks')::uuid and m.origin = 'survey'"));
+  assert.ok(due.includes("update public.ldo_support_messages set delivery = 'uncertain'") && due.includes("where origin is not null and delivery = 'sending'"));
+  assert.ok(due.includes("'contact_name', case when v.channel <> 'instagram' then v_k.name end"), "nunca o nome de utilizador");
+  assert.ok(!due.includes("v_k.handle"));
+  const thanks = fn(SQL, "create function public.ldo_support_survey_thanks_due(");
+  assert.ok(thanks.includes("coalesce(m.created_at, s.rated_at) as at") && thanks.includes("r.at <= now() - interval '23 hours'"), "23 h desde a nota do cliente");
+  assert.ok(thanks.includes("i.id is distinct from r.rating_message_id and i.created_at > r.at"), "o cliente voltou a escrever");
+  assert.ok(thanks.includes("x.survey_mode <> 'desligado' and r.channel = any (x.survey_channels)"));
+  assert.ok(thanks.includes("'client_key', md5(v.id::text || ':thanks')::uuid") && !thanks.includes("v_k.handle"));
+});
+
+test("The report starts when surveys are first turned on and separates a choice not to ask from the rules", () => {
+  const save = fn(SQL, "create function public.ldo_support_survey_settings_save(");
+  assert.ok(save.includes("survey_enabled_at = case when survey_enabled_at is null and v_mode <> 'desligado' then now() else survey_enabled_at end"));
+  const report = fn(SQL, "create function public.ldo_support_ratings_report(");
+  assert.ok(report.includes("if v_since is null then") && report.includes("v_from := greatest(v_from, v_since);"));
+  assert.ok(report.indexOf("v_from := greatest(v_from, v_since);") < report.indexOf("with resolves as ("));
+  assert.ok(report.includes("s.skip_reason = 'nao_pedido'") && report.includes("as declined"));
+  // Tempo até responder: uma resposta só com a nota (ou «não») e uma ausência por email não são perguntas.
+  assert.ok(report.includes("and not i.auto_submitted") && report.includes("(s.score is null or ldo_private.support_rating_score(i.body) is not null)"));
+  const create = fn(SQL, "create function public.ldo_support_survey_create(");
+  assert.ok(create.indexOf("if not v_ask then") > create.indexOf("v_reason := ldo_private.support_survey_block(p_conv, null);"), "só quando se podia pedir");
+  assert.ok(create.includes("'skipped', 'nao_pedido', now()") && create.includes("'survey.declined'"));
+  assert.ok(fn(SQL, "create function ldo_private.support_survey_cycle(").includes("s.skip_reason is distinct from 'nao_pedido'"), "não pedir não é um pedido");
 });
 
 test("Accessibility: the resolve dialog gives focus back, follow-up links say which conversation, widget stars have 3:1 contrast", () => {

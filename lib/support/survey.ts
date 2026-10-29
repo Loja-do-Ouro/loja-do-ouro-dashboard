@@ -1,27 +1,29 @@
 import "server-only";
-import { randomUUID } from "crypto";
 import { serverRpc } from "./db";
 import { emailSettings, gmailMailbox, gmailSendReply } from "./gmail";
-import { contactAddress } from "./gmail-rules";
+import { contactAddress, recipientAllowed } from "./gmail-rules";
 import { metricoolSend } from "./metricool";
 import { gmailFailure, PROVIDER, type Result } from "./service";
 import { surveyText, thanksText } from "./survey-rules";
 
 // Pedidos de avaliação e agradecimentos no Messenger, no Instagram e no email, na passagem de 5 em 5 minutos (rota
 // /api/support/webhooks/tick, depois de ler as mensagens novas). O chat do site não passa por aqui: o pedido aparece no
-// widget logo ao resolver. Cada pedido é entregue pela BD uma única vez (fica "a enviar"): a mensagem é gravada antes de
-// sair (origin 'survey'), segue pelo canal e o resultado fica na mensagem e no pedido. Um envio sem resposta da
-// plataforma fica incerto e nunca se repete. Sem IA.
+// widget quando o visitante tem o chat aberto. Cada pedido é entregue pela BD uma única vez (fica "a enviar"): a mensagem
+// é gravada antes de sair (origin 'survey', com uma chave fixa), segue pelo canal e o resultado fica na mensagem e no
+// pedido. Um envio sem resposta da plataforma (ou interrompido) fica incerto e nunca se repete. Sem IA.
 
 type Due = {
   id: string; conversation_id: string; channel: "facebook" | "instagram" | "email"; source_id: string; external_id: string;
   contact_external_id: string | null; contact_name: string | null; agent_first: string | null;
 };
-type ThanksDue = Omit<Due, "channel" | "agent_first"> & { channel: "facebook" | "instagram"; score: number };
+type ThanksDue = Omit<Due, "channel" | "agent_first"> & { channel: "facebook" | "instagram"; score: number; client_key: string };
 
-// No máximo 3 de cada por passagem; cada envio tem 10 s.
+// No máximo 3 de cada por passagem, um de cada vez e só com tempo para o enviar e registar antes do fim da função: um
+// pedido devolvido pela BD fica "a enviar" e nunca volta. Cada envio pela Metricool tem 10 s; pelo Gmail, a renovação do
+// acesso e o envio podem chegar perto de 35 s.
 const PER_RUN = 3;
 const SEND_TIMEOUT_MS = 10_000;
+const SEND_RESERVE_MS = 40_000;
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : "Erro inesperado.").slice(0, 300);
 
@@ -55,8 +57,8 @@ const acceptedDetail = (channel: string) =>
     ? `Mensagem automática (pedido de avaliação), enviada pelo Gmail (${gmailMailbox()}) na mesma conversa.`
     : "Mensagem automática (pedido de avaliação). Aceite pela Metricool; entrega no Messenger/Instagram sem confirmação pela API.";
 
-// Grava, envia e regista. kind: o pedido (chave = id do pedido) ou o agradecimento (chave nova).
-async function sendOne(kind: "survey" | "thanks", s: Due | ThanksDue, body: string, senderFirstName: string | null) {
+// Grava, envia e regista. kind: o pedido (chave = id do pedido) ou o agradecimento (chave fixa dada pela BD).
+async function sendOne(kind: "survey" | "thanks", s: Due | ThanksDue, key: string, body: string, senderFirstName: string | null) {
   const done = (outcome: Result["outcome"], messageId: string | null, detail: string | null) =>
     kind === "survey"
       ? serverRpc("ldo_support_survey_sent", { p_id: s.id, p_outcome: outcome, p_message_id: messageId, p_detail: detail })
@@ -64,7 +66,7 @@ async function sendOne(kind: "survey" | "thanks", s: Due | ThanksDue, body: stri
   let messageId: string;
   try {
     messageId = await serverRpc<string>("ldo_support_system_send_begin", {
-      p_conversation_id: s.conversation_id, p_body: body, p_origin: "survey", p_client_key: kind === "survey" ? s.id : randomUUID(),
+      p_conversation_id: s.conversation_id, p_body: body, p_origin: "survey", p_client_key: key,
     });
   } catch (e) {
     // Nada saiu.
@@ -79,17 +81,33 @@ async function sendOne(kind: "survey" | "thanks", s: Due | ThanksDue, body: stri
   await done(r.outcome, messageId, r.detail).catch(() => done(r.outcome, messageId, r.detail)).catch(() => undefined);
 }
 
-export async function sendDueSurveys() {
-  const due = await serverRpc<Due[]>("ldo_support_survey_due", { p_limit: PER_RUN }).catch(() => [] as Due[]);
-  for (const s of due || []) {
-    if (s.channel !== "facebook" && s.channel !== "instagram" && s.channel !== "email") continue;
+// Email: nunca para a própria caixa ou o próprio domínio, para endereços de sistemas (noreply, mailer-daemon...) ou inválidos;
+// fica "não enviado" com o motivo, sem gravar nenhuma mensagem.
+function internalAddress(s: Due) {
+  return s.channel === "email" && !recipientAllowed(contactAddress(s.contact_external_id) || "", [gmailMailbox().split("@")[1] || ""]);
+}
+
+// deadline: hora (ms) até à qual o envio e o registo têm de terminar (antes do limite da função).
+export async function sendDueSurveys({ deadline }: { deadline: number }) {
+  let surveys = 0;
+  let thanks = 0;
+  const time = () => Date.now() + SEND_RESERVE_MS < deadline;
+  while (surveys < PER_RUN && time()) {
+    const [s] = (await serverRpc<Due[]>("ldo_support_survey_due", { p_limit: 1 }).catch(() => [] as Due[])) || [];
+    if (!s) break;
+    surveys++;
+    if (internalAddress(s)) {
+      await serverRpc("ldo_support_survey_sent", { p_id: s.id, p_outcome: "skipped", p_message_id: null, p_detail: null }).catch(() => undefined);
+      continue;
+    }
     const body = surveyText(s.channel, { name: s.contact_name, agent: s.agent_first });
-    await sendOne("survey", s, body, s.agent_first).catch(() => undefined);
+    await sendOne("survey", s, s.id, body, s.agent_first).catch(() => undefined);
   }
-  const thanks = await serverRpc<ThanksDue[]>("ldo_support_survey_thanks_due", { p_limit: PER_RUN }).catch(() => [] as ThanksDue[]);
-  for (const t of thanks || []) {
-    if (t.channel !== "facebook" && t.channel !== "instagram") continue;
-    await sendOne("thanks", t, thanksText(t.score, t.contact_name), null).catch(() => undefined);
+  while (thanks < PER_RUN && time()) {
+    const [t] = (await serverRpc<ThanksDue[]>("ldo_support_survey_thanks_due", { p_limit: 1 }).catch(() => [] as ThanksDue[])) || [];
+    if (!t) break;
+    thanks++;
+    await sendOne("thanks", t, t.client_key, thanksText(t.score, t.contact_name), null).catch(() => undefined);
   }
-  return { surveys: (due || []).length, thanks: (thanks || []).length };
+  return { surveys, thanks };
 }

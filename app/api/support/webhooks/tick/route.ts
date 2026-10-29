@@ -12,6 +12,8 @@ export const maxDuration = 120;
 const METRICOOL = ["metricool-facebook", "metricool-instagram"];
 // Comentários das publicações: com a frequência e as esperas habituais (e o intervalo mínimo da fonte).
 const COMMENTS = ["metricool-facebook-comments", "metricool-instagram-comments"];
+// Pedidos de avaliação: o último envio (e o seu registo) termina antes disto, contado desde o início do pedido.
+const SURVEYS_UNTIL_MS = 110_000;
 
 // Verificação automática a cada 5 minutos (agendada no Supabase com pg_cron + pg_net), para as conversas do
 // Facebook e do Instagram (sem avisos da Metricool) e as respostas automáticas saírem mesmo com o dashboard
@@ -26,8 +28,9 @@ const COMMENTS = ["metricool-facebook-comments", "metricool-instagram-comments"]
 // - Private Selection: os emails com a senha que já estão na hora (cerca de 30 minutos depois do pedido) e a lista
 //   do Klaviyo, ao mesmo tempo que as fontes e com o mesmo orçamento;
 // - Apoio: os pedidos de avaliação já na hora e os agradecimentos (Messenger, Instagram e email), depois de ler as
-//   mensagens novas do Facebook, do Instagram e do email (uma conversa reaberta já não recebe o pedido); no máximo 3 de
-//   cada, com 10 s por envio.
+//   mensagens novas do Facebook, do Instagram e do email (uma conversa reaberta já não recebe o pedido; a BD só entrega
+//   pedidos de fontes lidas há pouco e sem erros); no máximo 3 de cada, um de cada vez e só com tempo para o envio e o
+//   registo terminarem antes dos 110 s.
 // Orçamento de 60 s contado desde o início do pedido: com a última leitura e os envios, fica abaixo dos 120 s.
 export async function POST(request: Request) {
   const start = Date.now();
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
     await Promise.all([
       social,
       mail,
-      Promise.all([social, mail]).then(() => sendDueSurveys()).catch(() => undefined),
+      Promise.all([social, mail]).then(() => sendDueSurveys({ deadline: start + SURVEYS_UNTIL_MS })).catch(() => undefined),
       runSync({ only: COMMENTS, budgetMs }).catch(() => undefined),
       sendDuePrivateSelectionEmails({ budgetMs }).catch(() => undefined),
       syncPrivateSelectionKlaviyo({ budgetMs }).catch(() => undefined),

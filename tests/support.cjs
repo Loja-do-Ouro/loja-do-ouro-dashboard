@@ -502,8 +502,12 @@ test("Later migrations keep the earlier predicates: history_from, origin, the ra
   assert.ok(conv.includes("'history_from', v_from"), "history_from na conversa");
   assert.ok(conv.includes("(coalesce(c2.last_message_at, c2.created_at) >= v_from or c2.status <> 'resolvido')"), "sugestões só do histórico visível");
   assert.ok(conv.includes("'origin', m.origin"), "origem de cada mensagem");
-  assert.ok(latestDefinition("ldo_support_ingest").text.includes("ldo_private.support_take_rating(v_conv.id, v_mid,"), "âncora da nota na sincronização");
-  assert.ok(latestDefinition("ldo_support_site_send").text.includes("v_rated := ldo_private.support_take_rating("), "âncora da nota no chat do site");
+  const ingest = latestDefinition("ldo_support_ingest").text;
+  assert.ok(ingest.includes("ldo_private.support_take_rating(v_conv.id, v_mid,"), "âncora da nota na sincronização");
+  assert.ok(ingest.includes("order by (x.value ->> ''created_at'') collate \"C\", x.n loop"), "mensagens pela ordem em que foram escritas");
+  assert.ok(ingest.includes("perform ldo_private.support_rating_read(v_conv.id);"), "lida só no fim da conversa");
+  assert.ok(latestDefinition("ldo_support_site_send").text.includes("v_rating := ldo_private.support_take_rating("), "âncora da nota no chat do site");
+  assert.ok(latestDefinition("ldo_support_list").text.includes("m.conversation_id = c.id and m.origin is null and m.delivery in"), "mensagens automáticas sem atenção na lista");
   const notify = latestDefinition("ldo_support_site_notify_claim").text;
   assert.ok(notify.includes("and (m.origin is null or x.verified)") && notify.includes("and (m.origin is null or v.verified)"), "mensagens automáticas nunca por email a quem não confirmou o email");
   assert.ok(latestDefinition("ldo_support_social_autoreply_claim").text.includes("s.rating_message_id = m.id"), "nunca resposta automática a uma nota");

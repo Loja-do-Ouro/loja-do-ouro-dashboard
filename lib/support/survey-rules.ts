@@ -35,6 +35,8 @@ export const SURVEY_WINDOW_HOURS = 23;
 export const SURVEY_EXPIRES_HOURS = 72;
 export const SURVEY_CONVERSATION_DAYS = 7;
 export const SURVEY_CONTACT_DAYS = 30;
+// Conversa antiga arrumada agora: a última resposta pelo dashboard tem mais de 7 dias.
+export const SURVEY_STALE_DAYS = 7;
 // Resultados por pessoa só com 10 avaliações ou mais.
 export const SURVEY_RELIABLE = 10;
 
@@ -114,7 +116,8 @@ export function isRatingReply(body: string | null | undefined) {
 
 export type SkipReason =
   | "desligado" | "comentario" | "canal" | "canal_desligado" | "sem_resposta" | "ultima_cliente" | "janela_24h" | "chat_terminado"
-  | "sem_pedidos" | "conversa_recente" | "contacto_recente" | "nao_resolvida" | "reaberta" | "cancelado" | "falhou";
+  | "antiga" | "sem_pedidos" | "conversa_recente" | "contacto_recente" | "nao_resolvida" | "reaberta" | "cancelado" | "falhou"
+  | "nao_pedido" | "nao_visto" | "interno";
 export const SKIP_REASON_TEXT: Record<SkipReason, string> = {
   desligado: "os pedidos de avaliação estão desligados",
   comentario: "comentário público",
@@ -124,6 +127,7 @@ export const SKIP_REASON_TEXT: Record<SkipReason, string> = {
   ultima_cliente: "a última mensagem é do cliente",
   janela_24h: "fora da janela de 24 h do Messenger/Instagram",
   chat_terminado: "o cliente terminou a conversa no chat do site",
+  antiga: "a última resposta pelo dashboard tem mais de 7 dias",
   sem_pedidos: "o cliente pediu para não receber pedidos de avaliação",
   conversa_recente: "já foi pedida uma avaliação nesta conversa nos últimos 7 dias",
   contacto_recente: "já foi pedida uma avaliação a este cliente nos últimos 30 dias",
@@ -131,6 +135,9 @@ export const SKIP_REASON_TEXT: Record<SkipReason, string> = {
   reaberta: "a conversa foi reaberta antes do envio",
   cancelado: "cancelado pelo Super Admin",
   falhou: "o envio falhou",
+  nao_pedido: "quem resolveu optou por não pedir",
+  nao_visto: "o cliente não voltou a abrir o chat do site em 72 h",
+  interno: "o endereço de email é da própria loja, de um sistema automático ou inválido",
 };
 export const skipText = (reason: string | null | undefined) =>
   `Sem pedido de avaliação: ${SKIP_REASON_TEXT[reason as SkipReason] ?? reason ?? "motivo desconhecido"}`;
@@ -147,6 +154,8 @@ export type SurveyContext = {
   lastInboundAt: string | null;
   // Chat do site: o visitante ainda não terminou a conversa.
   siteChatOpen: boolean;
+  // Última resposta pelo dashboard no ciclo (com mais de 7 dias: conversa antiga).
+  lastDashboardReplyAt?: string | null;
   // Último pedido (enviado ou por enviar) nesta conversa e a este contacto.
   lastConversationSurveyAt: string | null;
   lastContactSurveyAt: string | null;
@@ -165,6 +174,7 @@ export function surveyEligibility(c: SurveyContext): SkipReason | null {
   if (c.lastKind === "inbound") return "ultima_cliente";
   if ((c.channel === "facebook" || c.channel === "instagram") && !within(c.lastInboundAt, SURVEY_WINDOW_HOURS * 3_600_000)) return "janela_24h";
   if (c.channel === "site" && !c.siteChatOpen) return "chat_terminado";
+  if (c.lastDashboardReplyAt && now - Date.parse(c.lastDashboardReplyAt) > SURVEY_STALE_DAYS * 86_400_000) return "antiga";
   if (c.noSurveys) return "sem_pedidos";
   if (within(c.lastConversationSurveyAt, SURVEY_CONVERSATION_DAYS * 86_400_000)) return "conversa_recente";
   if (within(c.lastContactSurveyAt, SURVEY_CONTACT_DAYS * 86_400_000)) return "contacto_recente";
@@ -272,13 +282,15 @@ export const SURVEY_SITE_TEXTS: Record<SiteLocale, SurveySiteTexts> = {
 
 // Resultado de ldo_support_survey_create (depois de "Resolvido").
 export type SurveyCreate = { created: boolean; reason?: string | null; agent_name?: string | null; channel?: string | null };
+// Chat do site: o pedido só aparece (e só conta como enviado) quando o cliente tem o chat aberto.
+const SITE_PENDING = "Pedido de avaliação no chat do site: aparece quando o cliente abrir o chat";
 // Aviso a quem resolveu. Sem pedido por decisão (modo desligado, caixa por marcar) não há aviso.
 export function surveyCreateNote(r: SurveyCreate | null | undefined): string | null {
   if (!r) return null;
   const agent = (r.agent_name || "").trim() || "sem nome";
   if (r.created)
     return r.channel === "site"
-      ? `Pedido de avaliação mostrado no chat do site (atendimento de ${agent}).`
+      ? `${SITE_PENDING} (atendimento de ${agent}).`
       : `Pedido de avaliação agendado (atendimento de ${agent}).`;
   if (!r.reason || r.reason === "desligado" || r.reason === "nao_pedido" || r.reason === "nao_resolvida") return null;
   return `${skipText(r.reason)}.`;
@@ -286,7 +298,7 @@ export function surveyCreateNote(r: SurveyCreate | null | undefined): string | n
 
 export const SURVEY_EVENTS = new Set([
   "survey.created", "survey.sent", "survey.skipped", "survey.failed", "survey.cancelled", "survey.rated", "survey.followup", "survey.optout",
-  "survey.thanks",
+  "survey.thanks", "survey.declined", "survey.contact",
 ]);
 
 type AuditLike = { action: string; details: Record<string, unknown>; actor: string };
@@ -301,13 +313,21 @@ export function surveyEventText(a: AuditLike): string | null {
   const n = score(d.score);
   switch (a.action) {
     case "survey.created":
-      return d.channel === "site"
-        ? `Pedido de avaliação mostrado no chat do site (atendimento de ${agent})`
-        : `Pedido de avaliação agendado (atendimento de ${agent})`;
+      return d.channel === "site" ? `${SITE_PENDING} (atendimento de ${agent})` : `Pedido de avaliação agendado (atendimento de ${agent})`;
     case "survey.sent":
+      if (d.channel === "site") return "Pedido de avaliação mostrado ao cliente no chat do site";
       return d.uncertain ? "Pedido de avaliação enviado ao cliente (sem confirmação da plataforma)" : "Pedido de avaliação enviado ao cliente";
     case "survey.skipped":
+      // Marcado por alguém da equipa no contacto: com o nome.
+      if (d.reason === "sem_pedidos" && a.actor && a.actor !== "Sistema")
+        return `Pedido de avaliação não enviado: ${a.actor} marcou que o cliente não quer pedidos de avaliação`;
       return `Pedido de avaliação não enviado: ${SKIP_REASON_TEXT[d.reason as SkipReason] ?? str(d.reason) ?? "motivo desconhecido"}`;
+    case "survey.declined":
+      return `${a.actor} resolveu sem pedir avaliação ao cliente (atendimento de ${agent})`;
+    case "survey.contact":
+      return d.no_surveys === false
+        ? `${a.actor} voltou a ativar os pedidos de avaliação para este cliente`
+        : `${a.actor} marcou que o cliente não quer pedidos de avaliação`;
     case "survey.failed":
       return `Pedido de avaliação não enviado: o envio falhou${str(d.detail) ? ` (${str(d.detail)})` : ""}`;
     case "survey.cancelled":
@@ -341,9 +361,12 @@ const CLOSED_TEXT: Record<string, string> = {
   outra_resposta: "o cliente respondeu sem dar uma nota",
   recusou: "o cliente pediu para não receber pedidos de avaliação",
   cancelado: "cancelado pelo Super Admin",
+  desligado: "pedidos de avaliação desligados",
 };
-// Estado de um pedido no painel do cliente: "Não enviado: a conversa foi reaberta antes do envio".
-export function surveyStateText(s: { status: string; skip_reason: string | null }) {
+// Estado de um pedido no painel do cliente: "Não enviado: a conversa foi reaberta antes do envio". Chat do site por enviar:
+// à espera de o cliente abrir o chat.
+export function surveyStateText(s: { status: string; skip_reason: string | null; channel?: string | null }) {
+  if (s.status === "pending" && s.channel === "site") return "Por mostrar: aparece quando o cliente abrir o chat do site";
   const label = SURVEY_STATUS_LABEL[s.status] || s.status;
   const why = s.status === "skipped" ? SKIP_REASON_TEXT[s.skip_reason as SkipReason] : s.status === "expired" ? CLOSED_TEXT[s.skip_reason || ""] : null;
   return why ? `${label}: ${why}` : label;
@@ -363,7 +386,9 @@ export function durationLabel(minutes: number | null | undefined) {
   return `${nf(minutes / 1440)} dias`;
 }
 
-// Períodos do relatório (dias de Lisboa, fim exclusivo): mês "2026-10" ou trimestre "2026-T4".
+// Períodos do relatório (dias de Lisboa, fim exclusivo): mês "2026-10", trimestre "2026-T4", ano "2026" ou os últimos 12
+// meses "12m" (do 1.º dia do mês, 11 meses atrás, até ao fim do mês atual). Por pessoa, 10 avaliações num mês são raras:
+// os períodos longos chegam lá.
 export type ReportPeriod = { key: string; label: string; from: string; to: string };
 const MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const ymd = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}-01`;
@@ -382,10 +407,19 @@ export function reportPeriod(key: string | null | undefined, now = new Date()): 
     const y = Number(quarter[1]), q = Number(quarter[2]);
     return { key: key!, label: `${q}.º trimestre de ${y}`, from: ymd(y, q * 3 - 2), to: q === 4 ? ymd(y + 1, 1) : ymd(y, q * 3 + 1) };
   }
+  const year = /^(\d{4})$/.exec(key || "");
+  if (year) {
+    const y = Number(year[1]);
+    return { key: key!, label: `ano de ${y}`, from: ymd(y, 1), to: ymd(y + 1, 1) };
+  }
   const { y, m } = lisbonYearMonth(now);
+  if (key === "12m") {
+    const t = y * 12 + (m - 1) - 11;
+    return { key, label: "últimos 12 meses", from: ymd(Math.floor(t / 12), (t % 12) + 1), to: m === 12 ? ymd(y + 1, 1) : ymd(y, m + 1) };
+  }
   return reportPeriod(`${y}-${String(m).padStart(2, "0")}`, now);
 }
-// Os últimos 6 meses e os 2 últimos trimestres (o atual primeiro).
+// Os últimos 12 meses, os últimos 6 meses, os 2 últimos trimestres e o ano (o atual primeiro).
 export function reportPeriods(now = new Date()): { key: string; label: string }[] {
   const { y, m } = lisbonYearMonth(now);
   const months = Array.from({ length: 6 }, (_, i) => {
@@ -394,5 +428,5 @@ export function reportPeriods(now = new Date()): { key: string; label: string }[
   });
   const q = Math.ceil(m / 3);
   const quarters = [`${y}-T${q}`, q === 1 ? `${y - 1}-T4` : `${y}-T${q - 1}`];
-  return [...months, ...quarters].map((k) => ({ key: k, label: reportPeriod(k, now).label }));
+  return ["12m", ...months, ...quarters, String(y)].map((k) => ({ key: k, label: reportPeriod(k, now).label }));
 }
