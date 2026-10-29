@@ -270,6 +270,14 @@ const COMMITMENTS: [string, RegExp][] = [
 export function commitmentsIn(text: string) {
   return COMMITMENTS.filter(([, r]) => r.test(text || "")).map(([key]) => key);
 }
+// Cada compromisso de um texto com a posição (a base de conhecimento aprendida vê se está negado: "não fazemos
+// reembolsos" não é "fazemos reembolsos").
+const COMMITMENTS_ALL = COMMITMENTS.map(([key, r]): [string, RegExp] => [key, new RegExp(r.source, `${r.flags}g`)]);
+export function commitmentHits(text: string) {
+  const out: { key: string; at: number }[] = [];
+  for (const [key, r] of COMMITMENTS_ALL) for (const m of (text || "").matchAll(r)) out.push({ key, at: m.index ?? 0 });
+  return out;
+}
 
 // Os números ou as datas e prazos de um texto mudaram noutro (aviso no painel da revisão).
 export function numbersChanged(a: string, b: string) {

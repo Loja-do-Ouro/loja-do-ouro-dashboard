@@ -160,6 +160,30 @@ test("Anti-poisoning probes: invented codes, percentages, warranties, refunds, p
   assert.match(server, /cardPii\(out, allow, names\)/);
 });
 
+test("Anti-poisoning: a commitment must keep the team's polarity (negations não/nem/nunca/sem before it)", () => {
+  const no = "Infelizmente não fazemos descontos nem reembolsos.";
+  const yes = "Fazemos sempre reembolso total.";
+  // Nos dois sentidos: a equipa disse que não e o cartão diz que sim, e o contrário.
+  assert.equal(k.poisonReason({ text: yes, staff: no, knowledge: "" }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "Infelizmente não fazemos reembolsos.", staff: yes, knowledge: "" }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "Oferecemos desconto.", staff: no, knowledge: "" }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "Fazemos trocas, mas nunca devoluções.", staff: "Fazemos trocas e devoluções.", knowledge: "" }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "Não aceitamos devoluções.", staff: "Aceitamos devoluções na loja.", knowledge: "" }), "politica_nova");
+  // O mesmo sentido passa.
+  assert.equal(k.poisonReason({ text: "Não fazemos reembolsos.", staff: no, knowledge: "" }), null);
+  assert.equal(k.poisonReason({ text: "Não é possível o reembolso nem o desconto.", staff: no, knowledge: "" }), null, "artigos não contam para as 3 palavras");
+  assert.equal(k.poisonReason({ text: "Fazemos reembolso total.", staff: yes, knowledge: "" }), null);
+  assert.equal(k.poisonReason({ text: "Se não gostar, fazemos o reembolso.", staff: "Se não ficar satisfeita, fazemos o reembolso.", knowledge: "" }), null,
+    "uma negação noutra oração não conta");
+  assert.equal(k.poisonReason({ text: "Envio sem custos para Portugal.", staff: "O envio é sem custos para Portugal.", knowledge: "" }), null);
+  // Da base de conhecimento, também com o mesmo sentido.
+  const knowledge = "## Devoluções\nNão aceitamos devoluções depois de 14 dias.";
+  assert.equal(k.poisonReason({ text: "Aceitamos devoluções depois de 14 dias.", staff: "", knowledge }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "Não aceitamos devoluções depois de 14 dias.", staff: "", knowledge }), null);
+  assert.deepEqual(k.commitmentPolarity(no).sort(), ["desconto|não", "reembolso|não"]);
+  assert.deepEqual(k.commitmentPolarity("We don't offer any refunds."), ["reembolso|não"]);
+});
+
 test("Customer messages are never copied: 12 words in a row from an inbound message discard the card", () => {
   const inbound = ["Boa tarde comprei um fio para a minha mãe no dia dos namorados e partiu-se ontem à noite"];
   assert.equal(k.copiesCustomer(["Comprei um fio para a minha mãe no dia dos namorados e partiu-se ontem"], inbound), true);

@@ -6,7 +6,7 @@
 
 import { clip, linksIn, otherBrandIn, unverifiedLinks, untrusted } from "./ai-rules";
 import { publicReplyRisks } from "./comment-rules";
-import { commitmentsIn, factsIn, newLinks, numberHits, ptBrSignals, type NumberHit } from "./review-rules";
+import { commitmentHits, factsIn, newLinks, numberHits, ptBrSignals, type NumberHit } from "./review-rules";
 import { CHANNEL_LABEL, SITE_BRAND, type Channel, type SiteKey } from "./rules";
 
 export const KNOWLEDGE_MODEL = "claude-sonnet-5-5";
@@ -70,7 +70,7 @@ export const KNOWLEDGE_DISCARD_TEXT: Record<KnowledgeDiscard, string> = {
   dados_pessoais: "tinha dados pessoais ou de encomenda (nomes, contactos, moradas, perfis, códigos, números, ligações de conta)",
   numero_novo: "tinha números, valores, horas, prazos ou códigos que a equipa não escreveu nesta conversa nem estão na base de conhecimento (ou horas por outra ordem)",
   ligacao_nova: "tinha ligações que a equipa não enviou nesta conversa nem estão na base de conhecimento",
-  politica_nova: "tinha compromissos (reembolso, troca, desconto, garantia, prazo…) que a equipa não escreveu nesta conversa (da base de conhecimento só contam com os mesmos números do mesmo parágrafo)",
+  politica_nova: "tinha compromissos (reembolso, troca, desconto, garantia, prazo…) que a equipa não escreveu nesta conversa, ou com o sentido trocado (\"fazemos\" onde a equipa escreveu \"não fazemos\", ou o contrário; da base de conhecimento só contam com os mesmos números do mesmo parágrafo)",
   contacto_novo: "tinha contactos que a equipa não escreveu nesta conversa nem estão na base de conhecimento",
   copia_cliente: "copiava texto da mensagem do cliente",
   marca: "mencionava a outra marca",
@@ -550,11 +550,29 @@ export function numbersInStaffText(answer: string, staff: string, knowledge = ""
   return unsupportedFacts(answer, [...units(staff), ...units(knowledge)]).filter((k) => !/^[cue]:/.test(k));
 }
 
+// Negação antes de um compromisso: "não", "nem", "nunca", "sem"… até 3 palavras antes, na mesma oração (uma vírgula ou um
+// ponto separam), sem contar artigos e preposições ("não é possível o reembolso", "sem direito a reembolso", "não fazemos
+// descontos nem reembolsos"). "no" é português (em + o), nunca a negação inglesa.
+const NEGATORS = new Set(["não", "nao", "nem", "nunca", "jamais", "sem", "nenhum", "nenhuma", "not", "never", "without", "nor", "don't", "doesn't",
+  "didn't", "cannot", "can't", "won't", "isn't", "aren't"]);
+const NEGATION_FILLERS = new Set(["o", "a", "os", "as", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das", "ao", "à", "aos", "às", "em", "no",
+  "na", "nos", "nas", "qualquer", "quaisquer", "the", "an", "any"]);
+function negatedAt(text: string, at: number) {
+  const clause = text.slice(0, at).split(/[.,;:!?…\n()]/).pop() || "";
+  const words = (clause.toLowerCase().replace(/’/g, "'").match(/[\p{L}']+/gu) || []).filter((w) => !NEGATION_FILLERS.has(w));
+  return words.slice(-3).some((w) => NEGATORS.has(w));
+}
+// Compromissos de um texto com o sentido: "reembolso|sim" (fazemos reembolsos) ou "reembolso|não" (não fazemos).
+export function commitmentPolarity(text: string) {
+  return [...new Set(commitmentHits(text).map((h) => `${h.key}|${negatedAt(text, h.at) ? "não" : "sim"}`))];
+}
+
 // Contra o envenenamento: cada número (com o contexto), código, ligação e contacto do texto tem de estar numa resposta da
 // equipa enviada pelo dashboard nesta conversa ou na base de conhecimento escrita pela empresa. Os compromissos
-// (reembolso, desconto, prazo…) têm de estar nas respostas da equipa; da base de conhecimento só contam numa frase com
-// números, todos do mesmo parágrafo que tem o compromisso. question: pergunta e variantes, onde um compromisso é só o
-// tema da pergunta ("Fazem reembolsos?").
+// (reembolso, desconto, prazo…) têm de estar nas respostas da equipa com o mesmo sentido ("não fazemos reembolsos" não
+// confirma "fazemos reembolso"); da base de conhecimento só contam numa frase com números, todos do mesmo parágrafo que
+// tem o compromisso com o mesmo sentido. question: pergunta e variantes, onde um compromisso é só o tema da pergunta
+// ("Fazem reembolsos?").
 export function poisonReason(o: { text: string; staff: string; knowledge: string; question?: boolean }): KnowledgeDiscard | null {
   const trusted = `${o.staff}\n${o.knowledge}`;
   const emails = new Set((trusted.match(EMAIL_RE) || []).map((e) => e.toLowerCase()));
@@ -564,15 +582,16 @@ export function poisonReason(o: { text: string; staff: string; knowledge: string
   const paragraphs = units(o.knowledge);
   if (unsupportedFacts(withoutLinks, [...units(o.staff), ...paragraphs]).length) return "numero_novo";
   if (o.question) return null;
-  const promised = new Set(commitmentsIn(o.staff));
+  const promised = new Set(commitmentPolarity(o.staff));
   const sentences = withoutLinks.split(/(?<=[.!?;])\s+|\n+/).filter((s) => s.trim());
-  for (const c of commitmentsIn(withoutLinks)) {
+  for (const c of commitmentPolarity(withoutLinks)) {
     if (promised.has(c)) continue;
-    const hits = sentences.filter((s) => commitmentsIn(s).includes(c));
+    const hits = sentences.filter((s) => commitmentPolarity(s).includes(c));
     const backed = hits.length > 0 && hits.every((s) => {
       const nums = [...textFacts(s, true).keys].filter((k) => /^[tpmsn]:/.test(k));
       return nums.length > 0 && paragraphs.some((p) => {
-        if (!commitmentsIn(p).includes(c)) return false;
+        // Os títulos ("## Trocas e devoluções") são o tema, não um compromisso.
+        if (!commitmentPolarity(p.replace(/^#.*$/gm, "")).includes(c)) return false;
         const pk = textFacts(p, false).keys;
         return nums.every((k) => pk.has(k));
       });
