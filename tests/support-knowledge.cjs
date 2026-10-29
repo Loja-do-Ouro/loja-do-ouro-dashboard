@@ -804,9 +804,25 @@ test("Privacy wording says exactly what is kept: counts, a keyed pseudonymous ke
     assert.ok(!/já sem nomes|sem guardar qual é|md5/.test(text), name);
   }
   assert.ok(panel.includes("uma chave pseudónima do contacto (HMAC-SHA256 com um segredo guardado só na base de dados, a que a aplicação não tem acesso)"));
-  assert.ok(panel.includes("sem esse segredo a chave não identifica o contacto, e apaga-se com o registo ao fim de 365 dias"));
-  assert.ok(panel.includes("ficam registadas só por uma chave do mesmo tipo e pelo dia, sem a resposta aprovada a que deram origem"));
+  assert.ok(panel.includes("ficam numa lista só com uma chave do mesmo tipo e o dia, sem a resposta aprovada a que deram origem"));
   assert.ok(readme.includes("HMAC-SHA256 do id do contacto com um segredo aleatório de 32 bytes gerado na migração e guardado só em `ldo_private.support_knowledge_secret`"));
+  // Nada de "sem o segredo a chave não identifica o contacto": a chave liga as confirmações do mesmo contacto e, enquanto
+  // uma proposta guarda as conversas de origem, quem lê as tabelas liga-a ao contacto. O registo diz tudo o que guarda.
+  const sqlComments = SQL.split("\n").filter((l) => l.trimStart().startsWith("--")).join(" ").replace(/\s+--\s*/g, " ");
+  for (const [name, text] of [["painel", panel], ["README", readme], ["migração", sqlComments]])
+    assert.ok(!/sem (?:esse|o) segredo|não identifica o contacto|não se chega ao contacto|ao fim de 30 dias|só com custo, resultado e a chave|os compromissos com o mesmo sentido/.test(text), name);
+  assert.ok(panel.includes("A chave não é anónima: é a mesma para o mesmo cliente em todas as respostas (liga as confirmações dele entre si) e, enquanto uma proposta mostra as conversas de origem, quem lê a base de dados diretamente (o dono da base de dados ou a chave service_role do Supabase) pode ligá-la a esse contacto"));
+  assert.ok(readme.includes("A chave não é anónima: liga as confirmações do mesmo contacto entre si e, enquanto uma proposta guarda as conversas de origem, quem lê as tabelas diretamente (o dono da BD ou service_role) pode ligá-la a esse contacto"));
+  assert.ok(sqlComments.includes("A chave nunca fica no mesmo pedido que a conversa ou a mensagem (a tabela recusa-o). Não é anónima"));
+  assert.ok(panel.includes("No registo de pedidos (365 dias): a hora do pedido e do fim, a origem (botão ou passagem diária), quem carregou no botão, o cartão, o modelo, o custo, a duração e o resultado"));
+  assert.ok(readme.includes("Registo `ldo_support_knowledge_runs` (365 dias) com a hora do pedido e do fim, a origem, quem carregou no botão, o cartão, o modelo, o custo, a duração"));
+  for (const text of [panel, readme]) {
+    assert.ok(text.includes("a mensagem), sem texto, 180 dias"), "as mensagens dos pedidos do botão também ficam 180 dias");
+    assert.ok(text.includes("uma negação em qualquer ponto da frase conta"));
+    assert.ok(text.includes("As regras não apanham tudo"));
+  }
+  // Os prazos do texto são os da migração (180 dias para a ligação dos pedidos sem cartão).
+  assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /message_id is not null\) and created_at < now\(\) - interval '180 days'/);
   // Os números de retenção do texto são os da migração.
   assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /delete from public\.ldo_support_knowledge_runs where created_at < now\(\) - interval '365 days'/);
 });
