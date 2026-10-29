@@ -9,6 +9,7 @@ import { aiConfigured, aiWorkspaceStatus } from "@/lib/support/ai";
 import { AI_MODEL, htmlToText } from "@/lib/support/ai-rules";
 import { encryptionProblem } from "@/lib/support/crypto";
 import { REVIEW_MODE_LABEL, REVIEW_MODEL_LABEL, type ReviewMode, type ReviewModel } from "@/lib/support/review-rules";
+import { isSurveyMode, SURVEY_MODE_LABEL } from "@/lib/support/survey-rules";
 import { emailSettings, gmailConfigured, gmailMailbox, gmailPushAudience, gmailPushReady, gmailRedirectUri, type EmailSettings } from "@/lib/support/gmail";
 import { serverConfigured, serverRpc, sessionRpc } from "@/lib/support/db";
 import type { SocialSettings } from "@/lib/support/social-rules";
@@ -81,7 +82,11 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
     sessionRpc<GmailStatus>(viewer.session, "ldo_support_gmail_status").catch((): GmailStatus => null),
     emailSettings().catch((): EmailSettings | null => null),
   ]);
-  const social = await serverRpc<SocialSettings | null>("ldo_support_social_settings").catch(() => null);
+  // Pedido de avaliação (sem IA; definições na página da IA do apoio): só o modo, para o encontrar daqui.
+  const [social, survey] = await Promise.all([
+    serverRpc<SocialSettings | null>("ldo_support_social_settings").catch(() => null),
+    sessionRpc<{ mode: string } | null>(viewer.session, "ldo_support_survey_settings").catch(() => null),
+  ]);
   const socialFlash = q.secao === "redes";
   // O que a IA consegue ler da loja online (políticas e páginas dependem de autorizações da app Shopify).
   let store: StoreInfo | null = null;
@@ -445,6 +450,11 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
                   </>
                 ) : "Por instalar (falta a atualização na base de dados)."}
                 {" "}<Link href="/apoio/configuracao/ia">Configurar a revisão</Link>
+              </dd>
+              <dt>Pedido de avaliação</dt>
+              <dd>
+                {survey ? (isSurveyMode(survey.mode) ? SURVEY_MODE_LABEL[survey.mode] : survey.mode) : "Por instalar (falta a atualização na base de dados)."}
+                {" "}<small className="muted">Sem IA.</small>{" "}<Link href="/apoio/configuracao/ia#avaliacao">Configurar o pedido de avaliação</Link>
               </dd>
             </dl>
             {ai.usage.by_user.length > 0 && (

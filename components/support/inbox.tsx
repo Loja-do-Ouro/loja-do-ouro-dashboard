@@ -66,7 +66,14 @@ type Message = {
 type Survey = {
   id: string; status: string; skip_reason: string | null; channel: string; agent_id: string; agent_name: string | null; created_at: string;
   send_after: string; sent_at: string | null; expires_at: string | null; rated_at: string | null; follow_up: boolean; score: number | null; comment: string | null;
+  message_id?: string | null; thanks_message_id?: string | null;
 };
+// Etiqueta de uma mensagem automática do pedido de avaliação: o pedido ou o agradecimento (pelo id), senão neutra.
+function surveyMessageLabel(id: string, surveys: Survey[] | undefined) {
+  if (surveys?.some((x) => x.thanks_message_id === id)) return "agradecimento pela avaliação (automático)";
+  if (surveys?.some((x) => x.message_id === id)) return "pedido de avaliação (automático)";
+  return "mensagem automática (avaliação)";
+}
 type SurveyPreview = { mode: string; eligible: boolean; reason: string | null; agent_first: string | null; agent_name: string | null };
 type User = { id: string; name: string; me: boolean; zendesk: boolean; zendesk_name: string | null; zendesk_status: string | null };
 // Publicação comentada (só nos comentários): as imagens chegam pelo proxy do dashboard, pela posição.
@@ -1343,7 +1350,7 @@ export function SupportInbox({
                   return (
                   <article key={m.id} className={`msg ${m.kind}`}>
                     <header>
-                      <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.origin === "survey" ? `${brand} · pedido de avaliação (automático)` : m.author_name || (m.kind === "inbound" ? "Cliente" : brand)}</strong>
+                      <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.origin === "survey" ? `${brand} · ${surveyMessageLabel(m.id, c.surveys)}` : m.author_name || (m.kind === "inbound" ? "Cliente" : brand)}</strong>
                       {m.rating && <small className="public-flag">resposta ao pedido de avaliação</small>}
                       {isComment && m.kind === "outbound" && (
                         <small className={`public-flag${m.delivery === "failed" ? " failed" : ""}`}>{m.delivery === "failed" ? "não publicada" : "resposta pública"}</small>
@@ -2107,7 +2114,8 @@ function CustomerPanel({
 
 // Avaliação do atendimento no painel do cliente: o último pedido desta conversa (a nota e o comentário só chegam ao Super
 // Admin e a quem foi avaliado), o cancelamento pelo Super Admin (com o motivo, que fica na conversa) e a escolha do
-// cliente de não receber pedidos (qualquer pessoa da equipa, a pedido do cliente).
+// cliente de não receber pedidos (qualquer pessoa da equipa marca, a pedido do cliente; voltar a aceitar só o Super
+// Admin). As mudanças ficam na conversa com o nome de quem as fez.
 function SurveyPanel({ d, onAct, onReload }: {
   d: Detail;
   onAct: (body: Record<string, unknown>, after?: () => void) => Promise<void>;
@@ -2135,7 +2143,7 @@ function SurveyPanel({ d, onAct, onReload }: {
     setBusy(true);
     setError("");
     try {
-      await api(`/api/support/contacts/${contact.id}`, { method: "POST", body: { noSurveys } });
+      await api(`/api/support/contacts/${contact.id}`, { method: "POST", body: { noSurveys, conversation: d.conversation.id } });
       await onReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível gravar.");
@@ -2149,7 +2157,9 @@ function SurveyPanel({ d, onAct, onReload }: {
       {s ? (
         <p className="survey-state">
           <strong>{surveyStateText(s)}</strong>
-          <small className="muted block">Atendimento de {s.agent_name || "—"} · {s.channel === "site" || s.sent_at ? `pedido ${time(s.sent_at || s.created_at)}` : `agendado para ${time(s.send_after)}`}</small>
+          <small className="muted block">
+            Atendimento de {s.agent_name || "—"} · {s.sent_at ? `pedido ${time(s.sent_at)}` : s.channel === "site" || s.status !== "pending" ? `resolvida ${time(s.created_at)}` : `agendado para ${time(s.send_after)}`}
+          </small>
           {s.score !== null && <small className="block">Nota: {s.score}/5{s.comment ? ` — “${s.comment}”` : ""}{s.follow_up ? " · a acompanhar" : ""}</small>}
         </p>
       ) : (
@@ -2159,10 +2169,14 @@ function SurveyPanel({ d, onAct, onReload }: {
         <button type="button" className="secondary-button" onClick={cancel}>Cancelar pedido de avaliação</button>
       )}
       {contact && (
-        <label className="checkbox-label">
-          <input type="checkbox" checked={Boolean(contact.no_surveys)} disabled={busy} onChange={(e) => toggle(e.target.checked)} />
-          O cliente não quer receber pedidos de avaliação
-        </label>
+        <>
+          <label className="checkbox-label">
+            <input type="checkbox" checked={Boolean(contact.no_surveys)} disabled={busy || (Boolean(contact.no_surveys) && !d.super)}
+              aria-describedby={contact.no_surveys && !d.super ? "survey-optout-help" : undefined} onChange={(e) => toggle(e.target.checked)} />
+            O cliente não quer receber pedidos de avaliação
+          </label>
+          {contact.no_surveys && !d.super && <small id="survey-optout-help" className="muted block">Só o Super Admin pode voltar a ativar.</small>}
+        </>
       )}
       {error && <p className="support-error" role="alert">{error}</p>}
     </section>

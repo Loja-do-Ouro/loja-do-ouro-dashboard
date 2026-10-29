@@ -20,9 +20,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "IA do apoio · Loja do Ouro" };
 
 type ReviewSettings = { mode: string; model: string; monthly_budget: number; criteria: string; month: ReviewStats; two_weeks: ReviewStats };
+// enabled_at: a primeira vez que o pedido foi ligado (os resultados por pessoa começam aí).
 type SurveySettings = {
-  mode: string; delay_minutes: number; channels: string[];
-  month: { created: number; sent: number; rated: number; skipped: number; failed: number; follow_up: number };
+  mode: string; delay_minutes: number; channels: string[]; enabled_at: string | null;
+  month: { created: number; sent: number; rated: number; skipped: number; declined: number; failed: number; follow_up: number };
 };
 
 // Definições da IA do Apoio ao Cliente que não cabem na página principal da configuração: a revisão da IA antes de enviar
@@ -124,7 +125,7 @@ export default async function SupportAiSettingsPage({ searchParams }: { searchPa
               <label>
                 Espera antes do pedido no Messenger, no Instagram e no email (minutos)
                 <input type="number" name="survey_delay" required min={0} max={SURVEY_MAX_DELAY} step={1} defaultValue={survey.delay_minutes ?? SURVEY_DEFAULT_DELAY} />
-                <small className="muted">Se a conversa for reaberta antes disso, o pedido não sai. No chat do site o pedido aparece logo.</small>
+                <small className="muted">Se a conversa for reaberta antes disso, o pedido não sai. No chat do site o pedido aparece quando o cliente abrir o chat (sem isso em 72 h, não sai).</small>
               </label>
               <fieldset>
                 <legend>Canais</legend>
@@ -140,7 +141,10 @@ export default async function SupportAiSettingsPage({ searchParams }: { searchPa
               <h3 className="panel-subtitle">Este mês (totais da equipa)</h3>
               <dl className="config-list">
                 <dt>Pedidos</dt>
-                <dd>{survey.month.sent} enviados · {survey.month.skipped} não enviados pelas regras · {survey.month.failed} com falha no envio</dd>
+                <dd>
+                  {survey.month.sent} enviados · {survey.month.skipped} não enviados pelas regras · {survey.month.failed} com falha no envio
+                  {survey.month.declined > 0 && <small className="muted block">{survey.month.declined} sem pedido por escolha de quem resolveu (modo Perguntar).</small>}
+                </dd>
                 <dt>Avaliações</dt>
                 <dd>{survey.month.rated}{survey.month.follow_up > 0 && <small className="muted block">{survey.month.follow_up} com nota de 1 ou 2, a acompanhar.</small>}</dd>
               </dl>
@@ -154,7 +158,7 @@ export default async function SupportAiSettingsPage({ searchParams }: { searchPa
           Recomendado: Automático. Quando alguém resolve uma conversa a que respondeu pelo dashboard, o cliente recebe um pedido para avaliar o atendimento de 1 a 5: no Messenger e no Instagram (só dentro das 24 h da Meta), no email (responde com um número) e no chat do site (estrelas). Nunca nos comentários públicos, e nunca por email a quem usou o chat do site. No modo Automático não há pergunta ao resolver; o Super Admin pode cancelar um pedido na conversa, com o motivo. No modo Perguntar, quem resolve escolhe em cada conversa.
         </p>
         <p className="panel-note">
-          A nota conta para quem fez mais respostas pelo dashboard nessa conversa. Uma nota de 1 ou 2 devolve a conversa a Novo, sem responsável, para acompanhamento. No máximo um pedido por conversa em 7 dias e por cliente em 30 dias; um cliente que responda «não» deixa de receber pedidos. Sem IA (custo zero). Antes de ligar, informe a equipa de que as avaliações passam a contar por pessoa.
+          A nota conta para quem fez mais respostas pelo dashboard nessa conversa. Uma nota de 1 ou 2 devolve a conversa a Novo, sem responsável, para acompanhamento. No máximo um pedido por conversa em 7 dias e por cliente em 30 dias; um cliente que responda «não» deixa de receber pedidos. Sem IA (custo zero). Antes de ligar, informe a equipa de que as avaliações passam a contar por pessoa: os resultados por pessoa em Satisfação e desempenho só começam na primeira vez que o pedido é ligado.
         </p>
       </Panel>
     </AppShell>

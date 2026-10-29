@@ -637,6 +637,9 @@ test("The score never reaches the list: the preview of a rating-only reply is ma
   const out = anchored("pg_get_functiondef('public.ldo_support_list(", list);
   assert.ok(out.includes("m.conversation_id = c.id and m.origin is null and m.delivery in ('failed', 'uncertain', 'sending'))"));
   assert.ok(out.includes("'history_from', v_from"), "o resto fica igual");
+  // Na thread: o pedido e o agradecimento com a etiqueta certa.
+  const inbox = read("components/support/inbox.tsx");
+  assert.ok(inbox.includes('if (surveys?.some((x) => x.thanks_message_id === id)) return "agradecimento pela avaliação (automático)";'));
   assert.ok(fn(SQL, "create or replace function public.ldo_support_conversation(").includes("'message_id', s.message_id, 'thanks_message_id', s.thanks_message_id,"));
 });
 
@@ -648,6 +651,8 @@ test("Opt-out: anyone records the customer's «não» (with their name, in the t
   assert.ok(save.includes("where id = p_conv and contact_id = p_contact"), "a conversa tem de ser deste contacto");
   const route = read("app/api/support/contacts/[id]/route.ts");
   assert.ok(route.includes("p_conv: isUuid(b.conversation) ? b.conversation : null"));
+  const inbox = read("components/support/inbox.tsx");
+  assert.ok(inbox.includes("disabled={busy || (Boolean(contact.no_surveys) && !d.super)}") && inbox.includes("Só o Super Admin pode voltar a ativar."));
 });
 
 test("Site chat: the request counts as sent only when the visitor has the chat open; stars only while it is still open", () => {
@@ -695,6 +700,13 @@ test("The report starts when surveys are first turned on and separates a choice 
   assert.ok(create.indexOf("if not v_ask then") > create.indexOf("v_reason := ldo_private.support_survey_block(p_conv, null);"), "só quando se podia pedir");
   assert.ok(create.includes("'skipped', 'nao_pedido', now()") && create.includes("'survey.declined'"));
   assert.ok(fn(SQL, "create function ldo_private.support_survey_cycle(").includes("s.skip_reason is distinct from 'nao_pedido'"), "não pedir não é um pedido");
+  const page = read("app/(painel)/apoio/desempenho/page.tsx");
+  assert.ok(page.includes("A satisfação por colaborador começa quando o Super Admin ligar o pedido de avaliação."));
+  assert.ok(page.includes("percent(pct(f.declined, f.asked + f.declined))"));
+  assert.ok(page.includes('const longer = reportPeriod("12m");'), "sem período escolhido e poucas avaliações: os últimos 12 meses");
+  assert.ok(page.includes('<Link href="/apoio/configuracao/ia#avaliacao">Configurar o pedido de avaliação</Link>'));
+  const config = read("app/(painel)/apoio/configuracao/page.tsx");
+  assert.ok(config.includes("<dt>Pedido de avaliação</dt>") && config.includes('<Link href="/apoio/configuracao/ia#avaliacao">Configurar o pedido de avaliação</Link>'));
 });
 
 test("Accessibility: the resolve dialog gives focus back, follow-up links say which conversation, widget stars have 3:1 contrast", () => {
