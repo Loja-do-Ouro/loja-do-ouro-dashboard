@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { metricoolConfigured } from "@/lib/bi/metricool";
+import { metricoolAccount, metricoolConfigured } from "@/lib/bi/metricool";
 import { emailConfigured } from "@/lib/email";
 import { shopifyConfigured, supportStoreInfo, type StoreInfo } from "@/lib/bi/shopify";
 import { homePath } from "@/lib/permissions";
@@ -204,7 +204,7 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
 
         <Panel title="Facebook e Instagram (Metricool)" eyebrow="MENSAGENS PRIVADAS">
           <dl className="config-list">
-            <dt>Marca</dt><dd>Loja do Ouro Jericó · blogId {process.env.METRICOOL_BLOG_ID || "2912472"} · userId {process.env.METRICOOL_USER_ID || "2334170"}</dd>
+            <dt>Marca</dt><dd>blogId {metricoolAccount().blogId} · userId {metricoolAccount().userId} <small className="muted">(nome da marca e redes ligadas em Validar ligações)</small></dd>
             <dt>Token Metricool</dt><dd>{yes(metricoolConfigured())} <small className="muted">METRICOOL_USER_TOKEN (o mesmo das Redes sociais)</small></dd>
             <dt>Sincronização</dt><dd>Consulta periódica — a Inbox Metricool não tem webhooks.</dd>
             <dt>Anexos na resposta</dt><dd>Não nesta fase (só texto).</dd>

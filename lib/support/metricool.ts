@@ -1,13 +1,13 @@
 import "server-only";
 import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/bi/metricool";
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
-import { metaSendRefusal, metricoolBrandFindings, metricoolFault, metricoolNetwork, safeMetricoolBrand, sendOutcome, type InboxProbe, type SafeBrand } from "./rules";
+import { metaSendRefusal, metricoolBrandFindings, metricoolCursor, metricoolFault, metricoolNetwork, safeMetricoolBrand, sendOutcome, type InboxProbe, type SafeBrand } from "./rules";
 import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-rules";
 import { commentAccess, commentBrand, commentCursorAfter, commentReadPlan, threadToConversation, walkPages, type CommentThread, type PostElement } from "./comment-rules";
 
 // Metricool Inbox (API v2, https://app.metricool.com/api/swagger.json), mensagens privadas do
-// Facebook Messenger e do Instagram da marca "Loja do Ouro Jericó" (blogId 2912472). Reutiliza o
-// token e a marca da secção Redes sociais. A Inbox não tem webhooks: a sincronização é por consulta.
+// Facebook Messenger e do Instagram da marca "Loja do Ouro" (blogId 7708381 desde 29-10-2026; antes "Loja do Ouro
+// Jericó", 2912472). Reutiliza o token e a marca da secção Redes sociais. A Inbox não tem webhooks: a sincronização é por consulta.
 //   GET  /v2/inbox/conversations?provider=…               conversas com participantes e mensagens
 //   POST /v2/inbox/conversations {provider, conversationId, recipient, text, attachment}
 //   GET  /v2/inbox/conversations/authorizations?provider=… {missingScopes, allowAccessToMessages}
@@ -132,13 +132,14 @@ function toConversation(c: Conversation, brand: string | null): IngestConversati
   };
 }
 
-export async function syncMetricool(source: { id: string; config: Record<string, unknown>; cursor: Record<string, unknown> }, deadline = Infinity) {
+export async function syncMetricool(source: { id: string; account?: string; config: Record<string, unknown>; cursor: Record<string, unknown> }, deadline = Infinity) {
   if (!metricoolInboxConfigured()) return { skipped: "Metricool por configurar (METRICOOL_USER_TOKEN)." };
   const provider = String(source.config.provider || "");
   const auth = await inboxAuthorizations(provider);
   if (!auth.allowAccessToMessages)
     throw new MetricoolError(`Metricool não tem acesso às mensagens ${provider}${auth.missingScopes.length ? ` (em falta: ${auth.missingScopes.join(", ")})` : ""}. Voltar a ligar a rede na marca Metricool.`, 403, 0, true);
-  const configured = typeof source.config.brand_id === "string" ? source.config.brand_id : typeof source.cursor.brand === "string" ? source.cursor.brand : null;
+  const cursor = metricoolCursor(source.cursor, source.account, metricoolAccount().blogId);
+  const configured = typeof source.config.brand_id === "string" ? source.config.brand_id : typeof cursor.brand === "string" ? cursor.brand : null;
   let totals = { conversations: 0, new_conversations: 0, new_messages: 0, reopened: 0, autoreplies: 0 };
   let brand = configured;
   let skipped = 0;
@@ -162,7 +163,7 @@ export async function syncMetricool(source: { id: string; config: Record<string,
   const detail = skipped
     ? `${skipped} conversa(s) por interpretar: conta da marca ainda não identificada. Indicar o id da conta da marca na configuração da fonte (brand_id).`
     : complete ? null : "Nem todas as páginas foram lidas nesta passagem; continuam na seguinte.";
-  return { cursor: { ...source.cursor, ...(brand ? { brand } : {}) }, totals, detail, more: !complete };
+  return { cursor: { ...cursor, ...(brand ? { brand } : {}) }, totals, detail, more: !complete };
 }
 
 // Resposta automática ou agradecimento (regras em social-rules.ts), depois de a conversa estar gravada. A base
@@ -365,7 +366,10 @@ export async function metricoolBrandDiagnostics(expected: { facebookPageId: stri
       detail: {
         // userId e blogId em uso (não são segredos); esperado = contas da marca nas conversas guardadas (cursor.brand).
         account, expected, listed, lastInbound, lastSuccess,
-        brands: brands ? brands.length : `indisponível (${list.status === null ? "sem resposta" : `HTTP ${list.status}`})`,
+        // Todas as marcas da conta, para ver em qual ficaram a página e o Instagram (a marca em uso tem inUse).
+        brands: brands
+          ? brands.map((b) => ({ id: b.id, label: b.label, inUse: String(b.id) === account.blogId, facebookPageId: b.facebookPageId, instagram: b.instagram, instagramConnectionType: b.instagramConnectionType }))
+          : `indisponível (${list.status === null ? "sem resposta" : `HTTP ${list.status}`})`,
         brand,
         otherBrandsWithSamePage: (brands || []).filter((b) => b.id !== brand?.id && page && b.facebookPageId === page).map((b) => ({ id: b.id, label: b.label })),
         inbox,
@@ -508,13 +512,14 @@ async function ingestThreads(sourceId: string, conversations: IngestConversation
 // respostas automáticas nem reações tratadas aqui (as respostas são públicas). As autorizações são confirmadas no
 // máximo de hora a hora (cursor.auth_at). firstPageOnly (Verificar, Não foi enviada): só a 1.ª página, sem mexer na
 // leitura completa em curso.
-export async function syncPostComments(source: { id: string; config: Record<string, unknown>; cursor: Record<string, unknown> }, deadline = Infinity,
+export async function syncPostComments(source: { id: string; account?: string; config: Record<string, unknown>; cursor: Record<string, unknown> }, deadline = Infinity,
   { firstPageOnly = false }: { firstPageOnly?: boolean } = {}) {
   if (!metricoolInboxConfigured()) return { skipped: "Metricool por configurar (METRICOOL_USER_TOKEN)." };
   const provider = String(source.config.provider || "");
   if (provider !== "FACEBOOK" && provider !== "INSTAGRAM")
     throw new MetricoolError(`Rede por configurar nesta fonte (${provider || "vazia"}).`, null, 0, true);
-  const cursor: Record<string, unknown> = { ...source.cursor };
+  // Noutra marca, a paginação, a leitura completa e as autorizações da marca anterior não valem: começa do zero.
+  const cursor = metricoolCursor(source.cursor, source.account, metricoolAccount().blogId);
   const authAt = typeof cursor.auth_at === "string" ? Date.parse(cursor.auth_at) : NaN;
   if (!Number.isFinite(authAt) || Date.now() - authAt > 3_600_000) {
     const auth = await commentAuthorizations(provider);

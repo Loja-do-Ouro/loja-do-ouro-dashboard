@@ -12,7 +12,8 @@ export function metricoolConfigured() {
 }
 
 export function metricoolAccount() {
-  return { userId: process.env.METRICOOL_USER_ID || "2334170", blogId: process.env.METRICOOL_BLOG_ID || "2912472" };
+  // "Loja do Ouro" brand since 29 Oct 2026 (before: "Loja do Ouro Jericó", 2912472, where the page and Instagram were disconnected).
+  return { userId: process.env.METRICOOL_USER_ID || "2334170", blogId: process.env.METRICOOL_BLOG_ID || "7708381" };
 }
 
 async function api<T>(path: string, params: Record<string, string>): Promise<T> {

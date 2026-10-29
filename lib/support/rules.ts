@@ -156,6 +156,14 @@ export function metricoolDetail(detail: string | null | undefined, network: "Fac
   return !fault ? detail ?? null : where === "sincronizacao" ? `${m[1]}: ${fault.text}` : fault.text;
 }
 
+// Cursor de uma fonte Metricool para a marca (blogId) em uso. Noutra marca (de "Loja do Ouro Jericó" 2912472 para
+// "Loja do Ouro" 7708381, 29-10-2026), a conta da marca nas conversas, a paginação e a leitura completa eram da marca
+// anterior: começa do zero e volta a detetar. Sem marca no cursor, vale a da fonte (account, onde foi criada).
+export function metricoolCursor(cursor: Record<string, unknown>, account: string | null | undefined, blogId: string): Record<string, unknown> {
+  const previous = typeof cursor.blog === "string" ? cursor.blog : account || null;
+  return !previous || previous === blogId ? { ...cursor, blog: blogId } : { blog: blogId };
+}
+
 // Marca da Metricool (lista de marcas do token, /admin/simpleProfiles) só com os campos que ajudam a perceber a
 // ligação: ids numéricos, nome da marca, página de Facebook (id), se há Instagram e como está ligado, se há perfil de
 // Facebook a ligar (sim/não) e o papel do utilizador da API. Logins, emails, hashes, imagens, ligações de white label e

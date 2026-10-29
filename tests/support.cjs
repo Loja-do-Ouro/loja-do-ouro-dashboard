@@ -379,3 +379,16 @@ test("The Metricool brand check keeps only ids and states and explains what is w
   const levels = r.metricoolBrandFindings({ ...base, brands: [{ ...safe, ownerUserId: 999, instagram: false }] }).map((f) => f.level);
   assert.deepEqual(levels, ["erro", "aviso"]);
 });
+
+test("A Metricool source starts over when the brand in use changes (Jericó to Loja do Ouro)", () => {
+  const old = { brand: "618695038234056", next: "https://app.metricool.com/api/v2/inbox/post-comments?page=x", full_read_at: "2026-10-29T08:25:00Z", auth_at: "2026-10-29T09:35:00Z" };
+  // Cursor de antes desta mudança (sem blog): vale a marca da fonte (account).
+  assert.deepEqual(r.metricoolCursor(old, "2912472", "7708381"), { blog: "7708381" });
+  assert.deepEqual(r.metricoolCursor(old, "2912472", "2912472"), { ...old, blog: "2912472" });
+  // Já na marca nova: fica tudo o que foi detetado nela.
+  const current = { blog: "7708381", brand: "618695038234056", full_read_at: "2026-10-29T12:00:00Z" };
+  assert.deepEqual(r.metricoolCursor(current, "2912472", "7708381"), current);
+  // Voltar à marca anterior também recomeça; sem marca conhecida, só regista a atual.
+  assert.deepEqual(r.metricoolCursor(current, "2912472", "2912472"), { blog: "2912472" });
+  assert.deepEqual(r.metricoolCursor({ brand: "1" }, undefined, "7708381"), { brand: "1", blog: "7708381" });
+});
