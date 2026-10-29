@@ -1,47 +1,40 @@
 -- Apoio ao Cliente: base de conhecimento aprendida (cartões).
 --
 -- Nenhum modelo é treinado com as conversas. A IA (Claude Sonnet 5.5) lê uma conversa já respondida pela equipa e
--- propõe um cartão: uma pergunta genérica e a resposta da empresa, sem nomes, contactos nem números de encomenda. O
--- Super Admin aprova, corrige, junta ou arquiva; só os cartões aprovados E publicados entram no bloco da base de
--- conhecimento das propostas de resposta (ldo_support_ai_begin), e o texto publicado só muda quando se publica (a cache
--- de 1 h da IA é reescrita uma vez por publicação; arquivar retira logo).
--- * As mensagens nunca são copiadas: as fontes contam-se (fontes: um por contacto identificável, nunca o chat do site
---   anónimo). amostras: até 3 conversas de origem de uma proposta, para o Super Admin a confirmar; apagadas ao aprovar ou
---   arquivar. No registo de pedidos (ldo_support_knowledge_runs), um pedido que acaba num cartão (proposta nova ou
---   confirmação de uma resposta que já existe) deixa de guardar a conversa e a mensagem de origem no momento em que o
---   resultado é gravado; os outros (erros, sem pergunta geral, retirados) guardam a conversa e, os do botão, a mensagem
---   (sem texto) 180 dias, para não as ler outra vez. Para contar cada contacto uma vez fica, nos pedidos que contaram uma
---   fonte, uma chave pseudónima do contacto: HMAC-SHA256 do id do contacto com um segredo aleatório de 32 bytes gerado
---   nesta migração e guardado só em ldo_private.support_knowledge_secret (sem acesso para public, anon, authenticated nem
---   service_role). A chave nunca fica no mesmo pedido que a conversa ou a mensagem (a tabela recusa-o). Não é anónima: é
---   a mesma para o mesmo contacto em todos os cartões (liga as confirmações dele entre si, para as respostas juntas
---   continuarem a contar cada contacto uma vez), e enquanto uma proposta guarda as conversas de origem (amostras), quem
---   lê as tabelas diretamente (o dono da BD ou service_role) pode ligar a chave dos pedidos dessa proposta ao contacto
---   (diretamente com uma fonte, por eliminação com até 3) e, por ela, às outras confirmações desse contacto. O registo
---   guarda também a hora exata de cada pedido, a origem, quem carregou no botão e o cartão. Apaga-se com o pedido, ao fim
---   de 365 dias. Para cada resposta só ser proposta uma vez pelo botão fica uma chave do mesmo tipo da mensagem e o dia,
---   sem o cartão nem a conversa (ldo_support_knowledge_used), também 365 dias. As conversas vistas guardam até que
---   resposta da equipa foram lidas, não a hora do pedido.
+-- propõe um cartão: uma pergunta genérica e a resposta da empresa. O Super Admin corrige, aprova, junta ou arquiva; só
+-- os cartões aprovados E publicados entram no bloco da base de conhecimento das propostas de resposta
+-- (ldo_support_ai_begin), e o texto publicado só muda quando se publica (a cache de 1 h da IA é reescrita uma vez por
+-- publicação; arquivar retira logo). Nada aqui envia mensagens a clientes.
+-- * O que fica guardado: nos cartões, o texto (pergunta, variantes e resposta), o tema, a marca, a loja, quem aprovou e
+--   quando, os avisos da proposta e a confirmação do Super Admin (quem, quando e que avisos confirmou, também no
+--   registo de auditoria) e quantas conversas confirmaram a resposta (fontes: cada conversa conta no máximo uma vez,
+--   nunca o chat do site anónimo); só nas propostas, até 3 conversas de origem (amostras), apagadas ao aprovar ou
+--   arquivar. As mensagens dos clientes e os contactos não são copiados para estas tabelas. Para não ler nem contar a
+--   mesma conversa duas vezes ficam as conversas lidas (ldo_support_knowledge_seen: a conversa, até que resposta da
+--   equipa foi lida e se já contou; 180 dias depois da última vez) e as respostas guardadas com o botão
+--   (ldo_support_knowledge_used: a mensagem e o dia; 365 dias), ambas sem o cartão. O registo de pedidos
+--   (ldo_support_knowledge_runs, 365 dias) tem a hora, a origem, quem carregou no botão, o cartão, o modelo, o custo, a
+--   duração e o resultado; a conversa (e, nos do botão, a mensagem) só nos pedidos que não deram um cartão, 180 dias.
+--   As regras não apanham tudo: o Super Admin lê cada proposta antes de a aprovar.
 -- * Duas origens: o botão "Guardar como resposta aprovada" numa resposta enviada pelo dashboard (a própria pessoa ou o
 --   Super Admin; funciona sempre, com orçamento) e a passagem diária (support-sync), só com "Propostas automáticas a
 --   partir das conversas" ligada (desligada por omissão): conversas com resposta da equipa pelo dashboard desde o
 --   histórico visível (e nos últimos 170 dias, dentro dos 180 em que as conversas vistas ficam registadas), resolvidas ou
 --   sem atividade há 72 h, ainda não lidas com êxito (ou com respostas novas desde então). Uma conversa só fica vista
 --   quando o pedido acaba bem; com erro tenta-se outra vez no dia seguinte, no máximo duas vezes por resposta nova.
--- * Recusas na BD ao gravar um cartão: emails fora dos domínios da empresa, IBAN/NIF e números de encomenda. O resto
---   (nomes, telefones, moradas, perfis, códigos, factos que a equipa não escreveu) é verificado no servidor
---   (lib/support/knowledge-rules.ts), também nas correções do Super Admin antes de aprovar e de publicar. Palavras da
---   resposta que podem ser nomes de pessoas (um nome próprio comum ou outra palavra com maiúscula desconhecida) são
---   avisos: o Super Admin só aprova e publica depois de confirmar, por cartão, que não são nomes (nomes_ok: as palavras
---   confirmadas, apagadas quando a resposta muda; no registo de auditoria ficam quem, quando e quantas, não as palavras).
---   Uma resposta com avisos de nomes nunca pode ser marcada para respostas automáticas.
+-- * Recusas na BD ao gravar um cartão: emails fora dos domínios da empresa, IBAN/NIF e números de encomenda ou de
+--   referência. As outras recusas (telefones, números de cartão, ligações de perfis, nomes do cliente e da equipa) e os
+--   avisos (possíveis nomes, moradas, perfis sem @, contradições e condições em falta em relação à resposta da equipa)
+--   são do servidor (lib/support/knowledge-rules.ts). Um aviso não retira uma proposta: aprovar, publicar e "Permitir em
+--   respostas automáticas" só avançam depois de o Super Admin confirmar que o texto não tem dados pessoais nem contradiz
+--   a resposta da equipa (avisos_ok, apagados quando o texto muda; a BD confere os avisos guardados na proposta).
 -- * "Permitir em respostas automáticas" (auto_ok) só marca o cartão para as respostas automáticas futuras: nada aqui
 --   envia mensagens. Só 7 dias depois de aprovado ou da última correção do texto (texto_em), revisto há menos de 90 dias,
 --   publicado tal como está, com a loja nos temas de uma loja e sem outro cartão automático para a mesma loja. Qualquer
 --   correção ou junção tira a marca; a limpeza diária tira-a aos cartões expirados ou por rever há mais de 90 dias.
 -- * Orçamento próprio (US$ 8 por omissão), 30 propostas pelo botão por pessoa e por dia, 300 propostas por rever.
--- * Limpeza diária: registo de pedidos e respostas já guardadas ao fim de 365 dias, conversas vistas ao fim de 180,
---   propostas sem novas fontes ao fim de 180 dias e cartões arquivados ao fim de 365.
+-- * Limpeza diária: registo de pedidos e respostas já guardadas ao fim de 365 dias, conversas vistas 180 dias depois da
+--   última vez, propostas sem novas fontes ao fim de 180 dias e cartões arquivados ao fim de 365.
 -- Funções alteradas, a partir do texto em produção a 30-10-2026 (pg_get_functiondef):
 -- * ldo_support_ai_admin (md5 adc9e6bb1fb5ded3040b60f127147471, já com o bloco 'review' de 20261030110000): cópia
 --   igual, mais o bloco 'cards' com os totais do mês.
