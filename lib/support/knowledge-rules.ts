@@ -292,13 +292,25 @@ const FIXED_WORDS = `portugal portuguesa português lisboa porto açores madeira
   segunda terça quarta quinta sexta sábado domingo feira janeiro fevereiro março abril maio junho julho agosto setembro outubro novembro
   dezembro olá bom boa dia tarde noite obrigado obrigada caro cara estimado estimada exmo exma senhor senhora senhores senhoras cliente
   clientes amigos equipa apoio pedimos podemos pode agradecemos lamentamos informamos sim não muito quilate quilates kl euros eur iva
-  cartier tiffany pandora feliz felizes boas festas votos cumprimentos atenciosamente beijinhos abraço abraços até breve volte sempre`;
-// Palavras de joalharia que também são nomes de pessoas ("Rosa", "Pérola"): não contam como nome.
-const NAME_EXCEPTIONS = `rosa branco branca amarelo amarela pérola perola cristal diamante diamantes ouro prata flor luz estrela coração
-  cruz anjo mar sol lua safira rubi esmeralda topázio ametista coral jade âmbar`;
-const SAFE_WORDS = new Set(`${FIXED_WORDS} ${NAME_EXCEPTIONS}`.split(/\s+/).filter(Boolean));
-// Marcas com um nome próprio ("Daniel Wellington"): como as frases da base de conhecimento.
-const BRAND_PHRASES = ["Daniel Wellington", "Michael Kors", "Calvin Klein", "Tommy Hilfiger", "Hugo Boss", "Emporio Armani"];
+  cartier tiffany pandora feliz felizes boas festas votos cumprimentos atenciosamente beijinhos abraço abraços até breve volte sempre
+  continental ilhas reino unido estados unidos união europeia joalharia ourivesaria relojoaria`;
+// Palavras de joalharia que também são nomes de pessoas ("Rosa", "Pérola") ou que aparecem com maiúscula ("Anel",
+// "Filigrana"): não contam como nome.
+const NAME_EXCEPTIONS = `rosa branco branca amarelo amarela pérola perola pérolas cristal diamante diamantes ouro prata flor luz estrela
+  coração cruz anjo mar sol lua safira rubi esmeralda topázio ametista coral jade âmbar ónix onix turquesa quartzo opala granada citrino
+  ágata agata malaquite zircónia zirconia titânio titanio aço platina paládio ródio filigrana arrecadas medalha medalhas terço terços
+  crucifixo escapulário anel anéis aneis fio fios brinco brincos pulseira pulseiras colar colares pendente pendentes alfinete relógio
+  relógios joia joias jóia jóias argola argolas aliança alianças solitário gargantilha berloque berloques charm charms cordão corrente
+  bracelete grilheta piercing coleção colecção edição`;
+// Marcas de joalharia e relojoaria com uma palavra ("Swarovski", "Tous"): não são nomes.
+const JEWELLERY_BRANDS = `swarovski tous guess fossil casio seiko tissot swatch lacoste festina lotus viceroy diesel rolex omega longines
+  tudor breitling bvlgari bulgari chanel dior gucci hermès hermes versace armani boss timex citizen orient certina police nomination
+  morellato skagen`;
+const SAFE_WORDS = new Set(`${FIXED_WORDS} ${NAME_EXCEPTIONS} ${JEWELLERY_BRANDS}`.split(/\s+/).filter(Boolean));
+// Marcas e peças com um nome próprio ("Thomas Sabo", "Nossa Senhora"): como as frases da base de conhecimento.
+const BRAND_PHRASES = ["Daniel Wellington", "Michael Kors", "Calvin Klein", "Tommy Hilfiger", "Hugo Boss", "Emporio Armani", "Thomas Sabo",
+  "Pierre Lannier", "Pierre Cardin", "Paul Hewitt", "Victoria Cruz", "Tag Heuer", "Raymond Weil", "Marc Jacobs", "Ti Sento", "Lotus Style",
+  "Nossa Senhora", "Virgem Maria", "Menino Jesus", "Sagrado Coração", "Espírito Santo", "Coração de Viana", "Coração de Jesus", "Coração de Maria"];
 // Nomes próprios comuns (sem os que também são palavras ou lojas, como Clara, Graça, Luz ou Fátima): nunca num cartão, em
 // qualquer posição, mesmo de quem não é o cliente ("a sua filha Beatriz").
 const FIRST_NAMES = new Set(`joão josé antónio antonio manuel francisco carlos paulo pedro luís luis jorge miguel rui tiago bruno ricardo
@@ -464,19 +476,26 @@ function namedAfter(re: RegExp, text: string, allow: Allowlist) {
   }
   return false;
 }
-// Um nome próprio comum em qualquer posição, também no início da frase ("Beatriz pode levantar a encomenda?").
-function firstNameIn(text: string) {
+// Nomes próprios comuns em qualquer posição, também no início da frase ("Beatriz pode levantar a encomenda?").
+function firstNames(text: string) {
+  const out: string[] = [];
   for (const m of text.matchAll(/(?<!\p{L})\p{Lu}[\p{L}'’-]*/gu))
     for (const w of m[0].split(/['’-]/))
-      if (FIRST_NAMES.has(w.toLowerCase()) && (/^\p{Lu}\p{Ll}/u.test(w) || w === w.toUpperCase())) return true;
-  return false;
+      if (FIRST_NAMES.has(w.toLowerCase()) && (/^\p{Lu}\p{Ll}/u.test(w) || w === w.toUpperCase())) out.push(w);
+  return out;
 }
+// Com maiúscula mas sem ser uma pessoa: santos (medalhas de "São Jorge", "Santo António") e o rosário como peça ("um
+// rosário", "Rosário em ouro", "rosário de pérolas"). "Maria do Rosário" e "a Rosário" continuam a ser nomes.
+const SAINT_RE = /(?<!\p{L})(?:S[ãa]o|Santo|Santa|Sto\.|Sta\.)[ \t]+\p{Lu}[\p{L}'’-]*/gu;
+const ROSARY_RE = /(?<!\p{L})(?:(?:um|uns|o|os|ao|aos|pelo|pelos|este|estes|esse|esses|deste|desse|nosso|nossos|seu|seus)[ \t]+ros[áa]rios?|ros[áa]rios?(?=[ \t]+(?:em|com)[ \t]|[ \t]+de[ \t]+(?:ouro|prata|p[ée]rolas?|contas|madeira|cristal|n[áa]car|a[çc]o|\d)))(?!\p{L})/giu;
+const withoutItems = (t: string) => t.replace(SAINT_RE, " ").replace(ROSARY_RE, " ");
 
-// Dados pessoais num texto de cartão (lista vazia = aceite). Os dados da empresa (allowlist) passam: telefone, código
-// postal e morada de uma loja, emails, perfis e códigos da base de conhecimento, horas e anos. names: nomes do cliente e
-// da equipa (nunca num cartão); question: pergunta ou variante, onde também não pode haver nomes próprios que não sejam de
-// lojas, lugares ou produtos da base de conhecimento.
-export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[]; question?: boolean } = {}): PiiProblem[] {
+// Palavra da resposta que pode ser o nome de uma pessoa: um nome próprio comum (common) ou outra palavra com maiúscula a
+// meio da frase que não é um lugar, uma loja, uma marca ou uma palavra da base de conhecimento. Não recusam a resposta: o
+// Super Admin confirma, por cartão, que não são nomes ("Possível nome: X").
+export type NameWarning = { word: string; common: boolean };
+
+function scan(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[]; question?: boolean }) {
   const found = new Set<PiiProblem>();
   const t = text || "";
   let rest = t;
@@ -507,13 +526,57 @@ export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string
   // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria).
   const named = allow.phrases ? rest.replace(allow.phrases, " ") : rest;
   for (const r of publicReplyRisks(named)) found.add(RISK_CODE[r] ?? "numero");
+  // Recusas: o nome do cliente ou da equipa (em qualquer forma) e um nome depois de uma saudação, de um tratamento ou de
+  // um parentesco.
   for (const name of opts.names || []) for (const token of (name || "").split(/[^\p{L}]+/u)) if (nameIn(named, token)) found.add("nome");
-  if (namedAfter(GREETING_RE, named, allow) || namedAfter(RELATION_RE, named, allow) || firstNameIn(named)) found.add("nome");
-  if (opts.question && properNouns(named).some((w) => !SAFE_WORDS.has(w.toLowerCase()) && !allow.places.has(w.toLowerCase()))) found.add("nome_proprio");
-  return PII_PROBLEMS.filter((p) => found.has(p));
+  if (namedAfter(GREETING_RE, named, allow) || namedAfter(RELATION_RE, named, allow)) found.add("nome");
+  // Nomes próprios comuns e palavras com maiúscula desconhecidas: recusa na pergunta e nas variantes, aviso na resposta.
+  const generic = withoutItems(named);
+  const common = firstNames(generic);
+  const proper = properNouns(generic).filter((w) => !SAFE_WORDS.has(w.toLowerCase()) && !allow.places.has(w.toLowerCase()));
+  const names: NameWarning[] = [];
+  if (opts.question) {
+    if (common.length) found.add("nome");
+    if (proper.length) found.add("nome_proprio");
+  } else {
+    // Um aviso por palavra ("Jean-Pierre" já está em "Jean" e "Pierre").
+    const seen = new Set(common.map((c) => c.toLowerCase()));
+    const others = proper.filter((w) => !w.split(/['’-]/).some((p) => seen.has(p.toLowerCase())));
+    seen.clear();
+    for (const n of [...common.map((word) => ({ word, common: true })), ...others.map((word) => ({ word, common: false }))]) {
+      if (seen.has(n.word.toLowerCase())) continue;
+      seen.add(n.word.toLowerCase());
+      names.push(n);
+    }
+  }
+  return { problems: PII_PROBLEMS.filter((p) => found.has(p)), names };
 }
 
-// Dados pessoais de um cartão inteiro: a pergunta e as variantes (como perguntas) e a resposta.
+// Dados pessoais num texto de cartão (lista vazia = aceite). Os dados da empresa (allowlist) passam: telefone, código
+// postal e morada de uma loja, emails, perfis, ligações e códigos da base de conhecimento, horas e anos. names: nomes do
+// cliente e da equipa (nunca num cartão); question: pergunta ou variante, onde também não pode haver nomes próprios comuns
+// nem palavras com maiúscula que não sejam de lojas, lugares, marcas ou produtos da base de conhecimento. Na resposta,
+// essas palavras são avisos (answerNames), não recusas.
+export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[]; question?: boolean } = {}): PiiProblem[] {
+  return scan(text, allow, opts).problems;
+}
+
+// Avisos de nomes na resposta de um cartão ("Possível nome: X"): nomes próprios comuns e palavras com maiúscula
+// desconhecidas a meio da frase. Bloqueiam aprovar e publicar até o Super Admin confirmar que não são nomes de pessoas, e
+// impedem sempre "Permitir em respostas automáticas".
+export function answerNames(text: string, allow: Allowlist): NameWarning[] {
+  return scan(text, allow, {}).names;
+}
+
+// Avisos que o Super Admin ainda não confirmou (confirmed: as palavras confirmadas para o texto atual; sem distinguir
+// maiúsculas).
+export function unconfirmedNames(warnings: NameWarning[], confirmed: string[] | null | undefined) {
+  const ok = new Set((confirmed || []).map((w) => w.toLowerCase()));
+  return warnings.filter((w) => !ok.has(w.word.toLowerCase()));
+}
+export const nameWarningText = (words: string[]) => (words.length === 1 ? `Possível nome: ${words[0]}` : `Possíveis nomes: ${words.join(", ")}`);
+
+// Dados pessoais de um cartão inteiro: a pergunta e as variantes (como perguntas) e a resposta (sem os avisos de nomes).
 export function cardPii(card: { pergunta: string; variantes: string[] | null; resposta: string }, allow: Allowlist, names: (string | null | undefined)[] = []) {
   const all = [
     ...scrubPii(card.pergunta, allow, { names, question: true }),
@@ -705,6 +768,8 @@ export const AUTO_OK_TEXT = {
   loja: "Indique a loja: as respostas sobre horários, moradas e contactos só podem ser automáticas para uma loja.",
   conflito: "Há outra resposta automática sobre esta loja; junte-as primeiro.",
   base: "A base de conhecimento tem outra informação sobre esta loja: confirme qual está certa e corrija a outra antes de a usar em respostas automáticas.",
+  dados: "A resposta parece ter dados pessoais: corrija-a antes de a usar em respostas automáticas.",
+  nomes: "Tem palavras que podem ser nomes de pessoas: mesmo confirmadas, uma resposta com elas não pode ser usada em respostas automáticas. Reescreva-a sem elas",
 } as const;
 
 // Nomes pelos quais a base de conhecimento fala de uma loja: o nome sem o que está entre parênteses e as palavras só
@@ -738,9 +803,14 @@ export type AutoCard = {
 // revisão, a loja e o conflito; o texto (português do Brasil, ligações, marca, base de conhecimento) só aqui.
 export function autoOkBlockers(card: AutoCard, ctx: {
   now: Date; knowledge: string; storeNames: string[]; others: Pick<AutoCard, "id" | "estado" | "intent" | "brand" | "loja_id" | "auto_ok">[];
+  // Dados da empresa aceites e nomes da equipa: dados pessoais e avisos de nomes na resposta.
+  allow: Allowlist; staffNames?: (string | null | undefined)[];
 }): string[] {
   const out: string[] = [];
   if (card.estado !== "aprovada") return [AUTO_OK_TEXT.estado];
+  if (scrubPii(card.resposta, ctx.allow, { names: ctx.staffNames }).length) out.push(AUTO_OK_TEXT.dados);
+  const names = answerNames(card.resposta, ctx.allow);
+  if (names.length) out.push(`${AUTO_OK_TEXT.nomes} (${names.map((n) => `«${n.word}»`).join(", ")}).`);
   if (!card.publicado || card.por_publicar) out.push(AUTO_OK_TEXT.publicar);
   if (!card.texto_em || ctx.now.getTime() - Date.parse(card.texto_em) < 7 * 86_400_000) out.push(AUTO_OK_TEXT.seteDias);
   const limit = new Date(`${lisbonToday(ctx.now)}T00:00:00Z`);

@@ -25,7 +25,11 @@
 --   quando o pedido acaba bem; com erro tenta-se outra vez no dia seguinte, no máximo duas vezes por resposta nova.
 -- * Recusas na BD ao gravar um cartão: emails fora dos domínios da empresa, IBAN/NIF e números de encomenda. O resto
 --   (nomes, telefones, moradas, perfis, códigos, factos que a equipa não escreveu) é verificado no servidor
---   (lib/support/knowledge-rules.ts), também nas correções do Super Admin antes de aprovar e de publicar.
+--   (lib/support/knowledge-rules.ts), também nas correções do Super Admin antes de aprovar e de publicar. Palavras da
+--   resposta que podem ser nomes de pessoas (um nome próprio comum ou outra palavra com maiúscula desconhecida) são
+--   avisos: o Super Admin só aprova e publica depois de confirmar, por cartão, que não são nomes (nomes_ok: as palavras
+--   confirmadas, apagadas quando a resposta muda; no registo de auditoria ficam quem, quando e quantas, não as palavras).
+--   Uma resposta com avisos de nomes nunca pode ser marcada para respostas automáticas.
 -- * "Permitir em respostas automáticas" (auto_ok) só marca o cartão para as respostas automáticas futuras: nada aqui
 --   envia mensagens. Só 7 dias depois de aprovado ou da última correção do texto (texto_em), revisto há menos de 90 dias,
 --   publicado tal como está, com a loja nos temas de uma loja e sem outro cartão automático para a mesma loja. Qualquer
@@ -75,6 +79,11 @@ create table public.ldo_support_knowledge_cards (
   aprovada_em timestamptz,
   -- Aprovação ou última correção do texto de uma resposta aprovada (os 7 dias de "Permitir em respostas automáticas").
   texto_em timestamptz,
+  -- Palavras da resposta assinaladas como possíveis nomes que o Super Admin confirmou não o serem ("Confirmo que não é o
+  -- nome de uma pessoa"), para o texto atual da resposta: apagadas quando a resposta muda.
+  nomes_ok text[] not null default '{}' check (cardinality(nomes_ok) <= 20),
+  nomes_ok_por uuid references public.ldo_app_users (id) on delete set null,
+  nomes_ok_em timestamptz,
   publicada_em timestamptz,
   -- Texto em uso pela IA desde a última publicação (tema, marca, loja, pergunta, variantes, resposta e validade); null =
   -- não publicado.
@@ -720,6 +729,7 @@ begin
         'valido_ate', x.valido_ate, 'revisto_em', x.revisto_em, 'criada_por', x.criada_por,
         'aprovada_por', (select coalesce(u.full_name, u.username) from public.ldo_app_users u where u.id = x.aprovada_por),
         'aprovada_em', x.aprovada_em, 'texto_em', x.texto_em, 'publicada_em', x.publicada_em, 'publicado', x.publicado is not null,
+        'nomes_ok', to_jsonb(x.nomes_ok),
         'por_publicar', x.estado = 'aprovada' and x.dif, 'updated_at', x.updated_at) order by x.n)
       from (select c.*, c.publicado is distinct from ldo_private.support_card_content(c) as dif,
               row_number() over (order by case when v_estado = 'proposta' then c.fontes end desc nulls last,
@@ -750,8 +760,8 @@ $$;
 
 -- Cria (p_id null: proposta escrita pelo Super Admin) ou corrige um cartão. p_values: {"intent", "brand", "loja_id",
 -- "pergunta", "variantes": [...], "resposta", "valido_ate"}. Corrigir uma resposta aprovada conta como revista e recomeça
--- os 7 dias (texto_em); qualquer correção tira a marca de resposta automática. Devolve {id, estado, alterada,
--- auto_retirada}.
+-- os 7 dias (texto_em); qualquer correção tira a marca de resposta automática; uma resposta diferente apaga as palavras
+-- confirmadas como não sendo nomes (os avisos voltam). Devolve {id, estado, alterada, auto_retirada, nomes_ok}.
 create function public.ldo_support_knowledge_card_save(p_session text, p_id uuid, p_values jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -792,7 +802,7 @@ begin
     insert into public.ldo_support_knowledge_cards (intent, brand, loja_id, pergunta, variantes, resposta, valido_ate, criada_por, updated_by)
     values (v_intent, v_brand, v_loja, v_pergunta, v_variantes, v_resposta, v_valido, 'pessoa', v_me) returning id into v_id;
     insert into public.ldo_support_audit (actor, action, details) values (v_me, 'ai.knowledge.card', jsonb_build_object('id', v_id, 'acao', 'criada'));
-    return jsonb_build_object('id', v_id, 'estado', 'proposta', 'alterada', true, 'auto_retirada', false);
+    return jsonb_build_object('id', v_id, 'estado', 'proposta', 'alterada', true, 'auto_retirada', false, 'nomes_ok', '[]'::jsonb);
   end if;
   select * into v_c from public.ldo_support_knowledge_cards where id = p_id for update;
   if v_c.id is null then
@@ -800,7 +810,7 @@ begin
   end if;
   if (v_c.intent, v_c.brand, v_c.loja_id, v_c.pergunta, v_c.variantes, v_c.resposta, v_c.valido_ate)
       is not distinct from (v_intent, v_brand, v_loja, v_pergunta, v_variantes, v_resposta, v_valido) then
-    return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', false, 'auto_retirada', false);
+    return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', false, 'auto_retirada', false, 'nomes_ok', to_jsonb(v_c.nomes_ok));
   end if;
   -- Qualquer correção (também da pergunta e das variantes, que escolhem a resposta nas respostas automáticas) tira a marca
   -- de resposta automática; numa aprovada, os 7 dias contam de novo.
@@ -809,11 +819,16 @@ begin
     revisto_em = case when estado = 'aprovada' then (now() at time zone 'Europe/Lisbon')::date else revisto_em end,
     texto_em = case when estado = 'aprovada' then now() else texto_em end,
     auto_ok = false, auto_ok_em = null,
+    -- Outra resposta: os avisos de nomes voltam a aparecer até o Super Admin os confirmar de novo.
+    nomes_ok = case when resposta is distinct from v_resposta then '{}' else nomes_ok end,
+    nomes_ok_por = case when resposta is distinct from v_resposta then null else nomes_ok_por end,
+    nomes_ok_em = case when resposta is distinct from v_resposta then null else nomes_ok_em end,
     updated_at = now(), updated_by = v_me
   where id = p_id;
   insert into public.ldo_support_audit (actor, action, details)
   values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'editada', 'estado', v_c.estado, 'auto_retirada', v_c.auto_ok));
-  return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', true, 'auto_retirada', v_c.auto_ok);
+  return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', true, 'auto_retirada', v_c.auto_ok,
+    'nomes_ok', case when v_c.resposta is distinct from v_resposta then '[]'::jsonb else to_jsonb(v_c.nomes_ok) end);
 end;
 $$;
 
@@ -861,6 +876,38 @@ begin
   insert into public.ldo_support_audit (actor, action, details)
   values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id,
     'acao', case when p_estado = 'arquivada' then 'arquivada' when v_c.estado = 'aprovada' then 'revista' else 'aprovada' end));
+end;
+$$;
+
+-- "Confirmo que não é o nome de uma pessoa": guarda as palavras da resposta que o servidor assinalou como possíveis nomes
+-- e que o Super Admin confirmou não o serem (p_nomes: 1 a 20 palavras), só se a resposta for ainda a que o Super Admin
+-- viu (p_resposta). No registo de auditoria ficam quem, quando e quantas palavras, não as palavras (podiam ser um nome).
+create function public.ldo_support_knowledge_card_names(p_session text, p_id uuid, p_resposta text, p_nomes jsonb) returns void
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_me uuid := ldo_private.support_super(p_session);
+  v_c public.ldo_support_knowledge_cards;
+  v_nomes text[];
+begin
+  if v_me is null then
+    raise exception 'Só o Super Admin configura o Apoio ao Cliente.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_nomes) is distinct from 'array' or jsonb_array_length(p_nomes) not between 1 and 20
+     or exists (select 1 from jsonb_array_elements(p_nomes) e(x) where jsonb_typeof(e.x) <> 'string'
+       or (e.x #>> '{}') !~ '^[[:alpha:]][[:alpha:]''’-]{0,39}$') then
+    raise exception 'Palavras inválidas.' using errcode = '22023';
+  end if;
+  select coalesce(array_agg(distinct e.x order by e.x), '{}') into v_nomes from jsonb_array_elements_text(p_nomes) e(x);
+  select * into v_c from public.ldo_support_knowledge_cards where id = p_id for update;
+  if v_c.id is null then
+    raise exception 'Resposta não encontrada.' using errcode = 'P0002';
+  end if;
+  if v_c.resposta is distinct from btrim(coalesce(p_resposta, '')) then
+    raise exception 'A resposta mudou entretanto: veja os avisos de novo.' using errcode = '22023';
+  end if;
+  update public.ldo_support_knowledge_cards set nomes_ok = v_nomes, nomes_ok_por = v_me, nomes_ok_em = now() where id = p_id;
+  insert into public.ldo_support_audit (actor, action, details)
+  values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'nomes_confirmados', 'palavras', cardinality(v_nomes)));
 end;
 $$;
 
@@ -1119,6 +1166,7 @@ revoke all on function
   public.ldo_support_knowledge_card_state(text, uuid, text),
   public.ldo_support_knowledge_card_auto(text, uuid, boolean),
   public.ldo_support_knowledge_card_merge(text, uuid, uuid),
+  public.ldo_support_knowledge_card_names(text, uuid, text, jsonb),
   public.ldo_support_knowledge_publish(text)
 from public, authenticated;
 grant execute on function
@@ -1134,5 +1182,6 @@ grant execute on function
   public.ldo_support_knowledge_card_state(text, uuid, text),
   public.ldo_support_knowledge_card_auto(text, uuid, boolean),
   public.ldo_support_knowledge_card_merge(text, uuid, uuid),
+  public.ldo_support_knowledge_card_names(text, uuid, text, jsonb),
   public.ldo_support_knowledge_publish(text)
 to anon;

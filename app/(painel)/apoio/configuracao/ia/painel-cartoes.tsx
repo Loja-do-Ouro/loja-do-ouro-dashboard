@@ -5,8 +5,8 @@ import { Flash } from "@/components/shell";
 import { aiConfigured } from "@/lib/support/ai";
 import { sessionRpc } from "@/lib/support/db";
 import {
-  autoOkBlockers, CARD_BRAND_LABEL, CARD_BRANDS, CARD_ESTADOS, CARD_LIMITS, cardPii, cardWarnings, companyAllowlist, INTENT_LABEL, isIntent,
-  KNOWLEDGE_INTENTS, lisbonToday, PII_LABEL, storeKeywords, type AutoCard, type CardEstado,
+  answerNames, autoOkBlockers, CARD_BRAND_LABEL, CARD_BRANDS, CARD_ESTADOS, CARD_LIMITS, cardPii, cardWarnings, companyAllowlist, INTENT_LABEL, isIntent,
+  KNOWLEDGE_INTENTS, lisbonToday, nameWarningText, PII_LABEL, storeKeywords, unconfirmedNames, type AutoCard, type CardEstado,
 } from "@/lib/support/knowledge-rules";
 import type { Viewer } from "@/lib/viewer";
 import { archiveCard, mergeCard, publishCards, saveAndApprove, saveCard, saveKnowledgeSettings, setCardAuto } from "./cartoes-actions";
@@ -21,6 +21,8 @@ type Settings = {
 type Card = AutoCard & {
   loja: string | null; pergunta: string; variantes: string[]; fontes: number; ultima_vez: string; amostras: string[]; valido_ate: string | null;
   criada_por: "ia" | "pessoa"; aprovada_por: string | null; auto_ok_em: string | null; publicada_em: string | null;
+  // Palavras da resposta confirmadas pelo Super Admin como não sendo nomes (para o texto atual).
+  nomes_ok?: string[];
 };
 type Store = { id: string; code: string; name: string; city: string | null };
 type Target = Pick<AutoCard, "id" | "estado" | "intent" | "brand" | "loja_id" | "auto_ok"> & { pergunta: string };
@@ -150,9 +152,16 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
             {list.cards.map((c) => {
               const warnings = cardWarnings(c);
               const pii = cardPii(c, allow, list.staff_names || []);
+              // Possíveis nomes na resposta: por confirmar (bloqueiam aprovar e publicar) e já confirmados para este texto.
+              const names = answerNames(c.resposta, allow);
+              const unconfirmed = unconfirmedNames(names, c.nomes_ok).map((n) => n.word);
+              const confirmed = names.map((n) => n.word).filter((w) => !unconfirmed.includes(w));
               const store = list.stores.find((s) => s.id === c.loja_id);
               const blockers = c.estado === "aprovada" && !c.auto_ok
-                ? autoOkBlockers(c, { now, knowledge, others: list.targets, storeNames: store ? storeKeywords(store.name, list.stores.map((s) => s.name)) : [] })
+                ? autoOkBlockers(c, {
+                  now, knowledge, others: list.targets, allow, staffNames: list.staff_names || [],
+                  storeNames: store ? storeKeywords(store.name, list.stores.map((s) => s.name)) : [],
+                })
                 : [];
               const targets = list.targets.filter((t) => t.id !== c.id && t.intent === c.intent).slice(0, MERGE_TARGETS);
               const reviewBy = c.revisto_em ? plusDays(c.revisto_em, 90) : null;
@@ -176,6 +185,8 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
                         : <span className="tag">Rever até {day(reviewBy)}</span>)}
                       {c.por_publicar && <span className="pill warn">Por publicar</span>}
                       {pii.length > 0 && <span className="pill warn">Possíveis dados pessoais: {pii.map((p) => PII_LABEL[p]).join(", ")}</span>}
+                      {unconfirmed.length > 0 && <span className="pill warn">{nameWarningText(unconfirmed)}</span>}
+                      {confirmed.length > 0 && <span className="tag">Confirmado que não é nome de pessoa: {confirmed.join(", ")}</span>}
                       {warnings.map((w) => <span key={w} className="pill warn">{w}</span>)}
                     </small>
                   </summary>
@@ -195,6 +206,15 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
                     <input type="hidden" name="id" value={c.id} />
                     <Back estado={estado} search={search} />
                     <CardFields card={c} stores={list.stores} />
+                    {/* Possíveis nomes: o Super Admin confirma, para este texto, que não são nomes de pessoas (fica registado). */}
+                    {unconfirmed.length > 0 && (
+                      <>
+                        <label className="checkbox-label">
+                          <input type="checkbox" name="nomes_ok" value="1" /> Confirmo que não é o nome de uma pessoa ({unconfirmed.join(", ")})
+                        </label>
+                        <input type="hidden" name="nomes_vistos" value={unconfirmed.join("|")} />
+                      </>
+                    )}
                     <div className="knowledge-row">
                       <button type="submit" className="secondary-button">Guardar correções</button>
                       <button type="submit" formAction={saveAndApprove} className="secondary-button"

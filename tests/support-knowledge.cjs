@@ -91,6 +91,38 @@ test("Names: a knowledge street does not exempt a customer's name; any case, hyp
     assert.deepEqual(k.scrubPii(s, allow, { names: ["Ana Rocha", "luis.rocha"] }), [], s);
 });
 
+test("Possible names in the answer are warnings the Super Admin confirms; real personal data and names in the question stay hard blocks", () => {
+  // Um nome pouco comum de outra pessoa a meio da resposta: aviso ("Possível nome: Gertrudes"), não passa em silêncio.
+  const gertrudes = "Pode falar com a Gertrudes na loja de Benfica.";
+  assert.deepEqual(k.scrubPii(gertrudes, ALLOW), []);
+  assert.deepEqual(k.answerNames(gertrudes, ALLOW), [{ word: "Gertrudes", common: false }]);
+  assert.deepEqual(k.answerNames("Beatriz pode levantar a peça.", ALLOW), [{ word: "Beatriz", common: true }]);
+  assert.deepEqual(k.answerNames("A Jean-Pierre confirma.", ALLOW).map((n) => n.word), ["Jean", "Pierre"], "um aviso por palavra");
+  // Texto de joalharia: sem recusa e, com as palavras e marcas de joalharia, sem aviso.
+  for (const s of ["Rosário em ouro de 19,2 quilates disponível.", "Vendemos relógios Thomas Sabo.", "Temos Pandora, Swarovski e Tous.",
+    "Temos medalhas de São Jorge e de Santo António.", "Temos um rosário de pérolas.", "Temos medalhas de Nossa Senhora.", "Temos a coleção Gucci e brincos Guess."]) {
+    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
+    assert.deepEqual(k.answerNames(s, ALLOW), [], s);
+  }
+  // "a Rosário" e "Maria do Rosário" continuam a ser possíveis nomes.
+  assert.deepEqual(k.answerNames("A Rosário da loja confirma.", ALLOW).map((n) => n.word), ["Rosário"]);
+  assert.deepEqual(k.answerNames("Maria do Rosário vai ligar.", ALLOW).map((n) => n.word), ["Maria", "Rosário"]);
+  // Recusas que continuam: nomes do cliente ou da equipa, depois de saudações, tratamentos e parentescos, e na pergunta.
+  assert.deepEqual(k.scrubPii("Olá Gertrudes, obrigado.", ALLOW), ["nome"]);
+  assert.deepEqual(k.scrubPii("A sua filha Gertrudes pode levantar.", ALLOW), ["nome"]);
+  assert.deepEqual(k.scrubPii("A Gertrudes confirma.", ALLOW, { names: ["Gertrudes Lopes"] }), ["nome"]);
+  assert.deepEqual(k.scrubPii("A Gertrudes pode levantar a peça?", ALLOW, { question: true }), ["nome_proprio"]);
+  assert.deepEqual(k.scrubPii("Beatriz pode levantar a peça?", ALLOW, { question: true }), ["nome"]);
+  assert.deepEqual(k.cardPii({ pergunta: "Têm um Rosário em ouro?", variantes: ["Vendem relógios Thomas Sabo?"], resposta: gertrudes }, ALLOW), []);
+  // Confirmação por cartão (sem distinguir maiúsculas); uma palavra nova volta a avisar.
+  const w = k.answerNames("A Gertrudes e o Anacleto confirmam.", ALLOW);
+  assert.deepEqual(k.unconfirmedNames(w, ["gertrudes"]).map((n) => n.word), ["Anacleto"]);
+  assert.deepEqual(k.unconfirmedNames(w, ["Gertrudes", "ANACLETO"]), []);
+  assert.deepEqual(k.unconfirmedNames(w, null).length, 2);
+  assert.equal(k.nameWarningText(["Gertrudes"]), "Possível nome: Gertrudes");
+  assert.equal(k.nameWarningText(["Gertrudes", "Anacleto"]), "Possíveis nomes: Gertrudes, Anacleto");
+});
+
 test("Other personal data: profiles, foreign phones, order references with words or letters, codes, token links, obfuscated emails, addresses, personal company mailboxes", () => {
   const cases = {
     perfil: ["Fale connosco no @joana.joias", "Veja @maria.cat_88"],
@@ -338,8 +370,13 @@ test("autoOkBlockers: 7 days approved, reviewed within 90 days, published, store
   const now = new Date("2026-10-29T12:00:00Z");
   const card = { id: "a", estado: "aprovada", intent: "horario_loja", brand: "ldo", loja_id: "s1", resposta: "Abrimos às 10h00 e fechamos às 19h00.",
     aprovada_em: "2026-10-20T09:00:00Z", texto_em: "2026-10-20T09:00:00Z", revisto_em: "2026-10-20", publicado: true, por_publicar: false, auto_ok: false };
-  const ctx = { now, knowledge: KNOWLEDGE, others: [], storeNames: k.storeKeywords("Benfica (Premium)", STORES.map((s) => s.name)) };
+  const ctx = { now, knowledge: KNOWLEDGE, others: [], storeNames: k.storeKeywords("Benfica (Premium)", STORES.map((s) => s.name)), allow: ALLOW, staffNames: ["Ana Rocha"] };
   assert.deepEqual(k.autoOkBlockers(card, ctx), []);
+  // Um possível nome impede sempre (mesmo confirmado); dados pessoais também.
+  const named = k.autoOkBlockers({ ...card, resposta: "A Gertrudes abre às 10h00 e fecha às 19h00." }, ctx);
+  assert.equal(named.length, 1);
+  assert.ok(named[0].startsWith(k.AUTO_OK_TEXT.nomes) && named[0].includes("«Gertrudes»"), named[0]);
+  assert.ok(k.autoOkBlockers({ ...card, resposta: "Abrimos às 10h00 e fechamos às 19h00. Fale com a Ana." }, ctx).includes(k.AUTO_OK_TEXT.dados), "nome da equipa");
   assert.deepEqual(k.autoOkBlockers({ ...card, estado: "proposta" }, ctx), [k.AUTO_OK_TEXT.estado]);
   assert.deepEqual(k.autoOkBlockers({ ...card, aprovada_em: "2026-10-25T09:00:00Z", texto_em: "2026-10-25T09:00:00Z" }, ctx), [k.AUTO_OK_TEXT.seteDias]);
   assert.deepEqual(k.autoOkBlockers({ ...card, aprovada_em: "2026-01-05T09:00:00Z", texto_em: "2026-10-27T09:00:00Z" }, ctx), [k.AUTO_OK_TEXT.seteDias],
@@ -394,7 +431,7 @@ test("Migration: new tables have RLS and no Data API access; RPCs only through a
     assert.ok(stmts.includes(`revoke all on public.${t} from anon, authenticated`), t);
   }
   const fns = [...CODE.matchAll(/create function public\.(ldo_support_knowledge_[a-z_]+)\(([^)]*)\)/g)].map((m) => m[1]);
-  assert.equal(fns.length, 13);
+  assert.equal(fns.length, 14);
   const revoke = stmts.find((s) => s.startsWith("revoke all on function public.ldo_support_knowledge_from_message"));
   const grant = stmts.find((s) => s.startsWith("grant execute on function public.ldo_support_knowledge_from_message"));
   assert.ok(revoke.endsWith("from public, authenticated") && grant.endsWith("to anon"));
@@ -405,7 +442,7 @@ test("Migration: new tables have RLS and no Data API access; RPCs only through a
   for (const f of priv) assert.ok(privRevoke.includes(`${f}(`), f);
   // Sessão para as pessoas, token do servidor para o resto.
   for (const f of ["candidates", "begin", "propose", "purge"]) assert.match(fnBody(`create function public.ldo_support_knowledge_${f}(`), /ldo_private\.bi_check\(p_token\)/, f);
-  for (const f of ["settings(", "settings_save", "cards(", "card_save", "card_state", "card_auto", "card_merge", "publish"])
+  for (const f of ["settings(", "settings_save", "cards(", "card_save", "card_state", "card_auto", "card_merge", "card_names", "publish"])
     assert.match(fnBody(`create function public.ldo_support_knowledge_${f}`), /ldo_private\.support_super\(p_session\)/, f);
   assert.match(fnBody("create function public.ldo_support_knowledge_from_message("), /ldo_private\.support_check\(p_session\)/);
 });
@@ -506,6 +543,21 @@ test("Migration: the daily pass never re-reads a conversation it already read, a
   assert.match(read("lib/support/knowledge.ts"), /for \(const id of shuffled\(ids\)\)/);
 });
 
+test("Migration: 'not a person' confirmations are per card, only for the text the Super Admin saw, cleared when the answer changes, audited without the words", () => {
+  assert.match(CODE, /nomes_ok text\[\] not null default '\{\}' check \(cardinality\(nomes_ok\) <= 20\)/);
+  const names = fnBody("create function public.ldo_support_knowledge_card_names(");
+  assert.match(names, /ldo_private\.support_super\(p_session\)/);
+  assert.match(names, /if v_c\.resposta is distinct from btrim\(coalesce\(p_resposta, ''\)\) then\s+raise exception 'A resposta mudou entretanto/);
+  assert.match(names, /'acao', 'nomes_confirmados', 'palavras', cardinality\(v_nomes\)\)/);
+  assert.ok(!/'palavras', v_nomes|to_jsonb\(v_nomes\)/.test(names), "no registo de auditoria não ficam as palavras");
+  const save = fnBody("create function public.ldo_support_knowledge_card_save(");
+  assert.match(save, /nomes_ok = case when resposta is distinct from v_resposta then '\{\}' else nomes_ok end/);
+  assert.match(save, /'nomes_ok', case when v_c\.resposta is distinct from v_resposta then '\[\]'::jsonb else to_jsonb\(v_c\.nomes_ok\) end/);
+  assert.match(fnBody("create function public.ldo_support_knowledge_cards("), /'nomes_ok', to_jsonb\(x\.nomes_ok\)/);
+  // Juntar não muda a resposta: as confirmações ficam.
+  assert.ok(!/nomes_ok/.test(fnBody("create function public.ldo_support_knowledge_card_merge(")));
+});
+
 test("Migration: auto_ok is dropped by any edit or merge, the 7 days restart after a correction, and it expires", () => {
   const save = fnBody("create function public.ldo_support_knowledge_card_save(");
   assert.match(save, /returns jsonb/);
@@ -602,8 +654,25 @@ test("Approval panel: approve saves the corrections first, merge only within the
   assert.match(panel, /Expirou a \{day\(c\.valido_ate\)\}/);
   const actions = read("app/(painel)/apoio/configuracao/ia/cartoes-actions.ts");
   assert.match(actions, /export async function saveAndApprove[\s\S]*ldo_support_knowledge_card_save[\s\S]*piiOf[\s\S]*ldo_support_knowledge_card_state/);
-  assert.match(actions, /export async function publishCards[\s\S]*c\.por_publicar && piiOf\(list, c\)\.length[\s\S]*ldo_support_knowledge_publish/);
+  assert.match(actions, /export async function publishCards[\s\S]*list\.cards\.filter\(\(c\) => c\.por_publicar\);\s+blocked = pending\.filter\(\(c\) => piiOf\(list, c\)\.length\)[\s\S]*ldo_support_knowledge_publish/);
   assert.match(actions, /\.\.\.\(q \? \{ cartoes_q: q \} : \{\}\)/);
   const css = read("app/(painel)/globals.css");
   assert.ok(css.includes(".knowledge-item form, .knowledge-item select { max-width: 100%; }"));
+});
+
+test("Possible names: the Super Admin confirms them per card before approving or publishing; never for automatic replies", () => {
+  const panel = read("app/(painel)/apoio/configuracao/ia/painel-cartoes.tsx");
+  assert.match(panel, /<input type="checkbox" name="nomes_ok" value="1" \/> Confirmo que não é o nome de uma pessoa/);
+  assert.match(panel, /name="nomes_vistos" value=\{unconfirmed\.join\("\|"\)\}/);
+  assert.match(panel, /unconfirmedNames\(names, c\.nomes_ok\)/);
+  assert.match(panel, /nameWarningText\(unconfirmed\)/);
+  const actions = read("app/(painel)/apoio/configuracao/ia/cartoes-actions.ts");
+  // Aprovar: dados pessoais recusam sempre; possíveis nomes só com a confirmação, das palavras vistas, para o texto guardado.
+  assert.match(actions, /export async function saveAndApprove[\s\S]*piiOf\(list!, values\)[\s\S]*checkNames\([\s\S]*names\.pending\.length[\s\S]*ldo_support_knowledge_card_state/);
+  assert.match(actions, /pending\.some\(\(w\) => !seen\.has\(w\.toLowerCase\(\)\)\)/);
+  assert.match(actions, /ldo_support_knowledge_card_names", \{ p_id: id, p_resposta: resposta, p_nomes:/);
+  assert.match(actions, /export async function publishCards[\s\S]*unconfirmedNames\(answerNames\(c\.resposta, allow\), c\.nomes_ok\)[\s\S]*ldo_support_knowledge_publish/);
+  assert.match(actions, /export async function setCardAuto[\s\S]*autoOkBlockers\(card!, \{[\s\S]*allow: allowOf\(list!\)/);
+  // Propostas da IA: um nome próprio comum na resposta retira-a; as outras palavras ficam como aviso.
+  assert.match(read("lib/support/knowledge.ts"), /if \(answerNames\(out\.resposta, allow\)\.some\(\(n\) => n\.common\)\) return discard\("dados_pessoais", out\.motivo\);/);
 });

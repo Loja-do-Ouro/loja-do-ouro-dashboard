@@ -8,7 +8,7 @@ import { serverRpc, sessionRpc } from "./db";
 import { HttpError } from "./http";
 import {
   CARD_LIMITS, DISTILL_INSTRUCTIONS, DISTILL_SCHEMA, KNOWLEDGE_BUTTON_CALL_MS, KNOWLEDGE_CRON_CALL_MS, KNOWLEDGE_CRON_END_MS, KNOWLEDGE_CRON_LIMIT,
-  KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_EFFORT, KNOWLEDGE_MAX_TOKENS, KNOWLEDGE_MODEL, KnowledgeFormatError, cardPii, companyAllowlist,
+  KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_EFFORT, KNOWLEDGE_MAX_TOKENS, KNOWLEDGE_MODEL, KnowledgeFormatError, answerNames, cardPii, companyAllowlist,
   conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, type KnowledgeBegin, type KnowledgeDiscard,
 } from "./knowledge-rules";
 
@@ -94,6 +94,10 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
     const allow = companyAllowlist({ knowledge, stores: begin.stores, extra: begin.company });
     const names = [begin.conversation.contact_name, begin.conversation.contact_handle, ...begin.staff_names];
     if (cardPii(out, allow, names).length) return discard("dados_pessoais", out.motivo);
+    // Um nome próprio comum na resposta retira a proposta (vem de uma conversa com um cliente); outras palavras com
+    // maiúscula desconhecidas ficam na proposta como aviso ("Possível nome: X"), que o Super Admin tem de confirmar antes
+    // de aprovar e de publicar.
+    if (answerNames(out.resposta, allow).some((n) => n.common)) return discard("dados_pessoais", out.motivo);
     // Só as respostas da equipa enviadas pelo dashboard confirmam factos; a escolhida no botão, se houver, conta como as outras.
     const staff = begin.messages.filter((m) => m.kind === "outbound" && m.dashboard).map((m) => m.body).join("\n\n");
     const questions = [out.pergunta, ...out.variantes].join("\n");
@@ -126,7 +130,7 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
 function buttonNote(o: Outcome) {
   switch (o.resultado) {
     case "novo":
-      return "Guardada como proposta na base de conhecimento aprendida, já sem nomes, contactos nem números de encomenda. O Super Admin aprova-a em Configuração → IA do apoio.";
+      return "Guardada como proposta na base de conhecimento aprendida: as regras do servidor não encontraram contactos, números de encomenda nem nomes conhecidos (palavras que podem ser nomes ficam assinaladas). O Super Admin revê-a e aprova-a em Configuração → IA do apoio.";
     case "existente":
       return "Já existe uma resposta (proposta ou aprovada) para esta pergunta: ficou contada como mais uma confirmação.";
     case "nao_aproveitavel":

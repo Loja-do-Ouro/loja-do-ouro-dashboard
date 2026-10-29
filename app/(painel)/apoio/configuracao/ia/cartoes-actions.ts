@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { userMessage } from "@/lib/supabase";
 import { sessionRpc } from "@/lib/support/db";
 import {
-  autoOkBlockers, cardPii, CARD_ESTADOS, companyAllowlist, isIntent, PII_LABEL, storeKeywords, type AutoCard, type CardEstado, type PiiProblem,
+  answerNames, autoOkBlockers, cardPii, CARD_ESTADOS, companyAllowlist, isIntent, nameWarningText, PII_LABEL, storeKeywords, unconfirmedNames,
+  type AutoCard, type CardEstado, type PiiProblem,
 } from "@/lib/support/knowledge-rules";
 import { requireViewer, type Viewer } from "@/lib/viewer";
 
@@ -27,27 +28,45 @@ const estadoOf = (form: FormData) => {
 const queryOf = (form: FormData) => field(form, "voltar_q").slice(0, 200);
 
 type CardList = {
-  cards: (AutoCard & { loja: string | null; pergunta: string; variantes: string[] })[];
+  cards: (AutoCard & { loja: string | null; pergunta: string; variantes: string[]; nomes_ok?: string[] })[];
   stores: { id: string; name: string; city: string | null }[];
   targets: Pick<AutoCard, "id" | "estado" | "intent" | "brand" | "loja_id" | "auto_ok">[];
   knowledge: { title: string; body: string }[];
   company?: string[];
   staff_names?: string[];
 };
-type Saved = { id: string; estado: CardEstado; alterada: boolean; auto_retirada: boolean };
+// nomes_ok: palavras confirmadas como não sendo nomes, para a resposta guardada (vazio quando a resposta mudou).
+type Saved = { id: string; estado: CardEstado; alterada: boolean; auto_retirada: boolean; nomes_ok?: string[] };
 
 const cardList = (viewer: Viewer, estado: CardEstado) =>
   sessionRpc<CardList>(viewer.session, "ldo_support_knowledge_cards", { p_estado: estado, p_q: null });
 const knowledgeOf = (list: CardList) => list.knowledge.map((k) => `## ${k.title}\n${k.body}`).join("\n\n");
+const allowOf = (list: CardList) => companyAllowlist({ knowledge: knowledgeOf(list), stores: list.stores, extra: list.company || [] });
 
 // Dados pessoais no texto de um cartão: as mesmas regras das propostas da IA, com os dados da empresa aceites e os nomes
 // da equipa. Os dados da empresa que faltem têm de entrar na base de conhecimento.
 function piiOf(list: CardList, card: { pergunta: string; variantes: string[]; resposta: string }) {
-  const allow = companyAllowlist({ knowledge: knowledgeOf(list), stores: list.stores, extra: list.company || [] });
-  return cardPii(card, allow, list.staff_names || []);
+  return cardPii(card, allowOf(list), list.staff_names || []);
 }
 const piiText = (p: PiiProblem[]) => p.map((x) => PII_LABEL[x]).join(", ");
 const PII_HINT = "os dados da empresa (telefones, moradas, emails) têm de estar na base de conhecimento";
+const NAMES_HINT = "Se não for o nome de uma pessoa, marque «Confirmo que não é o nome de uma pessoa» e volte a carregar no botão; se for, reescreva a resposta sem ele.";
+
+// Possíveis nomes na resposta ainda por confirmar. Com «Confirmo que não é o nome de uma pessoa» marcado, confirma-os na
+// BD, mas só se forem os que o Super Admin viu no painel (nomes_vistos) e para a resposta guardada: uma palavra nova
+// (o texto mudou entretanto) volta a pedir confirmação (novas).
+async function checkNames(viewer: Viewer, form: FormData, id: string, resposta: string, list: CardList, confirmed: string[] | undefined) {
+  const allow = allowOf(list);
+  const all = answerNames(resposta, allow);
+  const pending = unconfirmedNames(all, confirmed).map((n) => n.word);
+  if (!pending.length || form.get("nomes_ok") !== "1") return { pending, novas: false, confirmadas: 0 };
+  const seen = new Set(field(form, "nomes_vistos").split("|").map((w) => w.trim().toLowerCase()).filter(Boolean));
+  if (all.length > 20 || pending.some((w) => !seen.has(w.toLowerCase()))) return { pending, novas: true, confirmadas: 0 };
+  await sessionRpc(viewer.session, "ldo_support_knowledge_card_names", { p_id: id, p_resposta: resposta, p_nomes: all.map((n) => n.word) });
+  return { pending: [] as string[], novas: false, confirmadas: pending.length };
+}
+const namesText = (n: { pending: string[]; novas: boolean }) =>
+  `${nameWarningText(n.pending)}. ${n.novas ? "O texto tem palavras que ainda não tinha confirmado: veja-as e confirme de novo." : NAMES_HINT}`;
 
 function cardValues(form: FormData) {
   return {
@@ -77,7 +96,8 @@ export async function saveKnowledgeSettings(form: FormData) {
 }
 
 // Criar (sem id) ou corrigir um cartão. Variantes: uma por linha. A correção fica sempre guardada (nada se perde); se o
-// texto parecer ter dados pessoais, o aviso diz o quê, e "Aprovar" e "Publicar alterações" recusam-no até ser corrigido.
+// texto parecer ter dados pessoais ou possíveis nomes por confirmar, o aviso diz o quê, e "Aprovar" e "Publicar
+// alterações" recusam-no até ser corrigido (ou, nos possíveis nomes, confirmado).
 export async function saveCard(form: FormData) {
   const viewer = await superViewer();
   const id = field(form, "id") || null;
@@ -90,15 +110,29 @@ export async function saveCard(form: FormData) {
   } catch (e) {
     back({ cartoes_erro: userMessage(e) }, estado, q);
   }
+  const s = saved!;
   const to = id ? estado : "proposta";
-  const done = !id ? "Proposta criada: aprove-a para a usar." : saved!.alterada ? `Resposta corrigida.${publishHint(saved!)}` : "Sem alterações.";
-  const pii = await cardList(viewer, "aprovada").then((l) => piiOf(l, values)).catch(() => [] as PiiProblem[]);
-  if (pii.length) back({ cartoes_erro: `${done} Atenção: o texto parece ter ${piiText(pii)}. Corrija-o antes de aprovar ou publicar (${PII_HINT}).` }, to, q);
-  back({ cartoes_ok: done }, to, q);
+  const done = !id ? "Proposta criada: aprove-a para a usar." : s.alterada ? `Resposta corrigida.${publishHint(s)}` : "Sem alterações.";
+  const list = await cardList(viewer, "aprovada").catch(() => null);
+  if (!list) back({ cartoes_ok: done }, to, q);
+  const pii = piiOf(list!, values);
+  let names = { pending: [] as string[], novas: false, confirmadas: 0 };
+  try {
+    names = await checkNames(viewer, form, s.id, values.resposta, list!, s.nomes_ok);
+  } catch (e) {
+    back({ cartoes_erro: `${done} ${userMessage(e)}` }, to, q);
+  }
+  const warn = [
+    pii.length ? `o texto parece ter ${piiText(pii)} (corrija-o; ${PII_HINT})` : "",
+    names.pending.length ? namesText(names) : "",
+  ].filter(Boolean);
+  if (warn.length) back({ cartoes_erro: `${done} Atenção, só pode aprovar ou publicar depois disto: ${warn.join(" ")}` }, to, q);
+  back({ cartoes_ok: `${done}${names.confirmadas ? " Registado que as palavras assinaladas não são nomes de pessoas." : ""}` }, to, q);
 }
 
 // "Aprovar", "Aprovar de novo" e "Confirmar que continua certa", no mesmo formulário das correções: guarda primeiro o que
-// estiver nos campos e só depois aprova (ou regista a revisão). Não aprova um texto com dados pessoais.
+// estiver nos campos e só depois aprova (ou regista a revisão). Não aprova um texto com dados pessoais nem com possíveis
+// nomes por confirmar ("Confirmo que não é o nome de uma pessoa", no mesmo formulário).
 export async function saveAndApprove(form: FormData) {
   const viewer = await superViewer();
   const id = field(form, "id");
@@ -107,16 +141,25 @@ export async function saveAndApprove(form: FormData) {
   if (!id) back({ cartoes_erro: "Resposta não encontrada." }, estado, q);
   if (!isIntent(values.intent)) back({ cartoes_erro: "Escolha o tema." }, estado, q);
   let saved: Saved | null = null;
-  let pii: PiiProblem[] = [];
+  let list: CardList | null = null;
   try {
     saved = await sessionRpc<Saved>(viewer.session, "ldo_support_knowledge_card_save", { p_id: id, p_values: values });
-    pii = piiOf(await cardList(viewer, "aprovada"), values);
+    list = await cardList(viewer, "aprovada");
   } catch (e) {
     back({ cartoes_erro: userMessage(e) }, estado, q);
   }
   const s = saved!;
+  const not = `${s.alterada ? "Correções guardadas, mas a" : "A"} resposta não foi ${s.estado === "aprovada" ? "confirmada" : "aprovada"}`;
+  const pii = piiOf(list!, values);
   if (pii.length)
-    back({ cartoes_erro: `${s.alterada ? "Correções guardadas, mas a" : "A"} resposta não foi ${s.estado === "aprovada" ? "confirmada" : "aprovada"}: o texto parece ter ${piiText(pii)}. Corrija-o (${PII_HINT}) e volte a carregar no botão.` }, estado, q);
+    back({ cartoes_erro: `${not}: o texto parece ter ${piiText(pii)}. Corrija-o (${PII_HINT}) e volte a carregar no botão.` }, estado, q);
+  let names = { pending: [] as string[], novas: false, confirmadas: 0 };
+  try {
+    names = await checkNames(viewer, form, id, values.resposta, list!, s.nomes_ok);
+  } catch (e) {
+    back({ cartoes_erro: `${not}: ${userMessage(e)}` }, estado, q);
+  }
+  if (names.pending.length) back({ cartoes_erro: `${not}: ${namesText(names)}` }, estado, q);
   try {
     await sessionRpc(viewer.session, "ldo_support_knowledge_card_state", { p_id: id, p_estado: "aprovada" });
   } catch (e) {
@@ -159,20 +202,30 @@ export async function mergeCard(form: FormData) {
   }, estado, q);
 }
 
-// Publicar: nada é publicado enquanto uma resposta por publicar parecer ter dados pessoais.
+// Publicar: nada é publicado enquanto uma resposta por publicar parecer ter dados pessoais ou tiver possíveis nomes por
+// confirmar.
 export async function publishCards(form: FormData) {
   const viewer = await superViewer();
   const estado = estadoOf(form), q = queryOf(form);
   let blocked: string[] = [];
+  let unnamed: string[] = [];
   try {
     const list = await cardList(viewer, "aprovada");
-    blocked = list.cards.filter((c) => c.por_publicar && piiOf(list, c).length).map((c) => `«${c.pergunta.slice(0, 80)}»`);
+    const allow = allowOf(list);
+    const pending = list.cards.filter((c) => c.por_publicar);
+    blocked = pending.filter((c) => piiOf(list, c).length).map((c) => `«${c.pergunta.slice(0, 80)}»`);
+    unnamed = pending.filter((c) => !piiOf(list, c).length && unconfirmedNames(answerNames(c.resposta, allow), c.nomes_ok).length)
+      .map((c) => `«${c.pergunta.slice(0, 80)}»`);
   } catch (e) {
     back({ cartoes_erro: userMessage(e) }, estado, q);
   }
-  if (blocked.length)
+  const few = (l: string[]) => `${l.slice(0, 3).join(", ")}${l.length > 3 ? "…" : ""}`;
+  if (blocked.length || unnamed.length)
     back({
-      cartoes_erro: `Nada foi publicado: ${blocked.length === 1 ? "uma resposta aprovada parece ter" : `${blocked.length} respostas aprovadas parecem ter`} dados pessoais (${blocked.slice(0, 3).join(", ")}${blocked.length > 3 ? "…" : ""}). Corrija-as nas Aprovadas (${PII_HINT}).`,
+      cartoes_erro: `Nada foi publicado: ${[
+        blocked.length ? `${blocked.length === 1 ? "uma resposta aprovada parece ter" : `${blocked.length} respostas aprovadas parecem ter`} dados pessoais (${few(blocked)}); corrija-as nas Aprovadas (${PII_HINT})` : "",
+        unnamed.length ? `${unnamed.length === 1 ? "uma resposta aprovada tem" : `${unnamed.length} respostas aprovadas têm`} palavras que podem ser nomes de pessoas por confirmar (${few(unnamed)}); confirme-as ou reescreva-as nas Aprovadas` : "",
+      ].filter(Boolean).join("; ")}.`,
     }, "aprovada", q);
   let r: { alteradas: number; em_uso: number } | null = null;
   try {
@@ -183,8 +236,8 @@ export async function publishCards(form: FormData) {
   back({ cartoes_ok: `Publicadas ${r?.alteradas ?? 0} alteração(ões). A IA usa agora ${r?.em_uso ?? 0} resposta(s) aprovada(s).` }, estado, q);
 }
 
-// "Permitir em respostas automáticas" (só marca o cartão para o futuro; nada é enviado). O texto é verificado aqui; o
-// resto também na BD.
+// "Permitir em respostas automáticas" (só marca o cartão para o futuro; nada é enviado). O texto é verificado aqui
+// (também dados pessoais e possíveis nomes, mesmo confirmados); o resto também na BD.
 export async function setCardAuto(form: FormData) {
   const viewer = await superViewer();
   const id = field(form, "id");
@@ -201,7 +254,7 @@ export async function setCardAuto(form: FormData) {
     if (!list || !card) back({ cartoes_erro: "Resposta não encontrada entre as aprovadas." }, "aprovada", q);
     const store = list!.stores.find((s) => s.id === card!.loja_id);
     const blockers = autoOkBlockers(card!, {
-      now: new Date(), knowledge: knowledgeOf(list!), others: list!.targets,
+      now: new Date(), knowledge: knowledgeOf(list!), others: list!.targets, allow: allowOf(list!), staffNames: list!.staff_names || [],
       storeNames: store ? storeKeywords(store.name, list!.stores.map((s) => s.name)) : [],
     });
     if (blockers.length) back({ cartoes_erro: blockers.join(" ") }, "aprovada", q);
