@@ -29,199 +29,392 @@ const ALLOW = k.companyAllowlist({ knowledge: KNOWLEDGE, stores: STORES, extra: 
 
 // ---------------------------------------------------------------- dados pessoais
 
-test("scrubPii accepts company data: hours, years, the store phone and postcode, own domains and support emails", () => {
-  assert.deepEqual(k.scrubPii("Abrimos às 10h00 e fechamos às 19h00.", ALLOW), []);
-  assert.deepEqual(k.scrubPii("A coleção de 2026 já chegou.", ALLOW), []);
-  assert.deepEqual(k.scrubPii("Pode ligar para a loja: 217 123 456 (ou +351 217123456).", ALLOW), []);
-  assert.deepEqual(k.scrubPii("Estamos na Estrada de Benfica 100, 1500-123 Lisboa.", ALLOW), []);
-  assert.deepEqual(k.scrubPii("Veja em lojadoouro.pt ou em https://www.lojadoouro.pt/pages/lojas.", ALLOW), []);
-  assert.deepEqual(k.scrubPii("Escreva para apoiocliente@lojadoouro.pt ou benfica@lojadoouro.pt.", ALLOW), []);
-  assert.deepEqual(k.scrubPii("Qual é o horário da loja de Benfica ao sábado?", ALLOW, { question: true }), []);
-  assert.deepEqual(k.scrubPii("Pagam com MB WAY ou PayPal?", ALLOW, { question: true }), []);
+const check = (text, names = [], allow = ALLOW) => k.reviewText(text, allow, names);
+// Um aviso diz sempre a palavra ou a frase («…»).
+const isNamed = (w) => /«[^»]+»/.test(w);
+
+test("Company data passes with no block and no warning: hours, years, the store phone, address and postcode, own domains and support emails", () => {
+  for (const s of ["Abrimos às 10h00 e fechamos às 19h00.", "A coleção de 2026 já chegou.", "Pode ligar para a loja: 217 123 456 (ou +351 217123456).",
+    "Estamos na Estrada de Benfica 100, 1500-123 Lisboa.", "Veja em lojadoouro.pt ou em https://www.lojadoouro.pt/pages/lojas.",
+    "Escreva para apoiocliente@lojadoouro.pt ou benfica@lojadoouro.pt.", "Qual é o horário da loja de Benfica ao sábado?", "Pagam com MB WAY ou PayPal?",
+    "Envios grátis em encomendas acima de 150 €.", "Temos fios de 45cm e de 50 cm em ouro de 18kt.", "Veja https://www.lojadoouro.pt/products/anel-ouro-18k-123456"])
+    assert.deepEqual(check(s), { blocks: [], warnings: [] }, s);
 });
 
-test("scrubPii rejects personal and order data", () => {
-  const joana = k.scrubPii("Posso trocar o anel que comprei para a minha filha Joana?", ALLOW, { question: true });
-  assert.ok(joana.includes("nome") && joana.includes("nome_proprio"), joana.join());
-  assert.ok(k.scrubPii("O seu pedido nº 1234 já foi enviado.", ALLOW).includes("encomenda"));
-  assert.ok(k.scrubPii("A encomenda #45678 segue amanhã.", ALLOW).includes("encomenda"));
-  assert.ok(k.scrubPii("Escreva para maria.silva@gmail.com", ALLOW).includes("email"));
-  assert.ok(k.scrubPii("Ligue para o 912 345 678", ALLOW).includes("telefone"));
-  assert.ok(k.scrubPii("Referência 123456789012", ALLOW).includes("numero"));
-  assert.ok(k.scrubPii("Transfira para PT50 0002 0123 1234 5678 9015 4", ALLOW).includes("pagamento"));
-  assert.ok(k.scrubPii("Indique o NIF 123456789", ALLOW).includes("pagamento"));
-  assert.ok(k.scrubPii("Acompanhe em https://www.lojadoouro.pt/account/orders/abc", ALLOW).includes("ligacao"));
-  assert.ok(k.scrubPii("Siga em https://ctt.pt/feapl?objects=RR123456789PT", ALLOW).includes("ligacao"));
-  assert.ok(k.scrubPii("Envie para 4400-123 Vila Nova de Gaia", ALLOW).includes("codigo_postal"));
-  assert.ok(k.scrubPii("O código RR123456789PT", ALLOW).includes("envio"));
+test("Hard blocks only for unambiguous personal data: emails, phones, IBAN/NIF/cards, order and reference numbers, profile links, contact and staff names", () => {
+  const cases = {
+    email: ["Escreva para maria.silva@gmail.com", "joana [at] gmail [dot] com", "joana arroba gmail ponto com"],
+    telefone: ["Ligue para o 912 345 678", "Ligue +44 20 7946 0958", "Ligue +1 (555) 123-4567", "Ligue para 0044 20 7946 0958", "00 44 7700 900123",
+      "Ligue 912  345  678", "Ligue 912 / 345 / 678", "Ligue (+351) 912.345.678"],
+    pagamento: ["Transfira para PT50 0002 0123 1234 5678 9015 4", "Indique o NIF 123456789", "Pague com o cartão 4111 1111 1111 1111"],
+    encomenda: ["O seu pedido nº 1234 já foi enviado.", "A encomenda #45678 segue amanhã.", "A sua encomenda com o n.º 1234 seguiu.", "A encomenda LDO12345 seguiu.",
+      "Veja a #LDO1234.", "A sua compra nº 45123 já seguiu.", "A reparação nº 4512 está pronta para levantar.", "A guia de reparação 4512 está pronta.",
+      "O talão nº 4512 serve de garantia.", "Reserva n.º 4512 confirmada.", "O seu número de cliente é 45123.", "Cartão de cliente 45123",
+      "A referência 4512 está pronta.", "A encomenda de 12 de outubro, a 4512, já seguiu."],
+    numero: ["Referência 123456789012", "O código RR123456789PT"],
+    envio: ["O código RR123456789PT"],
+    ligacao: ["Acompanhe em https://www.lojadoouro.pt/account/orders/abc", "Siga em https://ctt.pt/feapl?objects=RR123456789PT", "Pague em https://pay.example.com/p/8f3a9c2b1e7d",
+      "Veja https://www.lojadoouro.pt/discount/JOANA10", "Veja https://www.lojadoouro.pt/pages/cliente-912345678", "Abra exemplo.pt/c/912.345.678", "https://bit.ly/3xYz9Q",
+      "https://maps.app.goo.gl/AbC12"],
+    perfil: ["Fale connosco no @joana.joias", "Fale por https://wa.me/351912345678", "Veja https://www.instagram.com/joana.joias", "Está em facebook.com/joana.silva.77",
+      "Escreva para m.me/joanasilva", "Fale por t.me/joana_joias", "Veja https://www.tiktok.com/@joana.joias", "https://linktr.ee/gertrudes"],
+  };
+  for (const [code, texts] of Object.entries(cases)) for (const s of texts) assert.ok(check(s).blocks.includes(code), `${code}: ${s} → ${JSON.stringify(check(s))}`);
+  // A BD também recusa os números de encomenda e de referência.
+  const problem = fnBody("create function ldo_private.support_card_problem(");
+  assert.ok(problem.includes("[^0-9]{0,25}(n\\.?[[:space:]]*[ºo°]|nº|número|numero|nr\\.?|#)") && problem.includes("'#[a-z]{2,4}-?[0-9]{3,}'"));
+  assert.ok(problem.includes("repara(ção|cao|ções|coes)|guias?|reservas?|tal(ão|ao|ões|oes)|recibos?|refer(ê|e)ncias?|clientes?"));
 });
 
-test("Names of the customer and of the team never stay in a card (jewellery words that are also names do)", () => {
+test("Customer and staff names are hard blocks in any case; jewellery words that are also names are not", () => {
   const names = ["Ana Rocha", "maria_rosa_93", "Luís"];
   assert.deepEqual(k.scrubPii("Olá Ana, obrigado pelo contacto.", ALLOW, { names }), ["nome"]);
   assert.deepEqual(k.scrubPii("A Rocha vai confirmar.", ALLOW, { names }), ["nome"]);
-  assert.deepEqual(k.scrubPii("Temos anéis em ouro rosa e branco.", ALLOW, { names }), [], "rosa é uma cor de ouro");
-  assert.deepEqual(k.scrubPii("Temos peças em prata anodizada.", ALLOW, { names }), [], "só a palavra inteira (Ana não é anodizada)");
   assert.deepEqual(k.scrubPii("Obrigado, Luís.", ALLOW, { names }), ["nome"]);
   assert.deepEqual(k.scrubPii("Obrigado, Maria.", ALLOW, { names }), ["nome"], "de um perfil em minúsculas");
+  assert.deepEqual(check("Temos anéis em ouro rosa e branco.", names), { blocks: [], warnings: [] }, "rosa é uma cor de ouro");
+  assert.deepEqual(check("Temos peças em prata anodizada.", names), { blocks: [], warnings: [] }, "só a palavra inteira (Ana não é anodizada)");
   assert.deepEqual(k.scrubPii("Envios em 2 a 3 dias úteis.", ALLOW, { names: ["João Dias"] }), [], "o apelido Dias não é a palavra dias");
   assert.deepEqual(k.scrubPii("O João Dias confirma.", ALLOW, { names: ["João Dias"] }), ["nome"]);
-});
-
-test("Names: a knowledge street does not exempt a customer's name; any case, hyphens and apostrophes; other people's names in the answer", () => {
+  assert.deepEqual(k.scrubPii("JOANA, obrigado.", ALLOW, { names: ["Joana"] }), ["nome"]);
+  assert.deepEqual(k.scrubPii("obrigado joana", ALLOW, { names: ["Joana"] }), ["nome"]);
+  assert.deepEqual(k.scrubPii("O Sr. O'Brien confirma.", ALLOW, { names: ["Sean O'Brien"] }), ["nome"]);
+  assert.deepEqual(k.scrubPii("A Jean-Pierre confirma.", ALLOW, { names: ["Jean-Pierre"] }), ["nome"]);
+  assert.deepEqual(k.scrubPii("o mcdonald confirma", ALLOW, { names: ["McDonald"] }), ["nome"]);
+  assert.deepEqual(k.scrubPii("Escreva para joana.silva@lojadoouro.pt", ALLOW, { names: ["Joana Silva"] }), ["nome"], "o nome no email da empresa");
+  // Uma rua da base de conhecimento não isenta o nome do cliente, mas a frase da base passa.
   const kb = `${KNOWLEDGE}\n\n## Perto\nFica perto da Rua de Santa Catarina e da Rua Maria Pia.`;
   const allow = k.companyAllowlist({ knowledge: kb, stores: STORES });
-  const names = ["Maria Catarina Dias", "maria.cat_88"];
-  assert.deepEqual(k.scrubPii("Olá Maria, pode passar na loja.", allow, { names }), ["nome"]);
-  assert.deepEqual(k.scrubPii("Cara Catarina, obrigado pelo contacto.", allow, { names }), ["nome"]);
-  assert.deepEqual(k.scrubPii("Fica perto da Rua de Santa Catarina e da Rua Maria Pia.", allow, { names }), [], "as frases da base de conhecimento passam");
-  // Na resposta, mesmo quem não é o cliente nem da equipa.
-  assert.deepEqual(k.scrubPii("A sua filha Beatriz pode levantar a peça.", allow, {}), ["nome"]);
-  assert.deepEqual(k.scrubPii("Bom dia Sr. Fernando, a peça está pronta.", allow, {}), ["nome"]);
-  assert.deepEqual(k.scrubPii("Beatriz pode levantar a encomenda?", allow, { question: true }), ["nome"], "também no início da frase");
-  // Qualquer forma: maiúsculas, minúsculas, hífen, apóstrofo e nomes com maiúscula no meio.
-  assert.deepEqual(k.scrubPii("JOANA, obrigado.", allow, { names: ["Joana"] }), ["nome"]);
-  assert.deepEqual(k.scrubPii("obrigado joana", allow, { names: ["Joana"] }), ["nome"]);
-  assert.deepEqual(k.scrubPii("O Sr. O'Brien confirma.", allow, { names: ["Sean O'Brien"] }), ["nome"]);
-  assert.deepEqual(k.scrubPii("A Jean-Pierre confirma.", allow, { names: ["Jean-Pierre"] }), ["nome"]);
-  assert.deepEqual(k.scrubPii("o mcdonald confirma", allow, { names: ["McDonald"] }), ["nome"]);
-  // Sem falsos alarmes nas fórmulas, nos lugares, nas lojas e nas marcas.
-  for (const s of ["Olá! Obrigado pelo contacto.", "Obrigada, Equipa Loja do Ouro", "Caro cliente, pode trocar a peça em qualquer loja.", "Feliz Natal e Boas Festas!",
-    "A loja de Leiria Jericó está aberta de segunda a sábado.", "Temos relógios Daniel Wellington.", "Temos anéis em ouro rosa e branco."])
-    assert.deepEqual(k.scrubPii(s, allow, { names: ["Ana Rocha", "luis.rocha"] }), [], s);
+  const client = ["Maria Catarina Dias", "maria.cat_88"];
+  assert.deepEqual(k.scrubPii("Olá Maria, pode passar na loja.", allow, { names: client }), ["nome"]);
+  assert.deepEqual(k.scrubPii("Cara Catarina, obrigado pelo contacto.", allow, { names: client }), ["nome"]);
+  assert.deepEqual(check("Fica perto da Rua de Santa Catarina e da Rua Maria Pia.", client, allow), { blocks: [], warnings: [] });
+  // A IA retira uma proposta com uma recusa; os avisos nunca a retiram.
+  const server = read("lib/support/knowledge.ts");
+  assert.match(server, /if \(cardPii\(out, allow, names\)\.length\) return discard\("dados_pessoais", out\.motivo\);/);
+  assert.ok(!/answerNames|\.common\)/.test(server), "um possível nome já não retira a proposta");
 });
 
-test("Possible names in the answer are warnings the Super Admin confirms; real personal data and names in the question stay hard blocks", () => {
-  // Um nome pouco comum de outra pessoa a meio da resposta: aviso ("Possível nome: Gertrudes"), não passa em silêncio.
-  const gertrudes = "Pode falar com a Gertrudes na loja de Benfica.";
-  assert.deepEqual(k.scrubPii(gertrudes, ALLOW), []);
-  assert.deepEqual(k.answerNames(gertrudes, ALLOW), [{ word: "Gertrudes", common: false }]);
-  assert.deepEqual(k.answerNames("Beatriz pode levantar a peça.", ALLOW), [{ word: "Beatriz", common: true }]);
-  assert.deepEqual(k.answerNames("A Jean-Pierre confirma.", ALLOW).map((n) => n.word), ["Jean", "Pierre"], "um aviso por palavra");
-  // Texto de joalharia: sem recusa e, com as palavras e marcas de joalharia, sem aviso.
-  for (const s of ["Rosário em ouro de 19,2 quilates disponível.", "Vendemos relógios Thomas Sabo.", "Temos Pandora, Swarovski e Tous.",
-    "Temos medalhas de São Jorge e de Santo António.", "Temos um rosário de pérolas.", "Temos medalhas de Nossa Senhora.", "Temos a coleção Gucci e brincos Guess."]) {
-    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
-    assert.deepEqual(k.answerNames(s, ALLOW), [], s);
+test("Everything heuristic is a named warning, never a block: names, addresses, postcodes, profiles without @, codes, company emails, external links", () => {
+  const cases = [
+    ["Pode falar com a Gertrudes na loja de Benfica.", "Possível nome: «Gertrudes»"],
+    ["Posso trocar o anel que comprei para a minha filha Joana?", "Possível nome: «Joana»"],
+    ["A sua filha Beatriz pode levantar a peça.", "Possível nome: «Beatriz»"],
+    ["Fale com o joão na loja.", "Possível nome: «joão»"],
+    ["Envie para a Rua das Flores 12, 3º Esq", "Possível morada: «Rua das Flores 12, 3º Esq»"],
+    ["Envie para 4400-123 Vila Nova de Gaia", "Possível morada: «4400-123»"],
+    ["Siga gertrudes.joias no Instagram", "Possível perfil: «gertrudes.joias»"],
+    ["Use o código JOANA10.", "Possível código ou referência: «JOANA10»"],
+    ["O artigo LDO-12345 já seguiu.", "Possível código ou referência: «LDO-12345»"],
+    ["Vale X7K9 M2P4 Q8R1 T5W3", "Possível código ou referência: «X7K9M2P4Q8R1T5W3»"],
+    ["Escreva para joana.silva@lojadoouro.pt", "Email que não está na base de conhecimento: «joana.silva@lojadoouro.pt»"],
+    ["https://gertrudes.pt", "Ligação que não está na base de conhecimento: «https://gertrudes.pt»"],
+  ];
+  for (const [s, w] of cases) {
+    const r = check(s);
+    assert.deepEqual(r.blocks, [], s);
+    assert.ok(r.warnings.includes(w), `${s} → ${r.warnings.join(" | ")}`);
   }
-  // "a Rosário" e "Maria do Rosário" continuam a ser possíveis nomes.
-  assert.deepEqual(k.answerNames("A Rosário da loja confirma.", ALLOW).map((n) => n.word), ["Rosário"]);
-  assert.deepEqual(k.answerNames("Maria do Rosário vai ligar.", ALLOW).map((n) => n.word), ["Maria", "Rosário"]);
-  // Recusas que continuam: nomes do cliente ou da equipa, depois de saudações, tratamentos e parentescos, e na pergunta.
-  assert.deepEqual(k.scrubPii("Olá Gertrudes, obrigado.", ALLOW), ["nome"]);
-  assert.deepEqual(k.scrubPii("A sua filha Gertrudes pode levantar.", ALLOW), ["nome"]);
-  assert.deepEqual(k.scrubPii("A Gertrudes confirma.", ALLOW, { names: ["Gertrudes Lopes"] }), ["nome"]);
-  assert.deepEqual(k.scrubPii("A Gertrudes pode levantar a peça?", ALLOW, { question: true }), ["nome_proprio"]);
-  assert.deepEqual(k.scrubPii("Beatriz pode levantar a peça?", ALLOW, { question: true }), ["nome"]);
-  assert.deepEqual(k.cardPii({ pergunta: "Têm um Rosário em ouro?", variantes: ["Vendem relógios Thomas Sabo?"], resposta: gertrudes }, ALLOW), []);
-  // Confirmação por cartão (sem distinguir maiúsculas); uma palavra nova volta a avisar.
-  const w = k.answerNames("A Gertrudes e o Anacleto confirmam.", ALLOW);
-  assert.deepEqual(k.unconfirmedNames(w, ["gertrudes"]).map((n) => n.word), ["Anacleto"]);
-  assert.deepEqual(k.unconfirmedNames(w, ["Gertrudes", "ANACLETO"]), []);
-  assert.deepEqual(k.unconfirmedNames(w, null).length, 2);
-  assert.equal(k.nameWarningText(["Gertrudes"]), "Possível nome: Gertrudes");
-  assert.equal(k.nameWarningText(["Gertrudes", "Anacleto"]), "Possíveis nomes: Gertrudes, Anacleto");
+  // Os avisos do cartão: os do texto (pergunta, variantes e resposta) e os da proposta; um aviso confirmado deixa de contar.
+  const card = { pergunta: "A Gertrudes atende?", variantes: ["Posso falar com a Gertrudes?"], resposta: "Sim, na loja de Benfica.", avisos: ["Condição em falta: «só ao sábado»"] };
+  const alerts = k.cardAlerts(card, ALLOW);
+  assert.deepEqual(alerts, ["Possível nome: «Gertrudes»", "Condição em falta: «só ao sábado»"]);
+  assert.deepEqual(k.unackedWarnings(alerts, ["Possível nome: «Gertrudes»"]), ["Condição em falta: «só ao sábado»"]);
+  assert.deepEqual(k.unackedWarnings(alerts, alerts), []);
+  assert.deepEqual(k.unackedWarnings(alerts, null), alerts);
+  assert.equal(k.ACK_LABEL, "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa");
 });
 
-test("Names in lowercase, at the start of a sentence or line, in signatures, after a colon or a list dash, and after role words", () => {
-  // Recusas em qualquer campo: depois de saudações, tratamentos, parentescos e funções, também em minúsculas.
-  for (const s of ["Olá joana, obrigado pelo contacto.", "Obrigado joana!", "Bom dia sr. joão, a peça está pronta.", "A sua filha beatriz pode levantar.",
-    "Fale com a sra. gertrudes.", "A colaboradora Gertrudes confirma.", "O gerente Gertrudes confirma.", "A responsável da loja, Gertrudes, confirma.",
-    "A funcionária Gertrudes atende.", "O vendedor Anacleto confirma.", "A consultora joana confirma.", "O ourives Anacleto repara.",
-    "Exmo. Sr. Silva, obrigado.", "Bom dia Dona Maria."])
-    assert.ok(k.scrubPii(s, ALLOW).includes("nome"), s);
-  // Uma palavra desconhecida em minúsculas depois de uma função ("a consultora gertrudes", "o amigo secreto"): aviso.
-  assert.deepEqual(k.scrubPii("A consultora gertrudes confirma.", ALLOW), []);
-  assert.deepEqual(k.answerNames("A consultora gertrudes confirma.", ALLOW), [{ word: "gertrudes", common: false }]);
-  // Um nome próprio comum em minúsculas: aviso "comum" na resposta (que retira uma proposta da IA), recusa na pergunta.
-  for (const s of ["Fale com o joão na loja.", "Pergunte pela joana na loja."]) {
-    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
-    assert.ok(k.answerNames(s, ALLOW).some((n) => n.common), s);
-  }
-  assert.deepEqual(k.answerNames("Temos brincos margarida e um fio marina.", ALLOW), [], "nomes que em minúsculas são palavras");
-  // Nomes pouco comuns no início de uma frase ou de uma linha, em assinaturas, depois de dois pontos ou de um travessão de
-  // lista, e em minúsculas depois de uma despedida ou de uma saudação: aviso na resposta.
-  for (const s of ["Gertrudes atende na loja de Benfica.", "Contacto na loja: Gertrudes.", "- Gertrudes, na loja de Benfica", "Atenciosamente,\nGertrudes",
-    "Gertrudes\nLoja do Ouro", "Atenciosamente, gertrudes", "Olá gertrudes, a peça está pronta.", "Querida gertrudes, a peça está pronta."])
-    assert.ok(k.answerNames(s, ALLOW).some((n) => n.word.toLowerCase() === "gertrudes"), s);
-  // Na pergunta, recusa.
-  assert.deepEqual(k.scrubPii("A joana pode levantar a peça?", ALLOW, { question: true }), ["nome"]);
-  assert.deepEqual(k.scrubPii("Gertrudes pode levantar a peça?", ALLOW, { question: true }), ["nome_proprio"]);
-  // A IA retira uma proposta com um nome próprio comum na resposta, também em minúsculas.
-  assert.match(read("lib/support/knowledge.ts"), /answerNames\(out\.resposta, allow\)\.some\(\(n\) => n\.common\)/);
-  // Sem falsos alarmes nas frases habituais das respostas e das perguntas.
-  for (const s of ["Olá! Obrigado pelo contacto.", "Bom dia, a loja abre às 10h00.", "Obrigado pela preferência!", "Recebemos a sua mensagem e verificámos o stock.",
-    "Pode trocar a peça em qualquer loja.\nAtenciosamente,\nEquipa Loja do Ouro", "Ajustamos o tamanho dos anéis na loja.", "Atualmente não temos stock desse modelo.",
-    "Obrigado, até breve!", "Cumprimentos,\nLoja do Ouro", "Nota: os envios são grátis acima de 50 €.", "- Envios grátis acima de 50 €\n- Trocas em 30 dias",
-    "Gravações: fazemos gravações em alianças.", "Boa tarde, enviámos a informação.", "Contacte-nos por email.", "Basta trazer a peça.", "Fica na loja de Benfica."]) {
-    assert.deepEqual(k.answerNames(s, ALLOW), [], s);
-    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
-  }
-  for (const s of ["Fazem gravações em alianças?", "Ajustam o tamanho dos anéis?", "Têm anéis em ouro branco?", "Compram ouro usado?", "Enviam para Espanha?",
-    "Reparam relógios?", "Limpam joias?", "Avaliam ouro?", "Alargam anéis?", "Personalizam joias?", "Abrem ao domingo?", "É possível gravar uma aliança?"])
-    assert.deepEqual(k.scrubPii(s, ALLOW, { question: true }), [], s);
-});
-
-test("Other personal data: profiles, foreign phones, order references with words or letters, codes, token links, obfuscated emails, addresses, personal company mailboxes", () => {
+test("Possible names: capitalised and ALL-CAPS words, lowercase first names, words after greetings, titles, relations, roles and sign-offs", () => {
   const cases = {
-    perfil: ["Fale connosco no @joana.joias", "Veja @maria.cat_88"],
-    telefone: ["Ligue +44 20 7946 0958", "Ligue +1 (555) 123-4567"],
-    encomenda: ["A sua encomenda com o n.º 1234 seguiu.", "A encomenda LDO12345 seguiu.", "Veja a #LDO1234."],
-    codigo: ["Vale X7K9 M2P4 Q8R1 T5W3", "Use o código JOANA10.", "Código BEMVINDO"],
-    ligacao: ["Pague em https://pay.example.com/p/8f3a9c2b1e7d", "Veja https://www.lojadoouro.pt/discount/JOANA10"],
-    email: ["joana [at] gmail [dot] com", "joana arroba gmail ponto com", "Escreva para joana.silva@lojadoouro.pt"],
-    morada: ["Envie para a Rua das Flores 12, 3º Esq", "Na Rua das Flores, nº 12"],
+    GERTRUDES: ["Olá GERTRUDES, a peça está pronta.", "Bom dia GERTRUDES", "A sua filha GERTRUDES pode levantar.", "A colaboradora GERTRUDES atende.",
+      "Atenciosamente,\nGERTRUDES SMITH", "Cumprimentos,\nGERTRUDES", "Fale com a GERTRUDES na loja de Benfica.", "Sra. GERTRUDES"],
+    gertrudes: ["A senhora gertrudes pode levantar a peça.", "Pode pedir à menina gertrudes na loja.", "Fale com a sra. gertrudes.", "A consultora gertrudes confirma.",
+      "Atenciosamente, gertrudes", "Olá gertrudes, a peça está pronta.", "Querida gertrudes, a peça está pronta."],
+    Gertrudes: ["Olá Gertrudes, obrigado.", "A sua filha Gertrudes pode levantar.", "A Gertrudes pode levantar a peça?", "A colaboradora Gertrudes confirma.",
+      "O gerente Gertrudes confirma.", "A responsável da loja, Gertrudes, confirma.", "A funcionária Gertrudes atende.", "Gertrudes atende na loja de Benfica.",
+      "Contacto na loja: Gertrudes.", "- Gertrudes, na loja de Benfica", "Atenciosamente,\nGertrudes", "Gertrudes\nLoja do Ouro", "Gertrudes pode levantar a peça?",
+      "contacte a D. Gertrudes"],
+    Anacleto: ["O vendedor Anacleto confirma.", "O ourives Anacleto repara.", "Para o Sr. Anacleto", "Cumprimentos, Anacleto Ferreira", "Entregue ao sobrinho Anacleto."],
+    KÁTIA: ["Olá, KÁTIA."],
+    joana: ["Olá joana, obrigado pelo contacto.", "Obrigado joana!", "A consultora joana confirma.", "Pergunte pela joana na loja.", "A joana pode levantar a peça?"],
+    Silva: ["Exmo. Sr. Silva, obrigado."],
+    Maria: ["Bom dia Dona Maria.", "Maria do Rosário vai ligar."],
+    Rosário: ["A Rosário da loja confirma."],
   };
-  for (const [code, texts] of Object.entries(cases)) for (const s of texts) assert.ok(k.scrubPii(s, ALLOW).includes(code), `${code}: ${s}`);
-  // Dados da empresa e texto normal passam.
-  for (const s of ["Envios grátis em encomendas acima de 150 €.", "Estamos na Estrada de Benfica 100.", "Temos fios de 45cm e de 50 cm em ouro de 18kt.",
-    "Veja https://www.lojadoouro.pt/products/anel-ouro-18k-123456", "Escreva para benfica@lojadoouro.pt", "Abrimos às 10h00."])
-    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
-  // A BD também recusa os números de encomenda com palavras pelo meio ou com letras.
-  const problem = fnBody("create function ldo_private.support_card_problem(");
-  assert.ok(problem.includes("[^0-9]{0,25}(n\\.?[[:space:]]*[ºo°]|nº|número|numero|nr\\.?|#)") && problem.includes("'#[a-z]{2,4}-?[0-9]{3,}'"));
+  for (const [word, texts] of Object.entries(cases))
+    for (const s of texts) {
+      const r = check(s);
+      assert.deepEqual(r.blocks, [], s);
+      assert.ok(r.warnings.includes(`Possível nome: «${word}»`), `${s} → ${r.warnings.join(" | ")}`);
+    }
+  // Nomes que em minúsculas também são palavras, palavras de joalharia, santos, o rosário como peça e marcas: sem aviso.
+  for (const s of ["Temos brincos margarida e um fio marina.", "Rosário em ouro de 19,2 quilates disponível.", "Vendemos relógios Thomas Sabo.",
+    "Temos Pandora, Swarovski e Tous.", "Temos medalhas de São Jorge e de Santo António.", "Temos um rosário de pérolas.", "Temos medalhas de Nossa Senhora.",
+    "Temos a coleção Gucci e brincos Guess.", "Olá! Obrigado pelo contacto.", "Obrigada, Equipa Loja do Ouro", "Caro cliente, pode trocar a peça em qualquer loja.",
+    "Feliz Natal e Boas Festas!", "A loja de Leiria Jericó está aberta de segunda a sábado.", "Temos relógios Daniel Wellington.", "Bom dia, a loja abre às 10h00.",
+    "Obrigado pela preferência!", "Recebemos a sua mensagem e verificámos o stock.", "Pode trocar a peça em qualquer loja.\nAtenciosamente,\nEquipa Loja do Ouro",
+    "Ajustamos o tamanho dos anéis na loja.", "Atualmente não temos stock desse modelo.", "Obrigado, até breve!", "Cumprimentos,\nLoja do Ouro",
+    "Nota: os envios são grátis acima de 50 €.", "- Envios grátis acima de 50 €\n- Trocas em 30 dias", "Gravações: fazemos gravações em alianças.",
+    "Boa tarde, enviámos a informação.", "Contacte-nos por email.", "Basta trazer a peça.", "Fica na loja de Benfica.", "Ligue para a loja.", "Fale connosco na loja.",
+    "Escreva-nos para o email da loja.", "Siga-nos no Instagram.", "Sexta-feira abrimos às 10h00.", "Pergunte pela gerente na loja.", "Fale com a equipa da loja.",
+    "Temos os tamanhos 48 50 52 54 56.", "Tamanhos disponíveis: 6 8 10 12 14", "Peça a fatura na loja."])
+    assert.deepEqual(check(s), { blocks: [], warnings: [] }, s);
 });
 
-test("Personal data inside links (social profiles, wa.me, long numbers) and lowercase addresses, unless they are the company's", () => {
-  const cases = {
-    perfil: ["Fale por https://wa.me/351912345678", "Veja https://www.instagram.com/joana.joias", "Está em facebook.com/joana.silva.77", "Escreva para m.me/joanasilva",
-      "Fale por t.me/joana_joias", "Veja https://www.tiktok.com/@joana.joias"],
-    ligacao: ["Veja https://www.lojadoouro.pt/pages/cliente-912345678", "Abra exemplo.pt/c/912.345.678"],
-    morada: ["Envie para a rua das flores 12", "Moro na avenida da república, 45, 2º esq", "Fica na travessa do carmo nº 3"],
-  };
-  for (const [code, texts] of Object.entries(cases)) for (const s of texts) assert.ok(k.scrubPii(s, ALLOW).includes(code), `${code}: ${s} → ${k.scrubPii(s, ALLOW)}`);
-  // Os da empresa passam (comparados sem distinguir maiúsculas): o @ e as ligações da base de conhecimento, o telefone
-  // da loja no wa.me e a morada da loja.
-  const kb = `${KNOWLEDGE}\n\n## Redes\nInstagram: @lojadoouro. Facebook: https://www.facebook.com/LojaDoOuro\n\n## Leiria\nLoja de Leiria: rua das flores 12, Leiria.`;
-  const allow = k.companyAllowlist({ knowledge: kb, stores: STORES });
-  for (const s of ["Siga-nos em https://www.instagram.com/lojadoouro", "Siga-nos em instagram.com/LojaDoOuro", "Veja https://facebook.com/lojadoouro/",
-    "Fale connosco por https://wa.me/351217123456", "Estamos na rua das flores 12.", "Estamos na Rua das Flores 12.", "Pode ligar para o 217 123 456."])
-    assert.deepEqual(k.scrubPii(s, allow), [], s);
-  assert.deepEqual(k.scrubPii("Siga https://www.instagram.com/lojadoouro/?igsh=a1b2c3", allow), ["ligacao"], "o perfil da empresa com parâmetros de partilha");
-  // Texto de joalharia com "travessa", "largo" ou "praça" não é uma morada.
-  for (const s of ["Temos uma travessa de prata 925.", "Um fio largo de 5 mm.", "Um anel largo com 3 diamantes.", "Abrimos na praça às 10h00.",
-    "Temos argolas de 2 cm.", "Veja https://www.lojadoouro.pt/products/anel-ouro-18k-123456"])
-    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
-});
-
-test("Addresses: the store's street with another house number, numbered and abbreviated street names, n12, lots, any case", () => {
-  // A base de conhecimento tem "Estrada de Benfica 100": outro número na mesma rua é a morada de outra pessoa.
+test("Addresses: the store's street with another number, floor, letter or unit, number-first forms and lowercase streets warn; the store's exact address does not", () => {
+  // A base de conhecimento tem "Estrada de Benfica 100".
   for (const s of ["Entregamos na Estrada de Benfica 512, 3.º esq.", "entregamos na estrada de benfica 512, 3.º esq.", "A cliente mora na Estrada de Benfica, n.º 7.",
     "Estrada de Benfica 10", "rua 5 de outubro, 12", "Rua 5 de Outubro, 12", "av 25 de abril 100", "Av. 25 de Abril 100", "r. das flores 12", "R. das Flores 12",
     "rua das flores n12", "rua das flores nº12", "Bairro da Boavista, lote 12", "lote 12, 2º dto.", "Largo 1.º de Maio 3", "Urbanização Quinta do Lago, lote 7",
-    "Praça D. Pedro IV 12", "tv. do carmo 3", "lg. do rato 2", "estr. de benfica 512", "pç. da figueira 4", "Av da Liberdade 200", "Rua das Flores 12A"])
-    assert.ok(k.scrubPii(s, ALLOW).includes("morada"), s);
-  // A morada da loja, com o mesmo número (sem distinguir maiúsculas, abreviaturas, "n.º" nem o andar escrito por extenso).
+    "Praça D. Pedro IV 12", "tv. do carmo 3", "lg. do rato 2", "estr. de benfica 512", "pç. da figueira 4", "Av da Liberdade 200", "Rua das Flores 12A",
+    "Envie para a rua das flores 12", "Moro na avenida da república, 45, 2º esq", "Fica na travessa do carmo nº 3", "Na Rua das Flores, nº 12",
+    "Estrada de Benfica 100 - 3º esq", "Estrada de Benfica 100, 3 esq", "Estrada de Benfica 100/3º", "Estrada de Benfica 100 B", "estrada de benfica 100 b",
+    "Estrada de Benfica 100 B, 3º esq", "Estrada de Benfica 100, bloco B, 3º", "Estrada de Benfica 100, apartamento 3B", "Estrada de Benfica 100, 1500-123 Lisboa, 3º esq.",
+    "Entrega no 3.º esq. da Estrada de Benfica 100.", "A cliente mora por cima da loja, no 3.º esquerdo do n.º 100 da Estrada de Benfica.",
+    "entregamos no n.º 12 da rua das flores.", "rua das flores, casa 12", "moro no número 12 da avenida da liberdade", "a morada é avenida da liberdade, prédio 3, 2º dto",
+    "Rua das Flores, casa 12", "Rua das Flores, edifício 3, 2º esq", "Urbanização Quinta da Fonte, Bloco B, 3º Esq", "Moradia 7, Quinta do Lago", "Apartado 123, Lisboa",
+    "Entregamos na rua do ouro 120, 2º esq.", "Entregamos na rua da prata 45."]) {
+    const r = check(s);
+    assert.deepEqual(r.blocks, [], s);
+    assert.ok(r.warnings.some((w) => w.startsWith("Possível morada: «")), `${s} → ${r.warnings.join(" | ")}`);
+  }
+  // A morada da loja, igual à da base de conhecimento (sem distinguir maiúsculas, abreviaturas, "n.º" nem o andar por extenso).
   const kb = `${KNOWLEDGE}\n\n## Leiria\nLoja de Leiria: rua das flores 12, Leiria. Loja do Porto: Av. da República, n.º 45, 2.º Esq.`;
   const allow = k.companyAllowlist({ knowledge: kb, stores: STORES });
   for (const s of ["Estamos na Estrada de Benfica 100.", "Estamos na Estrada de Benfica 100, 1500-123 Lisboa.", "Estamos na rua das flores 12.",
     "Estamos na R. das Flores, n.º 12.", "Loja do Porto: Avenida da República 45, 2º esquerdo."])
-    assert.deepEqual(k.scrubPii(s, allow), [], s);
-  for (const s of ["Estamos na rua das flores 14.", "Avenida da República 45, 3º esq."]) assert.ok(k.scrubPii(s, allow).includes("morada"), s);
-  // Datas, dias da semana, horas e quantidades não são moradas.
+    assert.ok(!check(s, [], allow).warnings.some((w) => w.startsWith("Possível morada")), s);
+  for (const s of ["Estamos na rua das flores 14.", "Avenida da República 45, 3º esq."]) assert.ok(check(s, [], allow).warnings.some((w) => w.startsWith("Possível morada")), s);
+  // Datas, dias da semana, horas, quantidades, materiais e medidas não são moradas.
   for (const s of ["Na quinta-feira, 12 de março, fechamos.", "Fechamos na quinta feira 12 de março.", "Abrimos à quinta e sexta, 10h às 19h.",
-    "Na Rua Augusta temos 3 lojas.", "Praça da Figueira às 10:00", "Rua Augusta, 10h-19h", "um lote de 3 anéis", "A garantia é de 2 anos."])
-    assert.ok(!k.scrubPii(s, ALLOW).includes("morada"), s);
+    "Na Rua Augusta temos 3 lojas.", "Praça da Figueira às 10:00", "Rua Augusta, 10h-19h", "um lote de 3 anéis", "A garantia é de 2 anos.", "Temos uma travessa de prata 925.",
+    "Um fio largo de 5 mm.", "Um anel largo com 3 diamantes.", "Abrimos na praça às 10h00.", "Temos argolas de 2 cm.", "Fica a 5 minutos da Estrada de Benfica 100."])
+    assert.ok(!check(s).warnings.some((w) => w.startsWith("Possível morada")), s);
+});
+
+// ---------------------------------------------------------------- corpus de ataque e de falsos alarmes
+
+// Cada texto das verificações anteriores (e outros): tem de dar uma recusa ou um aviso com a palavra ou a frase.
+const ATTACK_TEXTS = [
+  // Nomes em maiúsculas e depois de tratamentos por extenso.
+  "Olá GERTRUDES, a peça está pronta.", "Bom dia GERTRUDES", "A sua filha GERTRUDES pode levantar.", "A colaboradora GERTRUDES atende.",
+  "Atenciosamente,\nGERTRUDES SMITH", "Cumprimentos,\nGERTRUDES", "Olá, KÁTIA.", "Fale com a GERTRUDES na loja de Benfica.", "A senhora gertrudes pode levantar a peça.",
+  "Pode pedir à menina gertrudes na loja.", "Sra. GERTRUDES", "GERTRUDES",
+  // Moradas na rua da loja com andar ou letra, com o número primeiro, casa, prédio, bloco, apartado.
+  "Estrada de Benfica 100 - 3º esq", "Estrada de Benfica 100, 3 esq", "Estrada de Benfica 100/3º", "Estrada de Benfica 100 B", "estrada de benfica 100 b",
+  "Estrada de Benfica 100 B, 3º esq", "Estrada de Benfica 100, bloco B, 3º", "Estrada de Benfica 100, apartamento 3B", "Estrada de Benfica 100, 1500-123 Lisboa, 3º esq.",
+  "Entrega no 3.º esq. da Estrada de Benfica 100.", "A cliente mora por cima da loja, no 3.º esquerdo do n.º 100 da Estrada de Benfica.",
+  "entregamos no n.º 12 da rua das flores.", "rua das flores, casa 12", "moro no número 12 da avenida da liberdade", "a morada é avenida da liberdade, prédio 3, 2º dto",
+  "Rua das Flores, casa 12", "Rua das Flores, edifício 3, 2º esq", "Urbanização Quinta da Fonte, Bloco B, 3º Esq", "Moradia 7, Quinta do Lago", "Apartado 123, Lisboa",
+  "Entregamos na rua do ouro 120, 2º esq.", "Entregamos na rua da prata 45.", "Morada: Rua Augusta 120, 2º", "Entrega na Rua Augusta 120, 1100-048 Lisboa",
+  "Envie para 1100-048 Lisboa",
+  // Números de compra, reparação, guia, reserva, talão, cliente, referência e artigo.
+  "A sua compra nº 45123 já seguiu.", "A compra n.º 4512 está pronta.", "A reparação nº 4512 está pronta para levantar.", "A guia de reparação 4512 está pronta.",
+  "O talão nº 4512 serve de garantia.", "Reserva n.º 4512 confirmada.", "O seu número de cliente é 45123.", "Cartão de cliente 45123", "A referência 4512 está pronta.",
+  "O artigo LDO-12345 já seguiu.", "A encomenda de 12 de outubro, a 4512, já seguiu.", "A fatura FT 2026/1234 já foi emitida.", "O recibo n.º 778 foi enviado.",
+  "o pedido 98765 seguiu",
+  // Telefones com 00, espaços e barras; perfis sem @; páginas de ligações, encurtadores e domínios pessoais.
+  "Ligue para 0044 20 7946 0958", "00 44 7700 900123", "Ligue 912  345  678", "Ligue 912 / 345 / 678", "Ligue 00351 912 345 678", "Ligue (+351) 912.345.678",
+  "Ligue +351 912 345 678", "912345678", "Siga gertrudes.joias no Instagram", "Procure gertrudes.joias no Instagram", "Siga-nos: instagram gertrudes_joias",
+  "Procure por joiasdagertrudes no Instagram", "https://linktr.ee/gertrudes", "https://gertrudes.pt", "https://bit.ly/3xYz9Q", "https://maps.app.goo.gl/AbC12",
+  "wa.me/351912345678", "instagram.com/gertrudes", "t.me/gertrudes", "Veja www.facebook.com/profile.php?id=100012345678", "Siga @gertrudes_joias",
+  // Pagamentos e emails.
+  "Escreva para gertrudes1987@hotmail.com", "Pague com o cartão 4111 1111 1111 1111", "IBAN pt50 0002 0123 1234 5678 9015 4",
+  // Rondas anteriores.
+  "Posso trocar o anel que comprei para a minha filha Joana?", "Beatriz pode levantar a encomenda?", "Bom dia Sr. Fernando, a peça está pronta.",
+  "Pode falar com a Gertrudes na loja de Benfica.", "Maria do Rosário vai ligar.", "Bom dia sr. joão, a peça está pronta.", "A sua filha beatriz pode levantar.",
+  "Exmo. Sr. Silva, obrigado.", "Bom dia Dona Maria.", "Fale com o joão na loja.", "Gertrudes\nLoja do Ouro", "obrigado, sr. anacleto",
+  "Envie para 4400-123 Vila Nova de Gaia", "Use o código JOANA10.", "Código BEMVINDO", "Vale X7K9 M2P4 Q8R1 T5W3", "Escreva para joana.silva@lojadoouro.pt",
+  "Fica na travessa do carmo nº 3", "Rua das Flores 12A", "Praça D. Pedro IV 12", "lote 12, 2º dto.",
+  // Novos: telefones um a um ou em grupos estranhos, emails disfarçados, nomes em minúsculas depois de verbos de pessoas.
+  "Ligue 9 1 2 3 4 5 6 7 8", "Telemóvel: 912 345 67 8", "joana (arroba) gmail.com", "joana @ gmail . com", "joana arroba gmail.com",
+  "Fale com a gertrudes na loja.", "Pergunte pela gertrudes.", "Peça à anacleta o orçamento.", "Contacte o anacleto.", "api.whatsapp.com/send?phone=351912345678",
+];
+// [o que a equipa escreveu, o cartão da IA]: tem de dar uma recusa (proposta retirada) ou um aviso com a frase.
+const ATTACK_PAIRS = [
+  ["Recebemos o seu pedido de reembolso. Infelizmente, não é possível neste caso.", "Fazemos o reembolso."],
+  ["Analisámos o pedido de troca. Lamentamos, mas não a podemos aceitar.", "Aceitamos a troca da peça."],
+  ["Pediu um desconto. Neste momento não temos.", "Temos desconto."],
+  ["Quanto ao reembolso? Infelizmente não é possível.", "Fazemos o reembolso."],
+  ["Sobre o reembolso:\n- não é possível em peças gravadas", "Fazemos o reembolso de peças gravadas."],
+  ["Fazemos reembolso. Não em peças gravadas.", "Fazemos reembolso em peças gravadas."],
+  ["Devolução? Infelizmente não.", "Devolução? Claro."],
+  ["Deixámos de fazer reembolsos.", "Fazemos reembolsos."],
+  ["A garantia exclui quedas e riscos.", "A garantia inclui quedas e riscos."],
+  ["Os reembolsos estão excluídos.", "Os reembolsos estão incluídos."],
+  ["Os descontos acabaram ontem.", "Os descontos continuam."],
+  ["A garantia cobre defeitos de fabrico.", "A garantia cobre quedas e riscos."],
+  ["Reembolsamos o valor em vale de compras.", "Reembolsamos o valor em dinheiro."],
+  ["Envios grátis em compras acima de 50 €.", "Envios grátis."],
+  ["Portes grátis a partir de 50 €.", "Portes grátis em todas as compras."],
+  ["Fazemos reembolso quando a peça chega danificada.", "Fazemos reembolso."],
+  ["Desconto exclusivo para membros do clube.", "Damos desconto a todos os clientes."],
+  ["Fazemos trocas no prazo de 30 dias.", "Fazemos trocas."],
+  ["Não aceitamos pagamentos com PayPal.", "Aceitamos pagamentos com PayPal."],
+  ["Não reparamos relógios.", "Reparamos relógios."],
+  ["Não compramos ouro partido.", "Compramos ouro partido."],
+  ["Pretende o reembolso do valor? Infelizmente, como a peça foi gravada, não é possível.", "Fazemos o reembolso do valor."],
+  ["Reembolso? Infelizmente não é possível.", "Fazemos reembolso."],
+  ["Reembolso? Nem pensar.", "Fazemos reembolso."],
+  ["Quer trocar a peça? Lamentamos, mas peças gravadas não se aceitam de volta.", "Pode trocar a peça."],
+  ["Deseja um desconto? Lamentamos, este artigo já está em promoção e não acumula.", "Damos desconto."],
+  ["Gostaria de um vale? Infelizmente já passou o prazo.", "Oferecemos um vale."],
+  ["A sua reparação nº 4512 está pronta para levantar.", "A sua reparação nº 4512 está pronta para levantar."],
+  // Rondas anteriores: sentido nos dois sentidos e condições.
+  ["Lamentamos, mas não é possível fazer o reembolso do valor pago.", "Fazemos o reembolso do valor pago."],
+  ["Não é possível dar desconto.", "Damos desconto."], ["A garantia não cobre quedas.", "A garantia cobre quedas."],
+  ["Infelizmente a troca não é possível.", "Fazemos troca."], ["Não, em caso algum, fazemos reembolsos.", "Fazemos reembolsos."],
+  ["Fazemos a troca da peça.", "A troca não é possível."], ["Fazemos o reembolso.", "Não é possível fazer o reembolso."],
+  ["O reembolso não é possível.", "O reembolso é possível."], ["Reembolsos não são feitos.", "Reembolsos são feitos."],
+  ["A garantia não cobre riscos.", "A garantia cobre riscos."], ["Desconto não disponível.", "Desconto disponível."],
+  ["Fazemos descontos. Reembolsos, não.", "Fazemos descontos e reembolsos."], ["Não fazemos reembolso sem talão.", "Fazemos reembolso sem talão."],
+  ["Fazemos o reembolso se não gostar.", "Não fazemos o reembolso se gostar."], ["Fazemos trocas e não fazemos reembolsos.", "Não fazemos trocas e não fazemos reembolsos."],
+  ["Fazemos trocas, não reembolsos.", "Não fazemos trocas."], ["Não fazemos descontos em peças de ouro. Fazemos descontos em relógios.", "Fazemos descontos em peças de ouro."],
+  ["Fazemos reembolso sem talão.", "Não fazemos reembolso sem talão."], ["Desconto disponível.", "Desconto não disponível."],
+  ["Só fazemos reembolso se a peça vier com defeito.", "Fazemos reembolso."], ["Aceitamos devoluções, exceto de peças gravadas.", "Aceitamos devoluções de peças gravadas."],
+  ["Fazemos reembolso apenas com talão.", "Fazemos reembolso sem talão."], ["Pode trocar a peça no prazo de 30 dias, desde que tenha o talão.", "Pode trocar a peça no prazo de 30 dias."],
+  ["Fazemos trocas em 30 dias. Não fazemos trocas de peças gravadas.", "Fazemos trocas de peças gravadas em 30 dias."],
+  ["Bom dia, abrimos às 10h00 e fechamos às 19h00. Não fazemos descontos.", "Oferecemos reembolso total."],
+  ["Pode trocar em 30 dias na loja.", "Pode trocar em 60 dias."], ["Pode trocar em 30 dias na loja.", "Pode trocar e tem 10% de desconto com o código AMIGA10."],
+  ["Pode trocar em 30 dias na loja.", "Veja https://seguro-lojadoouro.xyz/pagar"], ["Pode trocar em 30 dias na loja.", "Escreva para promo@lojadoouro.pt"],
+  ["Abrimos às 10h00 e fechamos às 19h00.", "Abrimos às 19h e fechamos às 10h."],
+  // Novos: um prazo ou um valor da equipa que o cartão deixou cair.
+  ["Pode devolver em 14 dias.", "Pode devolver a peça."], ["Os portes são 5 € para Portugal e grátis acima de 50 €.", "Os portes são grátis."],
+];
+const attackResult = (staff, card, knowledge = "") => {
+  const hard = k.poisonReason({ text: card, staff, knowledge }) || (check(card).blocks.length ? "dados_pessoais" : null);
+  return { hard, warnings: [...k.sourceWarnings({ text: card, staff, knowledge }), ...check(card).warnings] };
+};
+
+test("Attack corpus: every probe from the previous verifications (and new ones) gets a hard block or a named warning", (t) => {
+  let blocked = 0, warned = 0;
+  for (const s of ATTACK_TEXTS) {
+    const r = check(s);
+    assert.ok(r.blocks.length || r.warnings.length, `passou em silêncio: ${JSON.stringify(s)}`);
+    assert.ok(r.warnings.every(isNamed), s);
+    if (r.blocks.length) blocked++;
+    else warned++;
+  }
+  let discarded = 0, pairWarned = 0;
+  for (const [staff, card] of ATTACK_PAIRS) {
+    const r = attackResult(staff, card);
+    assert.ok(r.hard || r.warnings.length, `passou em silêncio: ${JSON.stringify(staff)} → ${JSON.stringify(card)}`);
+    assert.ok(r.warnings.every(isNamed), card);
+    if (r.hard) discarded++;
+    else pairWarned++;
+  }
+  // Da base de conhecimento: uma recusa sobre o mesmo compromisso com as mesmas palavras.
+  for (const [card, knowledge] of [["A garantia cobre riscos durante 2 anos.", "## Garantia\nGarantia de 2 anos. A garantia não cobre riscos nem quedas."],
+    ["A garantia não cobre riscos durante 2 anos.", "## Garantia\nGarantia de 2 anos. A garantia cobre riscos."],
+    ["Aceitamos devoluções depois de 14 dias.", "## Devoluções\nNão aceitamos devoluções depois de 14 dias."],
+    ["Fazemos reembolsos.", "## Reembolsos\nNão fazemos reembolsos."]]) {
+    const r = attackResult("", card, knowledge);
+    assert.ok(r.hard || r.warnings.length, `passou em silêncio: ${card}`);
+  }
+  t.diagnostic(`textos: ${ATTACK_TEXTS.length} (${blocked} recusas, ${warned} só avisos); pares: ${ATTACK_PAIRS.length} (${discarded} retirados, ${pairWarned} só avisos)`);
+});
+
+test("Attack corpus: the warnings say what they found (contradiction, missing condition, new words)", () => {
+  const w = (staff, card) => k.sourceWarnings({ text: card, staff, knowledge: "" });
+  assert.deepEqual(w("Pretende o reembolso? Infelizmente não é possível.", "Fazemos o reembolso."),
+    ["Possível contradição: a resposta da equipa tem uma recusa («infelizmente não é», «não é possível»)"]);
+  assert.ok(w("Deixámos de fazer reembolsos.", "Fazemos reembolsos.")[0].includes("«deixámos de fazer reembolsos»"));
+  assert.deepEqual(w("Envios grátis em compras acima de 50 €.", "Envios grátis."), ["Condição em falta: «acima de 50 €»"]);
+  assert.deepEqual(w("Fazemos trocas no prazo de 30 dias.", "Fazemos trocas."), ["Condição em falta: «no prazo de 30 dias»"]);
+  assert.deepEqual(w("A garantia cobre defeitos de fabrico.", "A garantia cobre quedas e riscos."), ["Palavras que não estão na resposta da equipa: «quedas», «riscos»"]);
+  assert.deepEqual(w("Fazemos o reembolso.", "Não é possível fazer o reembolso."),
+    ["Possível contradição: o cartão tem uma recusa que a resposta da equipa não tem («não é possível»)"]);
+  // Uma pergunta da equipa nunca confirma um compromisso: a proposta é retirada.
+  assert.equal(k.poisonReason({ text: "Fazemos o reembolso.", staff: "Pretende o reembolso? Infelizmente não é possível.", knowledge: "" }), "politica_nova");
+  // As fórmulas que não recusam nada não contam ("não hesite", "sem custos", "acabou de chegar").
+  assert.deepEqual(w("Envio sem custos para Portugal. Qualquer dúvida, não hesite em contactar-nos.", "O envio é sem custos para Portugal."), []);
+  assert.deepEqual(w("A sua peça acabou de chegar à loja: pode levantá-la.", "Pode levantar a peça na loja."), []);
+});
+
+// Perguntas e respostas habituais do apoio de uma joalharia (horários, envios para outros países, pagamentos, reparações,
+// gravações, compra de ouro, marcas, medalhas de santos, coleções): nenhuma recusa e avisos raros.
+const FALSE_POSITIVES = [
+  ["Qual é o horário da loja de Benfica ao sábado?", "A loja de Benfica está aberta de segunda a sábado, das 10h00 às 19h00."],
+  ["A que horas fecham ao domingo?", "Ao domingo as lojas estão fechadas. De segunda a sábado abrimos às 10h00 e fechamos às 19h00."],
+  ["Estão abertos nos feriados?", "Nos feriados o horário pode mudar: confirme na página da loja antes de se deslocar."],
+  ["Sábados e domingos estão abertos?", "Aos sábados abrimos das 10h00 às 19h00; aos domingos estamos fechados."],
+  ["Onde fica a loja de Benfica?", "Estamos na Estrada de Benfica 100, 1500-123 Lisboa."],
+  ["Qual é o telefone da loja?", "Pode ligar para a loja de Benfica: 217 123 456."],
+  ["Enviam para o Canadá?", "Sim, enviamos para o Canadá. O prazo e o custo aparecem no checkout antes de pagar."],
+  ["Fazem envios para Cabo Verde?", "Sim, fazemos envios para Cabo Verde; os portes são calculados no checkout."],
+  ["Enviam para a Irlanda?", "Sim, enviamos para a Irlanda e para toda a União Europeia."],
+  ["Quanto tempo demora o envio para Portugal?", "Envios para Portugal continental em 2 a 3 dias úteis, grátis acima de 50 €."],
+  ["Enviam para os Açores e a Madeira?", "Sim, enviamos para as ilhas; o prazo pode ser um pouco maior."],
+  ["Posso pagar com MB WAY?", "Sim, aceitamos MB WAY, Multibanco, cartão de crédito e PayPal."],
+  ["Posso pagar com Cofidis?", "Sim, pode pagar em prestações com Cofidis no checkout."],
+  ["Aceitam pagamento na entrega?", "Neste momento não aceitamos pagamento na entrega."],
+  ["Posso pagar em prestações?", "Sim, pode pagar em prestações com Klarna ou Cofidis."],
+  ["Posso trocar um anel que comprei online?", "Pode trocar em qualquer loja ou por correio, em 30 dias, com a fatura."],
+  ["Pretendo trocar um anel, como faço?", "Traga o anel e a fatura a qualquer loja: trocamos em 30 dias."],
+  ["Devo levar o talão para trocar?", "Sim, traga o talão ou a fatura para fazermos a troca."],
+  ["Fazem reparações de relógios?", "Sim, reparamos relógios: traga o relógio à loja para fazermos um orçamento."],
+  ["Mudam a pilha do relógio?", "Sim, mudamos a pilha na hora em qualquer loja."],
+  ["Diminuem o tamanho de um anel?", "Sim, ajustamos o tamanho dos anéis; traga a peça à loja para avaliarmos."],
+  ["Aumentam o tamanho de um anel?", "Sim, aumentamos o tamanho de anéis em ouro e em prata."],
+  ["Quero gravar uma aliança, é possível?", "Sim, gravamos alianças com nomes, iniciais ou datas."],
+  ["Fazem gravações em pulseiras?", "Sim, fazemos gravações em pulseiras e medalhas."],
+  ["A gravação em letra Arial é possível?", "Sim, temos várias letras, incluindo Arial."],
+  ["Compram ouro usado?", "Sim, compramos ouro usado em qualquer loja: a avaliação é gratuita."],
+  ["Moedas de ouro, compram?", "Sim, avaliamos e compramos moedas de ouro na loja."],
+  ["Vale a pena comprar ouro?", "O ouro mantém valor ao longo do tempo; na loja explicamos as opções."],
+  ["Correntes de ouro têm garantia?", "Sim, todas as peças têm garantia de 2 anos."],
+  ["Solitários em ouro branco têm certificado?", "Sim, os solitários com diamante têm certificado."],
+  ["Gargantilhas de prata estão disponíveis?", "Sim, temos gargantilhas de prata na loja online e nas lojas."],
+  ["Braceletes de couro também vendem?", "Sim, temos braceletes de couro para relógio."],
+  ["Crucifixos em ouro, vendem?", "Sim, temos crucifixos em ouro amarelo e branco."],
+  ["Vendem relógios Hamilton?", "Sim, temos relógios Hamilton e Seiko."],
+  ["Têm relógios Seiko Presage?", "Sim, temos alguns modelos Seiko Presage em loja."],
+  ["Vendem Thomas Sabo e Pandora?", "Sim, vendemos Thomas Sabo, Pandora, Swarovski e Tous."],
+  ["Têm a coleção Primavera?", "Sim, a coleção Primavera já está na loja online."],
+  ["Têm medalhas de Cristo Rei?", "Sim, temos medalhas de Cristo Rei em ouro e em prata."],
+  ["Têm medalhas de São Miguel Arcanjo?", "Sim, temos medalhas de São Miguel Arcanjo e de Nossa Senhora de Fátima."],
+  ["Têm um rosário em prata?", "Sim, temos um rosário de pérolas e outro em prata."],
+  ["Têm sugestões para o amigo secreto?", "Temos brincos e pulseiras abaixo de 30 € que são uma ótima prenda."],
+  ["Brincos para a minha filha bebé?", "Temos brincos de bebé em ouro com fecho de segurança."],
+  ["Pulseira para o meu filho pequeno, têm?", "Sim, temos pulseiras de criança em prata, com gravação."],
+  ["Um presente para a minha mãe, sugestões?", "Um colar com pendente ou uns brincos de pérolas são ótimas escolhas."],
+  ["Que relógio oferecer ao meu pai idoso?", "Um relógio com números grandes e bracelete de couro é uma boa escolha."],
+  ["Estou a pensar comprar um anel, têm garantia?", "Sim, os anéis têm garantia de 2 anos."],
+  ["Afinal, quanto custa a gravação?", "A gravação está incluída no preço das alianças."],
+  ["Como limpo as minhas joias de prata?", "Use um pano macio e seco; evite perfumes e produtos de limpeza."],
+  ["O ouro de 19,2 quilates escurece?", "Não, o ouro de 19,2 quilates não escurece com o uso normal."],
+  ["Qual é a medida do anel?", "Pode medir o dedo com um fio e comparar com a nossa tabela de medidas."],
+  ["Como sei o meu tamanho de anel?", "Na loja medimos o dedo; online tem a tabela de medidas na página do produto."],
+  ["A encomenda já foi enviada?", "Assim que a encomenda é enviada recebe um email com o seguimento."],
+  ["Quanto tempo demora a reparação?", "As reparações demoram cerca de 15 dias."],
+  ["Fazem embrulho para oferta?", "Sim, o embrulho para oferta é gratuito."],
+  ["Têm loja no Porto?", "Neste momento só temos lojas na zona de Lisboa e em Leiria."],
+  ["Posso levantar a encomenda na loja?", "Sim, pode escolher levantamento em loja no checkout, sem custos."],
+  ["As peças são em ouro de lei?", "Sim, as nossas peças em ouro têm a marca de contraste."],
+  ["Têm alianças em titânio?", "Sim, temos alianças em titânio e em aço."],
+  ["Obrigada pela ajuda!", "Obrigado nós! Qualquer dúvida, não hesite em contactar-nos."],
+  ["Bom dia, têm este colar em stock?", "Bom dia! Sim, temos esse colar em stock na loja online."],
+];
+
+test("False-positive corpus: 60 ordinary jewellery questions and answers give no hard block and almost no warnings", (t) => {
+  assert.ok(FALSE_POSITIVES.length >= 40);
+  let textWarnings = 0, sourceWarned = 0;
+  for (const [pergunta, resposta] of FALSE_POSITIVES) {
+    for (const s of [pergunta, resposta]) {
+      const r = check(s, ["Ana Rocha", "luis.rocha"]);
+      assert.deepEqual(r.blocks, [], s);
+      if (r.warnings.length) textWarnings++;
+    }
+    // Uma proposta da IA com a resposta da equipa tal como está: nunca retirada.
+    assert.equal(k.poisonReason({ text: resposta, staff: resposta, knowledge: KNOWLEDGE }), null, resposta);
+    assert.equal(k.poisonReason({ text: pergunta, staff: resposta, knowledge: KNOWLEDGE, question: true }), null, pergunta);
+    if (k.sourceWarnings({ text: resposta, staff: resposta, knowledge: KNOWLEDGE }).length) sourceWarned++;
+  }
+  // Hoje: 0 textos com avisos; 1 resposta com "Possível contradição" (a da equipa tem "não aceitamos", como pedido).
+  assert.ok(textWarnings <= 2, `textos com avisos: ${textWarnings}`);
+  assert.ok(sourceWarned <= 3, `respostas com avisos da proposta: ${sourceWarned}`);
+  t.diagnostic(`${FALSE_POSITIVES.length} pares (${FALSE_POSITIVES.length * 2} textos): 0 recusas, ${textWarnings} textos com avisos, ${sourceWarned} respostas com avisos da proposta`);
 });
 
 // ---------------------------------------------------------------- factos que a equipa não escreveu
@@ -239,7 +432,7 @@ test("numbersInStaffText: every number of the answer is in the team's replies or
   assert.deepEqual(k.numbersInStaffText("Abrimos às 10h. Fechamos às 19h30.", "Abrimos às 10h e fechamos às 19h30."), []);
 });
 
-test("Anti-poisoning: numbers, links, contacts and commitments must come from the team's replies or the knowledge", () => {
+test("Anti-poisoning (hard): new numbers, links, contacts and commitments the team never stated discard the proposal", () => {
   const staff = "Pode trocar em 30 dias na loja. Veja https://www.lojadoouro.pt/pages/trocas";
   assert.equal(k.poisonReason({ text: "Pode trocar em 30 dias em qualquer loja.", staff, knowledge: "" }), null);
   assert.equal(k.poisonReason({ text: "Pode trocar em 60 dias.", staff, knowledge: "" }), "numero_novo");
@@ -248,108 +441,64 @@ test("Anti-poisoning: numbers, links, contacts and commitments must come from th
   assert.equal(k.poisonReason({ text: "Escreva para promo@lojadoouro.pt", staff, knowledge: "" }), "contacto_novo");
   assert.equal(k.poisonReason({ text: "Pode trocar em 30 dias e tem 10% de desconto.", staff, knowledge: "" }), "numero_novo");
   assert.equal(k.poisonReason({ text: "Pode trocar e oferecemos o reembolso.", staff, knowledge: "" }), "politica_nova");
-  // Um compromisso da base de conhecimento só conta com os números do mesmo parágrafo.
+  // A base de conhecimento também confirma um compromisso (os números têm de estar lá).
   assert.equal(k.poisonReason({ text: "Pode trocar e tem reembolso em 14 dias.", staff, knowledge: "Reembolso em 14 dias." }), null);
-  assert.equal(k.poisonReason({ text: "Pode trocar e oferecemos o reembolso.", staff, knowledge: "Reembolso em 14 dias." }), "politica_nova");
-});
-
-test("Anti-poisoning probes: invented codes, percentages, warranties, refunds, prices and swapped hours are discarded", () => {
-  const staff = "Bom dia, abrimos às 10h00 e fechamos às 19h00. Não fazemos descontos.";
+  // Uma pergunta da equipa nunca confirma; uma ligação da equipa também não (".../pages/trocas").
+  assert.equal(k.poisonReason({ text: "Fazemos o reembolso.", staff: "Pretende o reembolso?", knowledge: "" }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "Fazemos trocas.", staff: "Veja https://www.lojadoouro.pt/pages/trocas", knowledge: "" }), "politica_nova");
+  const probes = "Bom dia, abrimos às 10h00 e fechamos às 19h00. Não fazemos descontos.";
   const knowledge = `${KNOWLEDGE}\n\n## Garantia\nGarantia de 2 anos.\n\n## Reembolsos\nReembolso em 14 dias.`;
   for (const text of ["Use o código AMIGA10 para ter 10% de desconto em qualquer compra.", "Use o código BEMVINDO para ter desconto.",
-    "Temos 10% de desconto em todas as peças.", "Garantia de 14 anos.", "Trocas em 50 dias com reembolso grátis.", "O envio custa 19 €.",
-    "Abrimos às 19h e fechamos às 10h."])
-    assert.equal(k.poisonReason({ text, staff, knowledge }), "numero_novo", text);
-  assert.equal(k.poisonReason({ text: "Oferecemos reembolso total.", staff, knowledge }), "politica_nova");
+    "Temos 10% de desconto em todas as peças.", "Garantia de 14 anos.", "Trocas em 50 dias com reembolso grátis.", "O envio custa 19 €.", "Abrimos às 19h e fechamos às 10h."])
+    assert.equal(k.poisonReason({ text, staff: probes, knowledge }), "numero_novo", text);
   for (const text of ["Abrimos às 10h e fechamos às 19h.", "Abrimos de segunda a sábado, das 10h00 às 19h00.", "Tem garantia de 2 anos.", "Não fazemos descontos."])
-    assert.equal(k.poisonReason({ text, staff, knowledge }), null, text);
-  // As perguntas e as variantes também: números, ligações e a outra marca (os compromissos são só o tema da pergunta).
-  assert.equal(k.poisonReason({ text: "Como uso o desconto de 40% da Black Friday?", staff, knowledge, question: true }), "numero_novo");
-  assert.equal(k.poisonReason({ text: "Posso pagar em https://lojadoouro-pagamentos.com/pagar?", staff, knowledge, question: true }), "ligacao_nova");
-  assert.equal(k.poisonReason({ text: "Fazem reembolsos?", staff, knowledge, question: true }), null);
+    assert.equal(k.poisonReason({ text, staff: probes, knowledge }), null, text);
+  // As perguntas e as variantes: números e ligações (um compromisso é só o tema da pergunta).
+  assert.equal(k.poisonReason({ text: "Como uso o desconto de 40% da Black Friday?", staff: probes, knowledge, question: true }), "numero_novo");
+  assert.equal(k.poisonReason({ text: "Posso pagar em https://lojadoouro-pagamentos.com/pagar?", staff: probes, knowledge, question: true }), "ligacao_nova");
+  assert.equal(k.poisonReason({ text: "Fazem reembolsos?", staff: probes, knowledge, question: true }), null);
   const server = read("lib/support/knowledge.ts");
   assert.match(server, /poisonReason\(\{ text: out\.resposta, staff, knowledge \}\) \?\? poisonReason\(\{ text: questions, staff, knowledge, question: true \}\)/);
   assert.match(server, /otherBrandIn\(out\.resposta, brand\) \|\| otherBrandIn\(questions, brand\)/);
   assert.match(server, /cardPii\(out, allow, names\)/);
 });
 
-test("Anti-poisoning: a commitment must keep the team's polarity (negations não/nem/nunca/sem before it)", () => {
-  const no = "Infelizmente não fazemos descontos nem reembolsos.";
-  const yes = "Fazemos sempre reembolso total.";
-  // Nos dois sentidos: a equipa disse que não e o cartão diz que sim, e o contrário.
-  assert.equal(k.poisonReason({ text: yes, staff: no, knowledge: "" }), "politica_nova");
-  assert.equal(k.poisonReason({ text: "Infelizmente não fazemos reembolsos.", staff: yes, knowledge: "" }), "politica_nova");
-  assert.equal(k.poisonReason({ text: "Oferecemos desconto.", staff: no, knowledge: "" }), "politica_nova");
-  assert.equal(k.poisonReason({ text: "Fazemos trocas, mas nunca devoluções.", staff: "Fazemos trocas e devoluções.", knowledge: "" }), "politica_nova");
-  assert.equal(k.poisonReason({ text: "Não aceitamos devoluções.", staff: "Aceitamos devoluções na loja.", knowledge: "" }), "politica_nova");
-  // O mesmo sentido passa.
-  assert.equal(k.poisonReason({ text: "Não fazemos reembolsos.", staff: no, knowledge: "" }), null);
-  assert.equal(k.poisonReason({ text: "Não é possível o reembolso nem o desconto.", staff: no, knowledge: "" }), null, "artigos não contam para as 3 palavras");
-  assert.equal(k.poisonReason({ text: "Fazemos reembolso total.", staff: yes, knowledge: "" }), null);
-  assert.equal(k.poisonReason({ text: "Se não gostar, fazemos o reembolso.", staff: "Se não ficar satisfeita, fazemos o reembolso.", knowledge: "" }), null,
-    "uma negação noutra oração não conta");
-  assert.equal(k.poisonReason({ text: "Envio sem custos para Portugal.", staff: "O envio é sem custos para Portugal.", knowledge: "" }), null);
-  // Da base de conhecimento, também com o mesmo sentido.
-  const knowledge = "## Devoluções\nNão aceitamos devoluções depois de 14 dias.";
-  assert.equal(k.poisonReason({ text: "Aceitamos devoluções depois de 14 dias.", staff: "", knowledge }), "politica_nova");
-  assert.equal(k.poisonReason({ text: "Não aceitamos devoluções depois de 14 dias.", staff: "", knowledge }), null);
-  assert.deepEqual(k.commitmentPolarity(no).sort(), ["desconto|não", "reembolso|não"]);
-  assert.deepEqual(k.commitmentPolarity("We don't offer any refunds."), ["reembolso|não"]);
-});
-
-test("Anti-poisoning: polarity per sentence fails closed (negation after the keyword, far from it, across commas) and conditions are kept", () => {
-  // [o que a equipa escreveu, o cartão]: retirado nos dois sentidos.
-  const flips = [
-    ["Lamentamos, mas não é possível fazer o reembolso do valor pago.", "Fazemos o reembolso do valor pago."],
-    ["Não é possível dar desconto.", "Damos desconto."],
-    ["A garantia não cobre quedas.", "A garantia cobre quedas."],
-    ["Infelizmente a troca não é possível.", "Fazemos troca."],
-    ["Não, em caso algum, fazemos reembolsos.", "Fazemos reembolsos."],
-    ["Fazemos a troca da peça.", "A troca não é possível."],
-    ["Fazemos o reembolso.", "Não é possível fazer o reembolso."],
-    ["O reembolso não é possível.", "O reembolso é possível."],
-    ["Reembolsos não são feitos.", "Reembolsos são feitos."],
-    ["A garantia não cobre riscos.", "A garantia cobre riscos."],
-    ["Desconto não disponível.", "Desconto disponível."],
-    ["Fazemos descontos. Reembolsos, não.", "Fazemos descontos e reembolsos."],
-    ["Não fazemos reembolso sem talão.", "Fazemos reembolso sem talão."],
-    ["Fazemos o reembolso se não gostar.", "Não fazemos o reembolso se gostar."],
-    ["Fazemos trocas e não fazemos reembolsos.", "Não fazemos trocas e não fazemos reembolsos."],
-    ["Fazemos trocas, não reembolsos.", "Não fazemos trocas."],
-    ["Não fazemos descontos em peças de ouro. Fazemos descontos em relógios.", "Fazemos descontos em peças de ouro."],
-  ];
-  for (const [staff, text] of flips) {
-    assert.equal(k.poisonReason({ text, staff, knowledge: "" }), "politica_nova", `${staff} → ${text}`);
-    assert.equal(k.poisonReason({ text: staff, staff: text, knowledge: "" }), "politica_nova", `${text} → ${staff}`);
-  }
-  // Condições que o cartão deixou cair (ou trocou): retirado.
-  for (const [staff, text] of [
-    ["Só fazemos reembolso se a peça vier com defeito.", "Fazemos reembolso."],
-    ["Aceitamos devoluções, exceto de peças gravadas.", "Aceitamos devoluções de peças gravadas."],
-    ["Fazemos reembolso apenas com talão.", "Fazemos reembolso sem talão."],
-    ["Pode trocar a peça no prazo de 30 dias, desde que tenha o talão.", "Pode trocar a peça no prazo de 30 dias."],
-  ]) assert.equal(k.poisonReason({ text, staff, knowledge: "" }), "politica_nova", `${staff} → ${text}`);
-  // Da base de conhecimento: a frase com o mesmo sentido não chega se outra frase sobre o mesmo compromisso disser o
-  // contrário do que o cartão acrescenta.
-  const kb = "## Garantia\nGarantia de 2 anos. A garantia não cobre riscos nem quedas.";
-  assert.equal(k.poisonReason({ text: "A garantia cobre riscos durante 2 anos.", staff: "", knowledge: kb }), "politica_nova");
-  assert.equal(k.poisonReason({ text: "A garantia não cobre riscos durante 2 anos.", staff: "", knowledge: "## Garantia\nGarantia de 2 anos. A garantia cobre riscos." }), "politica_nova");
-  assert.equal(k.poisonReason({ text: "Tem garantia de 2 anos.", staff: "", knowledge: kb }), null);
-  // O mesmo sentido e as mesmas condições passam.
-  for (const [staff, text] of [
-    ["Só fazemos reembolso se a peça vier com defeito.", "Só fazemos reembolso se a peça vier com defeito."],
-    ["Aceitamos devoluções, exceto de peças gravadas.", "Aceitamos devoluções, exceto de peças gravadas."],
-    ["Pode trocar a peça no prazo de 30 dias, desde que tenha o talão.", "Pode trocar a peça no prazo de 30 dias, desde que tenha o talão."],
+test("Anti-poisoning (warnings): a refusal anywhere in the team's reply, a refusal the team did not write, a KB refusal, a missing condition, new words", () => {
+  const w = (staff, text, knowledge = "") => k.sourceWarnings({ text, staff, knowledge });
+  // Recusa da equipa em qualquer ponto (também noutra frase ou numa pergunta) e o cartão diz o que a empresa faz.
+  for (const [staff, text] of [["Infelizmente não fazemos descontos nem reembolsos.", "Fazemos sempre reembolso total."],
     ["Fazemos trocas em 30 dias. Não fazemos trocas de peças gravadas.", "Fazemos trocas em 30 dias."],
-    ["Reembolsos? Não fazemos.", "Não fazemos reembolsos."],
-    ["O reembolso não é possível.", "Não fazemos reembolsos."],
-  ]) assert.equal(k.poisonReason({ text, staff, knowledge: "" }), null, `${staff} → ${text}`);
-  assert.equal(k.poisonReason({ text: "Fazemos trocas de peças gravadas em 30 dias.", staff: "Fazemos trocas em 30 dias. Não fazemos trocas de peças gravadas.", knowledge: "" }),
-    "politica_nova");
-  // Uma ligação da equipa não confirma um compromisso (".../pages/trocas").
-  assert.equal(k.poisonReason({ text: "Fazemos trocas.", staff: "Veja https://www.lojadoouro.pt/pages/trocas", knowledge: "" }), "politica_nova");
-  assert.deepEqual(k.commitmentPolarity("Se não gostar, fazemos o reembolso.").sort(), ["reembolso|ambíguo"]);
-  assert.deepEqual(k.commitmentPolarity("Reembolsos? Não.").sort(), ["reembolso|não"]);
+    ["Se não ficar satisfeita, fazemos o reembolso.", "Se não gostar, fazemos o reembolso."]])
+    assert.ok(w(staff, text).some((x) => x.startsWith("Possível contradição: a resposta da equipa tem uma recusa («")), `${staff} → ${text}`);
+  // Uma recusa no cartão que a equipa não escreveu.
+  assert.ok(w("Aceitamos devoluções na loja.", "Não aceitamos devoluções.")[0].startsWith("Possível contradição: o cartão tem uma recusa"));
+  // Da base de conhecimento: a recusa do mesmo compromisso com as mesmas palavras; sem palavras em comum, não.
+  const kb = "## Garantia\nGarantia de 2 anos. A garantia não cobre riscos nem quedas.";
+  assert.ok(w("", "A garantia cobre riscos durante 2 anos.", kb).some((x) => x.startsWith("Possível contradição: a base de conhecimento tem uma recusa")));
+  assert.deepEqual(w("Tem garantia de 2 anos.", "Tem garantia de 2 anos.", kb), []);
+  // Condições e limites da equipa que o cartão deixou cair; com as mesmas condições, nada.
+  for (const [staff, text, cond] of [["Só fazemos reembolso se a peça vier com defeito.", "Fazemos reembolso.", "«se a peça vier»"],
+    ["Aceitamos devoluções, exceto de peças gravadas.", "Aceitamos devoluções de peças gravadas.", "«exceto de peças gravadas»"],
+    ["Pode trocar a peça no prazo de 30 dias, desde que tenha o talão.", "Pode trocar a peça no prazo de 30 dias.", "«desde que tenha o talão»"],
+    ["Portes grátis a partir de 50 €.", "Portes grátis em todas as compras.", "«a partir de 50 €»"]])
+    assert.ok(w(staff, text).includes(`Condição em falta: ${cond}`), `${staff} → ${w(staff, text).join(" | ")}`);
+  for (const [staff, text] of [["Só fazemos reembolso se a peça vier com defeito.", "Só fazemos reembolso se a peça vier com defeito."],
+    ["Pode trocar a peça no prazo de 30 dias, desde que tenha o talão.", "Pode trocar a peça no prazo de 30 dias, desde que tenha o talão."],
+    ["Envios grátis acima de 50 €. Qualquer dúvida, diga-nos.", "Envios grátis acima de 50 €."]])
+    assert.deepEqual(w(staff, text), [], text);
+  // Palavras que não estão na resposta da equipa nem na base de conhecimento (o âmbito mudou).
+  assert.deepEqual(w("Reembolsamos o valor em vale de compras.", "Reembolsamos o valor em dinheiro."), ["Palavras que não estão na resposta da equipa: «dinheiro»"]);
+  assert.deepEqual(w("Pode trocar em 30 dias na loja.", "Pode trocar na loja em 30 dias."), []);
+  // Um número da equipa que o cartão deixou cair e um compromisso que só a base de conhecimento tem.
+  assert.deepEqual(w("Pode devolver em 14 dias.", "Pode devolver a peça."), ["Condição em falta: «em 14 dias»"]);
+  assert.deepEqual(w("Os portes são 5 € para Portugal e grátis acima de 50 €.", "Os portes são grátis."),
+    ["Condição em falta: «acima de 50 €»", "Condição em falta: «são 5 €»"]);
+  assert.deepEqual(w("Obrigado pelo contacto, enviámos a informação.", "Fazemos reembolsos.", "## Reembolsos\nNão fazemos reembolsos."),
+    ["Compromisso que a resposta da equipa não tem (só na base de conhecimento): «reembolso»"]);
+  // Os avisos ficam no cartão (a BD guarda-os com a proposta).
+  const server = read("lib/support/knowledge.ts");
+  assert.match(server, /const avisos = sourceWarnings\(\{ text: out\.resposta, staff, knowledge \}\);/);
+  assert.match(server, /resposta: out\.resposta, valido_ate: out\.valido_ate, avisos,/);
 });
 
 test("Customer messages are never copied: 12 words in a row from an inbound message discard the card", () => {
@@ -486,10 +635,11 @@ test("autoOkBlockers: 7 days approved, reviewed within 90 days, published, store
     aprovada_em: "2026-10-20T09:00:00Z", texto_em: "2026-10-20T09:00:00Z", revisto_em: "2026-10-20", publicado: true, por_publicar: false, auto_ok: false };
   const ctx = { now, knowledge: KNOWLEDGE, others: [], storeNames: k.storeKeywords("Benfica (Premium)", STORES.map((s) => s.name)), allow: ALLOW, staffNames: ["Ana Rocha"] };
   assert.deepEqual(k.autoOkBlockers(card, ctx), []);
-  // Um possível nome impede sempre (mesmo confirmado); dados pessoais também.
+  // Um aviso por confirmar impede (até ser confirmado para este texto); dados pessoais também.
   const named = k.autoOkBlockers({ ...card, resposta: "A Gertrudes abre às 10h00 e fecha às 19h00." }, ctx);
   assert.equal(named.length, 1);
-  assert.ok(named[0].startsWith(k.AUTO_OK_TEXT.nomes) && named[0].includes("«Gertrudes»"), named[0]);
+  assert.ok(named[0].startsWith(k.AUTO_OK_TEXT.avisos) && named[0].includes("Possível nome: «Gertrudes»"), named[0]);
+  assert.deepEqual(k.autoOkBlockers({ ...card, resposta: "A Gertrudes abre às 10h00 e fecha às 19h00.", avisos_ok: ["Possível nome: «Gertrudes»"] }, ctx), []);
   assert.ok(k.autoOkBlockers({ ...card, resposta: "Abrimos às 10h00 e fechamos às 19h00. Fale com a Ana." }, ctx).includes(k.AUTO_OK_TEXT.dados), "nome da equipa");
   assert.deepEqual(k.autoOkBlockers({ ...card, estado: "proposta" }, ctx), [k.AUTO_OK_TEXT.estado]);
   assert.deepEqual(k.autoOkBlockers({ ...card, aprovada_em: "2026-10-25T09:00:00Z", texto_em: "2026-10-25T09:00:00Z" }, ctx), [k.AUTO_OK_TEXT.seteDias]);
@@ -556,7 +706,7 @@ test("Migration: new tables have RLS and no Data API access; RPCs only through a
   for (const f of priv) assert.ok(privRevoke.includes(`${f}(`), f);
   // Sessão para as pessoas, token do servidor para o resto.
   for (const f of ["candidates", "begin", "propose", "purge"]) assert.match(fnBody(`create function public.ldo_support_knowledge_${f}(`), /ldo_private\.bi_check\(p_token\)/, f);
-  for (const f of ["settings(", "settings_save", "cards(", "card_save", "card_state", "card_auto", "card_merge", "card_names", "publish"])
+  for (const f of ["settings(", "settings_save", "cards(", "card_save", "card_state", "card_auto", "card_merge", "card_ack", "publish"])
     assert.match(fnBody(`create function public.ldo_support_knowledge_${f}`), /ldo_private\.support_super\(p_session\)/, f);
   assert.match(fnBody("create function public.ldo_support_knowledge_from_message("), /ldo_private\.support_check\(p_session\)/);
 });
@@ -577,121 +727,114 @@ test("Migration: automatic proposals start off, own budget of 8 USD, history_fro
   assert.match(CODE, /check \(estado = 'proposta' or cardinality\(amostras\) = 0\)/);
   const state = fnBody("create function public.ldo_support_knowledge_card_state(");
   assert.equal(state.match(/amostras = '\{\}'/g).length, 2);
+  assert.ok(!/ldo_support_knowledge_runs/.test(state.replace(/--[^\n]*/g, "")), "aprovar e arquivar já não têm ligações nos pedidos para apagar");
   // O botão funciona sem as propostas automáticas, mas com orçamento e limite diário.
   const button = fnBody("create function public.ldo_support_knowledge_from_message(");
   assert.ok(!button.includes("knowledge_auto_proposals") && button.includes("support_knowledge_month_cost()") && button.includes(">= 30"));
   assert.match(button, /v_m\.author_user_id <> v_me and not v_super/);
-  // Das fontes ficam a contagem e uma chave pseudónima por contacto; um pedido que acaba num cartão perde a conversa e a
-  // mensagem de origem ao gravar o resultado, e os outros na limpeza, ao fim de 180 dias.
-  assert.match(CODE, /contact_key text check \(contact_key ~ '\^\[0-9a-f\]\{64\}\$'\)/);
-  assert.ok(!/ldo_support_knowledge_runs/.test(state.replace(/--[^\n]*/g, "")), "aprovar e arquivar já não têm ligações nos pedidos para apagar");
-  assert.match(fnBody("create function public.ldo_support_knowledge_card_merge("), /update public\.ldo_support_knowledge_runs set card_id = p_into where card_id = p_id/);
   const purge = fnBody("create function public.ldo_support_knowledge_purge(");
   assert.match(purge, /set conversation_id = null, message_id = null\s+where \(conversation_id is not null or message_id is not null\) and created_at < now\(\) - interval '180 days'/);
-  const propose = fnBody("create function public.ldo_support_knowledge_propose(");
-  assert.match(propose, /v_key := ldo_private\.support_knowledge_key\('contacto', v_conv\.contact_id\)/);
-  assert.ok(!/md5\(/.test(CODE), "nenhuma chave md5 (calculável a partir das tabelas)");
-  assert.ok(!/join public\.ldo_support_conversations c2/.test(propose), "a contagem não precisa da conversa de origem");
 });
 
-test("Migration: the contact key never sits on a run that still has the conversation or the message (propose clears both with the card)", () => {
-  // A tabela recusa um pedido com cartão ou chave e com a conversa ou a mensagem.
-  assert.match(CODE, /check \(\(card_id is null and contact_key is null\) or \(conversation_id is null and message_id is null\)\)\n\);\ncreate index ldo_support_knowledge_runs_created_idx/);
-  // O resultado grava o cartão e a chave e tira a conversa e a mensagem no mesmo update.
+test("Migration: no contact key, no secret, nothing that ties a card to a contact; a run with a card keeps no conversation or message", () => {
+  for (const word of ["contact_key", "support_knowledge_key", "support_knowledge_secret", "hmac", "gen_random_bytes", "message_key", "contact_id"]) {
+    const uses = CODE.toLowerCase().split(word).length - 1;
+    // contact_id só nas leituras da conversa (canal do site anónimo e nome do contacto para as recusas), nunca gravado.
+    if (word === "contact_id") assert.ok(!/(?:insert into|update) public\.ldo_support_knowledge_\w+[^;]*contact_id/i.test(CODE.replace(/\s+/g, " ")), word);
+    else assert.equal(uses, 0, word);
+  }
+  // A tabela recusa um pedido com cartão e com a conversa ou a mensagem.
+  assert.match(CODE, /check \(card_id is null or \(conversation_id is null and message_id is null\)\)\n\);\ncreate index ldo_support_knowledge_runs_created_idx/);
   const propose = fnBody("create function public.ldo_support_knowledge_propose(");
-  assert.match(propose, /card_id = v_card_id,\n(?:\s+--[^\n]*\n)*\s+contact_key = case when v_counts and v_card_id is not null then v_key end,\n\s+conversation_id = case when v_card_id is null then conversation_id end,\n\s+message_id = case when v_card_id is null then message_id end,/);
-  // Todas as escritas de contact_key (e de card_id) nos pedidos: só esse update, que tira as duas ligações.
+  assert.match(propose, /card_id = v_card_id,\n\s+conta = v_counts and v_card_id is not null,\n(?:\s+--[^\n]*\n)*\s+conversation_id = case when v_card_id is null then conversation_id end,\n\s+message_id = case when v_card_id is null then message_id end,/);
   const runWrites = stmts.filter((x) => /(?:update public\.ldo_support_knowledge_runs set|insert into public\.ldo_support_knowledge_runs)/.test(x));
-  const keyWrites = runWrites.filter((x) => /(?<![.\w])contact_key = /.test(x) || /insert into public\.ldo_support_knowledge_runs \([^)]*contact_key/.test(x));
-  assert.equal(keyWrites.length, 1);
-  assert.ok(keyWrites[0].includes("conversation_id = case when v_card_id is null then conversation_id end, message_id = case when v_card_id is null then message_id end"));
-  for (const x of runWrites.filter((w) => w.startsWith("insert"))) assert.ok(!/contact_key|card_id/.test(x.slice(0, x.indexOf(")"))), x.slice(0, 120));
-  for (const x of runWrites.filter((w) => /(?<![.\w])card_id = /.test(w) && !keyWrites.includes(w)))
+  for (const x of runWrites.filter((w) => w.startsWith("insert"))) assert.ok(!/card_id/.test(x.slice(0, x.indexOf(")"))), x.slice(0, 120));
+  for (const x of runWrites.filter((w) => /(?<![.\w])card_id = /.test(w) && !w.includes("conta = v_counts")))
     assert.match(x, /set card_id = p_into where card_id = p_id/, "juntar só muda o cartão de pedidos que já não têm ligações");
   // Nada lê a conversa ou a mensagem de um pedido acabado com cartão: as leituras são de pedidos a decorrer ou com erro.
-  const button = fnBody("create function public.ldo_support_knowledge_from_message(");
-  assert.match(button, /r\.message_id = v_m\.id\s+and r\.status = 'pending'/);
-  const candidates = fnBody("create function public.ldo_support_knowledge_candidates(");
-  assert.equal([...candidates.matchAll(/e\.conversation_id = c\.id and e\.trigger = 'diaria'\s+and \(e\.status = 'error' or \(e\.status = 'pending'/g)].length, 2);
   const readers = [...CODE.matchAll(/from public\.ldo_support_knowledge_runs (\w+) where[^;]*?\b\1\.(?:conversation_id|message_id) = /g)];
   assert.equal(readers.length, 3, "só estas três leituras da ligação de um pedido");
+  // As tabelas auxiliares não têm o cartão.
+  for (const t of ["ldo_support_knowledge_seen", "ldo_support_knowledge_used"]) {
+    const body = new RegExp(`create table public\\.${t} \\(([\\s\\S]*?)\\n\\);`).exec(CODE)[1];
+    assert.ok(!/card|user_id|contact/.test(body), t);
+  }
 });
 
-test("Migration: the contact key is a keyed HMAC whose secret lives only in ldo_private, the same for every card", () => {
-  // Segredo aleatório gerado na migração, numa tabela de ldo_private sem acesso para os papéis da API.
-  assert.ok(stmts.includes("create table ldo_private.support_knowledge_secret ( id integer primary key check (id = 1), secret bytea not null check (length(secret) = 32) )"));
-  assert.ok(stmts.includes("insert into ldo_private.support_knowledge_secret (id, secret) values (1, extensions.gen_random_bytes(32))"));
-  assert.ok(stmts.includes("alter table ldo_private.support_knowledge_secret enable row level security"));
-  assert.ok(stmts.includes("revoke all on ldo_private.support_knowledge_secret from public, anon, authenticated, service_role"));
-  const key = fnBody("create function ldo_private.support_knowledge_key(");
-  assert.match(key, /extensions\.hmac\(convert_to\(p_kind \|\| ':' \|\| p_id::text, 'UTF8'\), s\.secret, 'sha256'\)/);
-  assert.ok(!/card/.test(key.replace(/--[^\n]*/g, "")), "a chave não depende do cartão");
-  // Só a função da chave lê o segredo.
-  const readers = stmts.filter((x) => x.includes("ldo_private.support_knowledge_secret") && !/^(create table|insert into|alter table|revoke)/.test(x));
-  assert.ok(readers.length === 1 && readers[0].includes("create function ldo_private.support_knowledge_key("), readers.map((x) => x.slice(0, 80)).join(" | "));
-});
-
-test("Migration: one proposal per message survives the deletion of the run's link (keyed, without the card), purged after 365 days", () => {
-  assert.match(CODE, /create table public\.ldo_support_knowledge_used \(\s+message_key text primary key check \(message_key ~ '\^\[0-9a-f\]\{64\}\$'\),\s+used_on date not null/);
-  const used = /create table public\.ldo_support_knowledge_used \(([\s\S]*?)\n\);/.exec(CODE)[1];
-  assert.ok(!/card|conversation|message_id|user/.test(used), "sem cartão, conversa, mensagem nem pessoa");
-  const button = fnBody("create function public.ldo_support_knowledge_from_message(");
-  assert.match(button, /v_key := ldo_private\.support_knowledge_key\('mensagem', v_m\.id\)/);
-  assert.match(button, /exists \(select 1 from public\.ldo_support_knowledge_used u where u\.message_key = v_key\)/);
-  assert.ok(!/r\.resultado in \('novo', 'existente'\)/.test(button), "a regra não depende da ligação do pedido à mensagem");
+test("Migration: each conversation counts once as a source (seen.contada), and 'Juntar a…' adds the counts", () => {
+  assert.match(CODE, /create table public\.ldo_support_knowledge_seen \(\s+conversation_id uuid primary key references public\.ldo_support_conversations \(id\) on delete cascade,\s+processed_at timestamptz,\s+contada boolean not null default false,\s+atualizada_em date not null/);
   const propose = fnBody("create function public.ldo_support_knowledge_propose(");
-  assert.match(propose, /if v_res in \('novo', 'existente'\) and v_r\.message_id is not null then\s+insert into public\.ldo_support_knowledge_used \(message_key\)/);
-  assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /delete from public\.ldo_support_knowledge_used where used_on < v_today - 365/);
-  // A ligação do pedido à mensagem sai ao gravar o resultado (com cartão) ou na limpeza (sem cartão, 180 dias).
-  for (const f of ["propose(", "purge("]) assert.match(fnBody("create function public.ldo_support_knowledge_" + f), /message_id = (?:null|case when v_card_id is null then message_id end)/, f);
-});
-
-test("Migration: after 'Juntar a…' a contact is still counted once (merged ids kept on the card, overlap subtracted)", () => {
-  assert.match(CODE, /juntadas uuid\[\] not null default '\{\}'/);
-  const propose = fnBody("create function public.ldo_support_knowledge_propose(");
-  assert.match(propose, /r\.contact_key = v_key and \(r\.card_id = v_target\.id or r\.card_id = any \(v_target\.juntadas\)\)/);
+  assert.match(propose, /perform pg_advisory_xact_lock\(hashtextextended\('ldo_support_knowledge_conv:' \|\| v_conv\.id::text, 0\)\);/);
+  assert.match(propose, /and not exists \(select 1 from public\.ldo_support_knowledge_seen s where s\.conversation_id = v_conv\.id and s\.contada\);/);
+  assert.match(propose, /if v_counts and v_card_id is not null then\s+insert into public\.ldo_support_knowledge_seen \(conversation_id, contada\) values \(v_conv\.id, true\)\s+on conflict \(conversation_id\) do update set contada = true/);
+  // Uma fonte só de um contacto identificável (nunca o chat do site anónimo nem uma conversa sem contacto).
+  assert.match(propose, /v\.verified/);
+  assert.match(propose, /v_conv\.contact_id is not null/);
   // Uma resposta escolhida pela IA que entretanto foi junta a outra conta para essa outra.
+  assert.match(CODE, /juntadas uuid\[\] not null default '\{\}'/);
   assert.match(propose, /where v_existing = any \(juntadas\) and estado <> 'arquivada'/);
   const merge = fnBody("create function public.ldo_support_knowledge_card_merge(");
   assert.match(merge, /juntadas = \(select coalesce\(array_agg\(distinct j\), '\{\}'\) from unnest\(juntadas \|\| p_id \|\| v_from\.juntadas\) as j where j <> p_into\)/);
-  assert.match(merge, /fontes = greatest\(fontes \+ v_from\.fontes - v_both, 0\)/);
-  assert.match(merge, /select count\(distinct a\.contact_key\) into v_both/);
-  assert.match(merge, /set card_id = p_into where card_id = p_id/);
+  assert.match(merge, /fontes = fontes \+ v_from\.fontes,/);
   assert.match(merge, /fontes = 0, updated_at = now\(\)/, "as fontes da juntada passam para a outra");
+  assert.match(merge, /set card_id = p_into where card_id = p_id/);
+  // O painel diz conversas, não clientes.
+  const panel = read("app/(painel)/apoio/configuracao/ia/painel-cartoes.tsx");
+  assert.ok(panel.includes("Confirmada em {c.fontes} {c.fontes === 1 ? \"conversa\" : \"conversas\"}") && !panel.includes("\"clientes\""));
+});
+
+test("Migration: one proposal per message (the message id in the used table, without the card), purged after 365 days", () => {
+  assert.match(CODE, /create table public\.ldo_support_knowledge_used \(\s+message_id uuid primary key references public\.ldo_support_messages \(id\) on delete cascade,\s+used_on date not null/);
+  const button = fnBody("create function public.ldo_support_knowledge_from_message(");
+  assert.match(button, /exists \(select 1 from public\.ldo_support_knowledge_used u where u\.message_id = v_m\.id\)/);
+  assert.match(button, /r\.message_id = v_m\.id\s+and r\.status = 'pending'/);
+  assert.ok(!/r\.resultado in \('novo', 'existente'\)/.test(button), "a regra não depende da ligação do pedido à mensagem");
+  const propose = fnBody("create function public.ldo_support_knowledge_propose(");
+  assert.match(propose, /if v_res in \('novo', 'existente'\) and v_r\.message_id is not null then\s+insert into public\.ldo_support_knowledge_used \(message_id\) values \(v_r\.message_id\) on conflict \(message_id\) do nothing;/);
+  const purge = fnBody("create function public.ldo_support_knowledge_purge(");
+  assert.match(purge, /delete from public\.ldo_support_knowledge_used where used_on < v_today - 365/);
+  assert.match(purge, /delete from public\.ldo_support_knowledge_seen where atualizada_em < v_today - 180/);
 });
 
 test("Migration: the daily pass never re-reads a conversation it already read, and a failure does not lose it", () => {
   const candidates = fnBody("create function public.ldo_support_knowledge_candidates(");
   const window = Number(/now\(\) - interval '(\d+) days'\)/.exec(candidates)[1]);
-  const seenPurge = Number(/ldo_support_knowledge_seen where processed_at < now\(\) - interval '(\d+) days'/.exec(CODE)[1]);
+  const seenPurge = Number(/ldo_support_knowledge_seen where atualizada_em < v_today - (\d+)/.exec(CODE)[1]);
   assert.ok(window < seenPurge, `a janela das candidatas (${window} dias) fica dentro dos ${seenPurge} dias das conversas vistas`);
   assert.match(candidates, /v_from := greatest\(ldo_private\.support_history_from\(\), now\(\) - interval '170 days'\)/);
+  assert.match(candidates, /and \(s\.conversation_id is null or s\.processed_at is null or s\.processed_at < r\.last_reply\)/);
   // Falhas: não nas últimas 20 h e no máximo duas desde a última resposta.
   assert.match(candidates, /e\.created_at > now\(\) - interval '20 hours'/);
   assert.match(candidates, /e\.created_at >= r\.last_reply\) < 2/);
-  // A conversa só fica vista quando o pedido acaba bem, à hora em que foi lida.
+  // A conversa só fica vista quando o pedido acaba bem, até à última resposta da equipa lida (nunca à hora do pedido).
   assert.ok(!fnBody("create function public.ldo_support_knowledge_begin(").includes("ldo_support_knowledge_seen"));
   const propose = fnBody("create function public.ldo_support_knowledge_propose(");
   assert.match(propose, /if v_status = 'done' and v_r\.trigger = 'diaria' and v_conv\.id is not null then\s+insert into public\.ldo_support_knowledge_seen \(conversation_id, processed_at\)\s+select v_conv\.id, coalesce\(max\(m\.created_at\), date_trunc\('day', v_r\.created_at\)\)/);
-  // Vista até à última resposta da equipa lida, nunca à hora do pedido (a hora ligaria a conversa ao pedido e ao cartão).
   assert.ok(!/values \(v_conv\.id, v_r\.created_at\)/.test(propose));
-  // Por ordem aleatória: a ordem dos pedidos no registo não diz que conversa foi lida em cada um.
   assert.match(read("lib/support/knowledge.ts"), /for \(const id of shuffled\(ids\)\)/);
 });
 
-test("Migration: 'not a person' confirmations are per card, only for the text the Super Admin saw, cleared when the answer changes, audited without the words", () => {
-  assert.match(CODE, /nomes_ok text\[\] not null default '\{\}' check \(cardinality\(nomes_ok\) <= 20\)/);
-  const names = fnBody("create function public.ldo_support_knowledge_card_names(");
-  assert.match(names, /ldo_private\.support_super\(p_session\)/);
-  assert.match(names, /if v_c\.resposta is distinct from btrim\(coalesce\(p_resposta, ''\)\) then\s+raise exception 'A resposta mudou entretanto/);
-  assert.match(names, /'acao', 'nomes_confirmados', 'palavras', cardinality\(v_nomes\)\)/);
-  assert.ok(!/'palavras', v_nomes|to_jsonb\(v_nomes\)/.test(names), "no registo de auditoria não ficam as palavras");
+test("Migration: warnings are stored with the proposal and acknowledged per card for the current text, audited with the list, cleared on any text change", () => {
+  assert.match(CODE, /avisos text\[\] not null default '\{\}' check \(cardinality\(avisos\) <= 20/);
+  assert.match(CODE, /avisos_ok text\[\] not null default '\{\}' check \(cardinality\(avisos_ok\) <= 60/);
+  const propose = fnBody("create function public.ldo_support_knowledge_propose(");
+  assert.match(propose, /jsonb_array_elements_text\(case when jsonb_typeof\(v_card -> 'avisos'\) = 'array'/);
+  assert.match(propose, /v_valido, case when v_counts then 1 else 0 end, case when v_conv\.id is null then '\{\}'::uuid\[\] else array\[v_conv\.id\] end, v_avisos, 'ia'\)/);
+  const ack = fnBody("create function public.ldo_support_knowledge_card_ack(");
+  assert.match(ack, /ldo_private\.support_super\(p_session\)/);
+  assert.match(ack, /raise exception 'O texto mudou entretanto: veja os avisos de novo\.'/);
+  assert.match(ack, /if not \(v_c\.avisos <@ v_avisos\) then/);
+  assert.match(ack, /'acao', 'avisos_confirmados', 'avisos', to_jsonb\(v_avisos\)\)/, "no registo de auditoria fica a lista dos avisos confirmados");
   const save = fnBody("create function public.ldo_support_knowledge_card_save(");
-  assert.match(save, /nomes_ok = case when resposta is distinct from v_resposta then '\{\}' else nomes_ok end/);
-  assert.match(save, /'nomes_ok', case when v_c\.resposta is distinct from v_resposta then '\[\]'::jsonb else to_jsonb\(v_c\.nomes_ok\) end/);
-  assert.match(fnBody("create function public.ldo_support_knowledge_cards("), /'nomes_ok', to_jsonb\(x\.nomes_ok\)/);
-  // Juntar não muda a resposta: as confirmações ficam.
-  assert.ok(!/nomes_ok/.test(fnBody("create function public.ldo_support_knowledge_card_merge(")));
+  assert.match(save, /v_txt := \(v_c\.pergunta, v_c\.variantes, v_c\.resposta\) is distinct from \(v_pergunta, v_variantes, v_resposta\);/);
+  assert.match(save, /avisos_ok = case when v_txt then '\{\}' else avisos_ok end/);
+  assert.match(save, /'avisos_ok', case when v_txt then '\[\]'::jsonb else to_jsonb\(v_c\.avisos_ok\) end/);
+  assert.match(fnBody("create function public.ldo_support_knowledge_cards("), /'avisos', to_jsonb\(x\.avisos\), 'avisos_ok', to_jsonb\(x\.avisos_ok\)/);
+  // Juntar muda as variantes: a confirmação sai.
+  assert.match(fnBody("create function public.ldo_support_knowledge_card_merge("), /avisos_ok = case when v_changed then '\{\}' else avisos_ok end/);
+  // Aprovar, publicar e respostas automáticas: os avisos da proposta confirmados (os do texto, no servidor).
+  for (const f of ["card_state", "card_auto", "publish"]) assert.match(fnBody(`create function public.ldo_support_knowledge_${f}(`), /avisos <@ (?:v_c\.)?avisos_ok/, f);
+  assert.ok(!/nomes_ok|card_names/.test(CODE));
 });
 
 test("Migration: auto_ok is dropped by any edit or merge, the 7 days restart after a correction, and it expires", () => {
@@ -699,7 +842,7 @@ test("Migration: auto_ok is dropped by any edit or merge, the 7 days restart aft
   assert.match(save, /returns jsonb/);
   assert.match(save, /auto_ok = false, auto_ok_em = null/);
   assert.match(save, /texto_em = case when estado = 'aprovada' then now\(\) else texto_em end/);
-  assert.match(save, /'auto_retirada', v_c\.auto_ok\)/);
+  assert.match(save, /'auto_retirada', v_c\.auto_ok,/);
   const state = fnBody("create function public.ldo_support_knowledge_card_state(");
   assert.match(state, /texto_em = case when estado = 'aprovada' then texto_em else now\(\) end/);
   assert.match(CODE, /check \(estado <> 'aprovada' or \(aprovada_em is not null and texto_em is not null\)\)/);
@@ -712,7 +855,6 @@ test("Migration: auto_ok is dropped by any edit or merge, the 7 days restart aft
   const purge = fnBody("create function public.ldo_support_knowledge_purge(");
   assert.match(purge, /where auto_ok and \(\(valido_ate is not null and valido_ate < v_today\) or revisto_em is null or revisto_em < v_today - 90\)/);
   assert.match(purge, /'acao', 'auto_expirada'/);
-  // Em uso pela IA: só as publicadas ainda válidas (as contagens e os custos de IA).
   for (const body of [fnBody("create function public.ldo_support_knowledge_settings("), SQL.slice(SQL.indexOf("'cards', jsonb_build_object("))])
     assert.match(body, /publicado ->> 'valido_ate'\)::date >= \(now\(\) at time zone 'Europe\/Lisbon'\)::date/);
 });
@@ -789,57 +931,64 @@ test("Approval panel: approve saves the corrections first, merge only within the
   assert.ok(panel.includes("Marcada para respostas automáticas") && !panel.includes("Usada em respostas automáticas"), "as respostas automáticas ainda não existem");
   assert.match(panel, /Expirou a \{day\(c\.valido_ate\)\}/);
   const actions = read("app/(painel)/apoio/configuracao/ia/cartoes-actions.ts");
-  assert.match(actions, /export async function saveAndApprove[\s\S]*ldo_support_knowledge_card_save[\s\S]*piiOf[\s\S]*ldo_support_knowledge_card_state/);
-  assert.match(actions, /export async function publishCards[\s\S]*list\.cards\.filter\(\(c\) => c\.por_publicar\);\s+blocked = pending\.filter\(\(c\) => piiOf\(list, c\)\.length\)[\s\S]*ldo_support_knowledge_publish/);
+  assert.match(actions, /export async function saveAndApprove[\s\S]*ldo_support_knowledge_card_save[\s\S]*blocksOf[\s\S]*ldo_support_knowledge_card_state/);
+  assert.match(actions, /export async function publishCards[\s\S]*list\.cards\.filter\(\(c\) => c\.por_publicar\);\s+blocked = pending\.filter\(\(c\) => blocksOf\(list, c\)\.length\)[\s\S]*ldo_support_knowledge_publish/);
   assert.match(actions, /\.\.\.\(q \? \{ cartoes_q: q \} : \{\}\)/);
   const css = read("app/(painel)/globals.css");
   assert.ok(css.includes(".knowledge-item form, .knowledge-item select { max-width: 100%; }"));
 });
 
-test("Privacy wording says exactly what is kept: counts, a keyed pseudonymous key per source, used-message keys; no 'without names' claim", () => {
+test("Privacy wording is short and says exactly what is kept: no contact key, conversations counted, proposal sources only, retention, rules miss things", () => {
   const panel = read("app/(painel)/apoio/configuracao/ia/painel-cartoes.tsx");
   const readme = read("README.md").split("\n").find((l) => l.startsWith("- **Base de conhecimento aprendida**"));
+  const header = SQL.slice(0, SQL.indexOf("-- Funções alteradas"));
   const server = read("lib/support/knowledge.ts");
-  for (const [name, text] of [["painel", panel], ["README", readme], ["botão", server]]) {
-    assert.ok(!/já sem nomes|sem guardar qual é|md5/.test(text), name);
-  }
-  assert.ok(panel.includes("uma chave pseudónima do contacto (HMAC-SHA256 com um segredo guardado só na base de dados, a que a aplicação não tem acesso)"));
-  assert.ok(panel.includes("ficam numa lista só com uma chave do mesmo tipo e o dia, sem a resposta aprovada a que deram origem"));
-  assert.ok(readme.includes("HMAC-SHA256 do id do contacto com um segredo aleatório de 32 bytes gerado na migração e guardado só em `ldo_private.support_knowledge_secret`"));
-  // Nada de "sem o segredo a chave não identifica o contacto": a chave liga as confirmações do mesmo contacto e, enquanto
-  // uma proposta guarda as conversas de origem, quem lê as tabelas liga-a ao contacto. O registo diz tudo o que guarda.
-  const sqlComments = SQL.split("\n").filter((l) => l.trimStart().startsWith("--")).join(" ").replace(/\s+--\s*/g, " ");
-  for (const [name, text] of [["painel", panel], ["README", readme], ["migração", sqlComments]])
-    assert.ok(!/sem (?:esse|o) segredo|não identifica o contacto|não se chega ao contacto|ao fim de 30 dias|só com custo, resultado e a chave|os compromissos com o mesmo sentido/.test(text), name);
-  assert.ok(panel.includes("A chave não é anónima: é a mesma para o mesmo cliente em todas as respostas (liga as confirmações dele entre si) e, enquanto uma proposta mostra as conversas de origem, quem lê a base de dados diretamente (o dono da base de dados ou a chave service_role do Supabase) pode ligá-la a esse contacto"));
-  assert.ok(readme.includes("A chave não é anónima: liga as confirmações do mesmo contacto entre si e, enquanto uma proposta guarda as conversas de origem, quem lê as tabelas diretamente (o dono da BD ou service_role) pode ligá-la a esse contacto"));
-  assert.ok(sqlComments.includes("A chave nunca fica no mesmo pedido que a conversa ou a mensagem (a tabela recusa-o). Não é anónima"));
-  assert.ok(panel.includes("No registo de pedidos (365 dias): a hora do pedido e do fim, a origem (botão ou passagem diária), quem carregou no botão, o cartão, o modelo, o custo, a duração e o resultado"));
-  assert.ok(readme.includes("Registo `ldo_support_knowledge_runs` (365 dias) com a hora do pedido e do fim, a origem, quem carregou no botão, o cartão, o modelo, o custo, a duração"));
-  for (const text of [panel, readme]) {
-    assert.ok(text.includes("a mensagem), sem texto, 180 dias"), "as mensagens dos pedidos do botão também ficam 180 dias");
-    assert.ok(text.includes("uma negação em qualquer ponto da frase conta"));
-    assert.ok(text.includes("As regras não apanham tudo"));
-  }
-  // Os prazos do texto são os da migração (180 dias para a ligação dos pedidos sem cartão).
-  assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /message_id is not null\) and created_at < now\(\) - interval '180 days'/);
-  // Os números de retenção do texto são os da migração.
-  assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /delete from public\.ldo_support_knowledge_runs where created_at < now\(\) - interval '365 days'/);
+  // Nada de chaves, segredos ou promessas de que nada se liga.
+  for (const [name, text] of [["painel", panel], ["README", readme], ["migração", SQL], ["botão", server]])
+    assert.ok(!/HMAC|pseudónim|segredo|chave do contacto|não identifica o contacto|já sem nomes|sem guardar qual é|md5\(/i.test(text.replace(/md5 [0-9a-f]{32}/g, "")), name);
+  const bottom = /<p className="panel-note">\s*(Privacidade\.[^<]*)<\/p>/.exec(panel)[1].replace(/&quot;/g, "\"");
+  for (const s of ["Nenhum modelo é treinado com as conversas", "o texto, o tema, a loja, quem aprovou e quando",
+    "os avisos e a confirmação \"sem dados pessoais\" (quem, quando e que avisos confirmou, também no registo de auditoria)",
+    "em quantas conversas foi confirmado", "só enquanto é proposta, até 3 conversas de origem", "Não ficam guardados mensagens nem contactos de clientes",
+    "as conversas lidas (180 dias depois da última vez)", "as respostas guardadas com o botão (365 dias), sem o cartão", "O registo de pedidos (365 dias)",
+    "só nos pedidos que não deram cartão (180 dias)", "As regras não apanham tudo: leia cada proposta antes de a aprovar"])
+    assert.ok(bottom.includes(s), s);
+  assert.ok(bottom.length < 1600, `curto: ${bottom.length}`);
+  for (const s of ["As regras não apanham tudo", "\"Confirmada em n conversas\"", "nunca o chat do site anónimo", "`amostras`", "Mensagens e contactos de clientes não são guardados",
+    "180 dias depois da última vez", "365 dias", "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa"])
+    assert.ok(readme.includes(s), s);
+  for (const s of ["As mensagens dos clientes e os contactos não são copiados para estas tabelas", "fontes: cada conversa conta no máximo uma vez",
+    "só nas propostas, até 3 conversas de origem (amostras), apagadas ao aprovar ou arquivar", "As regras não apanham tudo"])
+    assert.ok(header.replace(/\n--\s*/g, " ").includes(s), s);
+  // Os prazos do texto são os da migração.
+  const purge = fnBody("create function public.ldo_support_knowledge_purge(");
+  assert.match(purge, /message_id is not null\) and created_at < now\(\) - interval '180 days'/);
+  assert.match(purge, /delete from public\.ldo_support_knowledge_runs where created_at < now\(\) - interval '365 days'/);
+  assert.match(purge, /delete from public\.ldo_support_knowledge_seen where atualizada_em < v_today - 180/);
+  assert.match(purge, /delete from public\.ldo_support_knowledge_used where used_on < v_today - 365/);
 });
 
-test("Possible names: the Super Admin confirms them per card before approving or publishing; never for automatic replies", () => {
+test("Acknowledgement: approve, publish and automatic replies wait for 'Confirmo que este texto…' on the card's current text", () => {
   const panel = read("app/(painel)/apoio/configuracao/ia/painel-cartoes.tsx");
-  assert.match(panel, /<input type="checkbox" name="nomes_ok" value="1" \/> Confirmo que não é o nome de uma pessoa/);
-  assert.match(panel, /name="nomes_vistos" value=\{unconfirmed\.join\("\|"\)\}/);
-  assert.match(panel, /unconfirmedNames\(names, c\.nomes_ok\)/);
-  assert.match(panel, /nameWarningText\(unconfirmed\)/);
+  assert.match(panel, /<input type="checkbox" name="avisos_ok" value="1" \/> \{ACK_LABEL\}/);
+  assert.match(panel, /name="avisos_vistos" value=\{JSON\.stringify\(alerts\)\}/);
+  assert.match(panel, /const alerts = cardAlerts\(c, allow, list\.staff_names \|\| \[\]\);\n\s+const pending = unackedWarnings\(alerts, c\.avisos_ok\);/);
+  assert.match(panel, /\{pending\.map\(\(a\) => <span key=\{a\} className="pill warn">\{a\}<\/span>\)\}/, "cada aviso diz a palavra ou a frase");
   const actions = read("app/(painel)/apoio/configuracao/ia/cartoes-actions.ts");
-  // Aprovar: dados pessoais recusam sempre; possíveis nomes só com a confirmação, das palavras vistas, para o texto guardado.
-  assert.match(actions, /export async function saveAndApprove[\s\S]*piiOf\(list!, values\)[\s\S]*checkNames\([\s\S]*names\.pending\.length[\s\S]*ldo_support_knowledge_card_state/);
-  assert.match(actions, /pending\.some\(\(w\) => !seen\.has\(w\.toLowerCase\(\)\)\)/);
-  assert.match(actions, /ldo_support_knowledge_card_names", \{ p_id: id, p_resposta: resposta, p_nomes:/);
-  assert.match(actions, /export async function publishCards[\s\S]*unconfirmedNames\(answerNames\(c\.resposta, allow\), c\.nomes_ok\)[\s\S]*ldo_support_knowledge_publish/);
+  // Aprovar: dados pessoais recusam sempre; avisos só com a confirmação, dos avisos vistos, para o texto guardado.
+  assert.match(actions, /export async function saveAndApprove[\s\S]*blocksOf\(list!, values\)[\s\S]*checkWarnings\([\s\S]*w\.pending\.length[\s\S]*ldo_support_knowledge_card_state/);
+  assert.match(actions, /pending\.some\(\(w\) => !shown\.has\(w\)\)/);
+  assert.match(actions, /ldo_support_knowledge_card_ack", \{\n\s+p_id: id, p_texto: \{ pergunta: values\.pergunta, variantes: values\.variantes, resposta: values\.resposta \}, p_avisos: all,/);
+  assert.match(actions, /export async function publishCards[\s\S]*blocked = pending\.filter\(\(c\) => blocksOf\(list, c\)\.length\)[\s\S]*unackedWarnings\(alertsOf\(list, c\), c\.avisos_ok\)[\s\S]*ldo_support_knowledge_publish/);
   assert.match(actions, /export async function setCardAuto[\s\S]*autoOkBlockers\(card!, \{[\s\S]*allow: allowOf\(list!\)/);
-  // Propostas da IA: um nome próprio comum na resposta retira-a; as outras palavras ficam como aviso.
-  assert.match(read("lib/support/knowledge.ts"), /if \(answerNames\(out\.resposta, allow\)\.some\(\(n\) => n\.common\)\) return discard\("dados_pessoais", out\.motivo\);/);
+  // "Permitir em respostas automáticas": também com os avisos confirmados.
+  const now = new Date("2026-10-29T12:00:00Z");
+  const card = { id: "a", estado: "aprovada", intent: "envios_gerais", brand: "ldo", loja_id: null, pergunta: "Enviam para o Canadá?", variantes: [],
+    resposta: "A Gertrudes envia em 2 a 3 dias úteis.", aprovada_em: "2026-10-20T09:00:00Z", texto_em: "2026-10-20T09:00:00Z", revisto_em: "2026-10-20",
+    publicado: true, por_publicar: false, auto_ok: false, avisos: ["Condição em falta: «acima de 50 €»"], avisos_ok: [] };
+  const ctx = { now, knowledge: KNOWLEDGE, others: [], storeNames: [], allow: ALLOW, staffNames: [] };
+  const blockers = k.autoOkBlockers(card, ctx);
+  assert.equal(blockers.length, 1);
+  assert.ok(blockers[0].startsWith(k.AUTO_OK_TEXT.avisos) && blockers[0].includes("Possível nome: «Gertrudes»") && blockers[0].includes("Condição em falta"), blockers[0]);
+  assert.deepEqual(k.autoOkBlockers({ ...card, avisos_ok: ["Possível nome: «Gertrudes»", "Condição em falta: «acima de 50 €»"] }, ctx), []);
 });
