@@ -7,13 +7,13 @@
 -- publicação; arquivar retira logo). Nada aqui envia mensagens a clientes.
 -- * O que fica guardado: nos cartões, o texto (pergunta, variantes e resposta), o tema, a marca, a loja, quem aprovou e
 --   quando, os avisos da proposta e a confirmação do Super Admin (quem, quando e que avisos confirmou, também no
---   registo de auditoria) e quantas conversas confirmaram a resposta (fontes: cada conversa conta no máximo uma vez,
---   nunca o chat do site anónimo); só nas propostas, até 3 conversas de origem (amostras), apagadas ao aprovar ou
---   arquivar. As mensagens dos clientes e os contactos não são copiados para estas tabelas. Para não ler nem contar a
---   mesma conversa duas vezes ficam as conversas lidas (ldo_support_knowledge_seen: a conversa, até que resposta da
---   equipa foi lida e se já contou; 180 dias depois da última vez) e as respostas guardadas com o botão
---   (ldo_support_knowledge_used: a mensagem e o dia; 365 dias), ambas sem o cartão. O registo de pedidos
---   (ldo_support_knowledge_runs, 365 dias) tem a hora, a origem, quem carregou no botão, o cartão, o modelo, o custo, a
+--   registo de auditoria) e quantas conversas confirmaram a resposta (fontes: cada conversa conta uma vez enquanto
+--   está nas conversas lidas, nunca o chat do site anónimo); só nas propostas, até 3 conversas de origem (amostras),
+--   apagadas ao aprovar ou arquivar. As mensagens dos clientes e os contactos não são copiados para estas tabelas.
+--   Para não ler nem contar a mesma conversa duas vezes ficam as conversas lidas (ldo_support_knowledge_seen: a
+--   conversa, até que resposta da equipa foi lida e se já contou; 180 dias depois da última vez) e as respostas
+--   guardadas com o botão (ldo_support_knowledge_used: a mensagem e o dia; 365 dias), ambas sem o cartão. O registo
+--   de pedidos (ldo_support_knowledge_runs, 365 dias) tem a hora, a origem, quem carregou no botão, o cartão, o modelo, o custo, a
 --   duração e o resultado; a conversa (e, nos do botão, a mensagem) só nos pedidos que não deram um cartão, 180 dias.
 --   As regras não apanham tudo: o Super Admin lê cada proposta antes de a aprovar.
 -- * Duas origens: o botão "Guardar como resposta aprovada" numa resposta enviada pelo dashboard (a própria pessoa ou o
@@ -64,7 +64,8 @@ create table public.ldo_support_knowledge_cards (
   estado text not null default 'proposta' check (estado in ('proposta', 'aprovada', 'arquivada')),
   auto_ok boolean not null default false,
   auto_ok_em timestamptz,
-  -- Conversas que confirmaram a resposta (cada conversa conta no máximo uma vez: ldo_support_knowledge_seen.contada).
+  -- Conversas que confirmaram a resposta (cada conversa conta uma vez enquanto está em ldo_support_knowledge_seen, com
+  -- contada; a limpeza apaga-a 180 dias depois da última escrita e aí pode voltar a contar).
   fontes integer not null default 0 check (fontes >= 0),
   ultima_vez timestamptz not null default now(),
   amostras uuid[] not null default '{}' check (cardinality(amostras) <= 3),
@@ -109,8 +110,8 @@ alter table public.ldo_support_knowledge_cards enable row level security;
 revoke all on public.ldo_support_knowledge_cards from anon, authenticated;
 
 -- Conversas lidas, sem o cartão: até que resposta da equipa a passagem diária leu (processed_at = a hora dessa resposta,
--- não a do pedido; null se só o botão a usou) e se a conversa já contou como fonte de um cartão (contada: cada conversa
--- conta uma vez). atualizada_em: o dia da última escrita (a limpeza apaga-as 180 dias depois).
+-- não a do pedido; null se só o botão a usou) e se a conversa já contou como fonte de um cartão (contada: enquanto aqui
+-- estiver, não volta a contar). atualizada_em: o dia da última escrita (a limpeza apaga-as 180 dias depois).
 create table public.ldo_support_knowledge_seen (
   conversation_id uuid primary key references public.ldo_support_conversations (id) on delete cascade,
   processed_at timestamptz,
@@ -973,10 +974,10 @@ begin
 end;
 $$;
 
--- "Juntar a…": a pergunta e as variantes de p_id passam a variantes de p_into (até 5), as fontes somam-se (cada conversa
--- só conta uma vez em todos os cartões, por isso a soma não repete nenhuma) e p_id fica arquivado e em p_into.juntadas,
--- com os que já lhe tinham sido juntos (uma confirmação nova de um deles conta para p_into). Recusa quando a pergunta de
--- p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Se as variantes de
+-- "Juntar a…": a pergunta e as variantes de p_id passam a variantes de p_into (até 5), as fontes somam-se (uma conversa
+-- que já contou não conta para nenhum outro cartão enquanto está nas conversas lidas) e p_id fica arquivado e em
+-- p_into.juntadas, com os que já lhe tinham sido juntos (uma confirmação nova de um deles conta para p_into). Recusa
+-- quando a pergunta de p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Se as variantes de
 -- p_into mudarem, perde a marca de resposta automática e a confirmação dos avisos e, se estiver aprovada, os 7 dias
 -- contam de novo. Devolve {estado (de p_into), alterada, auto_retirada}.
 create function public.ldo_support_knowledge_card_merge(p_session text, p_id uuid, p_into uuid) returns jsonb

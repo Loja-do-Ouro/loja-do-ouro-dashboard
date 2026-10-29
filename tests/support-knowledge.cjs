@@ -957,7 +957,7 @@ test("Privacy wording is short and says exactly what is kept: no contact key, co
   for (const s of ["As regras não apanham tudo", "\"Confirmada em n conversas\"", "nunca o chat do site anónimo", "`amostras`", "Mensagens e contactos de clientes não são guardados",
     "180 dias depois da última vez", "365 dias", "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa"])
     assert.ok(readme.includes(s), s);
-  for (const s of ["As mensagens dos clientes e os contactos não são copiados para estas tabelas", "fontes: cada conversa conta no máximo uma vez",
+  for (const s of ["As mensagens dos clientes e os contactos não são copiados para estas tabelas", "fontes: cada conversa conta uma vez enquanto está nas conversas lidas",
     "só nas propostas, até 3 conversas de origem (amostras), apagadas ao aprovar ou arquivar", "As regras não apanham tudo"])
     assert.ok(header.replace(/\n--\s*/g, " ").includes(s), s);
   // Os prazos do texto são os da migração.
