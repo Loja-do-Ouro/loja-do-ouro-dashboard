@@ -165,6 +165,26 @@ test("Personal data inside links (social profiles, wa.me, long numbers) and lowe
     assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
 });
 
+test("Addresses: the store's street with another house number, numbered and abbreviated street names, n12, lots, any case", () => {
+  // A base de conhecimento tem "Estrada de Benfica 100": outro número na mesma rua é a morada de outra pessoa.
+  for (const s of ["Entregamos na Estrada de Benfica 512, 3.º esq.", "entregamos na estrada de benfica 512, 3.º esq.", "A cliente mora na Estrada de Benfica, n.º 7.",
+    "Estrada de Benfica 10", "rua 5 de outubro, 12", "Rua 5 de Outubro, 12", "av 25 de abril 100", "Av. 25 de Abril 100", "r. das flores 12", "R. das Flores 12",
+    "rua das flores n12", "rua das flores nº12", "Bairro da Boavista, lote 12", "lote 12, 2º dto.", "Largo 1.º de Maio 3", "Urbanização Quinta do Lago, lote 7",
+    "Praça D. Pedro IV 12", "tv. do carmo 3", "lg. do rato 2", "estr. de benfica 512", "pç. da figueira 4", "Av da Liberdade 200", "Rua das Flores 12A"])
+    assert.ok(k.scrubPii(s, ALLOW).includes("morada"), s);
+  // A morada da loja, com o mesmo número (sem distinguir maiúsculas, abreviaturas, "n.º" nem o andar escrito por extenso).
+  const kb = `${KNOWLEDGE}\n\n## Leiria\nLoja de Leiria: rua das flores 12, Leiria. Loja do Porto: Av. da República, n.º 45, 2.º Esq.`;
+  const allow = k.companyAllowlist({ knowledge: kb, stores: STORES });
+  for (const s of ["Estamos na Estrada de Benfica 100.", "Estamos na Estrada de Benfica 100, 1500-123 Lisboa.", "Estamos na rua das flores 12.",
+    "Estamos na R. das Flores, n.º 12.", "Loja do Porto: Avenida da República 45, 2º esquerdo."])
+    assert.deepEqual(k.scrubPii(s, allow), [], s);
+  for (const s of ["Estamos na rua das flores 14.", "Avenida da República 45, 3º esq."]) assert.ok(k.scrubPii(s, allow).includes("morada"), s);
+  // Datas, dias da semana, horas e quantidades não são moradas.
+  for (const s of ["Na quinta-feira, 12 de março, fechamos.", "Fechamos na quinta feira 12 de março.", "Abrimos à quinta e sexta, 10h às 19h.",
+    "Na Rua Augusta temos 3 lojas.", "Praça da Figueira às 10:00", "Rua Augusta, 10h-19h", "um lote de 3 anéis", "A garantia é de 2 anos."])
+    assert.ok(!k.scrubPii(s, ALLOW).includes("morada"), s);
+});
+
 // ---------------------------------------------------------------- factos que a equipa não escreveu
 
 test("numbersInStaffText: every number of the answer is in the team's replies or the knowledge, with its context and the order of the hours", () => {

@@ -268,12 +268,52 @@ const CODE_TOKEN = /(?<![\p{L}\p{N}])(?=[\p{L}\p{N}]*\p{N})(?=[\p{L}\p{N}]*\p{L}
 const CODE_AFTER_WORD = /(?<!\p{L})(?:c[óo]digos?|cup(?:[ãa]o|[õo]es)|cupom|vouchers?|codes?|coupons?)(?:\s+(?:de\s+)?(?:desconto|promocional|oferta))?\s*:?\s*["'«“”]?([\p{L}\p{N}]{4,24})/giu;
 const CODE_GROUPS = /(?<![\p{L}\p{N}])[A-Z0-9]{4}(?:[ -][A-Z0-9]{4}){2,}(?![\p{L}\p{N}])/gu;
 const NOT_A_CODE = /^\d+(?:mm|cm|m|g|gr|kg|ml|cl|kt|kl|ct|ctl|ªs?|ºs?|x|min|seg|h|hrs?)$|^\d{1,2}h\d{2}$/i;
-// Morada: rua, avenida, largo… com nome próprio e o número logo a seguir ("Rua das Flores 12", "Rua X, nº 5").
-const STREET_RE = /(?<!\p{L})((?:[Rr]ua|[Aa]v\.|[Aa]venida|[Tt]ravessa|[Ll]argo|[Pp]raceta|[Ee]strada|[Pp]ra[çc]a|[Aa]lameda|[Cc]al[çc]ada|[Bb]eco|[Uu]rbaniza[çc][ãa]o)(?:\s+(?:d[aeo]s?|de))?(?:\s+\p{Lu}[\p{L}'’.-]*(?:\s+(?:d[aeo]s?|de|e)(?=\s+\p{Lu}))?)+)[\s,]*(?:n\.?\s*[ºo°]\s*)?\d/gu;
-// A mesma morada escrita em minúsculas ("rua das flores 12"): até 4 palavras depois da rua, sem palavras de ligação nem
-// materiais ("travessa de prata 925", "largo de 5 mm" e "um anel largo com 3 diamantes" não são moradas), e o número sem
-// unidade a seguir.
-const STREET_LOWER_RE = /(?<!\p{L})((?:rua|av\.|avenida|travessa|largo|praceta|estrada|pra[çc]a|alameda|cal[çc]ada|beco|urbaniza[çc][ãa]o)(?:\s+(?:d[aeo]s?|de))?(?:\s+(?!(?:d[aeo]s?|de|e|ou|em|com|para|por|at[ée]|a|à|às|ao|aos|o|as|os|um|uma|mais|menos|cerca|entre|sem|que|ouro|prata|a[çc]o|platina|t[ií]t[âa]nio|p[ée]rolas?|metal|cristal)(?!\p{L}))\p{L}[\p{L}'’-]+){1,4})[\s,]*(?:n\.?\s*[ºo°]\s*)?\d{1,4}(?![\d.,]?\d)(?!\s*(?:mm|cm|m|g|gr|kg|kt|k|ct|kl|€|%|eur|euros?|quilates?|dias?|horas?|h|min|anos?|meses|vezes|x|ª|º)(?!\p{L}))/gu;
+// Moradas, também em minúsculas, abreviadas ("r.", "av", "tv.", "lg.", "estr.", "pç.") e com o número colado ("n12",
+// "nº12"): rua, avenida, travessa, largo, praça, estrada, bairro, quinta, urbanização… com o nome (palavras ou uma data,
+// como "5 de Outubro" ou "1.º de Maio"), o número da porta (ou do lote) e o andar, se houver ("Rua das Flores 12, 3.º
+// Esq", "av 25 de abril 100", "Bairro da Boavista, lote 12"); e "lote 12" sozinho. Uma morada só passa se estiver na base
+// de conhecimento com o mesmo número (e o mesmo andar): "Estrada de Benfica 512" não é a loja da "Estrada de Benfica 100".
+// Sem materiais, medidas, horas e quantidades ("travessa de prata 925", "fio largo de 5 mm", "praça às 10h00", "na Rua
+// Augusta temos 3 lojas") nem dias da semana e datas ("quinta-feira, 12 de março").
+const ci = (w: string) => w.replace(/\p{L}/gu, (c) => (c.toLowerCase() === c.toUpperCase() ? c : `[${c.toLowerCase()}${c.toUpperCase()}]`));
+const MONTHS = "janeiro fevereiro março marco abril maio junho julho agosto setembro outubro novembro dezembro".split(" ");
+const NOT_STREET_NAME = [...MONTHS, "segunda", "terça", "terca", "quarta", "quinta", "sexta", "sábado", "sabado", "domingo", "feira", "feiras"];
+const STREET_STOP = [...NOT_STREET_NAME, "d[aeo]s?", "de", "e", "ou", "em", "no", "na", "nos", "nas", "num", "numa", "com", "para", "por", "pelo",
+  "pela", "at[ée]", "a", "à", "às", "ao", "aos", "o", "as", "os", "um", "uma", "mais", "menos", "cerca", "entre", "sem", "que", "é", "são", "custa",
+  "custam", "tem", "têm", "temos", "há", "fica", "ficam", "está", "estão", "estamos", "abre", "abrem", "abrimos", "fecha", "fecham", "mede", "medem",
+  "pesa", "pesam", "vale", "ouro", "prata", "a[çc]o", "platina", "t[ií]t[âa]nio", "p[ée]rolas?", "metal", "cristal"];
+const STREET_UNITS = "mm|cm|m|g|gr|kg|ml|kt|k|ct|kl|€|%|eur|euros?|quilates?|dias?|horas?|h|min|minutos?|anos?|meses|semanas?|vezes|x|ª|º|°|peças?|unidades?|gramas?|metros?|kms?|lojas?";
+const MONTHS_RE = MONTHS.map(ci).join("|");
+const STREET_PREFIX = `(?:(?:${["rua", "avenida", "travessa", "largo", "praceta", "estrada", "praça", "praca", "alameda", "calçada", "calcada", "beco",
+  "bairro", "urbanização", "urbanizacao", "quinta", "rotunda", "caminho", "azinhaga"].map(ci).join("|")})(?!\\p{L})(?!-)`
+  + `|(?:${["r", "tv", "trav", "lg", "lgo", "estr", "pç", "pça", "pc", "al", "cç", "urb", "qta", "pct"].map(ci).join("|")})\\.|${ci("av")}\\.?(?!\\p{L}))`;
+const STREET_DAY = `\\d{1,2}(?:[ \\t]*\\.?[ \\t]*[ºo°])?[ \\t]+${ci("de")}[ \\t]+(?:${MONTHS_RE})(?!\\p{L})`;
+const STREET_TOKEN = `(?:${STREET_DAY}|(?!(?:${NOT_STREET_NAME.map(ci).join("|")})(?!\\p{L}))(?:\\p{Lu}\\p{L}{0,3}\\.|\\p{Lu}[\\p{L}'’-]*)`
+  + `|(?!(?:${STREET_STOP.join("|")})(?!\\p{L}))\\p{Ll}[\\p{L}'’-]+)`;
+const STREET_NUMBER = `(?:[nN]\\.?[ \\t]*[ºo°]\\.?|[nN]\\.|[nN][oO]\\.|[nN](?=\\d)|${ci("número")}|${ci("numero")}|${ci("lote")}|${ci("lt")}\\.?|${ci("porta")})?[ \\t]*`
+  + `\\d{1,4}(?:-?[A-Fa-f](?!\\p{L}))?(?![\\d.,:]?\\d)(?![ \\t]*(?:${STREET_UNITS})(?!\\p{L}))(?![ \\t]*(?:${ci("de")}[ \\t]+)?(?:${MONTHS_RE})(?!\\p{L}))`;
+const STREET_FLOOR = `(?:[ \\t]*,?[ \\t]*(?:\\d{1,2}[ \\t]*\\.?[ \\t]*[ºo°ª]\\.?(?:[ \\t]*${ci("andar")})?(?:[ \\t]*(?:${ci("esquerd")}[oa]|${ci("esq")}\\.?|`
+  + `${ci("direit")}[oa]|${ci("dir")}\\.?|${ci("dto")}\\.?|${ci("dt")}\\.?|${ci("frente")}|${ci("fte")}\\.?|${ci("trás")}|${ci("tras")}|[A-Fa-f])(?!\\p{L}))?`
+  + `|${ci("r/c")}|${ci("rc")}(?!\\p{L})|${ci("cave")}(?!\\p{L})))?`;
+const ADDRESS_RE = new RegExp(`(?<!\\p{L})${STREET_PREFIX}(?:[ \\t]+(?:[dD][aeo]s?[ \\t]+|[dD]e[ \\t]+|e[ \\t]+)?${STREET_TOKEN}){1,6}[ \\t]*,?[ \\t]*`
+  + `${STREET_NUMBER}${STREET_FLOOR}`, "gu");
+const LOT_RE = new RegExp(`(?<!\\p{L})(?:${ci("lote")}|${ci("lt")}\\.)[ \\t]*(?:[nN]\\.?[ \\t]*[ºo°]\\.?[ \\t]*)?\\d{1,4}(?:-?[A-Fa-f](?!\\p{L}))?`
+  + `(?![\\d.,:]?\\d)(?![ \\t]*(?:${STREET_UNITS})(?!\\p{L}))${STREET_FLOOR}`, "gu");
+// Morada comparada sem maiúsculas, abreviaturas, "n.º" nem pontuação ("Av. da República, n.º 45" = "avenida da república
+// 45"), com um espaço de cada lado (uma morada só conta inteira: "estrada de benfica 10" não está em "… benfica 100").
+function addressNorm(s: string) {
+  return ` ${(s || "").toLowerCase()
+    .replace(/(?<!\p{L})(?:n\.?\s*[ºo°]\.?|n\.|no\.(?=\s*\d)|n(?=\d)|número|numero)\s*(?=\d)/gu, " ")
+    .replace(/(\d)\s*\.?\s*[ºo°](?!\p{L})/gu, "$1º")
+    .replace(/(?<!\p{L})r\.(?=\s)/gu, "rua").replace(/(?<!\p{L})av(?:\.|(?!\p{L}))/gu, "avenida").replace(/(?<!\p{L})(?:tv|trav)\./gu, "travessa")
+    .replace(/(?<!\p{L})(?:lg|lgo)\./gu, "largo").replace(/(?<!\p{L})estr\./gu, "estrada")
+    .replace(/(?<!\p{L})(?:pç|pça|pc)\.|(?<!\p{L})praca(?!\p{L})/gu, "praça").replace(/(?<!\p{L})al\./gu, "alameda")
+    .replace(/(?<!\p{L})cç\.|(?<!\p{L})calcada(?!\p{L})/gu, "calçada").replace(/(?<!\p{L})urb\.|(?<!\p{L})urbanizacao(?!\p{L})/gu, "urbanização")
+    .replace(/(?<!\p{L})qta\./gu, "quinta").replace(/(?<!\p{L})pct\./gu, "praceta").replace(/(?<!\p{L})lt\.?(?=\s*\d)/gu, "lote ")
+    .replace(/(?<!\p{L})(?:esquerd[oa]|esq\.?)(?!\p{L})/gu, "esq").replace(/(?<!\p{L})(?:direit[oa]|dir\.?|dto\.?|dt\.?)(?!\p{L})/gu, "dto")
+    .replace(/(?<!\p{L})(?:r\/c|rc)(?!\p{L})/gu, "rc")
+    .replace(/[^\p{L}\p{N}º]+/gu, " ").replace(/\s+/g, " ").trim()} `;
+}
 // Ligações a perfis e conversas de redes sociais e mensagens ("instagram.com/joana.joias", "wa.me/351912345678",
 // "m.me/joana", "t.me/joana"): só as da empresa (na base de conhecimento ou com um @ ou telefone da empresa).
 const SOCIAL_HOST = /^(?:[a-z0-9-]+\.)*(?:wa\.me|whatsapp\.com|instagram\.com|instagr\.am|facebook\.com|fb\.com|fb\.me|m\.me|messenger\.com|t\.me|telegram\.me|tiktok\.com|twitter\.com|x\.com|linkedin\.com|youtube\.com|youtu\.be|pinterest\.[a-z.]+|threads\.net|snapchat\.com)$/;
@@ -344,8 +384,8 @@ export type Allowlist = {
   phrases: RegExp | null;
   // Palavras soltas com maiúscula da base de conhecimento que não são nomes comuns (lugares, produtos): aceites na pergunta.
   places: Set<string>;
-  // Base de conhecimento em minúsculas (moradas da empresa).
-  text: string;
+  // Moradas da base de conhecimento, normalizadas (addressNorm): só uma morada igual passa.
+  addresses: string;
 };
 
 const phoneDigits = (p: string) => {
@@ -366,7 +406,6 @@ function wordRe(w: string, flags = "u") {
   return r;
 }
 const wordIn = (word: string, text: string) => wordRe(word, "iu").test(text);
-const lowerText = (s: string) => s.toLowerCase().replace(/\s+/g, " ");
 
 function codesIn(text: string) {
   const out = new Set<string>();
@@ -396,7 +435,7 @@ export function companyAllowlist(o: { knowledge: string; stores: { name: string;
     links: new Set(linkList(text).map(linkNorm)),
     phrases: phrases.length ? new RegExp(`(?<!\\p{L})(?:${phrases.map(escapeRe).join("|")})(?!\\p{L})`, "giu") : null,
     places,
-    text: lowerText(text),
+    addresses: addressNorm(text),
   };
 }
 
@@ -521,8 +560,8 @@ function scan(text: string, allow: Allowlist, opts: { names?: (string | null | u
   if (IBAN_RE.test(rest) || NIF_RE.test(rest)) found.add("pagamento");
   for (const d of rest.match(/\d{6,}/g) || []) if (!allow.numbers.has(d)) found.add("numero");
   for (const c of codesIn(rest)) if (!allow.codes.has(c)) found.add("codigo");
-  // Moradas (também em minúsculas): só as da empresa, como estão na base de conhecimento (sem distinguir maiúsculas).
-  for (const re of [STREET_RE, STREET_LOWER_RE]) for (const m of rest.matchAll(re)) if (!allow.text.includes(lowerText(m[1]))) found.add("morada");
+  // Moradas (também em minúsculas e abreviadas): só as da empresa, com o mesmo número, como estão na base de conhecimento.
+  for (const re of [ADDRESS_RE, LOT_RE]) for (const m of rest.matchAll(re)) if (!allow.addresses.includes(addressNorm(m[0]))) found.add("morada");
   // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria).
   const named = allow.phrases ? rest.replace(allow.phrases, " ") : rest;
   for (const r of publicReplyRisks(named)) found.add(RISK_CODE[r] ?? "numero");
