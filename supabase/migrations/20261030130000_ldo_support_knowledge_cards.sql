@@ -892,7 +892,11 @@ begin
   if v_me is null then
     raise exception 'Só o Super Admin configura o Apoio ao Cliente.' using errcode = '42501';
   end if;
-  if jsonb_typeof(p_nomes) is distinct from 'array' or jsonb_array_length(p_nomes) not between 1 and 20
+  -- Em dois passos: o SQL não garante a ordem de um "or" (jsonb_array_length falha num objeto).
+  if jsonb_typeof(p_nomes) is distinct from 'array' then
+    raise exception 'Palavras inválidas.' using errcode = '22023';
+  end if;
+  if jsonb_array_length(p_nomes) not between 1 and 20
      or exists (select 1 from jsonb_array_elements(p_nomes) e(x) where jsonb_typeof(e.x) <> 'string'
        or (e.x #>> '{}') !~ '^[[:alpha:]][[:alpha:]''’-]{0,39}$') then
     raise exception 'Palavras inválidas.' using errcode = '22023';
