@@ -389,7 +389,7 @@ test("Brand of the conversation and today's date in Lisbon", () => {
 // ---------------------------------------------------------------- migração
 
 test("Migration: new tables have RLS and no Data API access; RPCs only through anon with session or server token", () => {
-  for (const t of ["ldo_support_knowledge_cards", "ldo_support_knowledge_seen", "ldo_support_knowledge_runs"]) {
+  for (const t of ["ldo_support_knowledge_cards", "ldo_support_knowledge_seen", "ldo_support_knowledge_used", "ldo_support_knowledge_runs"]) {
     assert.ok(stmts.includes(`alter table public.${t} enable row level security`), t);
     assert.ok(stmts.includes(`revoke all on public.${t} from anon, authenticated`), t);
   }
@@ -430,17 +430,61 @@ test("Migration: automatic proposals start off, own budget of 8 USD, history_fro
   const button = fnBody("create function public.ldo_support_knowledge_from_message(");
   assert.ok(!button.includes("knowledge_auto_proposals") && button.includes("support_knowledge_month_cost()") && button.includes(">= 30"));
   assert.match(button, /v_m\.author_user_id <> v_me and not v_super/);
-  // Das fontes fica a contagem: a ligação dos pedidos às conversas e mensagens apaga-se ao decidir o cartão (aprovar,
-  // arquivar, juntar) e na limpeza; para contar cada contacto uma vez fica só md5(cartão:contacto).
-  assert.match(CODE, /contact_key text check \(contact_key ~ '\^\[0-9a-f\]\{32\}\$'\)/);
+  // Das fontes ficam a contagem e uma chave pseudónima por contacto: a ligação dos pedidos às conversas e mensagens
+  // apaga-se ao decidir o cartão (aprovar, arquivar, juntar) e na limpeza.
+  assert.match(CODE, /contact_key text check \(contact_key ~ '\^\[0-9a-f\]\{64\}\$'\)/);
   assert.match(state, /update public\.ldo_support_knowledge_runs set conversation_id = null, message_id = null\s+where card_id = p_id/);
   assert.match(fnBody("create function public.ldo_support_knowledge_card_merge("), /set card_id = p_into, conversation_id = null, message_id = null where card_id = p_id/);
   const purge = fnBody("create function public.ldo_support_knowledge_purge(");
   assert.match(purge, /set conversation_id = null, message_id = null[\s\S]*card_id is not null and created_at < now\(\) - interval '30 days'/);
   const propose = fnBody("create function public.ldo_support_knowledge_propose(");
-  assert.match(propose, /r\.contact_key = md5\(v_target\.id::text \|\| ':' \|\| v_conv\.contact_id::text\)/);
-  assert.match(propose, /contact_key = case when v_counts then md5\(v_card_id::text \|\| ':' \|\| v_conv\.contact_id::text\) end/);
+  assert.match(propose, /v_key := ldo_private\.support_knowledge_key\('contacto', v_conv\.contact_id\)/);
+  assert.match(propose, /contact_key = case when v_counts then v_key end/);
+  assert.ok(!/md5\(/.test(CODE), "nenhuma chave md5 (calculável a partir das tabelas)");
   assert.ok(!/join public\.ldo_support_conversations c2/.test(propose), "a contagem não precisa da conversa de origem");
+});
+
+test("Migration: the contact key is a keyed HMAC whose secret lives only in ldo_private, the same for every card", () => {
+  // Segredo aleatório gerado na migração, numa tabela de ldo_private sem acesso para os papéis da API.
+  assert.ok(stmts.includes("create table ldo_private.support_knowledge_secret ( id integer primary key check (id = 1), secret bytea not null check (length(secret) = 32) )"));
+  assert.ok(stmts.includes("insert into ldo_private.support_knowledge_secret (id, secret) values (1, extensions.gen_random_bytes(32))"));
+  assert.ok(stmts.includes("alter table ldo_private.support_knowledge_secret enable row level security"));
+  assert.ok(stmts.includes("revoke all on ldo_private.support_knowledge_secret from public, anon, authenticated, service_role"));
+  const key = fnBody("create function ldo_private.support_knowledge_key(");
+  assert.match(key, /extensions\.hmac\(convert_to\(p_kind \|\| ':' \|\| p_id::text, 'UTF8'\), s\.secret, 'sha256'\)/);
+  assert.ok(!/card/.test(key.replace(/--[^\n]*/g, "")), "a chave não depende do cartão");
+  // Só a função da chave lê o segredo.
+  const readers = stmts.filter((x) => x.includes("ldo_private.support_knowledge_secret") && !/^(create table|insert into|alter table|revoke)/.test(x));
+  assert.ok(readers.length === 1 && readers[0].includes("create function ldo_private.support_knowledge_key("), readers.map((x) => x.slice(0, 80)).join(" | "));
+});
+
+test("Migration: one proposal per message survives the deletion of the run's link (keyed, without the card), purged after 365 days", () => {
+  assert.match(CODE, /create table public\.ldo_support_knowledge_used \(\s+message_key text primary key check \(message_key ~ '\^\[0-9a-f\]\{64\}\$'\),\s+used_on date not null/);
+  const used = /create table public\.ldo_support_knowledge_used \(([\s\S]*?)\n\);/.exec(CODE)[1];
+  assert.ok(!/card|conversation|message_id|user/.test(used), "sem cartão, conversa, mensagem nem pessoa");
+  const button = fnBody("create function public.ldo_support_knowledge_from_message(");
+  assert.match(button, /v_key := ldo_private\.support_knowledge_key\('mensagem', v_m\.id\)/);
+  assert.match(button, /exists \(select 1 from public\.ldo_support_knowledge_used u where u\.message_key = v_key\)/);
+  assert.ok(!/r\.resultado in \('novo', 'existente'\)/.test(button), "a regra não depende da ligação do pedido à mensagem");
+  const propose = fnBody("create function public.ldo_support_knowledge_propose(");
+  assert.match(propose, /if v_res in \('novo', 'existente'\) and v_r\.message_id is not null then\s+insert into public\.ldo_support_knowledge_used \(message_key\)/);
+  assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /delete from public\.ldo_support_knowledge_used where used_on < v_today - 365/);
+  // Aprovar, arquivar, juntar e a limpeza continuam a apagar a ligação dos pedidos às mensagens.
+  for (const f of ["card_state(", "card_merge(", "purge("]) assert.match(fnBody("create function public.ldo_support_knowledge_" + f), /message_id = null/, f);
+});
+
+test("Migration: after 'Juntar a…' a contact is still counted once (merged ids kept on the card, overlap subtracted)", () => {
+  assert.match(CODE, /juntadas uuid\[\] not null default '\{\}'/);
+  const propose = fnBody("create function public.ldo_support_knowledge_propose(");
+  assert.match(propose, /r\.contact_key = v_key and \(r\.card_id = v_target\.id or r\.card_id = any \(v_target\.juntadas\)\)/);
+  // Uma resposta escolhida pela IA que entretanto foi junta a outra conta para essa outra.
+  assert.match(propose, /where v_existing = any \(juntadas\) and estado <> 'arquivada'/);
+  const merge = fnBody("create function public.ldo_support_knowledge_card_merge(");
+  assert.match(merge, /juntadas = \(select coalesce\(array_agg\(distinct j\), '\{\}'\) from unnest\(juntadas \|\| p_id \|\| v_from\.juntadas\) as j where j <> p_into\)/);
+  assert.match(merge, /fontes = greatest\(fontes \+ v_from\.fontes - v_both, 0\)/);
+  assert.match(merge, /select count\(distinct a\.contact_key\) into v_both/);
+  assert.match(merge, /set card_id = p_into, conversation_id = null, message_id = null where card_id = p_id/);
+  assert.match(merge, /fontes = 0, updated_at = now\(\)/, "as fontes da juntada passam para a outra");
 });
 
 test("Migration: the daily pass never re-reads a conversation it already read, and a failure does not lose it", () => {
@@ -455,7 +499,11 @@ test("Migration: the daily pass never re-reads a conversation it already read, a
   // A conversa só fica vista quando o pedido acaba bem, à hora em que foi lida.
   assert.ok(!fnBody("create function public.ldo_support_knowledge_begin(").includes("ldo_support_knowledge_seen"));
   const propose = fnBody("create function public.ldo_support_knowledge_propose(");
-  assert.match(propose, /if v_status = 'done' and v_r\.trigger = 'diaria' and v_conv\.id is not null then\s+insert into public\.ldo_support_knowledge_seen \(conversation_id, processed_at\) values \(v_conv\.id, v_r\.created_at\)/);
+  assert.match(propose, /if v_status = 'done' and v_r\.trigger = 'diaria' and v_conv\.id is not null then\s+insert into public\.ldo_support_knowledge_seen \(conversation_id, processed_at\)\s+select v_conv\.id, coalesce\(max\(m\.created_at\), date_trunc\('day', v_r\.created_at\)\)/);
+  // Vista até à última resposta da equipa lida, nunca à hora do pedido (a hora ligaria a conversa ao pedido e ao cartão).
+  assert.ok(!/values \(v_conv\.id, v_r\.created_at\)/.test(propose));
+  // Por ordem aleatória: a ordem dos pedidos no registo não diz que conversa foi lida em cada um.
+  assert.match(read("lib/support/knowledge.ts"), /for \(const id of shuffled\(ids\)\)/);
 });
 
 test("Migration: auto_ok is dropped by any edit or merge, the 7 days restart after a correction, and it expires", () => {

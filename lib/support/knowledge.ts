@@ -1,5 +1,5 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Viewer } from "@/lib/viewer";
 import { aiConfigured } from "./ai";
@@ -153,13 +153,24 @@ export async function proposeFromMessage(viewer: Viewer, conversationId: string,
 
 export type DistillSummary = { lidas: number; novas: number; existentes: number; nao_aproveitaveis: number; descartadas: number; erros: number; parou?: string };
 
+// Ordem aleatória (Fisher–Yates): a ordem dos pedidos no registo não diz qual conversa foi lida em cada um.
+function shuffled<T>(items: T[]) {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 // Passagem diária (support-sync), só com "Propostas automáticas a partir das conversas" ligada: até 12 conversas, uma de
-// cada vez, 15 s por chamada, sem começar chamadas novas depois dos 90 s desde o início da função (started).
+// cada vez e por ordem aleatória, 15 s por chamada, sem começar chamadas novas depois dos 90 s desde o início da função
+// (started).
 export async function distillPending(started: number): Promise<DistillSummary> {
   const s: DistillSummary = { lidas: 0, novas: 0, existentes: 0, nao_aproveitaveis: 0, descartadas: 0, erros: 0 };
   if (!aiConfigured()) return { ...s, parou: "sem chave da IA" };
   const ids = await serverRpc<string[]>("ldo_support_knowledge_candidates", { p_limit: KNOWLEDGE_CRON_LIMIT });
-  for (const id of ids) {
+  for (const id of shuffled(ids)) {
     const now = Date.now();
     if (now - started >= KNOWLEDGE_CRON_STOP_MS) return { ...s, parou: "tempo" };
     const begin = await serverRpc<KnowledgeBegin | null>("ldo_support_knowledge_begin", { p_conversation_id: id });
