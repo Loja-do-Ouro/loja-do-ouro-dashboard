@@ -117,7 +117,7 @@ export function isRatingReply(body: string | null | undefined) {
 export type SkipReason =
   | "desligado" | "comentario" | "canal" | "canal_desligado" | "sem_resposta" | "ultima_cliente" | "janela_24h" | "chat_terminado"
   | "antiga" | "sem_pedidos" | "conversa_recente" | "contacto_recente" | "nao_resolvida" | "reaberta" | "cancelado" | "falhou"
-  | "nao_pedido" | "nao_visto" | "interno";
+  | "nao_pedido" | "nao_visto" | "interno" | "sem_escolha";
 export const SKIP_REASON_TEXT: Record<SkipReason, string> = {
   desligado: "os pedidos de avaliação estão desligados",
   comentario: "comentário público",
@@ -138,6 +138,7 @@ export const SKIP_REASON_TEXT: Record<SkipReason, string> = {
   nao_pedido: "quem resolveu optou por não pedir",
   nao_visto: "o cliente não voltou a abrir o chat do site em 72 h",
   interno: "o endereço de email é da própria loja, de um sistema automático ou inválido",
+  sem_escolha: "a opção de pedir não chegou a ser mostrada (recarregue a página)",
 };
 export const skipText = (reason: string | null | undefined) =>
   `Sem pedido de avaliação: ${SKIP_REASON_TEXT[reason as SkipReason] ?? reason ?? "motivo desconhecido"}`;

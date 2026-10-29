@@ -912,8 +912,8 @@ end;
 $$;
 
 -- Logo depois de a pessoa resolver a conversa no dashboard (ldo_support_set_local não muda): cria o pedido se a conversa
--- cumprir as regras. No automático a pessoa não decide (só o Super Admin cancela). No modo "perguntar", sem p_request numa
--- conversa em que se podia pedir, fica registado que quem resolveu não pediu (skipped 'nao_pedido': conta no relatório,
+-- cumprir as regras. No automático a pessoa não decide (só o Super Admin cancela). No modo "perguntar", com a caixa desmarcada (p_request
+-- falso) numa conversa em que se podia pedir, fica registado que quem resolveu não pediu (skipped 'nao_pedido': conta no relatório,
 -- mas não é um pedido). Chat do site: o pedido espera que o visitante tenha o chat aberto (ldo_support_site_messages); nos
 -- outros canais sai depois da espera (ldo_support_survey_due).
 create function public.ldo_support_survey_create(p_session text, p_conv uuid, p_request boolean) returns jsonb
@@ -962,6 +962,11 @@ begin
   v_agent := ldo_private.support_survey_agent(p_conv, ldo_private.support_survey_cycle(p_conv, null), null);
   if v_reason is not null or v_agent is null then
     return jsonb_build_object('created', false, 'reason', coalesce(v_reason, 'sem_resposta'));
+  end if;
+  -- Modo "perguntar" sem resposta à caixa (pré-visualização falhada ou página aberta com outro modo): não fica nada
+  -- registado em nome de quem resolveu.
+  if not v_ask and p_request is null then
+    return jsonb_build_object('created', false, 'reason', 'sem_escolha');
   end if;
   -- Podia pedir e não pediu (modo "perguntar"): fica registado, com o nome de quem resolveu.
   if not v_ask then
@@ -1095,9 +1100,10 @@ begin
   update public.ldo_support_surveys s set status = 'expired', skip_reason = 'desligado'
   where s.status = 'sent' and s.channel = 'site'
     and not exists (select 1 from public.ldo_support_settings x where x.id = 1 and x.survey_mode <> 'desligado' and 'site' = any (x.survey_channels));
-  -- Envio interrompido: incerto (com a mensagem gravada) ou falhado (sem ela); nunca se repete.
+  -- Envio interrompido: incerto (com a mensagem gravada) ou falhado (sem ela, ou com ela falhada); nunca se repete.
   with stale as (
-    select s.id, s.attempt_at, (select m.id from public.ldo_support_messages m where m.client_key = s.id and m.origin = 'survey') as message_id
+    select s.id, s.attempt_at, (select m.id from public.ldo_support_messages m where m.client_key = s.id and m.origin = 'survey'
+      and m.delivery is distinct from 'failed') as message_id
     from public.ldo_support_surveys s where s.status = 'sending' and s.attempt_at < now() - interval '30 minutes'
   ), done as (
     update public.ldo_support_surveys s set
@@ -1114,8 +1120,10 @@ begin
     jsonb_build_object('survey_id', d.id, 'agent_id', d.agent_id, 'uncertain', d.status = 'sent', 'detail', left(d.detail, 200))
   from done d;
   update public.ldo_support_surveys s set thanks_status = case when exists (select 1 from public.ldo_support_messages m
-      where m.client_key = md5(s.id::text || ':thanks')::uuid and m.origin = 'survey') then 'sent' else 'failed' end,
-    thanks_message_id = (select m.id from public.ldo_support_messages m where m.client_key = md5(s.id::text || ':thanks')::uuid and m.origin = 'survey')
+      where m.client_key = md5(s.id::text || ':thanks')::uuid and m.origin = 'survey'
+      and m.delivery is distinct from 'failed') then 'sent' else 'failed' end,
+    thanks_message_id = (select m.id from public.ldo_support_messages m where m.client_key = md5(s.id::text || ':thanks')::uuid and m.origin = 'survey'
+      and m.delivery is distinct from 'failed')
   where s.thanks_status = 'sending' and s.thanks_at < now() - interval '30 minutes';
   update public.ldo_support_messages set delivery = 'uncertain',
     delivery_detail = coalesce(delivery_detail, 'Mensagem automática sem confirmação do envio; não foi repetida.')

@@ -1938,9 +1938,10 @@ function CustomerPanel({
             <div className="customer-actions">
               <button type="button" className="secondary-button" ref={resolveButton} disabled={busy || !ready}
                 onClick={() => {
-                  const ask = Boolean(resolving.preview?.eligible && resolving.ask);
+                  // Sem a pré-visualização a pessoa não chegou a escolher: não fica registado que optou por não pedir.
+                  const ask = resolving.preview ? { survey: Boolean(resolving.preview.eligible && resolving.ask) } : {};
                   setResolving(null);
-                  run({ action: "update", status: "resolvido", survey: ask });
+                  run({ action: "update", status: "resolvido", ...ask });
                 }}>
                 Resolver
               </button>

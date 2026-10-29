@@ -129,6 +129,8 @@ test("The reasons shown when there is no survey are the agreed texts", () => {
   assert.equal(s.surveyCreateNote({ created: false, reason: "janela_24h" }), "Sem pedido de avaliação: fora da janela de 24 h do Messenger/Instagram.");
   for (const reason of ["desligado", "nao_pedido", "nao_resolvida"]) assert.equal(s.surveyCreateNote({ created: false, reason }), null, reason);
   assert.equal(s.surveyCreateNote(null), null);
+  assert.equal(s.surveyCreateNote({ created: false, reason: "sem_escolha" }),
+    "Sem pedido de avaliação: a opção de pedir não chegou a ser mostrada (recarregue a página).");
 });
 
 test("attributeAgent: most dashboard replies in the cycle; tie → the most recent; never automatic, failed or older replies", () => {
@@ -699,6 +701,10 @@ test("The report starts when surveys are first turned on and separates a choice 
   const create = fn(SQL, "create function public.ldo_support_survey_create(");
   assert.ok(create.indexOf("if not v_ask then") > create.indexOf("v_reason := ldo_private.support_survey_block(p_conv, null);"), "só quando se podia pedir");
   assert.ok(create.includes("'skipped', 'nao_pedido', now()") && create.includes("'survey.declined'"));
+  const noChoice = create.indexOf("if not v_ask and p_request is null then");
+  assert.ok(noChoice > 0 && noChoice < create.indexOf("if not v_ask then"), "sem escolha não conta como não pedir");
+  assert.ok(fn(SQL, "create function public.ldo_support_survey_due(").includes("and m.delivery is distinct from 'failed') as message_id"),
+    "envio interrompido com a mensagem falhada fica falhado");
   assert.ok(fn(SQL, "create function ldo_private.support_survey_cycle(").includes("s.skip_reason is distinct from 'nao_pedido'"), "não pedir não é um pedido");
   const page = read("app/(painel)/apoio/desempenho/page.tsx");
   assert.ok(page.includes("A satisfação por colaborador começa quando o Super Admin ligar o pedido de avaliação."));
