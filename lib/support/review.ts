@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
+import { after } from "next/server";
 import { SupabaseError, userMessage } from "@/lib/supabase";
 import type { Viewer } from "@/lib/viewer";
 import { aiConfigured } from "./ai";
@@ -9,9 +10,9 @@ import { serverRpc, sessionRpc } from "./db";
 import { HttpError } from "./http";
 import { visitorSite } from "./rules";
 import {
-  REVIEW_DEFAULT_MODEL, REVIEW_MAX_CHARS, REVIEW_MIN_CHARS, REVIEW_MODEL_TIMEOUT_MS, REVIEW_SCHEMA, discardReason, factsIn, isReviewModel,
-  normalizeForHash, parseReview, portugueseText, reviewInstructions, reviewKnowledgeText, reviewThinking, reviewUserText,
-  type DiscardReason, type ReviewBegin, type ReviewProblem, type ReviewTag,
+  REVIEW_DEFAULT_MODEL, REVIEW_MAX_CHARS, REVIEW_MIN_CHARS, REVIEW_MODEL_TIMEOUT_MS, REVIEW_OFF, REVIEW_SCHEMA, discardReason, factsIn,
+  interruptedCost, isReviewModel, normalizeForHash, parseReview, portugueseText, restoreAngles, reviewInstructions, reviewKnowledgeText,
+  reviewThinking, reviewUserText, type DiscardReason, type ReviewBegin, type ReviewProblem, type ReviewTag,
 } from "./review-rules";
 
 // Revisão da IA antes de enviar (Claude, só no servidor). Uma chamada curta, sem ferramentas, com tempo limite e sem novas
@@ -20,7 +21,10 @@ import {
 export type ReviewResponse =
   | { id: string; veredicto: "aprovada" | "melhorar"; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null }
   // A IA não respondeu (a tempo ou de todo): a resposta segue sem revisão.
-  | { id: string; falhou: "timeout" | "erro"; motivo: string };
+  | { id: string; falhou: "timeout" | "erro"; motivo: string }
+  // A revisão foi desligada (configuração ou preferência) depois de a página abrir: segue sem revisão e sem aviso de
+  // falha, e o browser deixa de pedir.
+  | { id: string; falhou: "desligada"; quem: "modo" | "pessoa" };
 
 export const reviewHash = (text: string) => createHash("sha256").update(normalizeForHash(text), "utf8").digest("hex");
 
@@ -31,7 +35,7 @@ function failure(e: unknown): { falhou: "timeout" | "erro"; motivo: string } {
   if (e instanceof Anthropic.AuthenticationError) return { falhou: "erro", motivo: "a Anthropic recusou a chave da IA" };
   if (e instanceof Anthropic.RateLimitError) return { falhou: "erro", motivo: "limite de pedidos da Anthropic atingido" };
   if (e instanceof Anthropic.InternalServerError) return { falhou: "erro", motivo: "IA sobrecarregada" };
-  if (e instanceof Anthropic.APIError) return { falhou: "erro", motivo: `IA indisponível (HTTP ${e.status ?? "?"})` };
+  if (e instanceof Anthropic.APIError) return { falhou: "erro", motivo: `IA indisponível, HTTP ${e.status ?? "?"}` };
   if (e instanceof Error && e.message) return { falhou: "erro", motivo: e.message.slice(0, 200) };
   return { falhou: "erro", motivo: "IA indisponível" };
 }
@@ -46,7 +50,11 @@ export async function reviewReply(viewer: Viewer, conversationId: string, review
   try {
     begin = await sessionRpc<ReviewBegin>(viewer.session, "ldo_support_ai_review_begin", { p_conversation_id: conversationId, p_id: reviewId });
   } catch (e) {
-    if (e instanceof SupabaseError && e.code === "42501") return { id: reviewId, falhou: "erro", motivo: userMessage(e) };
+    if (e instanceof SupabaseError && e.code === "42501") {
+      const motivo = userMessage(e);
+      if (motivo === REVIEW_OFF.modo || motivo === REVIEW_OFF.pessoa) return { id: reviewId, falhou: "desligada", quem: motivo === REVIEW_OFF.modo ? "modo" : "pessoa" };
+      return { id: reviewId, falhou: "erro", motivo };
+    }
     throw e;
   }
   const model = isReviewModel(begin.model) ? begin.model : REVIEW_DEFAULT_MODEL;
@@ -58,13 +66,19 @@ export async function reviewReply(viewer: Viewer, conversationId: string, review
       p_original_hash: reviewHash(text), p_sugestao_hash: r.sugestao ? reviewHash(r.sugestao) : null, p_descartada: r.descartada ?? null,
       p_model: r.model ?? model, p_cost: r.cost, p_latency_ms: Date.now() - started, p_error: r.error ?? null,
     }).catch(() => undefined);
+  // Uma falha grava-se depois de responder: o browser envia logo com a escolha "timeout" ou "erro", que não depende do
+  // registo, e os 10 s do browser não esperam pela BD.
+  const failLater = (r: Parameters<typeof finish>[0]) => after(() => finish(r));
 
+  const instructions = reviewInstructions(begin.criteria);
+  const userText = reviewUserText(begin, text, site);
   let res: Anthropic.Message;
   try {
     const workspace = anthropicWorkspace(process.env.ANTHROPIC_WORKSPACE_ID);
     const client = new Anthropic({ maxRetries: 0, ...(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {}) });
-    // 9 s para a IA, contados desde o pedido do browser (que desiste aos 10 s).
-    const timeout = Math.max(1000, Math.min(REVIEW_MODEL_TIMEOUT_MS, REVIEW_MODEL_TIMEOUT_MS + 500 - (Date.now() - started)));
+    // Até 9 s desde o pedido do browser (que desiste aos 10 s), com o tempo de ldo_support_ai_review_begin incluído: sobra
+    // tempo para gravar o resultado e responder.
+    const timeout = Math.max(1000, REVIEW_MODEL_TIMEOUT_MS - (Date.now() - started));
     res = await client.messages.create(
       {
         model,
@@ -73,16 +87,18 @@ export async function reviewReply(viewer: Viewer, conversationId: string, review
         thinking: reviewThinking(model),
         output_config: { effort: "low", format: { type: "json_schema", schema: REVIEW_SCHEMA } },
         system: [
-          { type: "text", text: reviewInstructions(begin.criteria) },
+          { type: "text", text: instructions },
           { type: "text", text: knowledge, cache_control: { type: "ephemeral", ttl: "1h" } },
         ],
-        messages: [{ role: "user", content: reviewUserText(begin, text, site) }],
+        messages: [{ role: "user", content: userText }],
       },
       { timeout, maxRetries: 0, signal: AbortSignal.timeout(timeout) },
     );
   } catch (e) {
     const f = failure(e);
-    await finish({ status: "error", cost: 0, error: f.motivo });
+    // Sem resposta a tempo, a Anthropic pode cobrar o pedido na mesma: conta uma estimativa por excesso no orçamento.
+    const cost = f.falhou === "timeout" ? interruptedCost(model, { prompt: instructions.length + userText.length, knowledge: knowledge.length }) : 0;
+    failLater({ status: "error", cost, error: f.motivo });
     return { id: begin.id, ...f };
   }
 
@@ -93,7 +109,9 @@ export async function reviewReply(viewer: Viewer, conversationId: string, review
     if (res.stop_reason === "refusal") throw new Error("a IA recusou rever esta resposta");
     if (res.stop_reason === "max_tokens") throw new Error("a revisão da IA ficou demasiado longa");
     const out = parseReview(res.content.map((b) => (b.type === "text" ? b.text : "")).join(""));
-    let sugestao = out.sugestao && normalizeForHash(out.sugestao) !== text ? out.sugestao : null;
+    // A resposta foi para a IA com < > trocados por ‹ › (untrusted): voltam ao original antes do descarte e do hash.
+    const fixed = out.sugestao ? restoreAngles(out.sugestao, text) : null;
+    let sugestao = fixed && normalizeForHash(fixed) !== text ? fixed : null;
     let descartada: DiscardReason | null = null;
     if (sugestao) {
       descartada = discardReason({
@@ -105,11 +123,12 @@ export async function reviewReply(viewer: Viewer, conversationId: string, review
     // Sem problemas nem sugestão que se possa mostrar, a resposta segue.
     const veredicto = out.veredicto === "melhorar" && (out.problemas.length || sugestao) ? "melhorar" : "aprovada";
     const problemas = veredicto === "melhorar" ? out.problemas : [];
+    // Gravada antes de responder: a escolha ao enviar (ldo_support_ai_review_choice) compara com estes hashes.
     await finish({ status: "done", cost, veredicto, criterios: problemas.map((p) => p.criterio), sugestao, descartada, model: res.model || model });
     return { id: begin.id, veredicto, problemas, sugestao, descartada: veredicto === "melhorar" ? descartada : null };
   } catch (e) {
     const f = failure(e);
-    await finish({ status: "error", cost, error: f.motivo, model: res.model || model });
+    failLater({ status: "error", cost, error: f.motivo, model: res.model || model });
     return { id: begin.id, ...f };
   }
 }

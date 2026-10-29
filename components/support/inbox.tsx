@@ -223,7 +223,9 @@ const dropPreview = (u: Pending) => {
 // Revisão da IA antes de enviar: resposta do servidor (uma falha da IA também chega aqui; a resposta segue na mesma).
 type ReviewResult =
   | { id: string; veredicto: "aprovada" | "melhorar"; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null }
-  | { id: string; falhou: "timeout" | "erro"; motivo: string };
+  | { id: string; falhou: "timeout" | "erro"; motivo: string }
+  // Desligada depois de a página abrir (configuração ou preferência): segue sem revisão e sem aviso.
+  | { id: string; falhou: "desligada"; quem: "modo" | "pessoa" };
 // Painel da revisão de uma conversa: fica guardado e volta a aparecer quando se regressa à conversa.
 type ReviewPanel = {
   id: string; slot: string; body: string; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null;
@@ -239,7 +241,8 @@ const REVIEW_OK = "Resposta revista pela IA e enviada.";
 const REVIEW_TIMEOUT = "A revisão da IA não respondeu a tempo; a resposta foi enviada sem revisão.";
 const reviewFailed = (motivo?: string) => {
   const m = (motivo || "").trim().replace(/[.\s]+$/, "");
-  return `Não foi possível rever a resposta (${m ? m.charAt(0).toLowerCase() + m.slice(1) : "IA indisponível"}); foi enviada sem revisão.`;
+  // Minúscula só numa palavra comum ("Atingiu…"), nunca numa sigla ("IA sobrecarregada").
+  return `Não foi possível rever a resposta (${!m ? "IA indisponível" : /^\p{Lu}\p{Ll}/u.test(m) ? m.charAt(0).toLowerCase() + m.slice(1) : m}); foi enviada sem revisão.`;
 };
 const omit = <T,>(o: Record<string, T>, key: string) => {
   if (!(key in o)) return o;
@@ -348,6 +351,8 @@ export function SupportInbox({
   const [reviewPanels, setReviewPanels] = useState<Record<string, ReviewPanel>>({});
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [reviewPref, setReviewPref] = useState(review.pref);
+  // Modo lido ao abrir a página; passa a "desligada" se o servidor disser que entretanto foi desligada.
+  const [reviewMode, setReviewMode] = useState(review.mode);
   // Já revista neste ciclo (por conversa e separador): o envio seguinte leva o id da revisão e não volta a ser revisto.
   const reviewCycle = useRef<Record<string, string>>({});
   // Proposta da IA posta no campo com "Usar na resposta" (id e texto), por conversa.
@@ -848,7 +853,15 @@ export function SupportInbox({
       const r = await api<ReviewResult>(`/api/support/conversations/${id}`, {
         method: "POST", body: { action: "review", reviewId, body: out.body }, signal: controller.signal,
       });
-      if ("falhou" in r) next = { ...out, review: { id: reviewId, choice: r.falhou }, note: r.falhou === "timeout" ? REVIEW_TIMEOUT : reviewFailed(r.motivo) };
+      if ("falhou" in r && r.falhou === "desligada") {
+        // Desligada entretanto (sem registo de revisão): segue como antes da revisão existir, e não se volta a pedir.
+        if (r.quem === "modo") setReviewMode("desligada");
+        else {
+          setReviewMode("opcional");
+          setReviewPref(false);
+        }
+        next = out;
+      } else if ("falhou" in r) next = { ...out, review: { id: reviewId, choice: r.falhou }, note: r.falhou === "timeout" ? REVIEW_TIMEOUT : reviewFailed(r.motivo) };
       else {
         reviewCycle.current[out.slot] = reviewId;
         const problemas = mergeProblems(r.problemas, localReviewProblems(out.body, local));
@@ -937,7 +950,7 @@ export function SupportInbox({
       id, which, body, uploads, slot, draftWas: body,
       ...(reviewed ? { review: { id: reviewed } } : {}), ...(aiDraft ? { aiDraftId: aiDraft.id } : {}),
     };
-    if (shouldReview({ which, mode: review.mode, pref: reviewPref, body, retry, aiDraft: aiDraft?.text ?? null, reviewed: Boolean(reviewed) }))
+    if (shouldReview({ which, mode: reviewMode, pref: reviewPref, body, retry, aiDraft: aiDraft?.text ?? null, reviewed: Boolean(reviewed) }))
       return runReview(out, { site: site?.site ?? null, locale: site?.locale ?? null });
     return deliver(out);
   }
@@ -1449,7 +1462,7 @@ export function SupportInbox({
                       {mode === "reply" && (
                         <button type="button" className="secondary-button" onClick={suggestReply} title="A IA propõe uma resposta (não envia nada)." aria-label="Sugerir resposta com a IA"><span aria-hidden="true">✨</span><span className="btn-label"> Sugerir resposta</span></button>
                       )}
-                      {mode === "reply" && review.mode === "opcional" && (
+                      {mode === "reply" && reviewMode === "opcional" && (
                         <label className="review-toggle secondary-button" title="Rever as minhas respostas com a IA antes de enviar">
                           <input type="checkbox" checked={reviewPref} onChange={(e) => saveReviewPref(e.target.checked)} aria-label="Rever as minhas respostas com a IA antes de enviar" />
                           <span aria-hidden="true">🔎</span><span className="btn-label"> Revisão IA</span>

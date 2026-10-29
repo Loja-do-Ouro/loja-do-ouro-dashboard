@@ -335,6 +335,20 @@ test("The model call: no fallbacks, no retries, explicit timeout, no tools, low 
   const finish = src.slice(f, src.indexOf("}).catch(() => undefined);", f));
   assert.ok(finish.includes("p_original_hash: reviewHash(text)") && finish.includes("p_sugestao_hash: r.sugestao ? reviewHash(r.sugestao) : null"));
   assert.ok(!/p_body|p_text|p_sugestao:/.test(finish));
+  // 9 s no total desde o pedido do browser; uma falha grava-se depois de responder, com uma estimativa do custo quando a
+  // IA não respondeu a tempo; um resultado gravado antes de responder (a escolha ao enviar compara os hashes).
+  assert.ok(src.includes("const timeout = Math.max(1000, REVIEW_MODEL_TIMEOUT_MS - (Date.now() - started));"));
+  assert.ok(src.includes('const cost = f.falhou === "timeout" ? interruptedCost(model,'));
+  assert.equal((src.match(/failLater\(\{ status: "error"/g) || []).length, 2);
+  assert.ok(!/await finish\(\{ status: "error"/.test(src));
+  assert.ok(src.includes('await finish({ status: "done"'));
+  // Os < > da resposta voltam na sugestão antes do descarte e do hash.
+  assert.ok(src.indexOf("restoreAngles(out.sugestao, text)") > 0 && src.indexOf("restoreAngles(out.sugestao, text)") < src.indexOf("discardReason({"));
+  // "Desligada" não é uma falha: o texto das recusas é o mesmo da BD.
+  const begin = fnBody(SQL, "create function public.ldo_support_ai_review_begin(");
+  assert.ok(begin.includes(`raise exception '${r.REVIEW_OFF.modo}' using errcode = '42501'`));
+  assert.ok(begin.includes(`raise exception '${r.REVIEW_OFF.pessoa}' using errcode = '42501'`));
+  assert.ok(src.includes('falhou: "desligada", quem: motivo === REVIEW_OFF.modo ? "modo" : "pessoa"'));
 });
 
 test("Sending records the review choice right after begin_send, without waiting for it; the route validates the tag", () => {
@@ -366,6 +380,12 @@ test("The composer texts of the review are the agreed ones", () => {
   assert.ok(run.includes('choice: "sem_revisao"') && run.includes('choice: "timeout"') && run.includes('choice: "erro"'));
   assert.ok(run.includes("if (next) await deliver(next);"));
   assert.ok(run.includes("REVIEW_CLIENT_TIMEOUT_MS"));
+  // Desligada depois de a página abrir: segue sem aviso de falha e o browser deixa de pedir revisões.
+  assert.ok(run.includes('if ("falhou" in r && r.falhou === "desligada")') && run.includes('setReviewMode("desligada")') && run.includes("next = out;"));
+  assert.ok(inbox.includes("mode: reviewMode, pref: reviewPref"));
+  // Motivo entre parênteses: minúscula só numa palavra comum, nunca numa sigla.
+  assert.ok(inbox.includes("/^\\p{Lu}\\p{Ll}/u.test(m) ? m.charAt(0).toLowerCase() + m.slice(1) : m"));
+  assert.ok(!read("lib/support/review.ts").includes("(HTTP "), "sem parênteses dentro de parênteses");
 });
 
 // ---------------------------------------------------------------- migração
