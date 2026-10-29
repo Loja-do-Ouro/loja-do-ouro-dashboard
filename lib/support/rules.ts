@@ -380,6 +380,21 @@ export function firstName(fullName: string | null | undefined): string | null {
   return first || null;
 }
 
+// Histórico visível (configuração do apoio, por omissão 1 de setembro de 2026): numa conversa antiga que voltou a ter
+// atividade, as mensagens anteriores à data ficam recolhidas no ecrã e fora da IA. Sem data válida, conta tudo.
+export function visibleSince<T extends { created_at: string }>(messages: T[], from: string | null | undefined): T[] {
+  const t = from ? Date.parse(from) : NaN;
+  if (Number.isNaN(t)) return messages;
+  return messages.filter((m) => !(Date.parse(m.created_at) < t));
+}
+
+// "1 de setembro de 2026" (dia de Lisboa).
+export function historyDateLabel(from: string | null | undefined): string | null {
+  const t = from ? Date.parse(from) : NaN;
+  if (Number.isNaN(t)) return null;
+  return new Intl.DateTimeFormat("pt-PT", { timeZone: "Europe/Lisbon", day: "numeric", month: "long", year: "numeric" }).format(new Date(t));
+}
+
 // Números de encomenda que o cliente escreveu ("#12345", "encomenda nº 12345", "encomenda 12345"), sem repetir.
 export function orderNumbersIn(texts: string[]) {
   const found = new Set<string>();

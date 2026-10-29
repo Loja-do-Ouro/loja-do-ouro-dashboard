@@ -1,5 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const r = require("../.test-build/support/rules.js");
 const perm = require("../.test-build/permissions.js");
 
@@ -391,4 +393,63 @@ test("A Metricool source starts over when the brand in use changes (Jericó to L
   // Voltar à marca anterior também recomeça; sem marca conhecida, só regista a atual.
   assert.deepEqual(r.metricoolCursor(current, "2912472", "2912472"), { blog: "2912472" });
   assert.deepEqual(r.metricoolCursor({ brand: "1" }, undefined, "7708381"), { brand: "1", blog: "7708381" });
+});
+
+test("Messages before the visible history date are folded in the thread and left out of the AI", () => {
+  const m = (created_at) => ({ created_at });
+  const msgs = [m("2026-08-31T22:59:59Z"), m("2026-08-31T23:00:00Z"), m("2026-10-01T10:00:00Z")];
+  // 1 de setembro de 2026, 00:00 em Lisboa (hora de verão) = 31-08 às 23:00 UTC; a BD devolve a data em UTC.
+  assert.deepEqual(r.visibleSince(msgs, "2026-09-01T00:00:00+01:00"), msgs.slice(1));
+  assert.deepEqual(r.visibleSince(msgs, "2026-08-31T23:00:00+00:00"), msgs.slice(1));
+  // Sem data (antes da migração) ou com uma data ilegível: conta tudo.
+  for (const none of [undefined, null, "", "ontem"]) assert.equal(r.visibleSince(msgs, none), msgs, String(none));
+  assert.equal(r.visibleSince([m("?")], "2026-09-01T00:00:00+01:00").length, 1);
+  assert.equal(r.historyDateLabel("2026-08-31T23:00:00+00:00"), "1 de setembro de 2026");
+  assert.equal(r.historyDateLabel("2026-10-29T23:30:00+00:00"), "29 de outubro de 2026");
+  assert.equal(r.historyDateLabel(null), null);
+});
+
+test("The history cutoff hides old conversations from the list, counters, suggestions and AI, without blocking access", () => {
+  const sql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261030100000_ldo_support_history_from.sql"), "utf8").replace(/\r\n/g, "\n");
+  const fn = (name) => {
+    const start = sql.indexOf(`create or replace function public.${name}(`);
+    assert.ok(start >= 0, name);
+    return sql.slice(start, sql.indexOf("$$;", start));
+  };
+  assert.match(sql, /add column if not exists history_from timestamptz not null default '2026-09-01 00:00:00\+01';/);
+  // Atividade = última mensagem (created_at é a hora da importação).
+  const active = "coalesce(c.last_message_at, c.created_at) >= v_from";
+  const list = fn("ldo_support_list");
+  const counts = list.indexOf("'counts', (");
+  assert.equal(list.split(active).length - 1, 2, "lista e contagens");
+  assert.ok(list.indexOf(active) < counts && list.lastIndexOf(active) > counts);
+  assert.match(list, /'history_from', v_from\n/);
+  // Alterações feitas no lugar em produção (pesquisa no email indicado; "Automáticas" pela hora de gravação) mantêm-se.
+  assert.ok(list.includes("coalesce(k.claimed_email, '')"));
+  assert.equal(list.split("m.inserted_at > coalesce(c.auto_handled_at, c.auto_handled_through)").length - 1, 2);
+  const conv = fn("ldo_support_conversation");
+  assert.ok(conv.includes("coalesce(c2.last_message_at, c2.created_at) >= v_from"), "sugestões");
+  assert.ok(conv.includes("'history_from', v_from"));
+  // Continua a abrir conversas antigas (é a verificação de acesso do envio, anexos e IA): só a recusa de sempre.
+  assert.deepEqual([...conv.matchAll(/raise exception '([^']+)'/g)].map((x) => x[1]), ["Conversa não encontrada."]);
+  const history = fn("ldo_support_ai_customer_history");
+  assert.ok(history.includes(active) && history.includes("deleted_at is null and created_at >= v_from"));
+  const replies = fn("ldo_support_ai_replies");
+  assert.ok(replies.includes("m.created_at >= v_from") && replies.includes("i.created_at >= v_from"));
+  for (const body of [history, replies]) assert.ok(body.indexOf("bi_check(p_token)") < body.indexOf("support_history_from()"), "token primeiro");
+});
+
+test("The history settings functions are Super Admin only and reachable only through the anon RPC grant", () => {
+  const sql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261030100000_ldo_support_history_from.sql"), "utf8").replace(/\r\n/g, "\n");
+  const stmts = sql.replace(/--[^\n]*/g, "").replace(/\s+/g, " ").split(";").map((s) => s.trim());
+  for (const sig of ["public.ldo_support_history_settings(text)", "public.ldo_support_history_settings_save(text, date)"]) {
+    assert.ok(stmts.some((s) => s.startsWith("revoke all on function ") && s.includes(sig) && s.endsWith(" from public, authenticated")), sig);
+    assert.ok(stmts.some((s) => s.startsWith("grant execute on function ") && s.includes(sig) && s.endsWith(" to anon")), sig);
+  }
+  assert.ok(stmts.includes("revoke all on function ldo_private.support_history_from() from public, anon, authenticated"));
+  for (const name of ["ldo_support_history_settings", "ldo_support_history_settings_save"]) {
+    const start = sql.indexOf(`create function public.${name}(`);
+    const body = sql.slice(start, sql.indexOf("$$;", start));
+    assert.ok(body.includes("ldo_private.support_super(p_session)"), name);
+  }
 });

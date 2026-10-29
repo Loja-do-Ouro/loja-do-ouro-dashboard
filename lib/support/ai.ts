@@ -8,7 +8,7 @@ import {
   type AiOutput, type UsagePart,
 } from "./ai-rules";
 import { serverRpc, sessionRpc } from "./db";
-import { CHANNEL_LABEL, SITE_BRAND, STATUS_LABEL, visitorSite, type Channel, type SiteKey, type Status } from "./rules";
+import { CHANNEL_LABEL, SITE_BRAND, STATUS_LABEL, visibleSince, visitorSite, type Channel, type SiteKey, type Status } from "./rules";
 import { isCommentChannel, POST_KIND_LABEL, type PostKind } from "./comment-rules";
 
 // Assistente de IA do Apoio ao Cliente (Claude, da Anthropic). Só no servidor: a chave
@@ -50,6 +50,9 @@ type Detail = {
     kind: "inbound" | "outbound" | "note"; author_name: string | null; body: string; attachments: { name: string; type: string | null }[] | null;
     created_at: string; deleted: boolean; delivery: string | null;
   }[];
+  // Histórico visível (configuração do apoio): as mensagens anteriores não entram no contexto. Ausente antes da
+  // migração 20261030100000.
+  history_from?: string | null;
 };
 
 const MAX_TURNS = 6;
@@ -232,7 +235,7 @@ function contextText(d: Detail, visitor: SiteVisitorCtx = null, site: ReturnType
     "",
     "Mensagens (da mais antiga para a mais recente):",
   ];
-  const msgs = d.messages.slice(-40);
+  const msgs = visibleSince(d.messages, d.history_from).slice(-40);
   if (d.messages.length > msgs.length) lines.push(`(${d.messages.length - msgs.length} mensagens anteriores omitidas)`);
   // Cada mensagem num elemento cujos atributos só o servidor escreve; o texto não consegue fechá-lo
   // nem abrir outro (os sinais < e > do texto são neutralizados), por isso não imita a equipa.

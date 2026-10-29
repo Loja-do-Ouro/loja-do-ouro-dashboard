@@ -3353,6 +3353,8 @@ textarea:focus-visible,
     padding: 6px;
   }
 }
+/* Coluna de ícones do tablet. Editar em conjunto com :root[data-menu="recolhido"] (menu recolhido no computador,
+   mais abaixo), que repete estas regras. */
 @media (max-width: 960px) and (min-width: 680.02px) {
   :root {
     --sidebar: 76px;
@@ -3558,6 +3560,148 @@ textarea:focus-visible,
   }
   main {
     padding-bottom: 96px;
+  }
+}
+
+/* =====================================================================
+   Menu lateral recolhido no computador (2026-10-30): botão no canto da barra de cima ou Ctrl+\.
+   <html data-menu="recolhido">, a partir do cookie ldo_menu. Fica a coluna de ícones do tablet (editar em conjunto
+   com o bloco "max-width: 960px and min-width: 680.02px", mais acima). Até 960 px nada muda: o botão nem aparece.
+   ===================================================================== */
+.menu-toggle {
+  display: none;
+}
+@media (min-width: 960.02px) {
+  .menu-toggle {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    margin-right: 12px;
+    padding: 0;
+    border-radius: 10px;
+    background: none;
+    box-shadow: none;
+    color: var(--petrol);
+  }
+  .menu-toggle:hover {
+    background: var(--petrol-soft);
+  }
+  .menu-toggle svg {
+    width: 20px;
+    height: 20px;
+  }
+  /* Três elementos na barra: o caminho da página fica junto ao botão e a conta à direita. */
+  .topbar > span {
+    margin-right: auto;
+  }
+  :root[data-menu="recolhido"] {
+    --sidebar: 76px;
+  }
+  :root[data-menu="recolhido"] .sidebar {
+    align-items: stretch;
+    padding: 18px 0 14px;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+  }
+  :root[data-menu="recolhido"] .sidebar::-webkit-scrollbar {
+    display: none;
+  }
+  :root[data-menu="recolhido"] .brand {
+    padding: 0;
+    gap: 0;
+    align-items: center;
+  }
+  :root[data-menu="recolhido"] .official-logo,
+  :root[data-menu="recolhido"] .brand-caption,
+  :root[data-menu="recolhido"] .nav-label,
+  :root[data-menu="recolhido"] .sidebar nav a > span,
+  :root[data-menu="recolhido"] .private-label > span,
+  :root[data-menu="recolhido"] .sidebar-bottom .logout {
+    display: none;
+  }
+  :root[data-menu="recolhido"] .brand-emblem {
+    display: block;
+    width: 44px;
+    height: 44px;
+  }
+  :root[data-menu="recolhido"] .nav-groups {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 18px;
+  }
+  :root[data-menu="recolhido"] .nav-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  :root[data-menu="recolhido"] .nav-group + .nav-group::before {
+    content: "";
+    width: 36px;
+    height: 1px;
+    margin: 10px 0;
+    background: var(--line);
+  }
+  :root[data-menu="recolhido"] .sidebar nav {
+    width: auto;
+    margin: 0;
+    gap: 4px;
+    align-items: center;
+  }
+  :root[data-menu="recolhido"] .sidebar nav a {
+    width: 48px;
+    height: 44px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    border-radius: 12px;
+  }
+  :root[data-menu="recolhido"] .sidebar nav a svg {
+    width: 20px;
+    height: 20px;
+  }
+  /* Sem nomes, o contador fica no canto do ícone. */
+  :root[data-menu="recolhido"] .sidebar nav a > b {
+    left: calc(50% + 3px);
+  }
+  :root[data-menu="recolhido"] .sidebar nav a.active::after,
+  :root[data-menu="recolhido"] .sidebar nav a[aria-current="page"]::after {
+    content: "";
+    left: -14px;
+    top: 12px;
+    bottom: 12px;
+  }
+  :root[data-menu="recolhido"] .sidebar-bottom {
+    width: auto;
+    margin: auto 14px 0;
+    padding: 12px 0 0;
+    display: flex;
+    justify-content: center;
+  }
+  :root[data-menu="recolhido"] .sidebar-bottom .private-label {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    margin: 0;
+    justify-content: center;
+  }
+  /* O menu recolhido não tem "Terminar sessão": fica o ícone na barra de cima, como no tablet. */
+  :root[data-menu="recolhido"] .topbar-logout {
+    display: inline-flex;
+    margin-left: 6px;
+  }
+  :root[data-menu="recolhido"] .topbar-logout button {
+    background: none;
+    color: #7e8776;
+    padding: 6px;
+  }
+  /* O espaço do menu passa para o conteúdo também nos ecrãs largos (1660 px + os 170 px do menu). */
+  :root[data-menu="recolhido"] #conteudo {
+    max-width: 1830px;
   }
 }
 
@@ -3946,6 +4090,10 @@ textarea:focus-visible,
 .msg.outbound { align-self: flex-end; background: #eef3ea; border-color: #d6e2cf; }
 .msg.note { align-self: stretch; max-width: none; background: #fff8e6; border: 1px dashed #e3c98d; }
 .msg-event { align-self: center; max-width: 90%; margin: 2px 0; padding: 3px 12px; border-radius: 999px; background: #f2f4ef; color: var(--muted); font-size: 12px; text-align: center; }
+/* Histórico visível: separador das mensagens anteriores à data (conversa antiga que voltou) e nota no fim da lista. */
+.msg-history { align-self: center; max-width: 90%; margin: 2px 0; padding: 4px 14px; border: 1px dashed #d6dbd1; border-radius: 999px; background: #fff; box-shadow: none; color: var(--muted); font-size: 12px; font-weight: 500; text-align: center; }
+.msg-history:hover { background: #f2f4ef; color: var(--ink); }
+.support-history-note { margin: 0; padding: 8px 12px 0; color: var(--muted); font-size: 11.5px; text-align: center; }
 .msg header { display: flex; gap: 10px; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
 .msg header strong { color: #4f5c55; font-weight: 600; }
 .msg p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; margin: 0; }
