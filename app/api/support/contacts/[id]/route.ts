@@ -29,13 +29,19 @@ export async function GET(request: Request, ctx: Ctx) {
   });
 }
 
-// Associação manual a um email de cliente (ou remoção, com email vazio). Nunca pelo nome.
+// Associação manual a um email de cliente (ou remoção, com email vazio). Nunca pelo nome. Com noSurveys: só os pedidos de
+// avaliação a este contacto.
 export async function POST(request: Request, ctx: Ctx) {
   return handle(async () => {
     const viewer = await supportViewer(request, { write: true });
     const { id } = await ctx.params;
     if (!isUuid(id)) throw new HttpError(404, "Contacto não encontrado.");
-    const b = await body<{ email: string }>(request);
+    const b = await body<{ email: string; noSurveys: boolean }>(request);
+    // O cliente não quer (ou volta a aceitar) pedidos de avaliação.
+    if (typeof b.noSurveys === "boolean") {
+      await sessionRpc(viewer.session, "ldo_support_contact_surveys_save", { p_contact: id, p_no_surveys: b.noSurveys });
+      return json({ ok: true });
+    }
     await sessionRpc(viewer.session, "ldo_support_link_contact", { p_contact: id, p_email: typeof b.email === "string" ? b.email.slice(0, 254) : null });
     return json({ ok: true });
   });

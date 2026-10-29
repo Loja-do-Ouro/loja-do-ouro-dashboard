@@ -3,6 +3,7 @@ import { sendAuctionOutbox } from "@/lib/leilao/emails";
 import { runAuctionMoney } from "@/lib/leilao/money";
 import { sendDuePrivateSelectionEmails, syncPrivateSelectionKlaviyo } from "@/lib/private-selection/send";
 import { serverConfigured, serverRpc } from "@/lib/support/db";
+import { sendDueSurveys } from "@/lib/support/survey";
 import { runSync } from "@/lib/support/sync";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,10 @@ const COMMENTS = ["metricool-facebook-comments", "metricool-instagram-comments"]
 // - Leilão: cauções e pagamentos na easypay (libertar, reter, confirmar pendentes) e depois os avisos da fila
 //   (ultrapassado, prolongado, a terminar, resultado, pagamento), também enviados logo a seguir a cada licitação;
 // - Private Selection: os emails com a senha que já estão na hora (cerca de 30 minutos depois do pedido) e a lista
-//   do Klaviyo, ao mesmo tempo que as fontes e com o mesmo orçamento.
+//   do Klaviyo, ao mesmo tempo que as fontes e com o mesmo orçamento;
+// - Apoio: os pedidos de avaliação já na hora e os agradecimentos (Messenger, Instagram e email), depois de ler as
+//   mensagens novas do Facebook, do Instagram e do email (uma conversa reaberta já não recebe o pedido); no máximo 3 de
+//   cada, com 10 s por envio.
 // Orçamento de 60 s contado desde o início do pedido: com a última leitura e os envios, fica abaixo dos 120 s.
 export async function POST(request: Request) {
   const start = Date.now();
@@ -33,9 +37,12 @@ export async function POST(request: Request) {
   if (!ok) return new Response("Não autorizado.", { status: 401, headers: { "Cache-Control": "no-store" } });
   after(async () => {
     const budgetMs = Math.max(20_000, 60_000 - (Date.now() - start));
+    const social = runSync({ only: METRICOOL, force: true, budgetMs }).catch(() => undefined);
+    const mail = runSync({ only: ["zendesk", "gmail"], budgetMs }).catch(() => undefined);
     await Promise.all([
-      runSync({ only: METRICOOL, force: true, budgetMs }).catch(() => undefined),
-      runSync({ only: ["zendesk", "gmail"], budgetMs }).catch(() => undefined),
+      social,
+      mail,
+      Promise.all([social, mail]).then(() => sendDueSurveys()).catch(() => undefined),
       runSync({ only: COMMENTS, budgetMs }).catch(() => undefined),
       sendDuePrivateSelectionEmails({ budgetMs }).catch(() => undefined),
       syncPrivateSelectionKlaviyo({ budgetMs }).catch(() => undefined),

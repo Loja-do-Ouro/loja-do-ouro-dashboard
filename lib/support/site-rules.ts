@@ -109,6 +109,9 @@ const CHAT_ERRORS = new Map<string, string>([
   ["Demasiadas conversas iniciadas. Tente novamente mais tarde.", "too_many_chats"],
   ["Enviou muitas mensagens seguidas. Aguarde um pouco.", "too_many_messages"],
   ["O chat está indisponível de momento.", "chat_unavailable"],
+  // Estrelas do pedido de avaliação (ldo_support_site_rate).
+  ["Escolha de 1 a 5 estrelas.", "rating_invalid"],
+  ["Esta avaliação já não está disponível.", "survey_closed"],
   [CHAT_UNAVAILABLE, "chat_unavailable"],
   ["Sem permissão.", "chat_unavailable"], // token do servidor recusado (ldo_private.bi_check)
 ]);

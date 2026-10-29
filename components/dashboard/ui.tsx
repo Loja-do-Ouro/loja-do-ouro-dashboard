@@ -31,6 +31,8 @@ export function Icon({ name = "grid" }: { name?: string }) {
     gavel: "M14 3l7 7 M11 6l7 7 M12.5 4.5l-5 5 M17.5 9.5l-5 5 M10 12l-7 7 M3 21h9",
     // Botão do menu lateral (recolher e mostrar), na barra de cima.
     panel: "M4 4h16v16H4z M9 4v16",
+    // Satisfação e desempenho (avaliações dos clientes).
+    star: "M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3",
   };
   return (
     <svg
