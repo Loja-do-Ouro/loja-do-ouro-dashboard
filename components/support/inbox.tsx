@@ -647,6 +647,10 @@ export function SupportInbox({
   // Resposta desta conversa em revisão ou à espera da escolha: nada muda o rascunho da resposta por outros caminhos.
   const replyHeld = Boolean(selected && (reviewing[selected] || reviewPanels[selected]));
   const REPLY_HELD = "Termine primeiro a revisão da IA da resposta (enviar, editar ou cancelar).";
+  // Avisos no topo: o que não está à vista na conversa e no separador abertos.
+  const otherFailures = Object.entries(sendFailures).filter(([id]) => id !== selected);
+  const otherPanels = Object.entries(reviewPanels).filter(([id]) => id !== selected || mode !== "reply");
+  const otherToasts = toasts.filter((t) => t.id !== selected);
   const reviewNote = (selected && reviewNotes[selected]) || "";
   const slotOf = (id: string, m: "reply" | "note") => `${id}:${m}`;
   // Anexos por enviar no momento do envio (um envio depois da revisão corre já com outra renderização).
@@ -1149,21 +1153,21 @@ export function SupportInbox({
       {flash.error && <div role="alert" className="notice error-notice support-flash">{flash.error}</div>}
       {/* Respostas noutras conversas (ou no separador da nota interna): envio com problema, revisão à espera da escolha e
           resultado da revisão. Nunca ficam só dentro de uma conversa que já não está à vista. */}
-      {(Object.keys(sendFailures).length > 0 || Object.keys(reviewPanels).length > 0 || toasts.length > 0) && (
+      {(otherFailures.length > 0 || otherPanels.length > 0 || otherToasts.length > 0) && (
         <ul className="review-alerts" aria-label="Respostas noutras conversas">
-          {Object.entries(sendFailures).filter(([id]) => id !== selected).map(([id, f]) => (
+          {otherFailures.map(([id, f]) => (
             <li key={`f-${id}`} className="notice error-notice" role="alert">
               <span><strong>{f.nome}</strong> — {f.text}</span>
               <button type="button" className="secondary-button" onClick={() => open(id)}>Abrir conversa</button>
             </li>
           ))}
-          {Object.entries(reviewPanels).filter(([id]) => id !== selected || mode !== "reply").map(([id, p]) => (
+          {otherPanels.map(([id, p]) => (
             <li key={`p-${id}`} className="notice" role="alert">
               <span><strong>{p.nome}</strong> — a resposta ainda não foi enviada: a IA sugere melhorias e espera a sua escolha.</span>
               <button type="button" className="secondary-button" onClick={() => { open(id); setMode("reply"); }}>Ver a revisão</button>
             </li>
           ))}
-          {toasts.filter((t) => t.id !== selected).map((t) => (
+          {otherToasts.map((t) => (
             <li key={t.key} className="notice ok-notice" role="status">
               <span><strong>{t.nome}</strong> — {t.text}</span>
               <button type="button" className="secondary-button" aria-label="Fechar aviso" onClick={() => setToasts((x) => x.filter((y) => y.key !== t.key))}>✕</button>
