@@ -4377,6 +4377,8 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .knowledge-item summary { cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 600; font-size: 13px; }
 .knowledge-item summary small { font-weight: 400; color: var(--muted); }
 .knowledge-item form { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+/* Um <select> com opções longas ("Juntar a…") não alarga o painel nem a página no telemóvel. */
+.knowledge-item form, .knowledge-item select { max-width: 100%; }
 .knowledge-item input, .knowledge-item textarea, .knowledge-new input, .knowledge-new textarea { width: 100%; border: 1px solid #dfe3da; border-radius: 7px; padding: 7px 10px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
 .knowledge-item textarea, .knowledge-new textarea { resize: vertical; min-height: 140px; }
 .knowledge-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
