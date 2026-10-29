@@ -200,3 +200,195 @@ test("Site chat visitors carry the brand of the domain and the language of the s
   assert.equal(r.siteRootUrl("gsp", "fr"), "https://www.goldstorepremium.com/");
   assert.deepEqual(r.SITE_LOCALES.map((l) => r.LOCALE_LABEL[l]), ["português", "inglês", "espanhol", "francês", "alemão"]);
 });
+
+test("A missing Metricool connection (UserConnection null) becomes a clear explanation, never the Java text", () => {
+  // Textos exatos gravados em produção a 28/29-10-2026: no envio (cortado aos 160 caracteres) e na sincronização.
+  const sent = 'Envio: Metricool recusou o pedido (HTTP 400 · {"status":"BAD_REQUEST","code":"400","title":"java.lang.NullPointerException: Cannot invoke \\"es.bewwweb.blogsportal.model.userconnection.UserConnection.getAcce).';
+  const synced = 'Autorizações INSTAGRAM: Metricool recusou o pedido (HTTP 400 · {"status":"BAD_REQUEST","code":"400","title":"Cannot invoke \\"es.bewwweb.blogsportal.model.userconnection.UserConnection.getAccessToken()\\" because \\"connection).';
+  const full = '{"status":"BAD_REQUEST","code":"400","title":"java.lang.NullPointerException: Cannot invoke \\"es.bewwweb.blogsportal.model.userconnection.UserConnection.getAccessToken()\\" because \\"connection\\" is null"}';
+  for (const raw of [sent, synced, full]) assert.equal(r.metricoolFault(raw, "Facebook", "envio", 400).kind, "connection", raw);
+
+  const ig = r.metricoolFault(full, "Instagram", "envio", 400).text;
+  assert.match(ig, /^Não enviada: a Metricool não encontra, para o utilizador do token da API, a ligação do Instagram nesta marca\./);
+  assert.match(ig, /Nada chegou ao cliente/);
+  assert.match(ig, /Meta Business Suite/);
+  // Verificar e confirmar com a Metricool antes de religar (religar não resolveu da primeira vez); sem atribuir culpas.
+  assert.match(ig, /Quem gere a Metricool: ver Configuração → Validar ligações e confirmar com a Metricool; se religar, na mesma marca, com a conta do token da API e um perfil com controlo total da página \(Instagram através do Facebook\)\./);
+  assert.doesNotMatch(ig, /dashboard\)|lado da Metricool/);
+  assert.match(ig, /\(Ref\. Metricool: UserConnection nula, HTTP 400\)$/);
+  assert.match(r.metricoolFault(sent, "Facebook", "envio", 400).text, /^Não enviada: a Metricool não encontra, para o utilizador do token da API, a ligação do Facebook nesta marca\./);
+  const otherNpe = 'java.lang.NullPointerException: Cannot invoke "java.util.List.size()" because "messages" is null';
+  for (const net of ["Facebook", "Instagram"]) {
+    for (const where of ["envio", "comentario", "sincronizacao"]) {
+      for (const raw of [full, "(#190) Error validating access token: The session has been invalidated", otherNpe]) {
+        const t = r.metricoolFault(raw, net, where, 400).text;
+        assert.ok(t.length <= 500, `${net} ${where}: ${t.length}`);
+        // Na sincronização vem depois do nome do pedido (last_error guarda 500 caracteres).
+        if (where === "sincronizacao") assert.ok(`Autorizações de comentários INSTAGRAMBUSINESS: ${t}`.length <= 500);
+        assert.doesNotMatch(t, /java\.|es\.bewwweb|getAccessToken|BAD_REQUEST/);
+      }
+    }
+  }
+  assert.doesNotMatch(ig, /NullPointer/);
+  assert.match(r.metricoolFault(full, "Facebook", "comentario", 400).text, /^Não publicada: .*Nada foi publicado/);
+  assert.match(r.metricoolFault(full, "Facebook", "sincronizacao", 400).text, /^a Metricool não encontra, para o utilizador do token da API, a ligação do Facebook nesta marca\. Sem ela não entram mensagens novas/);
+
+  // Sessão da Meta anulada (#190) e outros erros internos da Metricool.
+  const token = r.metricoolFault('{"title":"es.bewwweb.blogsportal.restClient.InvalidTokenException: (#190) Error validating access token: The session has been invalidated"}', "Facebook", "envio", 400);
+  assert.equal(token.kind, "token");
+  assert.match(token.text, /^Não enviada: a Meta deixou de aceitar a autorização da Metricool para o Facebook.*Para repor: religar o Facebook na mesma marca, com a conta do token da API.*\(Ref\. Meta #190\)$/);
+  const npe = r.metricoolFault(otherNpe, "Instagram", "envio", 400);
+  assert.equal(npe.kind, "internal");
+  // Um 400 fica "Falhou" (sendOutcome): o texto diz que nada saiu, não "confirme se chegou".
+  assert.match(npe.text, /^Erro interno da Metricool \(NullPointerException\)\. Nada foi enviado ao cliente; pode tentar outra vez; se repetir, avise a Metricool/);
+  assert.match(r.metricoolFault(otherNpe, "Facebook", "comentario", 400).text, /\. Nada foi publicado; pode tentar outra vez/);
+  assert.match(r.metricoolFault(otherNpe, "Facebook", "envio", null).text, /Confirme no Meta Business Suite se chegou ao cliente antes de reenviar/);
+  assert.match(r.metricoolFault(otherNpe, "Facebook", "sincronizacao", 400).text, /^erro interno da Metricool \(NullPointerException\)\. A sincronização volta a tentar sozinha/);
+  // "Cannot invoke … is null" sem o nome da exceção também é uma NullPointerException.
+  assert.match(r.metricoolFault('{"title":"Cannot invoke \\"java.util.Map.get(Object)\\" because \\"m\\" is null"}', "Facebook", "envio", 400).text, /\(NullPointerException\)/);
+  // Outras exceções do Java são recusas normais com o motivo: ficam com o texto original (failure()).
+  assert.equal(r.metricoolFault('{"title":"java.lang.IllegalArgumentException: The text exceeds the maximum length of 1000 characters"}', "Facebook", "envio", 400), null);
+  assert.equal(r.metricoolFault("java.lang.IllegalStateException: x", "Facebook", "sincronizacao", 400), null);
+  // 401/403 (acesso) e 429 (limite) têm o texto próprio de failure(), no envio como na sincronização.
+  for (const status of [401, 403, 429]) {
+    assert.equal(r.metricoolFault(full, "Facebook", "envio", status), null, String(status));
+    assert.equal(r.metricoolFault("java.lang.NullPointerException: rate limit", "Facebook", "comentario", status), null, String(status));
+  }
+  // Nunca repete o texto da Metricool (podia trazer HTML).
+  assert.doesNotMatch(r.metricoolFault("java.lang.NullPointerException: <img src=x onerror=1>", "Facebook", "envio", 400).text, /</);
+
+  // Não é uma falha de ligação: fica como estava (o #551 tem a sua explicação; #100 e outros, o texto original).
+  const p551 = '{"status":"BAD_REQUEST","code":"400","title":"es.bewwweb.blogsportal.restClient.InvalidTokenException: (#551) This person isn\'t available right now. [providerCo';
+  assert.equal(r.metricoolFault(p551, "Facebook", "envio", 400), null);
+  assert.equal(r.metricoolFault('{"status":"BAD_REQUEST","title":"(#100) Invalid parameter"}', "Facebook", "envio", 400), null);
+  assert.equal(r.metricoolFault('{"title":"es.bewwweb.blogsportal.restClient.InvalidTokenException: (#100) This attachment format is not supported."}', "Facebook", "envio", 400), null);
+  assert.equal(r.metricoolFault('{"status":"BAD_REQUEST","code":"400","title":"conversationId must not be null"}', "Facebook", "envio", 400), null);
+  assert.equal(r.metricoolFault("", "Facebook", "envio", 400), null);
+  assert.equal(r.metricoolFault(null, "Facebook", "envio", 400), null);
+
+  // Uma falha de ligação não bloqueia novas tentativas como o #551.
+  const inbound = { kind: "inbound", delivery: null, delivery_detail: null, created_at: "2026-10-27T21:00:00Z" };
+  const failed = { kind: "outbound", delivery: "failed", delivery_detail: ig, created_at: "2026-10-28T10:03:19Z" };
+  assert.equal(r.metaUnreachable([inbound, failed]), false);
+  assert.equal(r.metaUnreachable([inbound, { ...failed, delivery_detail: sent }]), false);
+
+  // Mensagens e erros gravados antes desta explicação: mostrados com o mesmo texto.
+  assert.match(r.metricoolDetail(sent, "Facebook"), /^Não enviada: a Metricool não encontra, para o utilizador do token da API, a ligação do Facebook/);
+  assert.match(r.metricoolDetail(synced, "Instagram"), /^Autorizações INSTAGRAM: a Metricool não encontra, para o utilizador do token da API, a ligação do Instagram/);
+  // Uma recusa normal gravada antes (exceção do Java com o motivo) fica com o texto original.
+  const tooLong = 'Envio: Metricool recusou o pedido (HTTP 400 · {"title":"java.lang.IllegalArgumentException: The text exceeds the maximum length"}).';
+  assert.equal(r.metricoolDetail(tooLong, "Facebook"), tooLong);
+  const legacy551 = `Envio: Metricool recusou o pedido (HTTP 400 · ${p551}).`;
+  assert.equal(r.metricoolDetail(legacy551, "Facebook"), legacy551);
+  assert.equal(r.metricoolDetail("Sem confirmação da Metricool; verificar antes de reenviar.", "Facebook"), "Sem confirmação da Metricool; verificar antes de reenviar.");
+  assert.equal(r.metricoolDetail(null, "Facebook"), null);
+
+  // INSTAGRAMBUSINESS (Instagram ligado pelo login do Instagram) é Instagram, não Messenger.
+  assert.equal(r.metricoolNetwork("INSTAGRAMBUSINESS"), "Instagram");
+  assert.equal(r.metricoolNetwork("INSTAGRAM"), "Instagram");
+  assert.equal(r.metricoolNetwork("FACEBOOK"), "Facebook");
+  assert.equal(r.metricoolNetwork(undefined), "Facebook");
+});
+
+test("The Metricool brand check keeps only ids and states and explains what is wrong", () => {
+  const raw = {
+    id: 2912472, label: "Loja do Ouro Jericó", userId: 2334170, ownerUserId: 2334170, isShared: false, deleted: false,
+    firstConnectionDate: "2025-03-04T10:00:00+01:00", facebookPageId: "618695038234056", facebook: "Loja do Ouro", instagram: "lojadoouro",
+    instagramConnectionType: "FACEBOOK_LOGIN", fbUserId: "1234567890", ownerUsername: "dono@exemplo.pt", hash: "abc", whiteLabelLink: "https://x",
+    facebookPicture: "https://img", instagramPicture: "https://img", customEmail: "a@b.pt", inUserId: "9",
+    brandRole: { name: "Owner", actions: { viewInbox: true, fullAccessInbox: true, viewAnalytics: true, editBrand: true } },
+  };
+  const safe = r.safeMetricoolBrand(raw);
+  assert.deepEqual(Object.keys(safe).sort(), ["deleted", "facebookPageId", "fbUserId", "firstConnectionDate", "id", "instagram", "instagramConnectionType",
+    "isShared", "label", "ownerUserId", "role", "userId"]);
+  assert.equal(safe.fbUserId, true);
+  assert.equal(safe.instagram, true);
+  assert.equal(safe.firstConnectionDate, "2025-03-04T09:00:00.000Z");
+  assert.deepEqual(safe.role, { name: "Owner", viewInbox: true, fullAccessInbox: true, viewAnalytics: true });
+  const json = JSON.stringify(safe);
+  for (const leak of ["dono@exemplo.pt", "abc", "https://", "1234567890", "lojadoouro\"", "a@b.pt"]) assert.ok(!json.includes(leak), leak);
+  assert.equal(r.safeMetricoolBrand({ label: "sem id" }), null);
+  assert.equal(r.safeMetricoolBrand(null), null);
+  assert.equal(r.safeMetricoolBrand({ id: 1, label: "<b>x</b>" }).label, "bx/b");
+  assert.equal(r.safeMetricoolBrand({ id: 1, facebookPageId: "javascript:1", instagramConnectionType: "OUTRO" }).facebookPageId, null);
+  assert.equal(r.safeMetricoolBrand({ id: 1, instagramConnectionType: "OUTRO" }).instagramConnectionType, null);
+
+  const account = { userId: "2334170", blogId: "2912472" };
+  const expected = { facebookPageId: "618695038234056" };
+  const ok = { status: 200, allowAccessToMessages: true, missingScopes: [] };
+  const now = new Date("2026-10-27T12:00:00Z");
+  const base = { account, brands: [safe], expected, inbox: { FACEBOOK: ok, INSTAGRAM: ok }, now };
+  assert.deepEqual(r.metricoolBrandFindings(base), [{ level: "ok", text: "Marca, página de Facebook, Instagram e autorizações da Inbox como esperado." }]);
+
+  const texts = (input) => r.metricoolBrandFindings(input).map((f) => `${f.level}: ${f.text}`).join("\n");
+  assert.match(texts({ ...base, brands: [] }), /^erro: A marca 2912472 não aparece nas marcas do utilizador Metricool 2334170/);
+  assert.match(texts({ ...base, brands: null, brandsStatus: 403 }), /^aviso: A lista de marcas da Metricool não respondeu \(HTTP 403\)/);
+  assert.match(texts({ ...base, brands: [{ ...safe, facebookPageId: "111" }] }), /erro: A página de Facebook ligada à marca \(111\) não é a das conversas guardadas \(618695038234056\)/);
+  assert.match(texts({ ...base, brands: [{ ...safe, facebookPageId: null }] }), /erro: A marca não tem página de Facebook ligada/);
+  assert.match(texts({ ...base, brands: [{ ...safe, instagram: false }] }), /erro: A marca não tem conta de Instagram ligada/);
+  assert.match(texts({ ...base, brands: [{ ...safe, ownerUserId: 999 }] }), /aviso: A marca é do utilizador Metricool 999; o dashboard usa o userId 2334170/);
+  assert.match(texts({ ...base, brands: [{ ...safe, role: { name: "Editor", viewInbox: true, fullAccessInbox: false, viewAnalytics: false } }] }),
+    /erro: O papel do utilizador da API nesta marca \(Editor\) não dá acesso total à Caixa de entrada[\s\S]*aviso: .*não dá acesso às Analytics/);
+  // Papel sem "actions" (por exemplo, o dono da marca): permissões desconhecidas, nunca um erro falso.
+  for (const brandRole of [{ name: "Owner" }, { name: "Owner", actions: null }, { name: "Owner", actions: { viewInbox: "sim" } }]) {
+    const owner = r.safeMetricoolBrand({ ...raw, brandRole });
+    assert.deepEqual(owner.role, { name: "Owner", viewInbox: null, fullAccessInbox: null, viewAnalytics: null });
+    assert.deepEqual(r.metricoolBrandFindings({ ...base, brands: [owner] }), [{ level: "ok", text: "Marca, página de Facebook, Instagram e autorizações da Inbox como esperado." }]);
+  }
+  assert.match(texts({ ...base, brands: [{ ...safe, fbUserId: false }] }), /aviso: A marca não indica o perfil de Facebook que autorizou a ligação/);
+  // Religação noutra marca: a mesma página aparece noutra marca.
+  assert.match(texts({ ...base, brands: [safe, { ...safe, id: 3000001, label: "Loja do Ouro (2)" }] }), /aviso: A marca 3000001 «Loja do Ouro \(2\)» também tem a página de Facebook 618695038234056/);
+  assert.match(texts({ ...base, brands: [{ ...safe, id: 3000001, label: "Nova" }] }), /erro: A marca 2912472 não aparece[\s\S]*aviso: A marca 3000001 «Nova» também tem a página/);
+
+  // O caso de 28-10-2026: Instagram sem ligação na marca e o Facebook sem mensagens novas apesar de sincronizar.
+  const npe = { status: 400, fault: "connection" };
+  // A lista do Facebook responde 200 com 0 conversas (normalmente ~100): erro, mesmo com as autorizações OK.
+  const today = texts({ ...base, inbox: { FACEBOOK: ok, INSTAGRAM: npe, INSTAGRAMBUSINESS: { status: 400, fault: "connection" } },
+    listed: { FACEBOOK: 0, INSTAGRAM: 0 },
+    lastInbound: { Facebook: "2026-10-27T23:50:36Z", Instagram: "2026-10-27T21:24:16Z" },
+    lastSuccess: { Facebook: "2026-10-29T10:05:00Z", Instagram: "2026-10-28T07:25:05Z" }, now: new Date("2026-10-29T10:30:00Z") });
+  assert.match(today, /^erro: Inbox FACEBOOK: a Metricool responde sem erro mas devolve 0 conversas do Facebook/);
+  assert.match(today, /erro: Inbox INSTAGRAM: a Metricool não encontra a ligação do Instagram na marca \(UserConnection nula\) para o utilizador do token da API\. Confirmar com a Metricool/);
+  // O Instagram já tem o erro da ligação: sem segundo erro pela lista vazia.
+  assert.doesNotMatch(today, /0 conversas do Instagram/);
+  assert.match(today, /aviso: Nenhuma mensagem nova do Facebook desde 27\/10, 23:50 \(mais de 24 h, com a sincronização a funcionar\)/);
+  // O Instagram deixou de sincronizar 10 h depois da última mensagem: o aviso de silêncio não se aplica (já há o erro).
+  assert.doesNotMatch(today, /Nenhuma mensagem nova do Instagram/);
+  assert.doesNotMatch(today, /INSTAGRAMBUSINESS/);
+  // A funcionar: a lista traz conversas e não há aviso.
+  assert.deepEqual(r.metricoolBrandFindings({ ...base, listed: { FACEBOOK: 94, INSTAGRAM: 100 } }).map((f) => f.level), ["ok"]);
+  assert.deepEqual(r.metricoolBrandFindings({ ...base, listed: { FACEBOOK: null } }).map((f) => f.level), ["ok"]);
+  // Mensagem recente: sem aviso. Silêncio de uma noite (13 h) com a sincronização a funcionar: sem aviso.
+  assert.doesNotMatch(texts({ ...base, lastInbound: { Facebook: "2026-10-27T08:00:00Z" } }), /Nenhuma mensagem nova/);
+  assert.doesNotMatch(texts({ ...base, lastInbound: { Facebook: "2026-10-28T20:00:00Z" }, lastSuccess: { Facebook: "2026-10-29T08:58:00Z" },
+    now: new Date("2026-10-29T09:00:00Z") }), /Nenhuma mensagem nova/);
+  // Mais de 24 h, mas a sincronização parou pouco depois: sem aviso de silêncio.
+  assert.doesNotMatch(texts({ ...base, lastInbound: { Facebook: "2026-10-27T20:00:00Z" }, lastSuccess: { Facebook: "2026-10-28T02:00:00Z" },
+    now: new Date("2026-10-29T09:00:00Z") }), /Nenhuma mensagem nova/);
+  // Acesso recusado à Inbox (401/403): erro próprio.
+  assert.match(texts({ ...base, inbox: { FACEBOOK: { status: 403, fault: null } } }), /erro: Inbox FACEBOOK: a Metricool recusou o acesso \(HTTP 403\)/);
+  // Instagram religado pelo login do Instagram: a Inbox responde como INSTAGRAMBUSINESS.
+  const business = texts({ ...base, brands: [{ ...safe, instagramConnectionType: "BUSINESS" }], inbox: { FACEBOOK: ok, INSTAGRAM: npe, INSTAGRAMBUSINESS: ok } });
+  assert.match(business, /aviso: O Instagram está ligado pelo login do Instagram \(BUSINESS\)/);
+  assert.match(business, /aviso: A Inbox responde como INSTAGRAMBUSINESS mas não como INSTAGRAM/);
+  assert.match(texts({ ...base, inbox: { FACEBOOK: { status: 200, allowAccessToMessages: false, missingScopes: ["pages_messaging", "<x>"] } } }),
+    /erro: Inbox FACEBOOK: a Metricool não tem acesso às mensagens do Facebook \(em falta: pages_messaging\)\./);
+  assert.match(texts({ ...base, inbox: { FACEBOOK: { status: 400, fault: "token" } } }), /erro: Inbox FACEBOOK: a Meta anulou a autorização da Metricool \(#190\)/);
+  assert.match(texts({ ...base, inbox: { FACEBOOK: { status: null, fault: null } } }), /erro: Inbox FACEBOOK: a Metricool não respondeu como esperado \(sem resposta\)/);
+  // Erros antes dos avisos.
+  const levels = r.metricoolBrandFindings({ ...base, brands: [{ ...safe, ownerUserId: 999, instagram: false }] }).map((f) => f.level);
+  assert.deepEqual(levels, ["erro", "aviso"]);
+});
+
+test("A Metricool source starts over when the brand in use changes (Jericó to Loja do Ouro)", () => {
+  const old = { brand: "618695038234056", next: "https://app.metricool.com/api/v2/inbox/post-comments?page=x", full_read_at: "2026-10-29T08:25:00Z", auth_at: "2026-10-29T09:35:00Z" };
+  // Cursor de antes desta mudança (sem blog): vale a marca da fonte (account).
+  assert.deepEqual(r.metricoolCursor(old, "2912472", "7708381"), { blog: "7708381" });
+  assert.deepEqual(r.metricoolCursor(old, "2912472", "2912472"), { ...old, blog: "2912472" });
+  // Já na marca nova: fica tudo o que foi detetado nela.
+  const current = { blog: "7708381", brand: "618695038234056", full_read_at: "2026-10-29T12:00:00Z" };
+  assert.deepEqual(r.metricoolCursor(current, "2912472", "7708381"), current);
+  // Voltar à marca anterior também recomeça; sem marca conhecida, só regista a atual.
+  assert.deepEqual(r.metricoolCursor(current, "2912472", "2912472"), { blog: "2912472" });
+  assert.deepEqual(r.metricoolCursor({ brand: "1" }, undefined, "7708381"), { brand: "1", blog: "7708381" });
+});

@@ -99,6 +99,184 @@ export function metaUnreachable(messages: { kind: string; delivery: string | nul
   return messages.some((m) => m.kind === "outbound" && m.delivery === "failed" && t(m) > reached && META_UNREACHABLE.test(m.delivery_detail || ""));
 }
 
+// Falhas do lado da Metricool, explicadas à equipa sem o texto técnico (o #551 continua em metaSendRefusal):
+// - connection: a Metricool não encontra a ligação da rede na marca (UserConnection, com a autorização da Meta) para
+//   o utilizador da API e responde com o erro do Java ("Cannot invoke …UserConnection.getAccessToken() because
+//   "connection" is null", HTTP 400) antes de falar com a Meta: nada saiu e repetir não resolve até religar a rede;
+// - token: a Meta anulou a autorização da Metricool (#190);
+// - internal: outro erro interno do servidor da Metricool (NullPointerException), sem código da Meta. As outras exceções
+//   do Java (IllegalArgumentException: texto demasiado longo…) costumam dizer o motivo: ficam com o texto original.
+// 401/403 (acesso recusado) e 429 (limite de pedidos) têm o seu texto em failure(), igual no envio e na sincronização.
+// O texto tem de caber em delivery_detail e em last_error (500 caracteres, com o "Conversas X: " de quem chama).
+export type MetricoolFaultKind = "connection" | "token" | "internal";
+export type MetricoolFault = { kind: MetricoolFaultKind; text: string };
+// Rede de um provider da Metricool (o Instagram ligado pelo login do Instagram é INSTAGRAMBUSINESS).
+export const metricoolNetwork = (provider?: string | null): "Facebook" | "Instagram" => (/^INSTAGRAM/i.test(provider || "") ? "Instagram" : "Facebook");
+// Também apanha o texto cortado aos 160 caracteres ("…UserConnection.getAcce") e a variante sem "java.lang".
+const MC_CONNECTION = /\buserconnection\b|\.getAccessToken\(\)|\bconnection\\?"?\s+is\s+null/i;
+const MC_TOKEN = /\(#190\)|Error validating access token|session has been invalidated/i;
+const MC_INTERNAL = /\bNullPointerException\b|Cannot invoke\s+\\?"[\w.$]+\(/i;
+export function metricoolFault(raw: string | null | undefined, network: "Facebook" | "Instagram", where: "envio" | "comentario" | "sincronizacao",
+  status?: number | null): MetricoolFault | null {
+  if (!raw || META_UNREACHABLE.test(raw) || status === 401 || status === 403 || status === 429) return null;
+  // Um erro com código da Meta (#100, #10…) fica com o texto original: diz mais do que "erro interno".
+  const kind: MetricoolFaultKind | null = MC_CONNECTION.test(raw) ? "connection" : MC_TOKEN.test(raw) ? "token"
+    : !/\(#\d+\)/.test(raw) && MC_INTERNAL.test(raw) ? "internal" : null;
+  if (!kind) return null;
+  const http = status ? `, HTTP ${status}` : "";
+  const sync = where === "sincronizacao";
+  const again = where === "comentario" ? "republicar" : "reenviar";
+  if (kind === "internal") {
+    // Só o nome da exceção (letras), nunca o resto do texto da Metricool ("Cannot invoke … is null" é uma NullPointerException).
+    const name = /\b([A-Z][A-Za-z]{2,50}(?:Exception|Error))\b/.exec(raw)?.[1] || "NullPointerException";
+    // Um 4xx fica "Falhou" (sendOutcome): nada saiu. Sem resposta ou 5xx seria "Sem confirmação": confirmar antes de repetir.
+    const failed = status != null && status >= 400 && status < 500 && status !== 408;
+    const next = sync ? "A sincronização volta a tentar sozinha"
+      : failed ? `${where === "comentario" ? "Nada foi publicado" : "Nada foi enviado ao cliente"}; pode tentar outra vez`
+      : `Confirme no Meta Business Suite se ${where === "comentario" ? "a resposta ficou publicada" : "chegou ao cliente"} antes de ${again}`;
+    return { kind, text: `${sync ? "erro" : "Erro"} interno da Metricool (${name}). ${next}; se repetir, avise a Metricool com a hora. (Ref. Metricool: ${name}${http})` };
+  }
+  const prefix = where === "envio" ? "Não enviada: " : where === "comentario" ? "Não publicada: " : "";
+  const meanwhile = sync ? "Sem ela não entram mensagens novas nem saem respostas; responda no Meta Business Suite."
+    : `${where === "comentario" ? "Nada foi publicado" : "Nada chegou ao cliente"} e ${again} não resolve até a ligação ser reposta; responda no Meta Business Suite.`;
+  const how = `na mesma marca, com a conta do token da API e um perfil com controlo total da página${network === "Instagram" ? " (Instagram através do Facebook)" : ""}`;
+  // Ligação em falta: a causa pode estar na conta Metricool (quem ligou a rede, em que marca) ou num erro da Metricool, e
+  // voltar a ligar não resolveu da primeira vez (28-10-2026): verificar e confirmar com a Metricool antes de religar.
+  return kind === "connection"
+    ? { kind, text: `${prefix}a Metricool não encontra, para o utilizador do token da API, a ligação do ${network} nesta marca. ${meanwhile} Quem gere a Metricool: ver Configuração → Validar ligações e confirmar com a Metricool; se religar, ${how}. (Ref. Metricool: UserConnection nula${http})` }
+    : { kind, text: `${prefix}a Meta deixou de aceitar a autorização da Metricool para o ${network} (sessão expirada ou anulada, por exemplo por mudança de palavra-passe ou perda de acesso à página). ${meanwhile} Para repor: religar o ${network} ${how}. (Ref. Meta #190)` };
+}
+// Erros da Metricool gravados antes desta explicação ("Envio: Metricool recusou o pedido (HTTP 400 · {…})"): mostrados
+// com o mesmo texto. Os restantes ficam como estão.
+export function metricoolDetail(detail: string | null | undefined, network: "Facebook" | "Instagram"): string | null {
+  const m = /^([^:()]{1,80}): Metricool recusou o pedido \(HTTP (\d{3})/.exec(detail || "");
+  if (!m) return detail ?? null;
+  const where = m[1] === "Envio" ? "envio" : m[1] === "Resposta pública" ? "comentario" : "sincronizacao";
+  const fault = metricoolFault(detail, network, where, Number(m[2]));
+  return !fault ? detail ?? null : where === "sincronizacao" ? `${m[1]}: ${fault.text}` : fault.text;
+}
+
+// Cursor de uma fonte Metricool para a marca (blogId) em uso. Noutra marca (de "Loja do Ouro Jericó" 2912472 para
+// "Loja do Ouro" 7708381, 29-10-2026), a conta da marca nas conversas, a paginação e a leitura completa eram da marca
+// anterior: começa do zero e volta a detetar. Sem marca no cursor, vale a da fonte (account, onde foi criada).
+export function metricoolCursor(cursor: Record<string, unknown>, account: string | null | undefined, blogId: string): Record<string, unknown> {
+  const previous = typeof cursor.blog === "string" ? cursor.blog : account || null;
+  return !previous || previous === blogId ? { ...cursor, blog: blogId } : { blog: blogId };
+}
+
+// Marca da Metricool (lista de marcas do token, /admin/simpleProfiles) só com os campos que ajudam a perceber a
+// ligação: ids numéricos, nome da marca, página de Facebook (id), se há Instagram e como está ligado, se há perfil de
+// Facebook a ligar (sim/não) e o papel do utilizador da API. Logins, emails, hashes, imagens, ligações de white label e
+// ids de perfis pessoais nunca passam.
+export type SafeBrand = {
+  id: number; label: string | null; userId: number | null; ownerUserId: number | null; isShared: boolean | null; deleted: boolean | null;
+  firstConnectionDate: string | null; facebookPageId: string | null; instagram: boolean; instagramConnectionType: "BUSINESS" | "FACEBOOK_LOGIN" | null;
+  // Permissões do papel: null quando a Metricool não as indica (por exemplo, o dono da marca sem "actions").
+  fbUserId: boolean; role: { name: string | null; viewInbox: boolean | null; fullAccessInbox: boolean | null; viewAnalytics: boolean | null } | null;
+};
+const mcInt = (v: unknown) => (typeof v === "number" && Number.isSafeInteger(v) ? v : typeof v === "string" && /^\d{1,15}$/.test(v) ? Number(v) : null);
+const mcBool = (v: unknown) => (typeof v === "boolean" ? v : null);
+const mcSet = (v: unknown) => (typeof v === "string" ? v.trim() !== "" : typeof v === "number");
+export function safeMetricoolBrand(raw: unknown): SafeBrand | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const b = raw as Record<string, unknown>;
+  const id = mcInt(b.id);
+  if (id === null) return null;
+  const label = typeof b.label === "string" ? b.label.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 80) || null : null;
+  const when = typeof b.firstConnectionDate === "string" || typeof b.firstConnectionDate === "number" ? new Date(b.firstConnectionDate) : null;
+  const page = typeof b.facebookPageId === "string" || typeof b.facebookPageId === "number" ? String(b.facebookPageId).trim() : "";
+  const role = b.brandRole && typeof b.brandRole === "object" ? (b.brandRole as { name?: unknown; actions?: Record<string, unknown> | null }) : null;
+  const can = (k: string) => (role?.actions && typeof role.actions[k] === "boolean" ? (role.actions[k] as boolean) : null);
+  return {
+    id, label, userId: mcInt(b.userId), ownerUserId: mcInt(b.ownerUserId), isShared: mcBool(b.isShared), deleted: mcBool(b.deleted),
+    firstConnectionDate: when && !Number.isNaN(when.getTime()) ? when.toISOString() : null,
+    facebookPageId: /^\d{1,30}$/.test(page) ? page : null,
+    instagram: mcSet(b.instagram),
+    instagramConnectionType: b.instagramConnectionType === "BUSINESS" || b.instagramConnectionType === "FACEBOOK_LOGIN" ? b.instagramConnectionType : null,
+    fbUserId: mcSet(b.fbUserId),
+    role: role ? {
+      name: typeof role.name === "string" && /^[\p{L}\p{N} ._-]{1,40}$/u.test(role.name) ? role.name : null,
+      viewInbox: can("viewInbox"), fullAccessInbox: can("fullAccessInbox"), viewAnalytics: can("viewAnalytics"),
+    } : null,
+  };
+}
+
+// O que a verificação da ligação da marca encontrou ("Validar ligações"), por ordem: erros, depois avisos. Só ids,
+// estados e datas; nunca texto da Metricool. Uma fonte pode sincronizar sem erros e não receber nada (Facebook, 28-10-2026):
+// - listed: conversas lidas na lista da Metricool (normalmente perto de 100); 0 com as autorizações OK quer dizer
+//   que a Metricool não está a ler a rede;
+// - lastInbound: a última mensagem de um cliente guardada de cada rede; só dá aviso passadas 24 h e se a sincronização
+//   continuou a funcionar durante esse tempo (lastSuccess), para não avisar todas as manhãs.
+export type InboxProbe = { status: number | null; allowAccessToMessages?: boolean; missingScopes?: string[]; fault?: MetricoolFaultKind | null };
+export type BrandFinding = { level: "ok" | "aviso" | "erro"; text: string };
+const STALE_INBOUND_MS = 24 * 3_600_000;
+export function metricoolBrandFindings(input: {
+  account: { userId: string; blogId: string };
+  brands: SafeBrand[] | null; brandsStatus?: number | null;
+  expected: { facebookPageId: string | null };
+  inbox: Partial<Record<"FACEBOOK" | "INSTAGRAM" | "INSTAGRAMBUSINESS", InboxProbe>>;
+  listed?: Partial<Record<"FACEBOOK" | "INSTAGRAM", number | null>>;
+  lastInbound?: Partial<Record<"Facebook" | "Instagram", string | null>>;
+  lastSuccess?: Partial<Record<"Facebook" | "Instagram", string | null>>;
+  now: Date;
+}): BrandFinding[] {
+  const out: BrandFinding[] = [];
+  const erro = (text: string) => out.push({ level: "erro", text });
+  const aviso = (text: string) => out.push({ level: "aviso", text });
+  const { account, brands, expected, inbox } = input;
+  const named = (b: SafeBrand) => `${b.id}${b.label ? ` «${b.label}»` : ""}`;
+  const brand = brands?.find((b) => String(b.id) === account.blogId) || null;
+  if (!brands) aviso(`A lista de marcas da Metricool não respondeu (${input.brandsStatus == null ? "sem resposta" : `HTTP ${input.brandsStatus}`}): não foi possível confirmar a marca ${account.blogId}.`);
+  else if (!brand) erro(`A marca ${account.blogId} não aparece nas marcas do utilizador Metricool ${account.userId}: foi apagada, mudou de dono ou o token é de outro utilizador.`);
+  else {
+    if (brand.deleted) erro(`A marca ${named(brand)} está apagada na Metricool.`);
+    const owner = brand.ownerUserId ?? brand.userId;
+    if (owner !== null && String(owner) !== account.userId)
+      aviso(`A marca é do utilizador Metricool ${owner}${brand.isShared ? " (partilhada)" : ""}; o dashboard usa o userId ${account.userId}. As redes têm de estar ligadas na marca que a API usa: confirmar com a Metricool que utilizador e token usar.`);
+    if (brand.role?.fullAccessInbox === false) erro(`O papel do utilizador da API nesta marca${brand.role.name ? ` (${brand.role.name})` : ""} não dá acesso total à Caixa de entrada.`);
+    if (brand.role?.viewAnalytics === false) aviso(`O papel do utilizador da API nesta marca${brand.role.name ? ` (${brand.role.name})` : ""} não dá acesso às Analytics.`);
+    if (!brand.facebookPageId) erro("A marca não tem página de Facebook ligada na Metricool.");
+    else if (expected.facebookPageId && brand.facebookPageId !== expected.facebookPageId)
+      erro(`A página de Facebook ligada à marca (${brand.facebookPageId}) não é a das conversas guardadas (${expected.facebookPageId}): a religação foi feita com outra página.`);
+    if (!brand.instagram) erro("A marca não tem conta de Instagram ligada na Metricool.");
+    else if (brand.instagramConnectionType === "BUSINESS")
+      aviso("O Instagram está ligado pelo login do Instagram (BUSINESS): a Inbox deve esperar INSTAGRAMBUSINESS e o dashboard usa INSTAGRAM. Religar o Instagram através do Facebook (recomendado) ou confirmar com a Metricool.");
+    if (brand.facebookPageId && !brand.fbUserId) aviso("A marca não indica o perfil de Facebook que autorizou a ligação: pode faltar a autorização; voltar a ligar o Facebook na marca.");
+  }
+  // Outra marca com a mesma página: a religação pode ter ficado lá.
+  const page = brand?.facebookPageId || expected.facebookPageId;
+  for (const b of (brands || []).filter((x) => x.id !== brand?.id && page && x.facebookPageId === page).slice(0, 5))
+    aviso(`A marca ${named(b)} também tem a página de Facebook ${page}: confirmar em que marca ficou a ligação.`);
+  for (const p of ["FACEBOOK", "INSTAGRAM"] as const) {
+    const r = inbox[p];
+    const net = metricoolNetwork(p);
+    if (!r || (r.status === 200 && r.allowAccessToMessages !== false)) {
+      if (input.listed?.[p] === 0)
+        erro(`Inbox ${p}: a Metricool responde sem erro mas devolve 0 conversas do ${net} (normalmente perto de 100): não está a ler as mensagens desta rede. Confirmar na Caixa de entrada da Metricool.`);
+      continue;
+    }
+    if (r.status === 200) {
+      const scopes = (r.missingScopes || []).filter((s) => /^[\w.:-]{1,60}$/.test(s)).slice(0, 10);
+      erro(`Inbox ${p}: a Metricool não tem acesso às mensagens do ${net}${scopes.length ? ` (em falta: ${scopes.join(", ")})` : ""}. Voltar a ligar a rede e aceitar todas as permissões.`);
+    } else if (r.fault === "connection") erro(`Inbox ${p}: a Metricool não encontra a ligação do ${net} na marca (UserConnection nula) para o utilizador do token da API. Confirmar com a Metricool; se religar, fazê-lo na mesma marca, com a conta do token da API.`);
+    else if (r.status === 401 || r.status === 403) erro(`Inbox ${p}: a Metricool recusou o acesso (HTTP ${r.status}): o utilizador da API não tem acesso à Caixa de entrada desta marca, ou o plano deixou de incluir a API.`);
+    else if (r.fault === "token") erro(`Inbox ${p}: a Meta anulou a autorização da Metricool (#190). Voltar a ligar o ${net} com um perfil com controlo total da página.`);
+    else erro(`Inbox ${p}: a Metricool não respondeu como esperado (${r.status === null ? "sem resposta" : `HTTP ${r.status}`}).`);
+  }
+  const ib = inbox.INSTAGRAMBUSINESS;
+  if (ib?.status === 200 && ib.allowAccessToMessages && inbox.INSTAGRAM && inbox.INSTAGRAM.status !== 200)
+    aviso("A Inbox responde como INSTAGRAMBUSINESS mas não como INSTAGRAM: o Instagram pode ter sido religado pelo login do Instagram. O dashboard continua em INSTAGRAM; não mudar sem confirmar com a Metricool (as conversas podem ter outros ids).");
+  const fmt = new Intl.DateTimeFormat("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  for (const net of ["Facebook", "Instagram"] as const) {
+    const at = Date.parse(input.lastInbound?.[net] || "");
+    const ok = Date.parse(input.lastSuccess?.[net] || "");
+    if (Number.isFinite(at) && input.now.getTime() - at > STALE_INBOUND_MS && (!Number.isFinite(ok) || ok - at > STALE_INBOUND_MS))
+      aviso(`Nenhuma mensagem nova do ${net} desde ${fmt.format(new Date(at))} (mais de 24 h, com a sincronização a funcionar): se costumam chegar várias por dia, a Metricool não está a entregar mensagens novas (confirmar na Caixa de entrada da Metricool).`);
+  }
+  if (!out.length) return [{ level: "ok", text: "Marca, página de Facebook, Instagram e autorizações da Inbox como esperado." }];
+  return [...out.filter((f) => f.level === "erro"), ...out.filter((f) => f.level === "aviso")];
+}
+
 // Canais do Zendesk em que uma resposta pública pela API segue por email (notificações do Zendesk).
 // Nos outros (mensagens, redes sociais, WhatsApp no Zendesk) a entrega tem de ser validada.
 const ZENDESK_EMAIL_LIKE = new Set(["email", "web", "api", "mobile", "web_service", "web_form", "sample_ticket"]);
