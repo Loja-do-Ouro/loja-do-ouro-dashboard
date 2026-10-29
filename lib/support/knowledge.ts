@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Viewer } from "@/lib/viewer";
 import { aiConfigured } from "./ai";
@@ -7,8 +8,8 @@ import { serverRpc, sessionRpc } from "./db";
 import { HttpError } from "./http";
 import {
   CARD_LIMITS, DISTILL_INSTRUCTIONS, DISTILL_SCHEMA, KNOWLEDGE_BUTTON_CALL_MS, KNOWLEDGE_CRON_CALL_MS, KNOWLEDGE_CRON_END_MS, KNOWLEDGE_CRON_LIMIT,
-  KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_MODEL, KnowledgeFormatError, companyAllowlist, conversationBrand, copiesCustomer,
-  distillUserText, parseDistill, poisonReason, scrubPii, type KnowledgeBegin, type KnowledgeDiscard,
+  KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_EFFORT, KNOWLEDGE_MAX_TOKENS, KNOWLEDGE_MODEL, KnowledgeFormatError, cardPii, companyAllowlist,
+  conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, type KnowledgeBegin, type KnowledgeDiscard,
 } from "./knowledge-rules";
 
 // Base de conhecimento aprendida (Claude Sonnet 5.5, só no servidor): uma chamada por conversa, sem ferramentas, sem
@@ -29,13 +30,15 @@ function failure(e: unknown) {
   return { timeout: false, motivo: "IA indisponível" };
 }
 
-// Pedido interrompido: a Anthropic pode cobrá-lo na mesma. Estimativa por excesso (3 caracteres por token, 2000 de saída
-// com o raciocínio).
-const interruptedCost = (chars: number) => costUsd([{ model: KNOWLEDGE_MODEL, input_tokens: Math.ceil(chars / 3), output_tokens: 2000 }], KNOWLEDGE_MODEL);
+// Pedido interrompido: a Anthropic pode cobrá-lo na mesma, até ao teto de saída. Estimativa por excesso (3 caracteres por
+// token de entrada e o teto inteiro de saída).
+const interruptedCost = (chars: number) =>
+  costUsd([{ model: KNOWLEDGE_MODEL, input_tokens: Math.ceil(chars / 3), output_tokens: KNOWLEDGE_MAX_TOKENS }], KNOWLEDGE_MODEL);
 
-async function distill(begin: KnowledgeBegin, timeoutMs: number): Promise<Outcome> {
+async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" | "medium"): Promise<Outcome> {
   const started = Date.now();
-  const userText = distillUserText(begin);
+  // Chave aleatória deste pedido nas marcas das mensagens (quem escreveu uma mensagem não a conhece).
+  const userText = distillUserText(begin, randomBytes(6).toString("hex"));
   const record = (values: Record<string, unknown>) =>
     serverRpc<Propose>("ldo_support_knowledge_propose", { p_run: begin.id, p_values: { model: KNOWLEDGE_MODEL, latency_ms: Date.now() - started, ...values } })
       .catch(() => null);
@@ -47,10 +50,10 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number): Promise<Outcom
     res = await client.messages.create(
       {
         model: KNOWLEDGE_MODEL,
-        max_tokens: 8000,
-        // Sem fallbacks (uma recusa é uma falha) e com raciocínio adaptativo em esforço médio.
+        max_tokens: KNOWLEDGE_MAX_TOKENS,
+        // Sem fallbacks (uma recusa é uma falha) e com raciocínio adaptativo; o esforço depende do caminho (KNOWLEDGE_EFFORT).
         thinking: { type: "adaptive" },
-        output_config: { effort: "medium", format: { type: "json_schema", schema: DISTILL_SCHEMA } },
+        output_config: { effort, format: { type: "json_schema", schema: DISTILL_SCHEMA } },
         // Instruções iguais em todos os pedidos: em cache durante a passagem diária.
         system: [{ type: "text", text: DISTILL_INSTRUCTIONS, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: userText }],
@@ -84,25 +87,22 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number): Promise<Outcom
       const r = await record({ status: "done", cost, model, resultado: "existente", card_id: out.card_existente });
       return r?.resultado === "existente" ? { resultado: "existente", motivo: out.motivo } : { resultado: "descartado", motivo: out.motivo, descartado: r?.descartado ?? "formato" };
     }
-    // Verificações antes de gravar: dados pessoais (com os dados da empresa aceites), factos que a equipa não escreveu,
-    // texto copiado do cliente e a outra marca.
+    // Verificações antes de gravar, na pergunta, nas variantes e na resposta: dados pessoais (com os dados da empresa
+    // aceites), factos que a equipa não escreveu, texto copiado do cliente e a outra marca. A pergunta e as variantes
+    // também são publicadas para a IA: um número, uma ligação ou a outra marca numa pergunta também retiram a proposta.
     const knowledge = begin.knowledge.map((k) => `## ${k.title}\n${k.body}`).join("\n\n");
     const allow = companyAllowlist({ knowledge, stores: begin.stores, extra: begin.company });
     const names = [begin.conversation.contact_name, begin.conversation.contact_handle, ...begin.staff_names];
-    const problems = [
-      ...scrubPii(out.pergunta, allow, { names, question: true }),
-      ...out.variantes.flatMap((v) => scrubPii(v, allow, { names, question: true })),
-      ...scrubPii(out.resposta, allow, { names }),
-    ];
-    if (problems.length) return discard("dados_pessoais", out.motivo);
+    if (cardPii(out, allow, names).length) return discard("dados_pessoais", out.motivo);
     // Só as respostas da equipa enviadas pelo dashboard confirmam factos; a escolhida no botão, se houver, conta como as outras.
     const staff = begin.messages.filter((m) => m.kind === "outbound" && m.dashboard).map((m) => m.body).join("\n\n");
-    const poison = poisonReason({ resposta: out.resposta, staff, knowledge });
+    const questions = [out.pergunta, ...out.variantes].join("\n");
+    const poison = poisonReason({ text: out.resposta, staff, knowledge }) ?? poisonReason({ text: questions, staff, knowledge, question: true });
     if (poison) return discard(poison, out.motivo);
     const inbound = begin.messages.filter((m) => m.kind === "inbound").map((m) => m.body);
     if (copiesCustomer([out.pergunta, ...out.variantes, out.resposta], inbound)) return discard("copia_cliente", out.motivo);
     const brand = conversationBrand(begin.conversation.channel, begin.conversation.site);
-    if (otherBrandIn(out.resposta, brand)) return discard("marca", out.motivo);
+    if (otherBrandIn(out.resposta, brand) || otherBrandIn(questions, brand)) return discard("marca", out.motivo);
     const loja = out.loja ? begin.stores.find((s) => s.code === out.loja)?.id ?? null : null;
     const r = await record({
       status: "done", cost, model, resultado: "novo",
@@ -147,7 +147,7 @@ export async function proposeFromMessage(viewer: Viewer, conversationId: string,
     await serverRpc("ldo_support_knowledge_propose", { p_run: begin.id, p_values: { status: "error", cost: 0, error: "conversa diferente" } }).catch(() => null);
     throw new HttpError(404, "Mensagem não encontrada nesta conversa.");
   }
-  const outcome = await distill(begin, KNOWLEDGE_BUTTON_CALL_MS);
+  const outcome = await distill(begin, KNOWLEDGE_BUTTON_CALL_MS, KNOWLEDGE_EFFORT.botao);
   return { note: buttonNote(outcome), resultado: outcome.resultado };
 }
 
@@ -165,7 +165,7 @@ export async function distillPending(started: number): Promise<DistillSummary> {
     const begin = await serverRpc<KnowledgeBegin | null>("ldo_support_knowledge_begin", { p_conversation_id: id });
     // Desligada a meio, orçamento esgotado ou conversa apagada: a passagem pára.
     if (!begin) return { ...s, parou: "definição ou orçamento" };
-    const o = await distill(begin, Math.max(1000, Math.min(KNOWLEDGE_CRON_CALL_MS, started + KNOWLEDGE_CRON_END_MS - Date.now())));
+    const o = await distill(begin, Math.max(1000, Math.min(KNOWLEDGE_CRON_CALL_MS, started + KNOWLEDGE_CRON_END_MS - Date.now())), KNOWLEDGE_EFFORT.diaria);
     s.lidas++;
     if (o.resultado === "novo") s.novas++;
     else if (o.resultado === "existente") s.existentes++;

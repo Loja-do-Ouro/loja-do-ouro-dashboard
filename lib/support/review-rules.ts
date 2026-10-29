@@ -185,9 +185,9 @@ const NUMBER_RE = new RegExp(`\\d+(?:[.,:hH/]\\d+)*|(?<![\\p{L}\\p{N}])(?:${Obje
 
 // Números normalizados: "10h00", "10:00" e "10" são o mesmo; "09:30" e "9h30" também; "50,00" é "50". specific: com
 // separadores ou 3+ algarismos (hora, valor, data, telefone); os outros ("2", "dez") só valem com a palavra seguinte
-// ("2 dias" não é "2 a 3 dias").
-type NumberHit = { n: string; specific: boolean; next: string };
-function numberHits(text: string): NumberHit[] {
+// ("2 dias" não é "2 a 3 dias"). raw e at: o texto e a posição (a base de conhecimento aprendida vê o contexto).
+export type NumberHit = { n: string; specific: boolean; next: string; raw: string; at: number };
+export function numberHits(text: string): NumberHit[] {
   const out: NumberHit[] = [];
   const t = text || "";
   for (const m of t.matchAll(NUMBER_RE)) {
@@ -200,7 +200,10 @@ function numberHits(text: string): NumberHit[] {
       n = parts.map((p, i) => (i ? seps[i - 1] + p : p)).join("");
     } else n = NUMBER_WORDS[raw.toLowerCase()];
     const after = /^\s*(\p{L}+|[€%$£]|\d)/u.exec(t.slice((m.index ?? 0) + raw.length));
-    out.push({ n, specific: /^\d+[.,:hH/]/.test(raw) || !/^\d{1,2}$/.test(n), next: !after ? "" : /^\d/.test(after[1]) ? "#" : after[1].toLowerCase() });
+    out.push({
+      n, specific: /^\d+[.,:hH/]/.test(raw) || !/^\d{1,2}$/.test(n), next: !after ? "" : /^\d/.test(after[1]) ? "#" : after[1].toLowerCase(),
+      raw, at: m.index ?? 0,
+    });
   }
   return out;
 }
