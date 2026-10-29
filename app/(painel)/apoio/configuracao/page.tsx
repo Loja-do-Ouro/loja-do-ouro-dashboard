@@ -115,11 +115,20 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   const fbSource = state.sources.find((x) => x.id === "metricool-facebook");
   const igSource = state.sources.find((x) => x.id === "metricool-instagram");
   const configured = (s: State["sources"][number] | undefined) => (typeof s?.config.brand_id === "string" ? s.config.brand_id : s?.brand || null);
-  const [zd, fb, ig, fbComments, igComments, igbComments, brandCheck] = diag
-    ? await Promise.all([zendeskIsOff ? null : zendeskDiagnostics(), metricoolDiagnostics("FACEBOOK"), metricoolDiagnostics("INSTAGRAM"),
+  // Conversas lidas na lista de cada rede: 0 sem erro quer dizer que a Metricool não está a ler a rede (vai para a verificação da marca).
+  const listedOf = (d: Record<string, unknown>) => {
+    const n = (d.read as { conversations?: unknown } | undefined)?.conversations;
+    return typeof n === "number" ? n : null;
+  };
+  const fbDiag = diag ? metricoolDiagnostics("FACEBOOK") : null;
+  const igDiag = diag ? metricoolDiagnostics("INSTAGRAM") : null;
+  const [zd, fb, ig, fbComments, igComments, igbComments, brandCheck] = fbDiag && igDiag
+    ? await Promise.all([zendeskIsOff ? null : zendeskDiagnostics(), fbDiag, igDiag,
         metricoolCommentsDiagnostics("FACEBOOK"), metricoolCommentsDiagnostics("INSTAGRAM"), metricoolCommentsDiagnostics("INSTAGRAMBUSINESS"),
         metricoolBrandDiagnostics({ facebookPageId: configured(fbSource), instagramId: configured(igSource) },
-          { Facebook: fbSource?.last_inbound_at ?? null, Instagram: igSource?.last_inbound_at ?? null })])
+          { Facebook: fbSource?.last_inbound_at ?? null, Instagram: igSource?.last_inbound_at ?? null },
+          { Facebook: fbSource?.last_success_at ?? null, Instagram: igSource?.last_success_at ?? null },
+          Promise.all([fbDiag, igDiag]).then(([f, i]) => ({ FACEBOOK: listedOf(f), INSTAGRAM: listedOf(i) })))])
     : [null, null, null, null, null, null, null];
   // URL de produção estável a registar no Zendesk (o da preview só serve para testes).
   const productionCallback = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL || "loja-do-ouro-dashboard.vercel.app"}/api/support/zendesk/callback`;

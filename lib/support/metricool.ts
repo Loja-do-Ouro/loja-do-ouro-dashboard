@@ -144,6 +144,8 @@ export async function syncMetricool(source: { id: string; config: Record<string,
   let skipped = 0;
   // Respostas automáticas (em vez da mensagem de ausência do Meta): lidas uma vez por passagem.
   const social = await serverRpc<SocialSettings | null>("ldo_support_social_settings").catch(() => null);
+  // Partilhado por todas as páginas da passagem: depois de um envio sem ligação da rede, nenhuma página volta a tentar.
+  const halt = { stop: false };
   const { complete } = await listConversations(provider, {
     deadline,
     onPage: async (page) => {
@@ -152,7 +154,7 @@ export async function syncMetricool(source: { id: string; config: Record<string,
       const mapped = pairs.map((p) => p.conv);
       skipped += page.length - mapped.length;
       const r = await ingest(source.id, mapped);
-      const autoreplies = social?.enabled ? await sendAutoReplies(provider, source.id, pairs, social, deadline) : 0;
+      const autoreplies = social?.enabled ? await sendAutoReplies(provider, source.id, pairs, social, deadline, halt) : 0;
       totals = { conversations: totals.conversations + r.conversations, new_conversations: totals.new_conversations + r.new_conversations,
         new_messages: totals.new_messages + r.new_messages, reopened: totals.reopened + r.reopened, autoreplies: totals.autoreplies + autoreplies };
     },
@@ -172,7 +174,10 @@ export async function syncMetricool(source: { id: string; config: Record<string,
 // A classificação usa os anexos e as propriedades tal como a Metricool os entrega (também anexos que não são https),
 // para uma mensagem com conteúdo nunca passar por reação. As decisões são rápidas: correm até 15 s depois do orçamento da passagem, e
 // cada envio tem no máximo 10 s, dentro do limite da função.
-async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw: Conversation; conv: IngestConversation }[], settings: SocialSettings, deadline: number) {
+// halt: sem ligação da rede na marca (ou com a sessão anulada pela Meta) os envios seguintes falhariam igual; param até ao
+// fim da passagem (em todas as páginas), mas as conversas só com reações continuam a ser marcadas.
+async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw: Conversation; conv: IngestConversation }[], settings: SocialSettings, deadline: number,
+  halt: { stop: boolean }) {
   let sent = 0;
   for (const { raw, conv } of pairs) {
     // Só com tempo dentro do orçamento da passagem (mais 5 s): os envios que ficarem passam à próxima verificação.
@@ -189,6 +194,7 @@ async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw:
     const hidden = hiddenReaction(messages, now, settings, name);
     if (hidden)
       await serverRpc("ldo_support_social_mark_auto", { p_source: sourceId, p_conversation: conv.external_id, p_from: hidden.from, p_through: hidden.through }).catch(() => undefined);
+    if (halt.stop) continue;
     const decision = socialAutoReply(messages, settings, now, name);
     if (!decision) continue;
     const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
@@ -199,8 +205,7 @@ async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw:
     const result = { ...claim, p_outcome: r.outcome };
     await serverRpc("ldo_support_social_autoreply_result", result).catch(() => serverRpc("ldo_support_social_autoreply_result", result)).catch(() => undefined);
     if (r.outcome !== "failed") sent++;
-    // Sem ligação da rede na marca (ou sessão anulada pela Meta), as seguintes falhariam igual: param até à próxima passagem.
-    if (r.fault === "connection" || r.fault === "token") break;
+    if (r.fault === "connection" || r.fault === "token") halt.stop = true;
   }
   return sent;
 }
@@ -324,6 +329,8 @@ export async function metricoolDiagnostics(provider: string) {
 //   ligações de white label, que nunca saem daqui (só os campos de safeMetricoolBrand);
 // - as autorizações da Inbox nas três redes possíveis (o Instagram ligado pelo login do Instagram é INSTAGRAMBUSINESS),
 //   só com o HTTP, o acesso e o tipo de falha (nunca o texto da Metricool).
+// - listed: conversas lidas na lista de cada rede (da leitura de metricoolDiagnostics, sem pedidos a mais):
+//   0 com as autorizações OK é o sinal de que a Metricool não está a ler a rede (Facebook desde 28-10-2026).
 // Nunca /admin/userstatus (devolve tokens) nem pedidos que alteram a marca ou as ligações.
 const INBOX_PROVIDERS = ["FACEBOOK", "INSTAGRAM", "INSTAGRAMBUSINESS"] as const;
 
@@ -335,14 +342,18 @@ async function inboxProbe(provider: string): Promise<InboxProbe> {
   return { status: 200, allowAccessToMessages: data.allowAccessToMessages === true, missingScopes: scopes };
 }
 
+type PerNetwork = { Facebook: string | null; Instagram: string | null };
 export async function metricoolBrandDiagnostics(expected: { facebookPageId: string | null; instagramId: string | null },
-  lastInbound: { Facebook: string | null; Instagram: string | null }) {
+  lastInbound: PerNetwork, lastSuccess: PerNetwork, listedPromise: Promise<{ FACEBOOK: number | null; INSTAGRAM: number | null }>) {
   const account = metricoolAccount();
+  // Tratado já aqui: uma falha da leitura das listas nunca fica sem resposta enquanto os outros pedidos correm.
+  const listedSafe = listedPromise.catch(() => ({ FACEBOOK: null, INSTAGRAM: null }));
   try {
     const [list, ...probes] = await Promise.all([
       metricoolRequest("GET", "/admin/simpleProfiles", {}, undefined, 20_000),
       ...INBOX_PROVIDERS.map((p) => inboxProbe(p)),
     ]);
+    const listed = await listedSafe;
     const body = list.json as unknown;
     const raw = Array.isArray(body) ? body : Array.isArray((body as { data?: unknown } | null)?.data) ? (body as { data: unknown[] }).data : null;
     const brands = list.status === 200 && raw ? raw.map(safeMetricoolBrand).filter((b): b is SafeBrand => !!b) : null;
@@ -350,10 +361,10 @@ export async function metricoolBrandDiagnostics(expected: { facebookPageId: stri
     const brand = brands?.find((b) => String(b.id) === account.blogId) || null;
     const page = brand?.facebookPageId || expected.facebookPageId;
     return {
-      findings: metricoolBrandFindings({ account, brands, brandsStatus: list.status, expected, inbox, lastInbound, now: new Date() }),
+      findings: metricoolBrandFindings({ account, brands, brandsStatus: list.status, expected, inbox, listed, lastInbound, lastSuccess, now: new Date() }),
       detail: {
         // userId e blogId em uso (não são segredos); esperado = contas da marca nas conversas guardadas (cursor.brand).
-        account, expected, lastInbound,
+        account, expected, listed, lastInbound, lastSuccess,
         brands: brands ? brands.length : `indisponível (${list.status === null ? "sem resposta" : `HTTP ${list.status}`})`,
         brand,
         otherBrandsWithSamePage: (brands || []).filter((b) => b.id !== brand?.id && page && b.facebookPageId === page).map((b) => ({ id: b.id, label: b.label })),
