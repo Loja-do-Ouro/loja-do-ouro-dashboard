@@ -94,9 +94,9 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
     const allow = companyAllowlist({ knowledge, stores: begin.stores, extra: begin.company });
     const names = [begin.conversation.contact_name, begin.conversation.contact_handle, ...begin.staff_names];
     if (cardPii(out, allow, names).length) return discard("dados_pessoais", out.motivo);
-    // Um nome próprio comum na resposta retira a proposta (vem de uma conversa com um cliente); outras palavras com
-    // maiúscula desconhecidas ficam na proposta como aviso ("Possível nome: X"), que o Super Admin tem de confirmar antes
-    // de aprovar e de publicar.
+    // Um nome próprio comum na resposta, também em minúsculas, retira a proposta (vem de uma conversa com um cliente); os
+    // outros possíveis nomes ficam na proposta como aviso ("Possível nome: X"), que o Super Admin tem de confirmar antes de
+    // aprovar e de publicar.
     if (answerNames(out.resposta, allow).some((n) => n.common)) return discard("dados_pessoais", out.motivo);
     // Só as respostas da equipa enviadas pelo dashboard confirmam factos; a escolhida no botão, se houver, conta como as outras.
     const staff = begin.messages.filter((m) => m.kind === "outbound" && m.dashboard).map((m) => m.body).join("\n\n");

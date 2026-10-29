@@ -382,7 +382,8 @@ export type Allowlist = {
   links: Set<string>;
   // Frases com maiúsculas da base de conhecimento, das lojas e de marcas (já numa expressão regular).
   phrases: RegExp | null;
-  // Palavras soltas com maiúscula da base de conhecimento que não são nomes comuns (lugares, produtos): aceites na pergunta.
+  // Palavras da base de conhecimento e das lojas que não são nomes próprios comuns (lugares, produtos, termos da empresa):
+  // não contam como possíveis nomes.
   places: Set<string>;
   // Moradas da base de conhecimento, normalizadas (addressNorm): só uma morada igual passa.
   addresses: string;
@@ -423,8 +424,10 @@ export function companyAllowlist(o: { knowledge: string; stores: { name: string;
   const storeNames = o.stores.flatMap((s) => [s.name.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim(), (s.city || "").trim()]);
   const phrases = [...new Set([...(text.match(PHRASE_RE) || []).map((p) => p.replace(/\.$/, "")), ...storeNames, ...BRAND_PHRASES])]
     .filter((p) => p.length >= 3).sort((a, b) => b.length - a.length || (a < b ? -1 : 1));
+  // Palavras da base de conhecimento e dos nomes das lojas, em qualquer forma, sem os nomes próprios comuns (não as das
+  // caixas e da assinatura do apoio, que podem ter o nome de quem responde).
   const places = new Set<string>();
-  for (const w of text.match(/\p{Lu}[\p{L}'’-]+/gu) || []) if (!FIRST_NAMES.has(w.toLowerCase())) places.add(w.toLowerCase());
+  for (const w of [o.knowledge, ...storeNames].join("\n").match(/\p{L}[\p{L}'’-]+/gu) || []) if (!FIRST_NAMES.has(w.toLowerCase())) places.add(w.toLowerCase());
   return {
     emails: new Set((text.match(EMAIL_RE) || []).map((e) => e.toLowerCase())),
     phones: new Set([...(text.match(PHONE_RE) || []), ...(text.match(INTL_PHONE_RE) || [])].map(phoneDigits)),
@@ -484,13 +487,85 @@ function linkProblem(u: string, allow: Allowlist): PiiProblem | null {
   return generic ? "ligacao" : null;
 }
 
-// Palavras com maiúscula fora do início de uma frase ou de um item (palavras inteiras; siglas como "MB WAY" ou "CTT" não
-// contam).
-function properNouns(text: string) {
+// Palavras comuns do português que podem começar uma frase, um item ou vir depois de uma saudação ou de um tratamento sem
+// serem nomes: artigos, pronomes, preposições, advérbios e os verbos e nomes mais usados nas perguntas e respostas de uma
+// joalharia. Sem palavras que também são nomes de pessoas (Clara, Graça, Glória, Vitória, Linda…) nem apelidos.
+const COMMON_WORDS = new Set(`a o as os um uma uns umas à às ao aos este esta estes estas esse essa esses essas aquele aquela aqueles aquelas
+  isto isso aquilo neste nesta nestes nestas nesse nessa nesses nessas deste desta destes destas desse dessa desses dessas todo toda todos
+  todas tudo cada qualquer quaisquer outro outra outros outras algum alguma alguns algumas nenhum nenhuma nada muito muita muitos muitas
+  pouco pouca poucos poucas tanto tanta tantos tantas mesmo mesma mesmos mesmas próprio própria próprios próprias vários várias ambos ambas
+  eu tu ele ela nós vós eles elas me te se lhe lhes nos vos você vocês seu sua seus suas nosso nossa nossos nossas meu minha meus minhas teu
+  tua dele dela deles delas quem que qual quais quanto quanta quantos quantas onde aonde como quando porque porquê de do da dos das em no na
+  nos nas num numa por pelo pela pelos pelas para com sem sob sobre entre até desde após ante contra durante mediante perante conforme
+  segundo exceto salvo e ou mas nem porém contudo todavia logo pois portanto assim então caso embora enquanto apesar também já ainda só
+  apenas sempre nunca jamais hoje amanhã ontem agora aqui ali lá cá aí depois antes cedo tarde bem mal mais menos quase talvez aliás
+  inclusive bastante demais imenso imensa ok é são era eram foi foram será serão seria seriam seja sejam ser sou somos está estão estamos
+  estar estava estavam esteja estejam estará tem têm temos ter tenho tinha tinham teve tiver tiverem tenha tenham terá terão há haver havia
+  houve haverá pode podem podemos poder posso podia poderá poderão poderia poderiam possa possam faz fazem fazemos fazer fiz fez feito feita
+  feitos feitas faça façam fará farão deve devem devemos dever deverá deverão deveria vai vão vamos ir vá iremos vem vêm vir veio vimos venha
+  venham dá dão damos dar dou deu demos dê sei sabe sabem sabemos saber quer querem queremos querer queira queiram queria gostaria
+  gostaríamos preciso consegue conseguem conseguimos conseguir consigo diz dizem dizer diga digam dizemos vê vemos ver veja vejam trazer
+  traga tragam trazemos segue seguem seguir siga sigam sugerimos sugere sugerem pedimos peço peça peças peçam informamos agradecemos
+  lamentamos garantimos oferecemos oferece oferecem oferecer incluímos inclui incluem incluir medimos mede medem medir polimos polir
+  substitui substituem substituímos substituir substituído cobrimos cobrem cobrir coberto coberta horário horários morada moradas contacto
+  contactos telefone telemóvel email site página encomenda encomendas envio envios entrega entregas pagamento pagamentos troca trocas
+  devolução devoluções reembolso reembolsos garantia garantias reparação reparações gravação gravações medida medidas tamanho tamanhos
+  preço preços valor valores prazo prazos produto produtos artigo artigos modelo modelos stock compra compras venda vendas desconto
+  descontos promoção promoções campanha campanhas portes custo custos taxa taxas fatura faturas recibo recibos talão talões informação
+  informações nota notas atenção dúvida dúvidas questão questões pedido pedidos resposta respostas cartão cartões oferta ofertas embalagem
+  embrulho caixa caixas avaliação avaliações limpeza manutenção certificado certificados material materiais qualidade disponibilidade
+  levantamento online internet claro certo perfeito ótimo excelente possível possíveis disponível disponíveis grátis gratuito gratuita
+  gratuitos gratuitas novo nova novos novas importante habitual normal próximo próxima último última primeiro primeira desculpe desculpa
+  felizmente entretanto aproveitamos prezado prezada prezados prezadas estimados estimadas bons fique fiquem dirija dirijam desloque desloquem
+  sabia sim não`.split(/\s+/).filter(Boolean));
+// Verbos regulares das perguntas e respostas de uma joalharia, em várias formas ("Ajustam?", "Enviámos", "Gravar").
+const VERB_FORMS = new Set((() => {
+  const forms = (stems: string, ends: string[]) => stems.split(/\s+/).filter(Boolean).flatMap((s) => ends.map((e) => s + e));
+  return [
+    ...forms(`aceit aconselh ajud ajust alarg anul apert arranj avali avis banh cheg cobr compr comunic confirm consert consult contact
+      costum crav demor desej deix dour efetu embal encaminh encomend encurt engast entreg envi esper explic fech fur gost grav guard indic
+      inform lev levant limp mand mud necessit observ pag pass pes personaliz precis procur prolong recomend reembols repar reserv restaur
+      rodi sold solicit test tir trabalh trat troc us utiliz verific visit funcion fic lembr relembr bast`,
+    ["ar", "a", "am", "amos", "ámos", "e", "em", "o", "ei", "ou", "ado", "ada", "ados", "adas", "ava", "avam", "aria", "aríamos"]),
+    ...forms("atend devolv entend escolh promet pretend receb respond vend", ["er", "e", "em", "emos", "i", "eu", "ido", "ida", "idos", "idas", "ia", "iam", "eria"]),
+    ...forms("abr assist decid exist garant permit", ["ir", "e", "em", "imos", "i", "iu", "ido", "ida", "idos", "idas", "ia", "iam", "iria"]),
+  ];
+})());
+// Nomes e apelidos com a terminação de um verbo ("-mos"): no início de uma frase continuam a ser possíveis nomes.
+const VERB_LIKE_NAMES = new Set(["lemos", "ramos", "remos", "cosmos", "erasmos"]);
+// Nomes próprios comuns que, em minúsculas, também são palavras ("margarida" é uma flor, "marina", "marco", "jean"): só com
+// maiúscula.
+const FIRST_NAME_WORDS = new Set(["margarida", "marina", "marco", "marcos", "jean", "pierre", "rosário", "rosario", "augusto", "germano"]);
+// Tratamentos (sozinhos não são um nome; o nome vem a seguir).
+const TITLE_WORDS = new Set(["sr", "sra", "srª", "snr", "snra", "srs", "dr", "dra", "drª", "drs", "eng", "engª", "prof", "profª", "profa", "d", "dª",
+  "dona", "senhor", "senhora", "senhores", "senhoras", "exmo", "exma", "exmos", "exmas"]);
+
+// Uma palavra que não é um nome quando começa uma frase ou vem depois de uma saudação: das listas acima, da base de
+// conhecimento, um advérbio em "-mente" ou um verbo na 1.ª pessoa do plural ("Recebemos", "Verificámos"); nunca um nome
+// próprio comum nem um apelido.
+function ordinaryWord(low: string, allow: Allowlist): boolean {
+  // Um verbo com um pronome ("Contacte-nos", "Lembre-se"): conta o verbo.
+  const verb = /^(\p{L}{3,})-(?:nos|vos|se|me|te|lhe|lhes|o|a|os|as|lo|la|los|las)$/u.exec(low);
+  if (verb) return ordinaryWord(verb[1], allow);
+  if (FIRST_NAMES.has(low)) return false;
+  if (SAFE_WORDS.has(low) || COMMON_WORDS.has(low) || VERB_FORMS.has(low) || allow.places.has(low)) return true;
+  if (COMMON_LOWER.has(low) || VERB_LIKE_NAMES.has(low)) return false;
+  return /(?<!cle)mente$/u.test(low) || /\p{L}{2}[aeiáéí]mos$/u.test(low);
+}
+
+// Palavras com maiúscula que podem ser nomes (palavras inteiras; siglas como "MB WAY" ou "CTT" não contam): a meio da
+// frase, as que não são de lugares, lojas, marcas ou da base de conhecimento; no início de uma frase, de uma linha (uma
+// assinatura), de um item ("- Gertrudes") ou depois de dois pontos, também só as que não são palavras comuns
+// ("Gertrudes atende na loja", "Contacto na loja: Gertrudes", "Atenciosamente,\nGertrudes"). Os nomes próprios comuns no
+// início ficam em firstNames.
+function properNouns(text: string, allow: Allowlist) {
   const out: string[] = [];
   for (const m of text.matchAll(/(?<![\p{L}\p{N}])\p{Lu}[\p{L}'’-]*\p{Ll}[\p{L}'’-]*/gu)) {
-    const before = text.slice(0, m.index ?? 0).replace(/[ \t"'«“(*•-]+$/u, "");
-    if (before && !/[.!?…:;\n]$/.test(before)) out.push(m[0]);
+    const low = m[0].toLowerCase();
+    if (SAFE_WORDS.has(low) || allow.places.has(low)) continue;
+    const before = text.slice(0, m.index ?? 0).replace(/[ \t"'«“(*•–—-]+$/u, "");
+    if ((!before || /[.!?…:;\n]$/.test(before)) && (ordinaryWord(low, allow) || FIRST_NAMES.has(low))) continue;
+    out.push(m[0]);
   }
   return out;
 }
@@ -505,22 +580,61 @@ function nameIn(text: string, token: string) {
   return [low[0].toUpperCase() + low.slice(1), low.toUpperCase(), ...(token !== low ? [token] : [])].some((f) => wordRe(f).test(text));
 }
 
-// Saudação, tratamento ou parentesco seguido de um nome ("Olá Maria", "Sr. Fernando", "a sua filha Beatriz").
-const GREETING_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|car[oa]s?|estimad[oa]s?|prezad[oa]s?|querid[oa]s?|obrigad[oa]s?|exm[oa]s?\.?|sr\.?|sra\.?|srª|snr\.?|snra\.?|dª|d\.|dr\.?|dra\.?|drª|eng\.?|engª|senhor|senhora|dona)[ \t]*,?[ \t]*(\p{L}[\p{L}'’-]*)/giu;
-const RELATION_RE = /(?<!\p{L})(?:filh[oa]|marido|mulher|esposa|esposo|m[ãa]e|pai|irm[ãa]o?|namorad[oa]|noiv[oa]|av[óôo]|net[oa]|sobrinh[oa]|prim[oa]|tia|tio|sogr[oa]|cunhad[oa]|afilhad[oa]|madrinha|padrinho|amig[oa]|colega)s?[ \t]+(\p{L}[\p{L}'’-]*)/giu;
-function namedAfter(re: RegExp, text: string, allow: Allowlist) {
-  for (const m of text.matchAll(re)) {
-    const low = m[1].toLowerCase();
-    if (/^\p{Lu}\p{Ll}/u.test(m[1]) && !SAFE_WORDS.has(low) && !allow.places.has(low)) return true;
-  }
-  return false;
+// Recusas (em qualquer campo): um nome depois de uma saudação ("Olá Maria", "obrigado joana"), de um parentesco ou de uma
+// função ("a sua filha beatriz", "a colaboradora Gertrudes", "a responsável da loja, Gertrudes"): com maiúscula, ou um
+// nome próprio comum em qualquer forma. Depois de um tratamento abreviado ("sr.", "sra.", "dr.", "d.") ou de "dona",
+// qualquer palavra que não seja comum ("Bom dia sr. joão", "a sra. gertrudes").
+const GREETING_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|car[oa]s?|estimad[oa]s?|prezad[oa]s?|querid[oa]s?|obrigad[oa]s?|exm[oa]s?\.?|senhor(?:es)?|senhoras?)(?!\p{L})[ \t]*,?[ \t]*(?=(\p{L}[\p{L}'’-]*))/giu;
+const TITLE_RE = /(?<!\p{L})(?:(?:sr|sra|srª|snr|snra|srs|dr|dra|drª|drs|eng|engª|prof|profª|profa)(?:\.|(?=[ \t]))|dª|d\.|dona(?=[ \t]))[ \t]*(?=(\p{L}[\p{L}'’-]*))/giu;
+const RELATION_RE = /(?<!\p{L})(?:filh[oa]s?|marid[oa]s?|mulher(?:es)?|espos[oa]s?|m[ãa]es?|pais?|irm[ãa]os?|irm[ãa]s?|namorad[oa]s?|noiv[oa]s?|av[óôo]s?|net[oa]s?|sobrinh[oa]s?|prim[oa]s?|tias?|tios?|sogr[oa]s?|cunhad[oa]s?|afilhad[oa]s?|madrinhas?|padrinhos?|amig[oa]s?|colegas?|colaborador(?:a|es|as)?|funcion[áa]ri[oa]s?|gerentes?|vendedor(?:a|es|as)?|respons[áa]ve(?:l|is)|consultor(?:a|es|as)?|ourives)(?!\p{L})/giu;
+function personAfter(word: string, allow: Allowlist) {
+  const low = word.toLowerCase();
+  if (TITLE_WORDS.has(low)) return false;
+  return FIRST_NAMES.has(low) || (/^\p{Lu}\p{Ll}/u.test(word) && !SAFE_WORDS.has(low) && !allow.places.has(low));
 }
-// Nomes próprios comuns em qualquer posição, também no início da frase ("Beatriz pode levantar a encomenda?").
+function namedAfter(text: string, allow: Allowlist) {
+  for (const m of text.matchAll(GREETING_RE)) if (personAfter(m[1], allow)) return true;
+  for (const m of text.matchAll(TITLE_RE)) {
+    const low = m[1].toLowerCase();
+    if (!TITLE_WORDS.has(low) && !ordinaryWord(low, allow)) return true;
+  }
+  return relationCandidates(text).some((w) => personAfter(w, allow));
+}
+// Depois de um parentesco ou de uma função: a palavra a seguir (depois de "de", "da", "do") e a primeira depois de uma
+// vírgula, na mesma frase ("a filha da Beatriz", "a responsável da loja, Gertrudes").
+function relationCandidates(text: string) {
+  const out: string[] = [];
+  for (const m of text.matchAll(RELATION_RE)) {
+    const toks = text.slice((m.index ?? 0) + m[0].length).split(/[.!?;\n]/)[0].match(/[\p{L}'’-]+|,/gu)?.slice(0, 6) || [];
+    const first = toks[0] && toks[0] !== "," ? (/^d[aeo]s?$|^de$/i.test(toks[0]) ? toks[1] : toks[0]) : undefined;
+    const comma = toks.indexOf(",");
+    const afterComma = comma >= 0 && comma < 5 ? toks[comma + 1] : undefined;
+    for (const w of [first, afterComma]) if (w && w !== ",") out.push(w);
+  }
+  return out;
+}
+// Palavras em minúsculas que podem ser nomes depois de uma saudação, de uma despedida, de um parentesco ou de uma função
+// ("Olá gertrudes", "Atenciosamente, gertrudes", "Querida gertrudes", "a consultora gertrudes"): as que não são palavras
+// comuns. Aviso, como as palavras com maiúscula.
+const OPENER_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|obrigad[oa]s?|atenciosamente|cumprimentos|sauda[çc][õo]es|beijinhos|beijos|abra[çc]os?|at[ée]\s+breve|com\s+estima)(?!\p{L})[ \t]*[,.!]?\s*(?=(\p{L}[\p{L}'’-]*))/giu;
+const DEAR_RE = /(?:^|[.!?…\n])[ \t]*(?:car[oa]s?|estimad[oa]s?|prezad[oa]s?|querid[oa]s?)[ \t]+(?=(\p{L}[\p{L}'’-]*))/giu;
+function lowerNamesAfterGreeting(text: string, allow: Allowlist) {
+  const words = [...[OPENER_RE, DEAR_RE].flatMap((re) => [...text.matchAll(re)].map((m) => m[1])), ...relationCandidates(text)];
+  return words.filter((w) => {
+    const low = w.toLowerCase();
+    return w === low && !TITLE_WORDS.has(low) && !FIRST_NAMES.has(low) && !ordinaryWord(low, allow);
+  });
+}
+// Nomes próprios comuns em qualquer posição, também no início da frase ("Beatriz pode levantar a encomenda?") e em
+// minúsculas ("fale com o joão"), menos os que em minúsculas também são palavras ("margarida").
 function firstNames(text: string) {
   const out: string[] = [];
-  for (const m of text.matchAll(/(?<!\p{L})\p{Lu}[\p{L}'’-]*/gu))
-    for (const w of m[0].split(/['’-]/))
-      if (FIRST_NAMES.has(w.toLowerCase()) && (/^\p{Lu}\p{Ll}/u.test(w) || w === w.toUpperCase())) out.push(w);
+  for (const m of text.matchAll(/(?<![\p{L}\p{N}])\p{L}[\p{L}'’-]*/gu))
+    for (const w of m[0].split(/['’-]/)) {
+      const low = w.toLowerCase();
+      if (!FIRST_NAMES.has(low)) continue;
+      if (/^\p{Lu}\p{Ll}/u.test(w) || (w.length > 1 && w === w.toUpperCase()) || (w === low && !FIRST_NAME_WORDS.has(low))) out.push(w);
+    }
   return out;
 }
 // Com maiúscula mas sem ser uma pessoa: santos (medalhas de "São Jorge", "Santo António") e o rosário como peça ("um
@@ -529,9 +643,11 @@ const SAINT_RE = /(?<!\p{L})(?:S[ãa]o|Santo|Santa|Sto\.|Sta\.)[ \t]+\p{Lu}[\p{L
 const ROSARY_RE = /(?<!\p{L})(?:(?:um|uns|o|os|ao|aos|pelo|pelos|este|estes|esse|esses|deste|desse|nosso|nossos|seu|seus)[ \t]+ros[áa]rios?|ros[áa]rios?(?=[ \t]+(?:em|com)[ \t]|[ \t]+de[ \t]+(?:ouro|prata|p[ée]rolas?|contas|madeira|cristal|n[áa]car|a[çc]o|\d)))(?!\p{L})/giu;
 const withoutItems = (t: string) => t.replace(SAINT_RE, " ").replace(ROSARY_RE, " ");
 
-// Palavra da resposta que pode ser o nome de uma pessoa: um nome próprio comum (common) ou outra palavra com maiúscula a
-// meio da frase que não é um lugar, uma loja, uma marca ou uma palavra da base de conhecimento. Não recusam a resposta: o
-// Super Admin confirma, por cartão, que não são nomes ("Possível nome: X").
+// Palavra da resposta que pode ser o nome de uma pessoa: um nome próprio comum, também em minúsculas (common), ou outra
+// palavra com maiúscula que não é um lugar, uma loja, uma marca ou uma palavra da base de conhecimento (a meio da frase;
+// no início de uma frase, de uma linha, de um item ou depois de dois pontos, só se também não for uma palavra comum), ou
+// uma palavra desconhecida em minúsculas depois de uma saudação, de uma despedida, de um parentesco ou de uma função. Não
+// recusam a resposta: o Super Admin confirma, por cartão, que não são nomes ("Possível nome: X").
 export type NameWarning = { word: string; common: boolean };
 
 function scan(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[]; question?: boolean }) {
@@ -565,14 +681,16 @@ function scan(text: string, allow: Allowlist, opts: { names?: (string | null | u
   // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria).
   const named = allow.phrases ? rest.replace(allow.phrases, " ") : rest;
   for (const r of publicReplyRisks(named)) found.add(RISK_CODE[r] ?? "numero");
-  // Recusas: o nome do cliente ou da equipa (em qualquer forma) e um nome depois de uma saudação, de um tratamento ou de
-  // um parentesco.
+  // Recusas: o nome do cliente ou da equipa (em qualquer forma) e um nome depois de uma saudação, de um tratamento, de um
+  // parentesco ou de uma função.
   for (const name of opts.names || []) for (const token of (name || "").split(/[^\p{L}]+/u)) if (nameIn(named, token)) found.add("nome");
-  if (namedAfter(GREETING_RE, named, allow) || namedAfter(RELATION_RE, named, allow)) found.add("nome");
-  // Nomes próprios comuns e palavras com maiúscula desconhecidas: recusa na pergunta e nas variantes, aviso na resposta.
+  if (namedAfter(named, allow)) found.add("nome");
+  // Nomes próprios comuns (também em minúsculas), palavras com maiúscula desconhecidas (a meio da frase, ou no início sem
+  // serem palavras comuns) e palavras desconhecidas em minúsculas depois de uma saudação ou de uma despedida: recusa na
+  // pergunta e nas variantes, aviso na resposta.
   const generic = withoutItems(named);
   const common = firstNames(generic);
-  const proper = properNouns(generic).filter((w) => !SAFE_WORDS.has(w.toLowerCase()) && !allow.places.has(w.toLowerCase()));
+  const proper = [...properNouns(generic, allow), ...lowerNamesAfterGreeting(generic, allow)];
   const names: NameWarning[] = [];
   if (opts.question) {
     if (common.length) found.add("nome");
@@ -593,16 +711,14 @@ function scan(text: string, allow: Allowlist, opts: { names?: (string | null | u
 
 // Dados pessoais num texto de cartão (lista vazia = aceite). Os dados da empresa (allowlist) passam: telefone, código
 // postal e morada de uma loja, emails, perfis, ligações e códigos da base de conhecimento, horas e anos. names: nomes do
-// cliente e da equipa (nunca num cartão); question: pergunta ou variante, onde também não pode haver nomes próprios comuns
-// nem palavras com maiúscula que não sejam de lojas, lugares, marcas ou produtos da base de conhecimento. Na resposta,
-// essas palavras são avisos (answerNames), não recusas.
+// cliente e da equipa (nunca num cartão); question: pergunta ou variante, onde também não pode haver os possíveis nomes
+// de NameWarning. Na resposta, essas palavras são avisos (answerNames), não recusas.
 export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[]; question?: boolean } = {}): PiiProblem[] {
   return scan(text, allow, opts).problems;
 }
 
-// Avisos de nomes na resposta de um cartão ("Possível nome: X"): nomes próprios comuns e palavras com maiúscula
-// desconhecidas a meio da frase. Bloqueiam aprovar e publicar até o Super Admin confirmar que não são nomes de pessoas, e
-// impedem sempre "Permitir em respostas automáticas".
+// Avisos de nomes na resposta de um cartão ("Possível nome: X", ver NameWarning). Bloqueiam aprovar e publicar até o
+// Super Admin confirmar que não são nomes de pessoas, e impedem sempre "Permitir em respostas automáticas".
 export function answerNames(text: string, allow: Allowlist): NameWarning[] {
   return scan(text, allow, {}).names;
 }

@@ -123,6 +123,45 @@ test("Possible names in the answer are warnings the Super Admin confirms; real p
   assert.equal(k.nameWarningText(["Gertrudes", "Anacleto"]), "Possíveis nomes: Gertrudes, Anacleto");
 });
 
+test("Names in lowercase, at the start of a sentence or line, in signatures, after a colon or a list dash, and after role words", () => {
+  // Recusas em qualquer campo: depois de saudações, tratamentos, parentescos e funções, também em minúsculas.
+  for (const s of ["Olá joana, obrigado pelo contacto.", "Obrigado joana!", "Bom dia sr. joão, a peça está pronta.", "A sua filha beatriz pode levantar.",
+    "Fale com a sra. gertrudes.", "A colaboradora Gertrudes confirma.", "O gerente Gertrudes confirma.", "A responsável da loja, Gertrudes, confirma.",
+    "A funcionária Gertrudes atende.", "O vendedor Anacleto confirma.", "A consultora joana confirma.", "O ourives Anacleto repara.",
+    "Exmo. Sr. Silva, obrigado.", "Bom dia Dona Maria."])
+    assert.ok(k.scrubPii(s, ALLOW).includes("nome"), s);
+  // Uma palavra desconhecida em minúsculas depois de uma função ("a consultora gertrudes", "o amigo secreto"): aviso.
+  assert.deepEqual(k.scrubPii("A consultora gertrudes confirma.", ALLOW), []);
+  assert.deepEqual(k.answerNames("A consultora gertrudes confirma.", ALLOW), [{ word: "gertrudes", common: false }]);
+  // Um nome próprio comum em minúsculas: aviso "comum" na resposta (que retira uma proposta da IA), recusa na pergunta.
+  for (const s of ["Fale com o joão na loja.", "Pergunte pela joana na loja."]) {
+    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
+    assert.ok(k.answerNames(s, ALLOW).some((n) => n.common), s);
+  }
+  assert.deepEqual(k.answerNames("Temos brincos margarida e um fio marina.", ALLOW), [], "nomes que em minúsculas são palavras");
+  // Nomes pouco comuns no início de uma frase ou de uma linha, em assinaturas, depois de dois pontos ou de um travessão de
+  // lista, e em minúsculas depois de uma despedida ou de uma saudação: aviso na resposta.
+  for (const s of ["Gertrudes atende na loja de Benfica.", "Contacto na loja: Gertrudes.", "- Gertrudes, na loja de Benfica", "Atenciosamente,\nGertrudes",
+    "Gertrudes\nLoja do Ouro", "Atenciosamente, gertrudes", "Olá gertrudes, a peça está pronta.", "Querida gertrudes, a peça está pronta."])
+    assert.ok(k.answerNames(s, ALLOW).some((n) => n.word.toLowerCase() === "gertrudes"), s);
+  // Na pergunta, recusa.
+  assert.deepEqual(k.scrubPii("A joana pode levantar a peça?", ALLOW, { question: true }), ["nome"]);
+  assert.deepEqual(k.scrubPii("Gertrudes pode levantar a peça?", ALLOW, { question: true }), ["nome_proprio"]);
+  // A IA retira uma proposta com um nome próprio comum na resposta, também em minúsculas.
+  assert.match(read("lib/support/knowledge.ts"), /answerNames\(out\.resposta, allow\)\.some\(\(n\) => n\.common\)/);
+  // Sem falsos alarmes nas frases habituais das respostas e das perguntas.
+  for (const s of ["Olá! Obrigado pelo contacto.", "Bom dia, a loja abre às 10h00.", "Obrigado pela preferência!", "Recebemos a sua mensagem e verificámos o stock.",
+    "Pode trocar a peça em qualquer loja.\nAtenciosamente,\nEquipa Loja do Ouro", "Ajustamos o tamanho dos anéis na loja.", "Atualmente não temos stock desse modelo.",
+    "Obrigado, até breve!", "Cumprimentos,\nLoja do Ouro", "Nota: os envios são grátis acima de 50 €.", "- Envios grátis acima de 50 €\n- Trocas em 30 dias",
+    "Gravações: fazemos gravações em alianças.", "Boa tarde, enviámos a informação.", "Contacte-nos por email.", "Basta trazer a peça.", "Fica na loja de Benfica."]) {
+    assert.deepEqual(k.answerNames(s, ALLOW), [], s);
+    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
+  }
+  for (const s of ["Fazem gravações em alianças?", "Ajustam o tamanho dos anéis?", "Têm anéis em ouro branco?", "Compram ouro usado?", "Enviam para Espanha?",
+    "Reparam relógios?", "Limpam joias?", "Avaliam ouro?", "Alargam anéis?", "Personalizam joias?", "Abrem ao domingo?", "É possível gravar uma aliança?"])
+    assert.deepEqual(k.scrubPii(s, ALLOW, { question: true }), [], s);
+});
+
 test("Other personal data: profiles, foreign phones, order references with words or letters, codes, token links, obfuscated emails, addresses, personal company mailboxes", () => {
   const cases = {
     perfil: ["Fale connosco no @joana.joias", "Veja @maria.cat_88"],
