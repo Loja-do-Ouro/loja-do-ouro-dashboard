@@ -147,6 +147,13 @@ test("safeFirstName: one clean word, else no name", () => {
   assert.equal(r.safeFirstName("  José  "), "José");
   assert.equal(r.safeFirstName("D'Angelo"), "D'Angelo");
   assert.equal(r.safeFirstName("Anne-Marie Dupont"), "Anne-Marie");
+  // Só maiúsculas ou só minúsculas: maiúscula inicial (com mistura fica como está).
+  assert.equal(r.safeFirstName("MARIA SILVA"), "Maria");
+  assert.equal(r.safeFirstName("maria"), "Maria");
+  assert.equal(r.safeFirstName("ANNE-MARIE"), "Anne-Marie");
+  assert.equal(r.safeFirstName("o'neil"), "O'Neil");
+  assert.equal(r.safeFirstName("ÁLVARO"), "Álvaro");
+  assert.equal(r.safeFirstName("McDonald"), "McDonald");
   for (const bad of ["💛Ana", "Ana💛", "J", "joao123", "www.exemplo.pt", "@ana", "<b>Ana</b>", "", null, undefined, "A".repeat(31)])
     assert.equal(r.safeFirstName(bad), "", String(bad));
 });

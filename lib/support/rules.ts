@@ -386,10 +386,13 @@ export function firstName(fullName: string | null | undefined): string | null {
 
 // Primeiro nome do cliente nos textos automáticos (pedido de avaliação, emails do chat do site): só uma palavra de 2 a
 // 30 letras (com apóstrofo ou hífen pelo meio). Um nome de perfil com emoji, números, pontuação ou uma ligação dá "":
-// o texto segue sem nome ("Olá!").
+// o texto segue sem nome ("Olá!"). Um nome só em maiúsculas ou só em minúsculas sai com maiúscula inicial ("MARIA" e
+// "maria" → "Maria"; "ANNE-MARIE" → "Anne-Marie"); com maiúsculas e minúsculas fica como está ("D'Angelo").
 export function safeFirstName(raw: string | null | undefined): string {
   const first = (raw || "").trim().split(/\s+/)[0] || "";
-  return /^[\p{L}][\p{L}'-]{1,29}$/u.test(first) ? first : "";
+  if (!/^[\p{L}][\p{L}'-]{1,29}$/u.test(first)) return "";
+  if (first !== first.toUpperCase() && first !== first.toLowerCase()) return first;
+  return first.toLowerCase().replace(/(^|['-])(\p{L})/gu, (_, sep: string, c: string) => sep + c.toUpperCase());
 }
 
 // Histórico visível (configuração do apoio, por omissão 1 de setembro de 2026): numa conversa antiga que voltou a ter
