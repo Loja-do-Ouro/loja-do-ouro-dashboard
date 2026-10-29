@@ -7,16 +7,21 @@
 -- de 1 h da IA é reescrita uma vez por publicação; arquivar retira logo).
 -- * As mensagens nunca são copiadas: as fontes contam-se (fontes: um por contacto identificável, nunca o chat do site
 --   anónimo). amostras: até 3 conversas de origem de uma proposta, para o Super Admin a confirmar; apagadas ao aprovar ou
---   arquivar. No registo de pedidos, a conversa e a mensagem de origem de um cartão apagam-se quando o cartão é
---   aprovado, arquivado ou junto a outro, ou ao fim de 30 dias. Para contar cada contacto uma vez fica, em cada pedido
---   que contou, uma chave pseudónima do contacto: HMAC-SHA256 do id do contacto com um segredo aleatório de 32 bytes
---   gerado nesta migração e guardado só em ldo_private.support_knowledge_secret (sem acesso para public, anon,
---   authenticated nem service_role). A chave é a mesma em todos os cartões (as respostas juntas continuam a contar cada
---   contacto uma vez) e sem o segredo não se chega ao contacto; apaga-se com o pedido, ao fim de 365 dias. Para cada
---   resposta só ser proposta uma vez pelo botão fica uma chave do mesmo tipo da mensagem e o dia, sem o cartão nem a
---   conversa (ldo_support_knowledge_used), também 365 dias. Os pedidos sem cartão guardam a conversa (sem texto) 180
---   dias, para não a ler outra vez; as conversas vistas guardam até que resposta da equipa foram lidas, não a hora do
---   pedido.
+--   arquivar. No registo de pedidos (ldo_support_knowledge_runs), um pedido que acaba num cartão (proposta nova ou
+--   confirmação de uma resposta que já existe) deixa de guardar a conversa e a mensagem de origem no momento em que o
+--   resultado é gravado; os outros (erros, sem pergunta geral, retirados) guardam a conversa e, os do botão, a mensagem
+--   (sem texto) 180 dias, para não as ler outra vez. Para contar cada contacto uma vez fica, nos pedidos que contaram uma
+--   fonte, uma chave pseudónima do contacto: HMAC-SHA256 do id do contacto com um segredo aleatório de 32 bytes gerado
+--   nesta migração e guardado só em ldo_private.support_knowledge_secret (sem acesso para public, anon, authenticated nem
+--   service_role). A chave nunca fica no mesmo pedido que a conversa ou a mensagem (a tabela recusa-o). Não é anónima: é
+--   a mesma para o mesmo contacto em todos os cartões (liga as confirmações dele entre si, para as respostas juntas
+--   continuarem a contar cada contacto uma vez), e enquanto uma proposta guarda as conversas de origem (amostras), quem
+--   lê as tabelas diretamente (o dono da BD ou service_role) pode ligar a chave dos pedidos dessa proposta ao contacto
+--   (diretamente com uma fonte, por eliminação com até 3) e, por ela, às outras confirmações desse contacto. O registo
+--   guarda também a hora exata de cada pedido, a origem, quem carregou no botão e o cartão. Apaga-se com o pedido, ao fim
+--   de 365 dias. Para cada resposta só ser proposta uma vez pelo botão fica uma chave do mesmo tipo da mensagem e o dia,
+--   sem o cartão nem a conversa (ldo_support_knowledge_used), também 365 dias. As conversas vistas guardam até que
+--   resposta da equipa foram lidas, não a hora do pedido.
 -- * Duas origens: o botão "Guardar como resposta aprovada" numa resposta enviada pelo dashboard (a própria pessoa ou o
 --   Super Admin; funciona sempre, com orçamento) e a passagem diária (support-sync), só com "Propostas automáticas a
 --   partir das conversas" ligada (desligada por omissão): conversas com resposta da equipa pelo dashboard desde o
@@ -125,8 +130,8 @@ insert into ldo_private.support_knowledge_secret (id, secret) values (1, extensi
 alter table ldo_private.support_knowledge_secret enable row level security;
 revoke all on ldo_private.support_knowledge_secret from public, anon, authenticated, service_role;
 
--- Respostas já guardadas pelo botão "Guardar como resposta aprovada" (uma proposta por resposta, mesmo depois de a
--- ligação do pedido à mensagem se apagar): só a chave pseudónima da mensagem e o dia, sem o cartão nem a conversa.
+-- Respostas já guardadas pelo botão "Guardar como resposta aprovada" (uma proposta por resposta, mesmo depois de o
+-- pedido deixar de guardar a mensagem): só a chave pseudónima da mensagem e o dia, sem o cartão nem a conversa.
 -- Apagadas ao fim de 365 dias.
 create table public.ldo_support_knowledge_used (
   message_key text primary key check (message_key ~ '^[0-9a-f]{64}$'),
@@ -135,10 +140,13 @@ create table public.ldo_support_knowledge_used (
 alter table public.ldo_support_knowledge_used enable row level security;
 revoke all on public.ldo_support_knowledge_used from anon, authenticated;
 
--- Pedidos à IA (custo, resultado e o cartão), sem texto: o motivo de uma proposta retirada é só um código. A conversa e
--- a mensagem de origem só ficam enquanto são precisas (proposta por decidir, até 30 dias). contact_key: chave
--- pseudónima do contacto (HMAC-SHA256 com o segredo acima, igual em todos os cartões), só nos pedidos que contaram uma
--- fonte, para não contar o mesmo contacto duas vezes; sem o segredo não se chega ao contacto. Apagada com o pedido.
+-- Pedidos à IA (hora, origem, quem carregou no botão, custo, resultado e o cartão), sem texto: o motivo de uma proposta
+-- retirada é só um código. A conversa e a mensagem de origem só ficam nos pedidos sem cartão (a decorrer, com erro, sem
+-- pergunta geral ou retirados), até 180 dias: um pedido que acaba num cartão perde-as ao gravar o resultado.
+-- contact_key: chave pseudónima do contacto (HMAC-SHA256 com o segredo acima, igual em todos os cartões), só nos pedidos
+-- que contaram uma fonte, para não contar o mesmo contacto duas vezes. Nunca no mesmo pedido que a conversa ou a
+-- mensagem (último check); ainda assim, enquanto uma proposta guarda as conversas de origem (amostras), quem lê as
+-- tabelas pode ligar a chave dos pedidos dessa proposta ao contacto. Apagada com o pedido, ao fim de 365 dias.
 create table public.ldo_support_knowledge_runs (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
@@ -156,7 +164,9 @@ create table public.ldo_support_knowledge_runs (
   model text check (length(model) <= 60),
   cost_usd numeric(10, 5) not null default 0 check (cost_usd >= 0),
   latency_ms integer check (latency_ms >= 0),
-  error text check (length(error) <= 500)
+  error text check (length(error) <= 500),
+  -- Um pedido com cartão ou com a chave do contacto nunca guarda a conversa nem a mensagem de origem.
+  check ((card_id is null and contact_key is null) or (conversation_id is null and message_id is null))
 );
 create index ldo_support_knowledge_runs_created_idx on public.ldo_support_knowledge_runs (created_at);
 create index ldo_support_knowledge_runs_user_idx on public.ldo_support_knowledge_runs (user_id, created_at);
@@ -388,8 +398,8 @@ begin
   -- passam ambos).
   perform pg_advisory_xact_lock(hashtextextended('ldo_support_knowledge:' || v_me::text, 0));
   perform pg_advisory_xact_lock(hashtextextended('ldo_support_knowledge_msg:' || v_m.id::text, 0));
-  -- Uma proposta por resposta: as já guardadas ficam em ldo_support_knowledge_used (só a chave, sem o cartão), porque a
-  -- ligação do pedido à mensagem apaga-se ao aprovar, arquivar ou juntar o cartão e ao fim de 30 dias.
+  -- Uma proposta por resposta: as já guardadas ficam em ldo_support_knowledge_used (só a chave, sem o cartão), porque um
+  -- pedido que acaba num cartão deixa logo de guardar a mensagem.
   if exists (select 1 from public.ldo_support_knowledge_used u where u.message_key = v_key)
      or exists (select 1 from public.ldo_support_knowledge_runs r where r.message_id = v_m.id
        and r.status = 'pending' and r.created_at > now() - interval '2 minutes') then
@@ -475,9 +485,11 @@ $$;
 -- Um cartão que a BD recusa fica como proposta retirada, sem perder o custo. Uma fonte conta uma vez por contacto e só
 -- se o contacto for identificável (no chat do site, sessão confirmada na loja ou email associado pela equipa); para isso
 -- fica no pedido a chave pseudónima do contacto (support_knowledge_key), não o contacto, e conta-se contra o cartão e os
--- que lhe foram juntos. Um cartão existente que entretanto foi junto a outro conta para esse outro. Uma resposta
--- guardada pelo botão fica em ldo_support_knowledge_used (só a chave da mensagem). Na passagem diária, um pedido acabado
--- (status 'done') marca a conversa como vista até à última resposta da equipa lida.
+-- que lhe foram juntos. Um pedido que acaba num cartão (novo ou existente) deixa de guardar a conversa e a mensagem no
+-- mesmo update que grava o cartão e a chave (depois disso nada as lê: as falhas e os pedidos a decorrer guardam-nas).
+-- Um cartão existente que entretanto foi junto a outro conta para esse outro. Uma resposta guardada pelo botão fica em
+-- ldo_support_knowledge_used (só a chave da mensagem). Na passagem diária, um pedido acabado (status 'done') marca a
+-- conversa como vista até à última resposta da equipa lida.
 create function public.ldo_support_knowledge_propose(p_token text, p_run uuid, p_values jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -575,7 +587,10 @@ begin
     descartado = case when v_res = 'descartado' then coalesce(case when v_desc in ('dados_pessoais', 'numero_novo', 'ligacao_nova', 'politica_nova',
       'contacto_novo', 'copia_cliente', 'marca', 'formato', 'limite') then v_desc end, 'formato') end,
     card_id = v_card_id,
-    contact_key = case when v_counts then v_key end,
+    -- Com cartão, a chave entra e a conversa e a mensagem saem no mesmo update (a tabela não aceita as duas juntas).
+    contact_key = case when v_counts and v_card_id is not null then v_key end,
+    conversation_id = case when v_card_id is null then conversation_id end,
+    message_id = case when v_card_id is null then message_id end,
     model = left(coalesce(p_values ->> 'model', model), 60),
     cost_usd = case when jsonb_typeof(p_values -> 'cost') = 'number' then least(greatest((p_values ->> 'cost')::numeric, 0), 99999) else 0 end,
     latency_ms = case when jsonb_typeof(p_values -> 'latency_ms') = 'number' then least(greatest(round((p_values ->> 'latency_ms')::numeric), 0), 600000)::integer end,
@@ -609,8 +624,8 @@ end;
 $$;
 
 -- Limpeza diária (só o servidor): pedidos com mais de 365 dias (com as chaves dos contactos; a conversa e a mensagem de
--- origem ao fim de 30), respostas já guardadas há mais de 365, conversas vistas há mais de 180, propostas sem novas
--- fontes há 180 dias e cartões arquivados há 365. As respostas marcadas para respostas automáticas que expiraram ou não
+-- origem dos pedidos sem cartão ao fim de 180), respostas já guardadas há mais de 365, conversas vistas há mais de 180,
+-- propostas sem novas fontes há 180 dias e cartões arquivados há 365. As respostas marcadas para respostas automáticas que expiraram ou não
 -- são revistas há mais de 90 dias perdem a marca.
 create function public.ldo_support_knowledge_purge(p_token text) returns integer
 language plpgsql volatile security definer set search_path = '' as $$
@@ -628,11 +643,10 @@ begin
   select null, 'ai.knowledge.card', jsonb_build_object('id', x.id, 'acao', 'auto_expirada') from x;
   get diagnostics v_n = row_count;
   v_total := v_total + v_n;
-  -- Ligação de um cartão às conversas de origem: 30 dias no máximo; os pedidos sem cartão (erros, sem pergunta geral,
-  -- retirados) guardam a conversa enquanto ela pode voltar à passagem diária (180 dias), para não a ler outra vez.
+  -- Os pedidos com cartão já não têm a conversa (saiu ao gravar o resultado); os pedidos sem cartão (erros, sem pergunta
+  -- geral, retirados) guardam-na enquanto ela pode voltar à passagem diária (180 dias), para não a ler outra vez.
   update public.ldo_support_knowledge_runs set conversation_id = null, message_id = null
-  where (conversation_id is not null or message_id is not null)
-    and ((card_id is not null and created_at < now() - interval '30 days') or created_at < now() - interval '180 days');
+  where (conversation_id is not null or message_id is not null) and created_at < now() - interval '180 days';
   delete from public.ldo_support_knowledge_runs where created_at < now() - interval '365 days';
   get diagnostics v_n = row_count;
   v_total := v_total + v_n;
@@ -833,8 +847,8 @@ end;
 $$;
 
 -- Aprovar (de uma proposta ou de arquivada; numa resposta já aprovada, confirma que continua certa: revisto_em) ou
--- arquivar (sai logo da IA e das respostas automáticas). As amostras e a ligação dos pedidos às conversas e mensagens de
--- origem apagam-se nos dois casos (das fontes ficam a contagem e as chaves pseudónimas dos contactos; a regra de uma
+-- arquivar (sai logo da IA e das respostas automáticas). As amostras (as conversas de origem) apagam-se nos dois casos
+-- (os pedidos já não as guardam; das fontes ficam a contagem e as chaves pseudónimas dos contactos; a regra de uma
 -- proposta por resposta continua em ldo_support_knowledge_used).
 create function public.ldo_support_knowledge_card_state(p_session text, p_id uuid, p_estado text) returns void
 language plpgsql volatile security definer set search_path = '' as $$
@@ -871,8 +885,8 @@ begin
       amostras = '{}', updated_at = now(), updated_by = v_me
     where id = p_id;
   end if;
-  update public.ldo_support_knowledge_runs set conversation_id = null, message_id = null
-  where card_id = p_id and (conversation_id is not null or message_id is not null);
+  -- Os pedidos deste cartão já não têm a conversa nem a mensagem de origem (saíram ao gravar o resultado); ao aprovar ou
+  -- arquivar saem as amostras, a última ligação do cartão às conversas.
   insert into public.ldo_support_audit (actor, action, details)
   values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id,
     'acao', case when p_estado = 'arquivada' then 'arquivada' when v_c.estado = 'aprovada' then 'revista' else 'aprovada' end));
@@ -965,8 +979,8 @@ $$;
 
 -- "Juntar a…": a pergunta e as variantes de p_id passam a variantes de p_into (até 5), as fontes somam-se (um contacto
 -- que confirmou as duas conta uma vez, pela chave pseudónima) e p_id fica arquivado e em p_into.juntadas, com os que já
--- lhe tinham sido juntos (os pedidos que o confirmaram passam a contar para p_into, sem a ligação às conversas, e uma
--- confirmação nova do mesmo contacto não conta outra vez). Recusa quando a
+-- lhe tinham sido juntos (os pedidos que o confirmaram passam a contar para p_into, e uma confirmação nova do mesmo
+-- contacto não conta outra vez). Recusa quando a
 -- pergunta de p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Se as
 -- variantes de p_into mudarem, perde a marca de resposta automática e, se estiver aprovada, os 7 dias contam de novo.
 -- Devolve {estado (de p_into), alterada, auto_retirada}.
@@ -1027,7 +1041,7 @@ begin
   update public.ldo_support_knowledge_cards set estado = 'arquivada', auto_ok = false, auto_ok_em = null, publicado = null, amostras = '{}',
     fontes = 0, updated_at = now(), updated_by = v_me
   where id = p_id;
-  update public.ldo_support_knowledge_runs set card_id = p_into, conversation_id = null, message_id = null where card_id = p_id;
+  update public.ldo_support_knowledge_runs set card_id = p_into where card_id = p_id;
   insert into public.ldo_support_audit (actor, action, details)
   values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'juntada', 'em', p_into, 'auto_retirada', v_into.auto_ok and v_changed));
   return jsonb_build_object('estado', v_into.estado, 'alterada', v_changed, 'auto_retirada', v_into.auto_ok and v_changed);
