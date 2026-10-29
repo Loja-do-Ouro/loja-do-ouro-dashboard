@@ -1406,8 +1406,9 @@
       ".msg.notice { align-self: center; max-width: 92%; padding: 4px 12px; border: 0; border-radius: 999px; background: #f2f4ef; color: #4f5c55; font-size: 12px; text-align: center; }",
       ".msg.notice.survey { padding: 10px 14px; border-radius: 12px; font-size: 13px; color: #253531; }",
       ".stars { display: flex; justify-content: center; gap: 2px; margin-top: 6px; }",
-      ".star { background: none; border: 0; padding: 2px 4px; font-size: 26px; line-height: 1; color: #c9cdc5; cursor: pointer; }",
-      ".stars:hover .star:not([disabled]) { color: #e2a400; } .stars .star:hover ~ .star { color: #c9cdc5; }",
+      // Estrelas por escolher e escolhidas com contraste de pelo menos 3:1 sobre o fundo do aviso (#f2f4ef).
+      ".star { background: none; border: 0; padding: 2px 4px; font-size: 26px; line-height: 1; color: #7a8077; cursor: pointer; }",
+      ".stars:hover .star:not([disabled]) { color: #b07f00; } .stars .star:hover ~ .star { color: #7a8077; }",
       ".star[disabled] { cursor: default; opacity: .6; }",
       ".txt p + p, .txt p + ul, .txt p + ol, .txt ul + p, .txt ol + p { margin-top: 7px; }",
       ".txt ul, .txt ol { margin: 4px 0; padding-left: 20px; } .txt li { margin: 2px 0; overflow-wrap: anywhere; }",

@@ -115,7 +115,8 @@ export default async function SupportPerformancePage({ searchParams }: { searchP
               f.agent_name || "—",
               `${f.score}/5`,
               f.comment || "—",
-              <Link key={f.survey_id} href={`/apoio?conversa=${encodeURIComponent(f.conversation_id)}`}>Abrir</Link>,
+              <Link key={f.survey_id} href={`/apoio?conversa=${encodeURIComponent(f.conversation_id)}`}
+                aria-label={`Abrir a conversa com ${f.contact || "o cliente"} (${when(f.rated_at)})`}>Abrir</Link>,
             ])}
             empty="Nenhuma nota de 1 ou 2 neste período."
           />

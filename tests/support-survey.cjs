@@ -495,3 +495,23 @@ test("Sync patch: four anchors in the production text of ldo_support_ingest, eac
   const send = fn(SQL, "create or replace function public.ldo_support_site_send(");
   assert.ok(send.indexOf("v_rated := ldo_private.support_take_rating(v_c.id, v_m.id, v_body);") < send.indexOf("if not v_rated and v_c.status in ('resolvido', 'aguarda_cliente') then"));
 });
+
+test("Accessibility: the resolve dialog gives focus back, follow-up links say which conversation, widget stars have 3:1 contrast", () => {
+  const inbox = read("components/support/inbox.tsx");
+  assert.ok(inbox.includes("<select ref={statusSelect}") && inbox.includes("statusSelect.current?.focus();"));
+  const page = read("app/(painel)/apoio/desempenho/page.tsx");
+  assert.ok(page.includes("aria-label={`Abrir a conversa com ${f.contact || \"o cliente\"} (${when(f.rated_at)})`}"));
+  const lum = (h) => {
+    const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const ratio = (a, b) => {
+    const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+    return (x + 0.05) / (y + 0.05);
+  };
+  const widget = read("public/site-chat/ldo-chat.js");
+  const star = /"\.star \{[^"]*color: (#[0-9a-f]{6});/.exec(widget);
+  const hover = /"\.stars:hover \.star:not\(\[disabled\]\) \{ color: (#[0-9a-f]{6}); \}/.exec(widget);
+  assert.ok(star && hover);
+  for (const c of [star[1], hover[1]]) assert.ok(ratio(c, "#f2f4ef") >= 3, c);
+});

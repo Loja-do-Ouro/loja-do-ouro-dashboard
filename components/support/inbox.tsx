@@ -1871,10 +1871,21 @@ function CustomerPanel({
   // haver pedido). Nos outros modos resolve logo (no automático a BD cria o pedido e o aviso aparece na conversa).
   const [resolving, setResolving] = useState<{ preview: SurveyPreview | null; error: string; ask: boolean } | null>(null);
   const resolveButton = useRef<HTMLButtonElement>(null);
+  const statusSelect = useRef<HTMLSelectElement>(null);
+  const wasResolving = useRef(false);
   const ready = Boolean(resolving && (resolving.preview || resolving.error));
   useEffect(() => {
     if (ready) resolveButton.current?.focus();
   }, [ready]);
+  // Ao fechar o diálogo (Resolver, Cancelar ou Escape), o foco volta à escolha do estado (não se perde na página).
+  const open = Boolean(resolving);
+  useEffect(() => {
+    if (open) wasResolving.current = true;
+    else if (wasResolving.current) {
+      wasResolving.current = false;
+      statusSelect.current?.focus();
+    }
+  }, [open]);
   async function changeStatus(value: string) {
     if (value === "resolvido" && conv.status !== "resolvido" && d.survey_mode === "perguntar") {
       setResolving({ preview: null, error: "", ask: false });
@@ -1895,7 +1906,7 @@ function CustomerPanel({
         <span className="eyebrow">Atendimento</span>
         <label>
           Estado
-          <select value={conv.status} disabled={!canChangeStatus(own) || Boolean(resolving)} title={canChangeStatus(own) ? "" : "Só o responsável (ou o Super Admin) muda o estado."}
+          <select ref={statusSelect} value={conv.status} disabled={!canChangeStatus(own) || Boolean(resolving)} title={canChangeStatus(own) ? "" : "Só o responsável (ou o Super Admin) muda o estado."}
             onChange={(e) => changeStatus(e.target.value)}>
             {STATUSES.map((s) => <option key={s} value={s} disabled={isZendesk && s === "novo" && conv.status !== "novo"}>{STATUS_LABEL[s]}</option>)}
           </select>
