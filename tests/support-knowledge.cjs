@@ -660,6 +660,21 @@ test("Approval panel: approve saves the corrections first, merge only within the
   assert.ok(css.includes(".knowledge-item form, .knowledge-item select { max-width: 100%; }"));
 });
 
+test("Privacy wording says exactly what is kept: counts, a keyed pseudonymous key per source, used-message keys; no 'without names' claim", () => {
+  const panel = read("app/(painel)/apoio/configuracao/ia/painel-cartoes.tsx");
+  const readme = read("README.md").split("\n").find((l) => l.startsWith("- **Base de conhecimento aprendida**"));
+  const server = read("lib/support/knowledge.ts");
+  for (const [name, text] of [["painel", panel], ["README", readme], ["botão", server]]) {
+    assert.ok(!/já sem nomes|sem guardar qual é|md5/.test(text), name);
+  }
+  assert.ok(panel.includes("uma chave pseudónima do contacto (HMAC-SHA256 com um segredo guardado só na base de dados, a que a aplicação não tem acesso)"));
+  assert.ok(panel.includes("sem esse segredo a chave não identifica o contacto, e apaga-se com o registo ao fim de 365 dias"));
+  assert.ok(panel.includes("ficam registadas só por uma chave do mesmo tipo e pelo dia, sem a resposta aprovada a que deram origem"));
+  assert.ok(readme.includes("HMAC-SHA256 do id do contacto com um segredo aleatório de 32 bytes gerado na migração e guardado só em `ldo_private.support_knowledge_secret`"));
+  // Os números de retenção do texto são os da migração.
+  assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /delete from public\.ldo_support_knowledge_runs where created_at < now\(\) - interval '365 days'/);
+});
+
 test("Possible names: the Super Admin confirms them per card before approving or publishing; never for automatic replies", () => {
   const panel = read("app/(painel)/apoio/configuracao/ia/painel-cartoes.tsx");
   assert.match(panel, /<input type="checkbox" name="nomes_ok" value="1" \/> Confirmo que não é o nome de uma pessoa/);
