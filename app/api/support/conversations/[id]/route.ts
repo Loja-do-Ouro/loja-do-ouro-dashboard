@@ -93,9 +93,13 @@ export async function POST(request: Request, ctx: Ctx) {
         await confirmSentInZendesk(viewer, id, b.messageId);
         return json({ ok: true });
       // Guardar uma resposta enviada pelo dashboard como proposta da base de conhecimento aprendida (o Super Admin aprova).
-      case "knowledge":
+      // Uma falha da IA aparece como erro (não como uma nota de sucesso).
+      case "knowledge": {
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
-        return json(await proposeFromMessage(viewer, id, b.messageId));
+        const r = await proposeFromMessage(viewer, id, b.messageId);
+        if (r.resultado === "erro") throw new HttpError(502, r.note);
+        return json(r);
+      }
       case "not_sent":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         await markNotSent(viewer, id, b.messageId);

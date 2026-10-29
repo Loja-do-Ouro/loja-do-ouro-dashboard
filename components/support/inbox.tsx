@@ -1410,9 +1410,11 @@ export function SupportInbox({
                             setDraft(selected!, which, m.body);
                           }}>Copiar para o rascunho</button>
                         )}
-                        {/* Base de conhecimento aprendida: a própria pessoa (ou o Super Admin) propõe esta resposta; o Super Admin aprova. */}
+                        {/* Base de conhecimento aprendida: a própria pessoa (ou o Super Admin) propõe esta resposta; o Super Admin aprova.
+                            Não nas mensagens anteriores ao histórico visível (a BD recusa-as). */}
                         {m.kind === "outbound" && m.author_user_id && (m.author_user_id === c.me || c.super) && !m.deleted && m.body.trim().length >= 20
-                          && (m.delivery === "accepted" || m.delivery === "delivered" || m.delivery === "read") && (
+                          && (m.delivery === "accepted" || m.delivery === "delivered" || m.delivery === "read")
+                          && !(c.history_from && Date.parse(m.created_at) < Date.parse(c.history_from)) && (
                           <button
                             type="button"
                             disabled={cardBusy !== null}
