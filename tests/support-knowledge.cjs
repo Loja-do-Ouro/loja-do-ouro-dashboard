@@ -111,6 +111,28 @@ test("Other personal data: profiles, foreign phones, order references with words
   assert.ok(problem.includes("[^0-9]{0,25}(n\\.?[[:space:]]*[ºo°]|nº|número|numero|nr\\.?|#)") && problem.includes("'#[a-z]{2,4}-?[0-9]{3,}'"));
 });
 
+test("Personal data inside links (social profiles, wa.me, long numbers) and lowercase addresses, unless they are the company's", () => {
+  const cases = {
+    perfil: ["Fale por https://wa.me/351912345678", "Veja https://www.instagram.com/joana.joias", "Está em facebook.com/joana.silva.77", "Escreva para m.me/joanasilva",
+      "Fale por t.me/joana_joias", "Veja https://www.tiktok.com/@joana.joias"],
+    ligacao: ["Veja https://www.lojadoouro.pt/pages/cliente-912345678", "Abra exemplo.pt/c/912.345.678"],
+    morada: ["Envie para a rua das flores 12", "Moro na avenida da república, 45, 2º esq", "Fica na travessa do carmo nº 3"],
+  };
+  for (const [code, texts] of Object.entries(cases)) for (const s of texts) assert.ok(k.scrubPii(s, ALLOW).includes(code), `${code}: ${s} → ${k.scrubPii(s, ALLOW)}`);
+  // Os da empresa passam (comparados sem distinguir maiúsculas): o @ e as ligações da base de conhecimento, o telefone
+  // da loja no wa.me e a morada da loja.
+  const kb = `${KNOWLEDGE}\n\n## Redes\nInstagram: @lojadoouro. Facebook: https://www.facebook.com/LojaDoOuro\n\n## Leiria\nLoja de Leiria: rua das flores 12, Leiria.`;
+  const allow = k.companyAllowlist({ knowledge: kb, stores: STORES });
+  for (const s of ["Siga-nos em https://www.instagram.com/lojadoouro", "Siga-nos em instagram.com/LojaDoOuro", "Veja https://facebook.com/lojadoouro/",
+    "Fale connosco por https://wa.me/351217123456", "Estamos na rua das flores 12.", "Estamos na Rua das Flores 12.", "Pode ligar para o 217 123 456."])
+    assert.deepEqual(k.scrubPii(s, allow), [], s);
+  assert.deepEqual(k.scrubPii("Siga https://www.instagram.com/lojadoouro/?igsh=a1b2c3", allow), ["ligacao"], "o perfil da empresa com parâmetros de partilha");
+  // Texto de joalharia com "travessa", "largo" ou "praça" não é uma morada.
+  for (const s of ["Temos uma travessa de prata 925.", "Um fio largo de 5 mm.", "Um anel largo com 3 diamantes.", "Abrimos na praça às 10h00.",
+    "Temos argolas de 2 cm.", "Veja https://www.lojadoouro.pt/products/anel-ouro-18k-123456"])
+    assert.deepEqual(k.scrubPii(s, ALLOW), [], s);
+});
+
 // ---------------------------------------------------------------- factos que a equipa não escreveu
 
 test("numbersInStaffText: every number of the answer is in the team's replies or the knowledge, with its context and the order of the hours", () => {

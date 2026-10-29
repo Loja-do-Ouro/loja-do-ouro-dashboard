@@ -270,6 +270,15 @@ const CODE_GROUPS = /(?<![\p{L}\p{N}])[A-Z0-9]{4}(?:[ -][A-Z0-9]{4}){2,}(?![\p{L
 const NOT_A_CODE = /^\d+(?:mm|cm|m|g|gr|kg|ml|cl|kt|kl|ct|ctl|ªs?|ºs?|x|min|seg|h|hrs?)$|^\d{1,2}h\d{2}$/i;
 // Morada: rua, avenida, largo… com nome próprio e o número logo a seguir ("Rua das Flores 12", "Rua X, nº 5").
 const STREET_RE = /(?<!\p{L})((?:[Rr]ua|[Aa]v\.|[Aa]venida|[Tt]ravessa|[Ll]argo|[Pp]raceta|[Ee]strada|[Pp]ra[çc]a|[Aa]lameda|[Cc]al[çc]ada|[Bb]eco|[Uu]rbaniza[çc][ãa]o)(?:\s+(?:d[aeo]s?|de))?(?:\s+\p{Lu}[\p{L}'’.-]*(?:\s+(?:d[aeo]s?|de|e)(?=\s+\p{Lu}))?)+)[\s,]*(?:n\.?\s*[ºo°]\s*)?\d/gu;
+// A mesma morada escrita em minúsculas ("rua das flores 12"): até 4 palavras depois da rua, sem palavras de ligação nem
+// materiais ("travessa de prata 925", "largo de 5 mm" e "um anel largo com 3 diamantes" não são moradas), e o número sem
+// unidade a seguir.
+const STREET_LOWER_RE = /(?<!\p{L})((?:rua|av\.|avenida|travessa|largo|praceta|estrada|pra[çc]a|alameda|cal[çc]ada|beco|urbaniza[çc][ãa]o)(?:\s+(?:d[aeo]s?|de))?(?:\s+(?!(?:d[aeo]s?|de|e|ou|em|com|para|por|at[ée]|a|à|às|ao|aos|o|as|os|um|uma|mais|menos|cerca|entre|sem|que|ouro|prata|a[çc]o|platina|t[ií]t[âa]nio|p[ée]rolas?|metal|cristal)(?!\p{L}))\p{L}[\p{L}'’-]+){1,4})[\s,]*(?:n\.?\s*[ºo°]\s*)?\d{1,4}(?![\d.,]?\d)(?!\s*(?:mm|cm|m|g|gr|kg|kt|k|ct|kl|€|%|eur|euros?|quilates?|dias?|horas?|h|min|anos?|meses|vezes|x|ª|º)(?!\p{L}))/gu;
+// Ligações a perfis e conversas de redes sociais e mensagens ("instagram.com/joana.joias", "wa.me/351912345678",
+// "m.me/joana", "t.me/joana"): só as da empresa (na base de conhecimento ou com um @ ou telefone da empresa).
+const SOCIAL_HOST = /^(?:[a-z0-9-]+\.)*(?:wa\.me|whatsapp\.com|instagram\.com|instagr\.am|facebook\.com|fb\.com|fb\.me|m\.me|messenger\.com|t\.me|telegram\.me|tiktok\.com|twitter\.com|x\.com|linkedin\.com|youtube\.com|youtu\.be|pinterest\.[a-z.]+|threads\.net|snapchat\.com)$/;
+// Ligação comparada sem maiúsculas, sem http(s):// nem www. e sem a barra final.
+const linkNorm = (u: string) => u.toLowerCase().replace(/[.,;:!?…]+$/, "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
 // Frases com maiúsculas ("Rua Maria Pia", "Figueira da Foz", "Cartão de Cidadão"): da base de conhecimento, retiradas do
 // texto antes de procurar nomes (uma palavra solta da base não isenta um nome). Na mesma linha; ponto só em abreviaturas
 // ("Rua Dr. José…"), para não juntar duas frases.
@@ -317,6 +326,8 @@ const COMMON_LOWER = new Set(`dias costa rocha pinto santos lima cruz ramos camp
 
 export type Allowlist = {
   emails: Set<string>; phones: Set<string>; numbers: Set<string>; postcodes: Set<string>; handles: Set<string>; codes: Set<string>;
+  // Ligações da base de conhecimento e do apoio (linkNorm): passam tal como estão, mesmo com números ou parâmetros.
+  links: Set<string>;
   // Frases com maiúsculas da base de conhecimento, das lojas e de marcas (já numa expressão regular).
   phrases: RegExp | null;
   // Palavras soltas com maiúscula da base de conhecimento que não são nomes comuns (lugares, produtos): aceites na pergunta.
@@ -370,6 +381,7 @@ export function companyAllowlist(o: { knowledge: string; stores: { name: string;
     postcodes: new Set(text.match(POSTCODE_RE) || []),
     handles: new Set((text.match(HANDLE_RE) || []).map((h) => h.toLowerCase().replace(/[._]+$/, ""))),
     codes: codesIn(text),
+    links: new Set(linkList(text).map(linkNorm)),
     phrases: phrases.length ? new RegExp(`(?<!\\p{L})(?:${phrases.map(escapeRe).join("|")})(?!\\p{L})`, "giu") : null,
     places,
     text: lowerText(text),
@@ -382,7 +394,7 @@ export const PII_PROBLEMS = [
 export type PiiProblem = (typeof PII_PROBLEMS)[number];
 export const PII_LABEL: Record<PiiProblem, string> = {
   email: "um email", telefone: "um telefone", numero: "um número longo", encomenda: "um número de encomenda", pagamento: "IBAN, NIF ou documento",
-  ligacao: "uma ligação de conta ou com código", codigo_postal: "um código postal", envio: "um código de envio", codigo: "um código (desconto, vale…)",
+  ligacao: "uma ligação de conta, com código ou com um número longo", codigo_postal: "um código postal", envio: "um código de envio", codigo: "um código (desconto, vale…)",
   perfil: "um perfil de rede social", morada: "uma morada", nome: "um nome de pessoa", nome_proprio: "um nome próprio na pergunta",
 };
 const RISK_CODE: Record<string, PiiProblem> = {
@@ -400,6 +412,25 @@ function tokenInPath(u: string) {
   const segs = u.replace(/^(?:https?:\/\/)?[^/]+/i, "").split("/").filter(Boolean);
   return segs.some((s, i) => !(i > 0 && /^(products|collections|pages|blogs|policies)$/i.test(segs[i - 1]))
     && s.length >= 8 && /\d/.test(s) && /\p{L}/u.test(s) && !s.includes("-"));
+}
+
+// Dados pessoais numa ligação (null = aceite). As ligações da empresa (base de conhecimento) passam tal como estão. Um
+// perfil ou uma conversa de uma rede social só passa se for da empresa (o @ ou o telefone estão na base de conhecimento) e
+// sem parâmetros; as outras ligações não podem ter parâmetros, caminhos de conta ou encomenda, tokens nem 9 ou mais
+// algarismos seguidos (um telefone, um NIF ou um número de cliente).
+function linkProblem(u: string, allow: Allowlist): PiiProblem | null {
+  const n = linkNorm(u);
+  if (allow.links.has(n)) return null;
+  const host = n.split(/[/?#:]/)[0];
+  const generic = /[?#]/.test(u) || ACCOUNT_PATH.test(u) || tokenInPath(u) || /\d(?:[.\-_]?\d){8,}/.test(n);
+  if (SOCIAL_HOST.test(host)) {
+    const first = n.slice(host.length).replace(/^[/:]+/, "").split(/[/?#]/)[0].replace(/^@/, "").replace(/[._]+$/, "");
+    if (!first && !/[?#]/.test(u)) return null;
+    const own = !!first && (allow.handles.has(`@${first}`) || allow.phones.has(phoneDigits(first)));
+    if (!own) return "perfil";
+    return /[?#]/.test(u) ? "ligacao" : null;
+  }
+  return generic ? "ligacao" : null;
 }
 
 // Palavras com maiúscula fora do início de uma frase ou de um item (palavras inteiras; siglas como "MB WAY" ou "CTT" não
@@ -455,7 +486,8 @@ export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string
   }
   if (OBFUSCATED_EMAIL.test(rest)) found.add("email");
   for (const u of linkList(rest)) {
-    if (/[?#]/.test(u) || ACCOUNT_PATH.test(u) || tokenInPath(u)) found.add("ligacao");
+    const p = linkProblem(u, allow);
+    if (p) found.add(p);
     rest = rest.split(u).join(" ");
   }
   for (const h of rest.match(HANDLE_RE) || []) if (!allow.handles.has(h.toLowerCase().replace(/[._]+$/, ""))) found.add("perfil");
@@ -470,7 +502,8 @@ export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string
   if (IBAN_RE.test(rest) || NIF_RE.test(rest)) found.add("pagamento");
   for (const d of rest.match(/\d{6,}/g) || []) if (!allow.numbers.has(d)) found.add("numero");
   for (const c of codesIn(rest)) if (!allow.codes.has(c)) found.add("codigo");
-  for (const m of rest.matchAll(STREET_RE)) if (!allow.text.includes(lowerText(m[1]))) found.add("morada");
+  // Moradas (também em minúsculas): só as da empresa, como estão na base de conhecimento (sem distinguir maiúsculas).
+  for (const re of [STREET_RE, STREET_LOWER_RE]) for (const m of rest.matchAll(re)) if (!allow.text.includes(lowerText(m[1]))) found.add("morada");
   // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria).
   const named = allow.phrases ? rest.replace(allow.phrases, " ") : rest;
   for (const r of publicReplyRisks(named)) found.add(RISK_CODE[r] ?? "numero");
