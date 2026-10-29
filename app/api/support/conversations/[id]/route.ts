@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { sessionRpc } from "@/lib/support/db";
 import { notifyHandover } from "@/lib/support/notify";
 import { body, handle, HttpError, json, supportViewer } from "@/lib/support/http";
+import { proposeFromMessage } from "@/lib/support/knowledge";
 import { reviewReply } from "@/lib/support/review";
 import { reviewTag } from "@/lib/support/review-rules";
 import { isUuid } from "@/lib/support/rules";
@@ -31,7 +32,7 @@ export async function GET(request: Request, ctx: Ctx) {
 }
 
 type Action = {
-  action: "read" | "unread" | "presence" | "review" | "reply" | "note" | "update" | "verify" | "confirm_sent" | "not_sent";
+  action: "read" | "unread" | "presence" | "review" | "reply" | "note" | "update" | "verify" | "confirm_sent" | "not_sent" | "knowledge";
   composing: boolean;
   body: string;
   clientKey: string;
@@ -91,6 +92,10 @@ export async function POST(request: Request, ctx: Ctx) {
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         await confirmSentInZendesk(viewer, id, b.messageId);
         return json({ ok: true });
+      // Guardar uma resposta enviada pelo dashboard como proposta da base de conhecimento aprendida (o Super Admin aprova).
+      case "knowledge":
+        if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
+        return json(await proposeFromMessage(viewer, id, b.messageId));
       case "not_sent":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         await markNotSent(viewer, id, b.messageId);

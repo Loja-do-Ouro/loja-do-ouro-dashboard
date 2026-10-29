@@ -8,6 +8,7 @@ import {
   type ReviewStats,
 } from "@/lib/support/review-rules";
 import { requireViewer } from "@/lib/viewer";
+import { PainelCartoes } from "./painel-cartoes";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
 import { ReviewStatsList } from "@/components/support/review-stats";
@@ -96,6 +97,7 @@ export default async function SupportAiSettingsPage({ searchParams }: { searchPa
           A resposta, as últimas mensagens da conversa e a base de conhecimento são enviadas à Anthropic para a revisão; do texto fica guardado só um código (hash), nunca a resposta nem a sugestão (registo apagado ao fim de 365 dias). Estas estatísticas não servem para avaliar pessoas: aqui aparecem só os totais da equipa, e cada pessoa vê as suas em A minha conta, onde também pode desligar a revisão no modo Opcional.
         </p>
       </Panel>
+      <PainelCartoes viewer={viewer} q={q} />
     </AppShell>
   );
 }

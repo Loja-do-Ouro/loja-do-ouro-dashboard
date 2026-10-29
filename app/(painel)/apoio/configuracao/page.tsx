@@ -45,6 +45,8 @@ type AiAdmin = {
   usage: { month_cost: number; month_requests: number; month_errors: number; by_user: { name: string; requests: number; cost: number }[] };
   // Revisão antes de enviar (totais da equipa): só com a migração 20261030110000.
   review?: { mode: string; model: string; monthly_budget: number; month_cost: number; month_reviews: number; month_errors: number };
+  // Base de conhecimento aprendida (propostas do mês): só com a migração 20261030130000.
+  cards?: { auto_proposals: boolean; monthly_budget: number; month_cost: number; month_runs: number; month_errors: number; proposals: number; published: number };
 };
 type GmailStatus = { email: string; status: "active" | "reconnect"; status_detail: string | null; scope: string | null; watch_expires_at: string | null; connected_at: string; connected_by: string | null } | null;
 // Resultado da ligação ao Gmail (código no URL, vindo das rotas /api/support/gmail/*).
@@ -445,6 +447,17 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
                   </>
                 ) : "Por instalar (falta a atualização na base de dados)."}
                 {" "}<Link href="/apoio/configuracao/ia">Configurar a revisão</Link>
+              </dd>
+              <dt>Base de conhecimento aprendida</dt>
+              <dd>
+                {ai.cards ? (
+                  <>
+                    {ai.cards.auto_proposals ? "Propostas automáticas ligadas" : "Propostas automáticas desligadas"}
+                    {" · "}{usd(ai.cards.month_cost)} de {usd(ai.cards.monthly_budget)} este mês · {ai.cards.month_runs} pedidos{ai.cards.month_errors ? ` (${ai.cards.month_errors} com erro)` : ""}
+                    {" · "}{ai.cards.proposals} por rever · {ai.cards.published} em uso pela IA
+                  </>
+                ) : "Por instalar (falta a atualização na base de dados)."}
+                {" "}<Link href="/apoio/configuracao/ia#cartoes">Rever as respostas</Link>
               </dd>
             </dl>
             {ai.usage.by_user.length > 0 && (

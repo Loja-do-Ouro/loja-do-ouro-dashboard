@@ -1,5 +1,6 @@
 import { constantTimeTextEqual } from "@/lib/session";
 import { serverRpc } from "@/lib/support/db";
+import { distillPending } from "@/lib/support/knowledge";
 import { runSync } from "@/lib/support/sync";
 
 export const dynamic = "force-dynamic";
@@ -12,15 +13,23 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || !constantTimeTextEqual(request.headers.get("authorization") || "", `Bearer ${secret}`))
     return new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } });
-  // 60 s de orçamento: com uma última página da Metricool (até 55 s) fica dentro dos 120 s da função.
-  const results = await runSync({ force: true, budgetMs: 60_000 });
+  const started = Date.now();
+  // 60 s de orçamento: com uma última página da Metricool (até 55 s) fica dentro dos 120 s da função. Ao mesmo tempo, a base
+  // de conhecimento aprendida (só com as propostas automáticas ligadas): até 12 conversas, 15 s cada, sem começar chamadas
+  // novas depois dos 90 s.
+  const [results, knowledge] = await Promise.all([
+    runSync({ force: true, budgetMs: 60_000 }),
+    distillPending(started).catch((e) => ({ erro: e instanceof Error ? e.message.slice(0, 200) : "erro" })),
+  ]);
   // Anexos enviados: os bytes apagam-se ao fim de 30 dias (e os nunca enviados ao fim de 1 dia).
   const purged = await serverRpc<number>("ldo_support_uploads_purge").catch(() => null);
   // Pedidos à IA: o registo apaga-se ao fim de 180 dias.
   const aiPurged = await serverRpc<number>("ldo_support_ai_purge").catch(() => null);
   // Revisões da IA antes de enviar (só hashes e totais): apagam-se ao fim de 365 dias.
   const reviewsPurged = await serverRpc<number>("ldo_support_ai_review_purge").catch(() => null);
+  // Base de conhecimento aprendida: registo de pedidos (365 dias), conversas vistas (180), propostas paradas e arquivadas.
+  const knowledgePurged = await serverRpc<number>("ldo_support_knowledge_purge").catch(() => null);
   // Chat do site: tokens de visitantes sem atividade há 180 dias deixam de funcionar.
   const sitePurged = await serverRpc<number>("ldo_support_site_purge").catch(() => null);
-  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged, aiPurged, reviewsPurged, sitePurged }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ ok: results.every((r) => r.ok !== false), results, knowledge, purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged }, { headers: { "Cache-Control": "no-store" } });
 }
