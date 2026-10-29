@@ -226,16 +226,17 @@ type ReviewResult =
   | { id: string; falhou: "timeout" | "erro"; motivo: string }
   // Desligada depois de a página abrir (configuração ou preferência): segue sem revisão e sem aviso.
   | { id: string; falhou: "desligada"; quem: "modo" | "pessoa" };
-// Painel da revisão de uma conversa: fica guardado e volta a aparecer quando se regressa à conversa. A sugestão só segue
-// editada se mudar muito o texto (muda), se não houver diferenças marcadas (longa) ou se passar o limite do comentário.
+// Painel da revisão de uma conversa: fica guardado (também na sessão do browser) e volta a aparecer quando se regressa à
+// conversa; noutra conversa, um aviso no topo lembra-o. A sugestão só segue editada se mudar muito o texto (muda), se não
+// houver diferenças marcadas (longa) ou se passar o limite do comentário. nome: o cliente, para o aviso.
 type ReviewPanel = {
-  id: string; slot: string; body: string; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null;
+  id: string; slot: string; body: string; nome: string; problemas: ReviewProblem[]; sugestao: string | null; descartada: DiscardReason | null;
   diff: DiffOp[] | null; muda: boolean; longa: boolean; limite: number | null; numeros: boolean; ver: "diff" | "sugestao";
 };
 // Um envio com tudo o que é preciso (a conversa pode já não ser a que está aberta). draftWas: o rascunho que o originou,
-// que só se apaga se ainda for esse.
+// que só se apaga se ainda for esse. nome: o cliente, para os avisos fora da conversa.
 type Outgoing = {
-  id: string; which: "reply" | "note"; body: string; uploads: string[]; slot: string; draftWas: string;
+  id: string; which: "reply" | "note"; body: string; uploads: string[]; slot: string; draftWas: string; nome: string;
   review?: ReviewTag; aiDraftId?: string; note?: string;
 };
 const REVIEW_OK = "Resposta revista pela IA e enviada.";
@@ -351,6 +352,13 @@ export function SupportInbox({
   const reviewingRef = useRef(new Set<string>());
   const [reviewPanels, setReviewPanels] = useState<Record<string, ReviewPanel>>({});
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  // Fora da conversa que está aberta: envios que falharam ou ficaram incertos (mostrados ao voltar à conversa) e avisos
+  // de resultado da revisão (desaparecem sozinhos).
+  const [sendFailures, setSendFailures] = useState<Record<string, { nome: string; text: string }>>({});
+  const [toasts, setToasts] = useState<{ key: string; id: string; nome: string; text: string }[]>([]);
+  // Revisões em curso (para as abandonar sem enviar se a página do apoio fechar) e se o componente ainda está montado.
+  const reviewAborts = useRef(new Map<string, () => void>());
+  const alive = useRef(true);
   const [reviewPref, setReviewPref] = useState(review.pref);
   // Modo lido ao abrir a página; passa a "desligada" se o servidor disser que entretanto foi desligada.
   const [reviewMode, setReviewMode] = useState(review.mode);
@@ -406,13 +414,45 @@ export function SupportInbox({
   const continuation = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    alive.current = true;
     setDrafts(loadStored("ldo-support-drafts") as Record<string, { reply: string; note: string }>);
     pendingKey.current = loadStored("ldo-support-pending") as Record<string, { key: string; body: string; review?: ReviewTag }>;
+    // Painéis da revisão por decidir (outra página do painel ou recarregar): voltam, e a resposta não é revista outra vez.
+    const panels: Record<string, ReviewPanel> = {};
+    for (const [id, p] of Object.entries(loadStored("ldo-support-review-panels") as Record<string, ReviewPanel>)) {
+      if (!p || typeof p.id !== "string" || typeof p.slot !== "string" || typeof p.body !== "string") continue;
+      panels[id] = { ...p, nome: p.nome || "cliente", muda: Boolean(p.muda), longa: Boolean(p.longa), limite: p.limite ?? null, problemas: p.problemas || [] };
+      reviewCycle.current[p.slot] = p.id;
+    }
+    setReviewPanels(panels);
+    const aborts = reviewAborts.current;
     return () => {
       if (continuation.current) clearTimeout(continuation.current);
+      // Saiu da página do apoio a meio de uma revisão: não envia nada sozinho (o rascunho fica para enviar de novo).
+      alive.current = false;
+      aborts.forEach((abort) => abort());
     };
   }, []);
   useEffect(() => store("ldo-support-drafts", drafts), [drafts]);
+  useEffect(() => store("ldo-support-review-panels", reviewPanels), [reviewPanels]);
+  // Revisão em curso ou à espera de escolha: fechar ou recarregar a página pede confirmação.
+  const holding = Object.keys(reviewing).length + Object.keys(reviewPanels).length > 0;
+  useEffect(() => {
+    if (!holding) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [holding]);
+  // Um envio que falhou noutra conversa aparece como erro do envio quando se abre essa conversa.
+  useEffect(() => {
+    const f = selected ? sendFailures[selected] : undefined;
+    if (!selected || !f) return;
+    setSendError(f.text);
+    setSendFailures((m) => omit(m, selected));
+  }, [selected, sendFailures]);
   useEffect(() => {
     const saved = loadStored("ldo-support-uploads") as Record<string, Pending[]>;
     setPending(Object.fromEntries(Object.entries(saved).map(([k, list]) => [k, (list || []).map((u) => ({ ...u, preview: null }))])));
@@ -799,9 +839,16 @@ export function SupportInbox({
     pendingKey.current[o.slot] = { key, body: sig, ...(tag ? { review: tag } : {}) };
     store("ldo-support-pending", pendingKey.current);
     const here = () => selectedRef.current === o.id;
+    // Um problema no envio aparece sempre: nesta conversa como erro do envio; noutra, num aviso no topo, com uma marca na
+    // lista, e como erro do envio ao voltar à conversa.
+    const report = (text: string) => {
+      if (here()) setSendError(text);
+      else setSendFailures((f) => ({ ...f, [o.id]: { nome: o.nome, text } }));
+    };
     sendingRef.current.add(o.slot);
     setSendingIds((s) => ({ ...s, [o.slot]: true }));
     if (here()) setSendError("");
+    setSendFailures((f) => omit(f, o.id));
     try {
       const r = await api<{ delivery: Delivery | null; detail?: string | null; repeated: boolean }>(`/api/support/conversations/${o.id}`, {
         method: "POST",
@@ -814,7 +861,7 @@ export function SupportInbox({
       store("ldo-support-pending", pendingKey.current);
       if (r.delivery === "failed") {
         // Falhou com certeza: o texto fica no rascunho para corrigir e voltar a enviar.
-        if (here()) setSendError(r.detail || "O envio falhou. O texto ficou no rascunho.");
+        report(r.detail || "O envio falhou. O texto ficou no rascunho.");
       } else {
         // O rascunho só se apaga se ainda for o texto que originou o envio.
         setDrafts((d) => ((d[o.id]?.[o.which] ?? "").trim() === o.draftWas ? { ...d, [o.id]: { ...(d[o.id] || { reply: "", note: "" }), [o.which]: "" } } : d));
@@ -823,14 +870,21 @@ export function SupportInbox({
         setPending((p) => ({ ...p, [o.slot]: [] }));
         delete reviewCycle.current[o.slot];
         if (o.which === "reply") delete aiDraftRef.current[o.id];
-        if (o.note) setReviewNotes((n) => ({ ...n, [o.id]: o.note! }));
-        if (r.delivery === "uncertain" && here()) setSendError("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
+        if (o.note) {
+          setReviewNotes((n) => ({ ...n, [o.id]: o.note! }));
+          if (!here()) {
+            const key = crypto.randomUUID();
+            setToasts((t) => [...t.slice(-3), { key, id: o.id, nome: o.nome, text: o.note! }]);
+            setTimeout(() => setToasts((t) => t.filter((x) => x.key !== key)), 12000);
+          }
+        }
+        if (r.delivery === "uncertain") report("Resultado incerto: confirme com “Verificar” na mensagem antes de voltar a enviar.");
       }
       if (here()) await loadDetail(o.id);
       loadList();
     } catch (e) {
       // Sem resposta: rascunho e chave mantêm-se; voltar a carregar em Enviar com o mesmo texto não duplica.
-      if (here()) setSendError(`${e instanceof Error ? e.message : "Sem resposta."} O texto ficou no rascunho; pode tentar de novo sem risco de duplicar.`);
+      report(`${e instanceof Error ? e.message : "Sem resposta."} O texto ficou no rascunho; pode tentar de novo sem risco de duplicar.`);
     } finally {
       sendingRef.current.delete(o.slot);
       setSendingIds((s) => omit(s, o.slot));
@@ -845,11 +899,15 @@ export function SupportInbox({
     const { id } = out;
     const reviewId = crypto.randomUUID();
     const controller = new AbortController();
-    const why: { current: "timeout" | "skip" | null } = { current: null };
+    const why: { current: "timeout" | "skip" | "unmount" | null } = { current: null };
     const timer = setTimeout(() => {
       why.current = "timeout";
       controller.abort();
     }, REVIEW_CLIENT_TIMEOUT_MS);
+    reviewAborts.current.set(id, () => {
+      why.current = "unmount";
+      controller.abort();
+    });
     reviewingRef.current.add(id);
     setReviewing((r) => ({ ...r, [id]: { skip: () => { why.current = "skip"; controller.abort(); } } }));
     setReviewNotes((n) => omit(n, id));
@@ -883,7 +941,7 @@ export function SupportInbox({
           setReviewPanels((p) => ({
             ...p,
             [id]: {
-              id: reviewId, slot: out.slot, body: out.body, problemas, sugestao, descartada: r.descartada, diff,
+              id: reviewId, slot: out.slot, body: out.body, nome: out.nome, problemas, sugestao, descartada: r.descartada, diff,
               muda: Boolean(diff) && changedShare(diff!) > REVIEW_MAX_CHANGE,
               longa: Boolean(sugestao) && !diff,
               limite: sugestao && local.limit !== null && sugestao.trim().length > local.limit ? local.limit : null,
@@ -893,14 +951,18 @@ export function SupportInbox({
         }
       }
     } catch {
-      next = why.current === "skip" ? { ...out, review: { id: reviewId, choice: "sem_revisao" } }
+      next = why.current === "unmount" ? null
+        : why.current === "skip" ? { ...out, review: { id: reviewId, choice: "sem_revisao" } }
         : why.current === "timeout" ? { ...out, review: { id: reviewId, choice: "timeout" }, note: REVIEW_TIMEOUT }
         : { ...out, review: { id: reviewId, choice: "erro" }, note: reviewFailed() };
     } finally {
       clearTimeout(timer);
+      reviewAborts.current.delete(id);
       reviewingRef.current.delete(id);
       setReviewing((r) => omit(r, id));
     }
+    // Página do apoio fechada entretanto: nada segue sozinho (o rascunho fica e o envio volta a fazer-se à vista).
+    if (!alive.current) return;
     // Os anexos como estão agora (um anexo retirado durante a revisão não segue).
     if (next) await deliver({ ...next, uploads: (pendingRef.current[out.slot] || []).map((u) => u.id) });
   }
@@ -918,7 +980,7 @@ export function SupportInbox({
     if (body !== p.body) setDraft(id, "reply", body);
     const aiDraft = aiDraftRef.current[id];
     deliver({
-      id, which: "reply", body, uploads: (pendingRef.current[p.slot] || []).map((u) => u.id), slot: p.slot, draftWas: body,
+      id, which: "reply", body, uploads: (pendingRef.current[p.slot] || []).map((u) => u.id), slot: p.slot, draftWas: body, nome: p.nome,
       review: { id: p.id }, ...(aiDraft && draftStillUsed(aiDraft.text, body) ? { aiDraftId: aiDraft.id } : {}),
     });
   }
@@ -964,7 +1026,7 @@ export function SupportInbox({
     const reviewed = reviewCycle.current[slot];
     // A resposta só fica ligada à proposta da IA se ainda a tiver (igual, acrescentada ou com poucas alterações).
     const out: Outgoing = {
-      id, which, body, uploads, slot, draftWas: body,
+      id, which, body, uploads, slot, draftWas: body, nome: c.contact?.name || c.contact?.handle || c.contact?.email || "cliente",
       ...(reviewed ? { review: { id: reviewed } } : {}), ...(aiDraft && draftStillUsed(aiDraft.text, body) ? { aiDraftId: aiDraft.id } : {}),
     };
     if (shouldReview({ which, mode: reviewMode, pref: reviewPref, body, retry, aiDraft: aiDraft?.text ?? null, reviewed: Boolean(reviewed) }))
@@ -1074,6 +1136,30 @@ export function SupportInbox({
     <div className={`support-app show-${pane}`}>
       {flash.ok && <div role="status" className="notice ok-notice support-flash">{flash.ok}</div>}
       {flash.error && <div role="alert" className="notice error-notice support-flash">{flash.error}</div>}
+      {/* Respostas noutras conversas (ou no separador da nota interna): envio com problema, revisão à espera da escolha e
+          resultado da revisão. Nunca ficam só dentro de uma conversa que já não está à vista. */}
+      {(Object.keys(sendFailures).length > 0 || Object.keys(reviewPanels).length > 0 || toasts.length > 0) && (
+        <ul className="review-alerts" aria-label="Respostas noutras conversas">
+          {Object.entries(sendFailures).filter(([id]) => id !== selected).map(([id, f]) => (
+            <li key={`f-${id}`} className="notice error-notice" role="alert">
+              <span><strong>{f.nome}</strong> — {f.text}</span>
+              <button type="button" className="secondary-button" onClick={() => open(id)}>Abrir conversa</button>
+            </li>
+          ))}
+          {Object.entries(reviewPanels).filter(([id]) => id !== selected || mode !== "reply").map(([id, p]) => (
+            <li key={`p-${id}`} className="notice" role="alert">
+              <span><strong>{p.nome}</strong> — a resposta ainda não foi enviada: a IA sugere melhorias e espera a sua escolha.</span>
+              <button type="button" className="secondary-button" onClick={() => { open(id); setMode("reply"); }}>Ver a revisão</button>
+            </li>
+          ))}
+          {toasts.filter((t) => t.id !== selected).map((t) => (
+            <li key={t.key} className="notice ok-notice" role="status">
+              <span><strong>{t.nome}</strong> — {t.text}</span>
+              <button type="button" className="secondary-button" aria-label="Fechar aviso" onClick={() => setToasts((x) => x.filter((y) => y.key !== t.key))}>✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="support-sources" aria-label="Estado dos canais">
         {sourceChips.map((s) => (
           <span key={s.id} className={`source-chip ${s.status}`} title={s.title}>
@@ -1144,7 +1230,9 @@ export function SupportInbox({
                     <span className={`status-badge ${i.status}`}>{STATUS_LABEL[i.status]}</span>
                     {i.auto && <span className="status-badge auto">Tratada automaticamente</span>}
                     {i.unread > 0 && <b className="unread-badge" aria-label={`${i.unread} não lidas`}>{i.unread}</b>}
-                    {i.attention && <span className="attention" title="Envio falhado, incerto ou por concluir">!</span>}
+                    {reviewing[i.id] && <span className="status-badge review">A rever com a IA…</span>}
+                    {reviewPanels[i.id] && <span className="status-badge review">Revisão por decidir</span>}
+                    {(i.attention || sendFailures[i.id]) && <span className="attention" title={sendFailures[i.id]?.text || "Envio falhado, incerto ou por concluir"}>!</span>}
                   </span>
                   <span className="support-item-preview">
                     {i.last_direction === "outbound" ? "Nós: " : ""}

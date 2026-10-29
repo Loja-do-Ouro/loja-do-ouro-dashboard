@@ -4215,6 +4215,12 @@ textarea:focus-visible,
 .review-diff ins { color: var(--green); background: #e7f2ec; text-decoration: underline; }
 .review-warning { margin: 0; color: #7a5f33; background: #fff8e6; border-radius: 6px; padding: 5px 8px; font-size: 12px; }
 .review-running { margin-right: auto; color: #6d6150; font-size: 12.5px; }
+/* Respostas noutras conversas: avisos no topo do apoio e marca na lista. */
+.review-alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.review-alerts .notice { margin: 0; padding: 8px 12px; flex-wrap: wrap; font-size: 12.5px; }
+.review-alerts .notice > span { flex: 1 1 240px; }
+.review-alerts button { padding: 4px 10px; font-size: 12px; }
+.status-badge.review { background: var(--gold-soft); color: #7a5f33; border-color: #eadcc4; }
 .composer-actions .support-note { margin: 0; margin-right: auto; }
 .review-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 8px; font-weight: 600; }
 .review-toggle input { margin: 0; }

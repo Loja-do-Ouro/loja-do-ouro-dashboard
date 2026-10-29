@@ -388,6 +388,25 @@ test("The composer texts of the review are the agreed ones", () => {
   assert.ok(!read("lib/support/review.ts").includes("(HTTP "), "sem parênteses dentro de parênteses");
 });
 
+test("A reply reviewed in the background never ends up invisible, lost or sent twice", () => {
+  const inbox = read("components/support/inbox.tsx");
+  const deliver = inbox.slice(inbox.indexOf("async function deliver("), inbox.indexOf("async function runReview("));
+  // Falhas e resultados incertos noutra conversa: aviso no topo, marca na lista e erro do envio ao voltar.
+  assert.ok(deliver.includes("else setSendFailures((f) => ({ ...f, [o.id]: { nome: o.nome, text } }));"));
+  assert.ok(!/if \(here\(\)\) setSendError\(r\.detail|&& here\(\)\) setSendError\("Resultado incerto/.test(deliver));
+  assert.equal((deliver.match(/report\(/g) || []).length, 3);
+  assert.ok(inbox.includes('className="review-alerts"') && inbox.includes("a resposta ainda não foi enviada: a IA sugere melhorias e espera a sua escolha."));
+  assert.ok(inbox.includes("Revisão por decidir") && inbox.includes("(i.attention || sendFailures[i.id])"));
+  assert.ok(deliver.includes("setToasts("), "resultado da revisão noutra conversa");
+  // Painéis guardados na sessão do browser; fechar ou recarregar com revisões pendentes pede confirmação.
+  assert.ok(inbox.includes('store("ldo-support-review-panels", reviewPanels)') && inbox.includes('loadStored("ldo-support-review-panels")'));
+  assert.ok(inbox.includes('window.addEventListener("beforeunload", warn)'));
+  // Ao sair da página do apoio, a revisão em curso é abandonada sem enviar (nunca um segundo envio com outra chave).
+  const run = inbox.slice(inbox.indexOf("async function runReview("), inbox.indexOf("// Painel da revisão: a escolha"));
+  assert.ok(run.includes('next = why.current === "unmount" ? null') && run.includes("if (!alive.current) return;"));
+  assert.ok(inbox.includes("aborts.forEach((abort) => abort());"));
+});
+
 test("During the review nothing changes the reply behind the colleague's back", () => {
   const inbox = read("components/support/inbox.tsx");
   const run = inbox.slice(inbox.indexOf("async function runReview("), inbox.indexOf("// Painel da revisão: a escolha"));
