@@ -70,7 +70,7 @@ export const KNOWLEDGE_DISCARD_TEXT: Record<KnowledgeDiscard, string> = {
   dados_pessoais: "tinha dados pessoais ou de encomenda (nomes, contactos, moradas, perfis, códigos, números, ligações de conta)",
   numero_novo: "tinha números, valores, horas, prazos ou códigos que a equipa não escreveu nesta conversa nem estão na base de conhecimento (ou horas por outra ordem)",
   ligacao_nova: "tinha ligações que a equipa não enviou nesta conversa nem estão na base de conhecimento",
-  politica_nova: "tinha compromissos (reembolso, troca, desconto, garantia, prazo…) que a equipa não escreveu nesta conversa, ou com o sentido trocado (\"fazemos\" onde a equipa escreveu \"não fazemos\", ou o contrário; da base de conhecimento só contam com os mesmos números do mesmo parágrafo)",
+  politica_nova: "tinha compromissos (reembolso, troca, desconto, garantia, prazo…) que a equipa não escreveu nesta conversa numa frase com o mesmo sentido e as mesmas condições (\"fazemos\" onde a equipa escreveu \"não fazemos\" ou \"não é possível\", uma negação a mais ou a menos na frase, ou sem o \"só\", \"exceto\", \"se\" ou \"desde que\" da equipa; da base de conhecimento só contam com os mesmos números do mesmo parágrafo)",
   contacto_novo: "tinha contactos que a equipa não escreveu nesta conversa nem estão na base de conhecimento",
   copia_cliente: "copiava texto da mensagem do cliente",
   marca: "mencionava a outra marca",
@@ -646,53 +646,154 @@ export function numbersInStaffText(answer: string, staff: string, knowledge = ""
   return unsupportedFacts(answer, [...units(staff), ...units(knowledge)]).filter((k) => !/^[cue]:/.test(k));
 }
 
-// Negação antes de um compromisso: "não", "nem", "nunca", "sem"… até 3 palavras antes, na mesma oração (uma vírgula ou um
-// ponto separam), sem contar artigos e preposições ("não é possível o reembolso", "sem direito a reembolso", "não fazemos
-// descontos nem reembolsos"). "no" é português (em + o), nunca a negação inglesa.
-const NEGATORS = new Set(["não", "nao", "nem", "nunca", "jamais", "sem", "nenhum", "nenhuma", "not", "never", "without", "nor", "don't", "doesn't",
+// Compromissos com o sentido e as condições, frase a frase (falha fechada: na dúvida, o cartão é retirado).
+// Palavras que negam. "no" é português (em + o), nunca a negação inglesa.
+const NEGATORS = new Set(["não", "nao", "nem", "nunca", "jamais", "sem", "nenhum", "nenhuma", "nenhuns", "nenhumas", "nada", "impossível",
+  "impossivel", "impossíveis", "inviável", "indisponível", "indisponivel", "indisponíveis", "not", "never", "without", "nor", "don't", "doesn't",
   "didn't", "cannot", "can't", "won't", "isn't", "aren't"]);
+// Artigos, preposições e pronomes átonos: não contam entre a negação e o compromisso.
 const NEGATION_FILLERS = new Set(["o", "a", "os", "as", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das", "ao", "à", "aos", "às", "em", "no",
-  "na", "nos", "nas", "qualquer", "quaisquer", "the", "an", "any"]);
-function negatedAt(text: string, at: number) {
-  const clause = text.slice(0, at).split(/[.,;:!?…\n()]/).pop() || "";
-  const words = (clause.toLowerCase().replace(/’/g, "'").match(/[\p{L}']+/gu) || []).filter((w) => !NEGATION_FILLERS.has(w));
-  return words.slice(-3).some((w) => NEGATORS.has(w));
+  "na", "nos", "nas", "num", "numa", "qualquer", "quaisquer", "lhe", "lhes", "me", "vos", "the", "an", "any"]);
+// Verbos e palavras que podem ficar entre a negação e o compromisso sem mudar o que é negado ("não é possível fazer o
+// reembolso", "sem direito a reembolso", "o reembolso não é feito").
+const NEGATION_LIGHT = new Set(["é", "são", "foi", "foram", "será", "serão", "seja", "sejam", "está", "estão", "ser", "estar", "possível",
+  "possíveis", "possivel", "fazemos", "fazer", "faz", "fazem", "feito", "feita", "feitos", "feitas", "podemos", "pode", "podem", "poder", "posso",
+  "conseguimos", "consegue", "conseguem", "conseguir", "aceitamos", "aceita", "aceitam", "aceitar", "aceite", "aceites", "damos", "dá", "dão",
+  "dar", "oferecemos", "oferece", "oferecem", "oferecer", "efetuamos", "efetua", "efetuam", "efetuar", "realizamos", "realiza", "realizam",
+  "realizar", "temos", "tem", "têm", "ter", "há", "haver", "existe", "existem", "disponível", "disponíveis", "disponibilizamos", "dispomos",
+  "direito", "possibilidade", "lugar", "aplicamos", "aplica", "aplicam", "aplicável", "offer", "offers", "provide", "provides", "accept",
+  "accepts", "do", "does", "give", "gives", "issue", "make", "is", "are", "be", "possible", "available", "have", "has"]);
+// Palavras que abrem outra oração ou outro elemento depois do compromisso ("fazemos o reembolso se não gostar": a negação
+// é da condição; "não fazemos descontos nem reembolsos": o "nem" já é do reembolso).
+const NEGATION_STOPS = new Set(["e", "ou", "nem", "nor", "mas", "se", "caso", "que", "quando", "porque", "pois", "embora", "porém", "contudo", "exceto",
+  "excepto", "salvo", "desde", "mediante", "só", "apenas", "somente", "and", "or", "but", "if", "unless", "when"]);
+// Condições e restrições que o cartão tem de manter ("só", "apenas", "exceto", "se", "desde que", "mediante", "com talão"…).
+const RESTRICTORS = new Map<string, string>([
+  ["só", "só"], ["apenas", "apenas"], ["somente", "somente"], ["unicamente", "unicamente"], ["exclusivamente", "exclusivamente"],
+  ["exceto", "exceto"], ["excepto", "exceto"], ["exceção", "exceção"], ["exceções", "exceção"], ["excepção", "exceção"], ["salvo", "salvo"],
+  ["se", "se"], ["caso", "caso"], ["mediante", "mediante"], ["sujeito", "sujeito"], ["sujeita", "sujeito"], ["sujeitos", "sujeito"],
+  ["sujeitas", "sujeito"], ["condição", "condição"], ["condições", "condição"], ["talão", "talão"], ["talões", "talão"], ["fatura", "fatura"],
+  ["faturas", "fatura"], ["factura", "fatura"], ["facturas", "fatura"], ["recibo", "recibo"], ["recibos", "recibo"], ["comprovativo", "comprovativo"],
+  ["comprovativos", "comprovativo"], ["only", "só"], ["except", "exceto"], ["unless", "se"], ["if", "se"], ["receipt", "talão"],
+]);
+// Palavras sem conteúdo próprio para comparar duas frases sobre o mesmo compromisso.
+const OVERLAP_STOP = new Set(["também", "ainda", "sempre", "muito", "muita", "muitos", "muitas", "mais", "menos", "todas", "todos", "toda", "todo",
+  "nossa", "nosso", "nossas", "nossos", "esta", "este", "estas", "estes", "essa", "esse", "essas", "esses", "para", "pela", "pelo", "pelas", "pelos",
+  "como", "quando", "onde", "cliente", "clientes", "loja", "lojas", "infelizmente", "lamentamos", "informamos", "agradecemos", "obrigado",
+  "obrigada", "favor", "desde", "durante", "após", "antes", "depois", "até", "cerca", "mesmo", "mesma", "outro", "outra", "outros", "outras",
+  "sobre", "entre", "dias", "anos", "meses", "semanas", "horas", "minutos"]);
+const TOKEN_RE = /[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*|[,;:?!.()—–]/gu;
+const PUNCT = /^[,;:?!.()—–]$/;
+export type CommitmentSense = "sim" | "não" | "ambíguo";
+type CommitmentUse = { key: string; sentido: CommitmentSense; condicoes: string; palavras: Set<string> };
+
+// Frases de um texto para os compromissos: "Reembolsos? Não." e "Fazem trocas? Nunca." ficam juntas.
+const commitmentSentences = (text: string) =>
+  (text || "").split(/(?<=[.;…])\s+|(?<=[!?])\s+(?!(?:não|nao|nunca|jamais)(?!\p{L}))|\n+/iu).map((s) => s.trim()).filter(Boolean);
+
+// Cada compromisso de uma frase com o sentido, as condições e as palavras da frase:
+// - "sim": a frase não tem nenhuma negação (fora do próprio compromisso, como em "sem custos");
+// - "não": uma negação rege o compromisso só de um lado: antes, com só artigos, verbos como "fazemos" ou "é possível" e
+//   outros compromissos pelo meio ("não fazemos reembolsos", "não é possível fazer o reembolso", "nem descontos", "sem
+//   direito a reembolso"), ou depois, na mesma oração ("o reembolso não é possível", "a garantia de 2 anos não cobre",
+//   "desconto não disponível", "Reembolsos, não.", "Reembolsos? Não fazemos.");
+// - "ambíguo": a frase tem uma negação que não rege o compromisso ("Se não gostar, fazemos o reembolso", "Não, em caso
+//   algum, fazemos reembolsos") ou que o rege dos dois lados ("Não fazemos reembolso sem talão").
+function sentenceCommitments(s: string): CommitmentUse[] {
+  const hits = commitmentHits(s);
+  if (!hits.length) return [];
+  const toks = [...s.matchAll(TOKEN_RE)].map((m) => {
+    const at = m.index ?? 0;
+    return { t: m[0].toLowerCase().replace(/’/g, "'"), at, end: at + m[0].length, hit: hits.some((h) => at >= h.at && at < h.end) };
+  });
+  const neg = (x: (typeof toks)[number]) => !x.hit && NEGATORS.has(x.t);
+  const anyNeg = toks.some(neg);
+  const conds = new Set<string>();
+  toks.forEach((x, i) => {
+    if (x.hit) return;
+    const r = RESTRICTORS.get(x.t);
+    if (r) conds.add(r);
+    if (x.t === "desde" && toks[i + 1]?.t === "que") conds.add("desde que");
+  });
+  const palavras = new Set(toks.filter((x) => !x.hit && x.t.length >= 4 && /^\p{L}/u.test(x.t) && !NEGATORS.has(x.t) && !NEGATION_FILLERS.has(x.t)
+    && !NEGATION_LIGHT.has(x.t) && !NEGATION_STOPS.has(x.t) && !RESTRICTORS.has(x.t) && !OVERLAP_STOP.has(x.t)).map((x) => x.t));
+  const condicoes = [...conds].sort().join("|");
+  return hits.map((h) => {
+    if (!anyNeg) return { key: h.key, sentido: "sim" as const, condicoes, palavras };
+    const before = toks.filter((x) => x.end <= h.at), after = toks.filter((x) => x.at >= h.end);
+    let antes = false, light = 0;
+    for (let i = before.length - 1; i >= 0; i--) {
+      const x = before[i];
+      if (x.hit) continue;
+      if (neg(x)) {
+        antes = true;
+        break;
+      }
+      if (NEGATION_FILLERS.has(x.t) || /^\d/.test(x.t)) continue;
+      if ((x.t === "e" || x.t === "ou") && before[i - 1]?.hit) continue;
+      if (NEGATION_LIGHT.has(x.t) && ++light <= 4) continue;
+      break;
+    }
+    let depois = false;
+    const [p, n, nn] = after;
+    if (p && /^[,?:!—–]$/.test(p.t) && n && neg(n) && (!nn || PUNCT.test(nn.t) || NEGATION_LIGHT.has(nn.t))) depois = true;
+    let loose = 0, light2 = 0;
+    for (const x of depois ? [] : after) {
+      if (x.hit || PUNCT.test(x.t) || NEGATION_STOPS.has(x.t)) break;
+      if (neg(x)) {
+        depois = true;
+        break;
+      }
+      if (NEGATION_FILLERS.has(x.t) || /^\d/.test(x.t)) continue;
+      if (NEGATION_LIGHT.has(x.t) && ++light2 <= 3) continue;
+      if (++loose > 1) break;
+    }
+    return { key: h.key, sentido: antes !== depois ? ("não" as const) : ("ambíguo" as const), condicoes, palavras };
+  });
 }
-// Compromissos de um texto com o sentido: "reembolso|sim" (fazemos reembolsos) ou "reembolso|não" (não fazemos).
+const commitmentsOf = (text: string) => commitmentSentences(text).flatMap(sentenceCommitments);
+
+// Compromissos de um texto com o sentido: "reembolso|sim" (fazemos reembolsos), "reembolso|não" (não fazemos) ou
+// "reembolso|ambíguo" (a frase tem uma negação que não é claramente deste compromisso).
 export function commitmentPolarity(text: string) {
-  return [...new Set(commitmentHits(text).map((h) => `${h.key}|${negatedAt(text, h.at) ? "não" : "sim"}`))];
+  return [...new Set(commitmentsOf(text).map((c) => `${c.key}|${c.sentido}`))];
 }
 
 // Contra o envenenamento: cada número (com o contexto), código, ligação e contacto do texto tem de estar numa resposta da
-// equipa enviada pelo dashboard nesta conversa ou na base de conhecimento escrita pela empresa. Os compromissos
-// (reembolso, desconto, prazo…) têm de estar nas respostas da equipa com o mesmo sentido ("não fazemos reembolsos" não
-// confirma "fazemos reembolso"); da base de conhecimento só contam numa frase com números, todos do mesmo parágrafo que
-// tem o compromisso com o mesmo sentido. question: pergunta e variantes, onde um compromisso é só o tema da pergunta
-// ("Fazem reembolsos?").
+// equipa enviada pelo dashboard nesta conversa ou na base de conhecimento escrita pela empresa. Cada compromisso
+// (reembolso, desconto, prazo…) de cada frase tem de estar numa frase das respostas da equipa com o mesmo sentido (sim,
+// não ou ambíguo, acima) e as mesmas condições ("só", "apenas", "exceto", "se", "desde que", "mediante", "com talão"…); da
+// base de conhecimento só conta numa frase com o mesmo sentido e as mesmas condições, num parágrafo com todos os números
+// da frase do cartão. E nenhuma frase das fontes com o mesmo compromisso noutro sentido pode ter palavras da frase do
+// cartão que a frase que a confirma não tem ("A garantia não cobre riscos" não deixa passar "A garantia cobre riscos
+// durante 2 anos", mesmo com "Garantia de 2 anos" ao lado). question: pergunta e variantes, onde um compromisso é só o
+// tema da pergunta ("Fazem reembolsos?").
 export function poisonReason(o: { text: string; staff: string; knowledge: string; question?: boolean }): KnowledgeDiscard | null {
   const trusted = `${o.staff}\n${o.knowledge}`;
   const emails = new Set((trusted.match(EMAIL_RE) || []).map((e) => e.toLowerCase()));
   if ((o.text.match(EMAIL_RE) || []).some((e) => !emails.has(e.toLowerCase()))) return "contacto_novo";
   if (unverifiedLinks(o.text, trusted).length || newLinks(o.text, trusted).length) return "ligacao_nova";
-  const withoutLinks = linkList(o.text).reduce((t, u) => t.split(u).join(" "), o.text);
+  const noLinks = (t: string) => linkList(t).reduce((acc, u) => acc.split(u).join(" "), t);
+  const withoutLinks = noLinks(o.text);
   const paragraphs = units(o.knowledge);
   if (unsupportedFacts(withoutLinks, [...units(o.staff), ...paragraphs]).length) return "numero_novo";
   if (o.question) return null;
-  const promised = new Set(commitmentPolarity(o.staff));
-  const sentences = withoutLinks.split(/(?<=[.!?;])\s+|\n+/).filter((s) => s.trim());
-  for (const c of commitmentPolarity(withoutLinks)) {
-    if (promised.has(c)) continue;
-    const hits = sentences.filter((s) => commitmentPolarity(s).includes(c));
-    const backed = hits.length > 0 && hits.every((s) => {
-      const nums = [...textFacts(s, true).keys].filter((k) => /^[tpmsn]:/.test(k));
-      return nums.length > 0 && paragraphs.some((p) => {
-        // Os títulos ("## Trocas e devoluções") são o tema, não um compromisso.
-        if (!commitmentPolarity(p.replace(/^#.*$/gm, "")).includes(c)) return false;
-        const pk = textFacts(p, false).keys;
-        return nums.every((k) => pk.has(k));
-      });
-    });
-    if (!backed) return "politica_nova";
+  // Fontes sem ligações (um ".../pages/trocas" não é um compromisso) e sem os títulos da base ("## Devoluções" é o tema).
+  const staff = units(o.staff).flatMap((u) => commitmentsOf(noLinks(u)));
+  const kb = paragraphs.map((p) => ({ keys: textFacts(p, false).keys, uses: commitmentsOf(noLinks(p.replace(/^#.*$/gm, ""))) }));
+  for (const s of commitmentSentences(withoutLinks)) {
+    const nums = [...textFacts(s, true).keys].filter((k) => /^[tpmsn]:/.test(k));
+    for (const c of sentenceCommitments(s)) {
+      const same = (u: CommitmentUse) => u.key === c.key && u.sentido === c.sentido && u.condicoes === c.condicoes;
+      const matches = [
+        ...staff.filter(same),
+        ...(nums.length ? kb.filter((p) => nums.every((k) => p.keys.has(k))).flatMap((p) => p.uses.filter(same)) : []),
+      ];
+      if (!matches.length) return "politica_nova";
+      const explained = new Set(matches.flatMap((u) => [...u.palavras]));
+      const opposite = [...staff, ...kb.flatMap((p) => p.uses)].filter((u) => u.key === c.key && u.sentido !== c.sentido);
+      if (opposite.some((u) => [...c.palavras].some((w) => u.palavras.has(w) && !explained.has(w)))) return "politica_nova";
+    }
   }
   return null;
 }

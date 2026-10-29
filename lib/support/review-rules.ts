@@ -270,12 +270,13 @@ const COMMITMENTS: [string, RegExp][] = [
 export function commitmentsIn(text: string) {
   return COMMITMENTS.filter(([, r]) => r.test(text || "")).map(([key]) => key);
 }
-// Cada compromisso de um texto com a posição (a base de conhecimento aprendida vê se está negado: "não fazemos
-// reembolsos" não é "fazemos reembolsos").
+// Cada compromisso de um texto com o início e o fim (a base de conhecimento aprendida vê se está negado: "não fazemos
+// reembolsos" não é "fazemos reembolsos", nem "o reembolso não é possível").
 const COMMITMENTS_ALL = COMMITMENTS.map(([key, r]): [string, RegExp] => [key, new RegExp(r.source, `${r.flags}g`)]);
 export function commitmentHits(text: string) {
-  const out: { key: string; at: number }[] = [];
-  for (const [key, r] of COMMITMENTS_ALL) for (const m of (text || "").matchAll(r)) out.push({ key, at: m.index ?? 0 });
+  const out: { key: string; at: number; end: number }[] = [];
+  for (const [key, r] of COMMITMENTS_ALL)
+    for (const m of (text || "").matchAll(r)) out.push({ key, at: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
   return out;
 }
 

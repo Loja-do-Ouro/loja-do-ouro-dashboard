@@ -238,6 +238,61 @@ test("Anti-poisoning: a commitment must keep the team's polarity (negations não
   assert.deepEqual(k.commitmentPolarity("We don't offer any refunds."), ["reembolso|não"]);
 });
 
+test("Anti-poisoning: polarity per sentence fails closed (negation after the keyword, far from it, across commas) and conditions are kept", () => {
+  // [o que a equipa escreveu, o cartão]: retirado nos dois sentidos.
+  const flips = [
+    ["Lamentamos, mas não é possível fazer o reembolso do valor pago.", "Fazemos o reembolso do valor pago."],
+    ["Não é possível dar desconto.", "Damos desconto."],
+    ["A garantia não cobre quedas.", "A garantia cobre quedas."],
+    ["Infelizmente a troca não é possível.", "Fazemos troca."],
+    ["Não, em caso algum, fazemos reembolsos.", "Fazemos reembolsos."],
+    ["Fazemos a troca da peça.", "A troca não é possível."],
+    ["Fazemos o reembolso.", "Não é possível fazer o reembolso."],
+    ["O reembolso não é possível.", "O reembolso é possível."],
+    ["Reembolsos não são feitos.", "Reembolsos são feitos."],
+    ["A garantia não cobre riscos.", "A garantia cobre riscos."],
+    ["Desconto não disponível.", "Desconto disponível."],
+    ["Fazemos descontos. Reembolsos, não.", "Fazemos descontos e reembolsos."],
+    ["Não fazemos reembolso sem talão.", "Fazemos reembolso sem talão."],
+    ["Fazemos o reembolso se não gostar.", "Não fazemos o reembolso se gostar."],
+    ["Fazemos trocas e não fazemos reembolsos.", "Não fazemos trocas e não fazemos reembolsos."],
+    ["Fazemos trocas, não reembolsos.", "Não fazemos trocas."],
+    ["Não fazemos descontos em peças de ouro. Fazemos descontos em relógios.", "Fazemos descontos em peças de ouro."],
+  ];
+  for (const [staff, text] of flips) {
+    assert.equal(k.poisonReason({ text, staff, knowledge: "" }), "politica_nova", `${staff} → ${text}`);
+    assert.equal(k.poisonReason({ text: staff, staff: text, knowledge: "" }), "politica_nova", `${text} → ${staff}`);
+  }
+  // Condições que o cartão deixou cair (ou trocou): retirado.
+  for (const [staff, text] of [
+    ["Só fazemos reembolso se a peça vier com defeito.", "Fazemos reembolso."],
+    ["Aceitamos devoluções, exceto de peças gravadas.", "Aceitamos devoluções de peças gravadas."],
+    ["Fazemos reembolso apenas com talão.", "Fazemos reembolso sem talão."],
+    ["Pode trocar a peça no prazo de 30 dias, desde que tenha o talão.", "Pode trocar a peça no prazo de 30 dias."],
+  ]) assert.equal(k.poisonReason({ text, staff, knowledge: "" }), "politica_nova", `${staff} → ${text}`);
+  // Da base de conhecimento: a frase com o mesmo sentido não chega se outra frase sobre o mesmo compromisso disser o
+  // contrário do que o cartão acrescenta.
+  const kb = "## Garantia\nGarantia de 2 anos. A garantia não cobre riscos nem quedas.";
+  assert.equal(k.poisonReason({ text: "A garantia cobre riscos durante 2 anos.", staff: "", knowledge: kb }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "A garantia não cobre riscos durante 2 anos.", staff: "", knowledge: "## Garantia\nGarantia de 2 anos. A garantia cobre riscos." }), "politica_nova");
+  assert.equal(k.poisonReason({ text: "Tem garantia de 2 anos.", staff: "", knowledge: kb }), null);
+  // O mesmo sentido e as mesmas condições passam.
+  for (const [staff, text] of [
+    ["Só fazemos reembolso se a peça vier com defeito.", "Só fazemos reembolso se a peça vier com defeito."],
+    ["Aceitamos devoluções, exceto de peças gravadas.", "Aceitamos devoluções, exceto de peças gravadas."],
+    ["Pode trocar a peça no prazo de 30 dias, desde que tenha o talão.", "Pode trocar a peça no prazo de 30 dias, desde que tenha o talão."],
+    ["Fazemos trocas em 30 dias. Não fazemos trocas de peças gravadas.", "Fazemos trocas em 30 dias."],
+    ["Reembolsos? Não fazemos.", "Não fazemos reembolsos."],
+    ["O reembolso não é possível.", "Não fazemos reembolsos."],
+  ]) assert.equal(k.poisonReason({ text, staff, knowledge: "" }), null, `${staff} → ${text}`);
+  assert.equal(k.poisonReason({ text: "Fazemos trocas de peças gravadas em 30 dias.", staff: "Fazemos trocas em 30 dias. Não fazemos trocas de peças gravadas.", knowledge: "" }),
+    "politica_nova");
+  // Uma ligação da equipa não confirma um compromisso (".../pages/trocas").
+  assert.equal(k.poisonReason({ text: "Fazemos trocas.", staff: "Veja https://www.lojadoouro.pt/pages/trocas", knowledge: "" }), "politica_nova");
+  assert.deepEqual(k.commitmentPolarity("Se não gostar, fazemos o reembolso.").sort(), ["reembolso|ambíguo"]);
+  assert.deepEqual(k.commitmentPolarity("Reembolsos? Não.").sort(), ["reembolso|não"]);
+});
+
 test("Customer messages are never copied: 12 words in a row from an inbound message discard the card", () => {
   const inbound = ["Boa tarde comprei um fio para a minha mãe no dia dos namorados e partiu-se ontem à noite"];
   assert.equal(k.copiesCustomer(["Comprei um fio para a minha mãe no dia dos namorados e partiu-se ontem"], inbound), true);
