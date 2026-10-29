@@ -173,12 +173,13 @@ export function otherBrandIn(draft: string, site: SiteKey) {
 }
 
 // Preços por milhão de tokens (US$): entrada, saída, leitura de cache, escrita de cache 5 min e 1 h.
-// Estimativa: a fatura da Anthropic é a referência.
+// Estimativa: a fatura da Anthropic é a referência. Claude Haiku 5.5: preços até 100 mil tokens de entrada (acima, 5×).
 const PRICES: Record<string, [number, number, number, number, number]> = {
   "claude-opus-5-5": [4, 20, 0.2, 5, 8],
   "claude-opus-5": [5, 25, 0.5, 6.25, 10],
   "claude-opus-4-8": [5, 25, 0.5, 6.25, 10],
   "claude-sonnet-5-5": [2, 10, 0.2, 2.5, 4],
+  "claude-haiku-5-5": [0.1, 0.5, 0.01, 0.125, 0.2],
 };
 export type UsagePart = {
   model?: string | null;

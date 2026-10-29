@@ -29,9 +29,11 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
   const viewer = await requireViewer();
   if (!canSupport(viewer)) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
   const q = await searchParams;
-  const [users, off] = await Promise.all([
+  const [users, off, prefs] = await Promise.all([
     sessionRpc<{ id: string; zendesk: boolean; zendesk_name: string | null; zendesk_status: string | null }[]>(viewer.session, "ldo_support_users"),
     zendeskOff(),
+    // Revisão da IA antes de enviar: sem a migração (ou com a BD a falhar) fica desligada.
+    sessionRpc<{ ai_review: boolean; review_mode: string }>(viewer.session, "ldo_support_user_prefs").catch(() => null),
   ]);
   const mine = users.find((u) => u.id === viewer.id);
   const key = typeof q.zendesk === "string" ? q.zendesk : "";
@@ -51,6 +53,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         myZendesk={{ connected: Boolean(mine?.zendesk), name: mine?.zendesk_name || null, status: mine?.zendesk_status || null }}
         flash={flash}
         initialConversation={isUuid(q.conversa) ? q.conversa : null}
+        review={{ mode: prefs?.review_mode || "desligada", pref: prefs?.ai_review ?? true }}
       />
     </AppShell>
   );
