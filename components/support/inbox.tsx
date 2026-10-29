@@ -16,6 +16,7 @@ import {
   gmailThreadLink,
   DELIVERY_LABEL,
   historyDateLabel,
+  historySplit,
   LOCALE_LABEL,
   orderNumbersIn,
   previewKind,
@@ -24,7 +25,6 @@ import {
   siteRootUrl,
   STATUSES,
   STATUS_LABEL,
-  visibleSince,
   visitorSite,
   type Channel,
   type Delivery,
@@ -790,11 +790,11 @@ export function SupportInbox({
     const events: Row[] = c.audit.filter((a) => THREAD_EVENTS.has(a.action)).map((a, i) => ({ key: `ev-${i}-${a.created_at}`, at: a.created_at, event: a }));
     const messages: Row[] = c.messages.map((m) => ({ key: m.id, at: m.created_at, message: m }));
     const rows = [...messages, ...events].sort((x, y) => x.at.localeCompare(y.at));
-    const recent = new Set(visibleSince(c.messages, c.history_from));
-    if (recent.size === c.messages.length) return rows;
-    const older = rows.filter((r) => r.message && !recent.has(r.message));
-    const divider: Row = { key: "historico", at: c.history_from!, older: older.length };
-    const rest = rows.filter((r) => !r.message || recent.has(r.message));
+    // Antes da data vão também as mudanças de responsável (a ordem de hora mantém-se); o separador conta só as mensagens.
+    const { older, rest } = historySplit(rows, c.history_from);
+    const n = older.filter((r) => r.message).length;
+    if (!n) return rows;
+    const divider: Row = { key: "historico", at: c.history_from!, older: n };
     return olderOpen ? [...older, divider, ...rest] : [divider, ...rest];
   }, [c, olderOpen]);
   const sources = list?.sources || [];
@@ -932,7 +932,7 @@ export function SupportInbox({
             ))}
           </ul>
           {list && !list.items.length && <p className="support-empty">Sem conversas com estes filtros.</p>}
-          {historySince && <p className="support-history-note">A mostrar conversas com atividade desde {historySince}.</p>}
+          {historySince && <p className="support-history-note">A mostrar conversas com atividade desde {historySince} e as que estão por resolver.</p>}
         </section>
 
         <section className="support-conversation" aria-label="Conversa">

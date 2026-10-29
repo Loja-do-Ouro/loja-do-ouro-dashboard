@@ -388,6 +388,15 @@ export function visibleSince<T extends { created_at: string }>(messages: T[], fr
   return messages.filter((m) => !(Date.parse(m.created_at) < t));
 }
 
+// A conversa no ecrã (mensagens e mudanças de responsável, por ordem de hora) dividida pela mesma data: tudo o que é
+// anterior fica junto atrás do separador, para a ordem de hora não se perder ao abrir.
+export function historySplit<T extends { at: string }>(rows: T[], from: string | null | undefined): { older: T[]; rest: T[] } {
+  const t = from ? Date.parse(from) : NaN;
+  if (Number.isNaN(t)) return { older: [], rest: rows };
+  const old = (r: T) => Date.parse(r.at) < t;
+  return { older: rows.filter(old), rest: rows.filter((r) => !old(r)) };
+}
+
 // "1 de setembro de 2026" (dia de Lisboa).
 export function historyDateLabel(from: string | null | undefined): string | null {
   const t = from ? Date.parse(from) : NaN;

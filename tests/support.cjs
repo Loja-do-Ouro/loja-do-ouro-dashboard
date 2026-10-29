@@ -409,6 +409,22 @@ test("Messages before the visible history date are folded in the thread and left
   assert.equal(r.historyDateLabel(null), null);
 });
 
+test("Older assignment events fold behind the history divider with the older messages, keeping the time order", () => {
+  const row = (at, kind) => ({ at, kind });
+  const rows = [
+    row("2026-10-01T09:00:00Z", "message"),
+    row("2026-10-08T10:00:00.123+00:00", "event"),
+    row("2026-10-20T08:00:00Z", "message"),
+    row("2026-10-21T08:00:00Z", "event"),
+  ];
+  // Data mudada para 20 de outubro (Lisboa, hora de verão): a mudança de responsável de 8/10 vai com a mensagem de 1/10.
+  const { older, rest } = r.historySplit(rows, "2026-10-19T23:00:00+00:00");
+  assert.deepEqual(older, rows.slice(0, 2));
+  assert.deepEqual(rest, rows.slice(2));
+  assert.deepEqual([...older, ...rest], rows);
+  for (const none of [undefined, null, "", "ontem"]) assert.deepEqual(r.historySplit(rows, none), { older: [], rest: rows }, String(none));
+});
+
 test("The history cutoff hides old conversations from the list, counters, suggestions and AI, without blocking access", () => {
   const sql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261030100000_ldo_support_history_from.sql"), "utf8").replace(/\r\n/g, "\n");
   const fn = (name) => {
@@ -417,18 +433,25 @@ test("The history cutoff hides old conversations from the list, counters, sugges
     return sql.slice(start, sql.indexOf("$$;", start));
   };
   assert.match(sql, /add column if not exists history_from timestamptz not null default '2026-09-01 00:00:00\+01';/);
-  // Atividade = última mensagem (created_at é a hora da importação).
-  const active = "coalesce(c.last_message_at, c.created_at) >= v_from";
+  // Atividade = última mensagem (created_at é a hora da importação). Só se esconde o que está resolvido: mudar a data
+  // nunca tira da lista trabalho em curso.
+  const active = "(coalesce(c.last_message_at, c.created_at) >= v_from or c.status <> 'resolvido'";
   const list = fn("ldo_support_list");
   const counts = list.indexOf("'counts', (");
   assert.equal(list.split(active).length - 1, 2, "lista e contagens");
   assert.ok(list.indexOf(active) < counts && list.lastIndexOf(active) > counts);
+  assert.equal(list.split("v_from").length - 1, 4, "só a declaração, a lista, as contagens e a data devolvida");
+  // Um ticket Zendesk antigo aparece pesquisando o número exato (o mesmo formato que a rota manda ler do Zendesk).
+  const ticket = "or (v_q ~ '^#?[0-9]{1,12}$' and c.channel = 'zendesk' and c.external_id = ltrim(v_q, '#')))";
+  assert.ok(list.indexOf(ticket) > list.indexOf(active) && list.indexOf(ticket) < counts, "só na lista");
+  const route = fs.readFileSync(path.join(__dirname, "../app/api/support/conversations/route.ts"), "utf8");
+  assert.ok(route.includes("/^#?(\\d{1,12})$/.exec(search)"));
   assert.match(list, /'history_from', v_from\n/);
   // Alterações feitas no lugar em produção (pesquisa no email indicado; "Automáticas" pela hora de gravação) mantêm-se.
   assert.ok(list.includes("coalesce(k.claimed_email, '')"));
   assert.equal(list.split("m.inserted_at > coalesce(c.auto_handled_at, c.auto_handled_through)").length - 1, 2);
   const conv = fn("ldo_support_conversation");
-  assert.ok(conv.includes("coalesce(c2.last_message_at, c2.created_at) >= v_from"), "sugestões");
+  assert.ok(conv.includes("(coalesce(c2.last_message_at, c2.created_at) >= v_from or c2.status <> 'resolvido')"), "sugestões");
   assert.ok(conv.includes("'history_from', v_from"));
   // Continua a abrir conversas antigas (é a verificação de acesso do envio, anexos e IA): só a recusa de sempre.
   assert.deepEqual([...conv.matchAll(/raise exception '([^']+)'/g)].map((x) => x[1]), ["Conversa não encontrada."]);
@@ -452,4 +475,6 @@ test("The history settings functions are Super Admin only and reachable only thr
     const body = sql.slice(start, sql.indexOf("$$;", start));
     assert.ok(body.includes("ldo_private.support_super(p_session)"), name);
   }
+  // O número de ocultas na configuração segue a regra da lista (só resolvidas).
+  assert.ok(sql.includes("where coalesce(c.last_message_at, c.created_at) < v_from and c.status = 'resolvido'));"));
 });

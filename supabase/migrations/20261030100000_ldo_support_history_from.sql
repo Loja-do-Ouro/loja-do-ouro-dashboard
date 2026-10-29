@@ -1,9 +1,11 @@
 -- Apoio ao Cliente: histórico visível a partir de uma data (por omissão 1 de setembro de 2026, hora de Lisboa).
--- Nada é apagado. Uma conversa sem atividade desde essa data (última mensagem; created_at é a hora da importação,
--- todas de 7-10-2026 em diante) fica fora:
+-- Nada é apagado. Uma conversa resolvida e sem atividade desde essa data (última mensagem; created_at é a hora da
+-- importação, todas de 7-10-2026 em diante) fica fora:
 -- * da lista, das contagens dos separadores e da pesquisa (ldo_support_list);
 -- * das sugestões de outros contactos do mesmo cliente (ldo_support_conversation.related);
 -- * da IA: outras conversas do cliente e respostas anteriores da equipa (só mensagens desde a data).
+-- Uma conversa por resolver nunca fica oculta (mudar a data não esconde trabalho em curso), e um ticket Zendesk
+-- antigo continua a aparecer pesquisando o número exato (#1234), como diz o README.
 -- Uma conversa antiga em que o cliente volte a escrever reaparece (a ingestão atualiza last_message_at); as mensagens
 -- anteriores à data ficam recolhidas na conversa e fora do contexto da IA (a data vai em ldo_support_conversation).
 -- ldo_support_conversation nunca recusa uma conversa antiga: é também a verificação de acesso do envio, dos anexos,
@@ -66,8 +68,10 @@ begin
           else not exists (select 1 from public.ldo_support_messages m
             where m.conversation_id = c.id and m.deleted_at is null and (m.created_at > c.auto_handled_through or m.inserted_at > coalesce(c.auto_handled_at, c.auto_handled_through))
               and (m.kind = 'inbound' or m.author_user_id is not null)) end as auto) h
-        -- Histórico visível: sem atividade desde a data da configuração, fica fora da lista e da pesquisa.
-        where coalesce(c.last_message_at, c.created_at) >= v_from
+        -- Histórico visível: resolvida e sem atividade desde a data da configuração, fica fora da lista e da pesquisa
+        -- (por resolver fica sempre); um ticket Zendesk antigo aparece pesquisando o número exato (#1234).
+        where (coalesce(c.last_message_at, c.created_at) >= v_from or c.status <> 'resolvido'
+            or (v_q ~ '^#?[0-9]{1,12}$' and c.channel = 'zendesk' and c.external_id = ltrim(v_q, '#')))
           and (p_channel is null or p_channel = '' or c.channel = p_channel)
           and (v_status is null or c.status = v_status)
           and (case when v_filter = 'auto' then h.auto else (v_q is not null or not h.auto) end)
@@ -102,7 +106,7 @@ begin
         else not exists (select 1 from public.ldo_support_messages m
           where m.conversation_id = c.id and m.deleted_at is null and (m.created_at > c.auto_handled_through or m.inserted_at > coalesce(c.auto_handled_at, c.auto_handled_through))
               and (m.kind = 'inbound' or m.author_user_id is not null)) end as auto) h
-      where coalesce(c.last_message_at, c.created_at) >= v_from
+      where (coalesce(c.last_message_at, c.created_at) >= v_from or c.status <> 'resolvido')
     ),
     -- Respostas automáticas enviadas: hoje (Lisboa) e nos últimos 7 dias.
     'automatic', jsonb_build_object(
@@ -162,7 +166,7 @@ begin
         'conversation_id', r.id))
       from public.ldo_support_contacts k
       cross join lateral (select c2.id from public.ldo_support_conversations c2
-        where c2.contact_id = k.id and coalesce(c2.last_message_at, c2.created_at) >= v_from
+        where c2.contact_id = k.id and (coalesce(c2.last_message_at, c2.created_at) >= v_from or c2.status <> 'resolvido')
         order by c2.last_message_at desc nulls last limit 1) r
       where k.id <> v_k.id and (
         (coalesce(v_k.email, v_k.linked_email) is not null and lower(coalesce(v_k.email, v_k.linked_email)) in (lower(k.email), lower(k.linked_email)))
@@ -218,7 +222,7 @@ begin
               order by created_at desc limit 6) m), '[]'::jsonb)) order by c.last_message_at desc nulls last)
     from (
       select c.* from public.ldo_support_conversations c join public.ldo_support_contacts k on k.id = c.contact_id
-      where c.id <> p_conversation and coalesce(c.last_message_at, c.created_at) >= v_from and (
+      where c.id <> p_conversation and (coalesce(c.last_message_at, c.created_at) >= v_from or c.status <> 'resolvido') and (
         k.id = v_k.id
         or (v_email is not null and v_email in (lower(k.email), lower(k.linked_email)))
         or (v_phone is not null and v_phone = regexp_replace(coalesce(k.phone, ''), '\D', '', 'g')))
@@ -279,11 +283,12 @@ begin
   return jsonb_build_object(
     'history_from', v_from,
     'history_date', (v_from at time zone 'Europe/Lisbon')::date,
-    'hidden', (select count(*) from public.ldo_support_conversations c where coalesce(c.last_message_at, c.created_at) < v_from));
+    'hidden', (select count(*) from public.ldo_support_conversations c
+      where coalesce(c.last_message_at, c.created_at) < v_from and c.status = 'resolvido'));
 end;
 $$;
 
--- Novo dia (hora de Lisboa, 00:00). Até hoje: uma data no futuro esconderia todas as conversas.
+-- Novo dia (hora de Lisboa, 00:00). Até hoje: uma data no futuro esconderia todas as conversas resolvidas.
 create function public.ldo_support_history_settings_save(p_session text, p_history_from date) returns void
 language plpgsql volatile security definer set search_path = '' as $$
 declare

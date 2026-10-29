@@ -140,7 +140,7 @@ export async function AppShell({
         </div>
         <NavScroll current={current} />
         <div className="sidebar-bottom">
-          <Link href="/conta" className={`private-label${current === "conta" ? " active" : ""}`} title="A minha conta · mudar palavra-passe" aria-label="A minha conta">
+          <Link href="/conta" className={`private-label${current === "conta" ? " active" : ""}`} title="A minha conta · mudar palavra-passe">
             <Icon name="user" />
             <span>
               {name}
