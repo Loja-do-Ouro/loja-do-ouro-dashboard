@@ -381,11 +381,15 @@ begin
     'messages', coalesce((
       select jsonb_agg(jsonb_build_object('id', m.id, 'kind', m.kind, 'dashboard', m.author_user_id is not null, 'body', left(m.body, 1500),
         'created_at', m.created_at) order by m.created_at, m.inserted_at)
-      from (select * from public.ldo_support_messages
-            where conversation_id = p_conv and kind in ('inbound', 'outbound') and deleted_at is null
-              and coalesce(delivery, 'accepted') not in ('failed', 'sending', 'uncertain')
-              and created_at >= v_from and created_at <= p_until
-            order by created_at desc, inserted_at desc limit 30) m), '[]'::jsonb),
+      -- Sem mensagens automáticas (pedidos de avaliação e agradecimentos, origin), emails automáticos do cliente
+      -- (auto_submitted) nem respostas a um pedido de avaliação (a nota só a vê o Super Admin e quem foi avaliado).
+      from (select * from public.ldo_support_messages x
+            where x.conversation_id = p_conv and x.kind in ('inbound', 'outbound') and x.deleted_at is null
+              and coalesce(x.delivery, 'accepted') not in ('failed', 'sending', 'uncertain')
+              and x.origin is null and not x.auto_submitted
+              and not exists (select 1 from public.ldo_support_surveys s where s.rating_message_id = x.id)
+              and x.created_at >= v_from and x.created_at <= p_until
+            order by x.created_at desc, x.inserted_at desc limit 30) m), '[]'::jsonb),
     'knowledge', coalesce((
       select jsonb_agg(jsonb_build_object('title', k.title, 'body', k.body) order by k.position, k.title, k.id)
       from public.ldo_support_knowledge k where btrim(k.body) <> ''), '[]'::jsonb),

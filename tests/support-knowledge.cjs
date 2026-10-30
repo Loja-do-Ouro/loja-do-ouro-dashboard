@@ -1584,7 +1584,10 @@ test("Migration: automatic proposals start off, own budget of 8 USD, history_fro
   assert.match(candidates, /c\.status = 'resolvido' or coalesce\(c\.last_message_at, c\.created_at\) < now\(\) - interval '72 hours'/);
   assert.match(fnBody("create function public.ldo_support_knowledge_begin("), /if not v_s\.knowledge_auto_proposals/);
   const payload = fnBody("create function ldo_private.support_knowledge_payload(");
-  assert.match(payload, /created_at >= v_from and created_at <= p_until/);
+  assert.match(payload, /created_at >= v_from and x\.created_at <= p_until/);
+  // Sem mensagens automáticas, emails automáticos do cliente nem respostas a um pedido de avaliação (a nota é reservada).
+  assert.match(payload, /x\.origin is null and not x\.auto_submitted/);
+  assert.match(payload, /not exists \(select 1 from public\.ldo_support_surveys s where s\.rating_message_id = x\.id\)/);
   assert.ok(!/ldo_support_knowledge_cards \([^)]*\b(body|mensagem|message)\b/.test(CODE), "nenhuma coluna com mensagens");
   // As amostras apagam-se ao aprovar e ao arquivar; a BD não deixa uma aprovada com amostras.
   assert.match(CODE, /check \(estado = 'proposta' or cardinality\(amostras\) = 0\)/);
