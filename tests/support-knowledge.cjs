@@ -87,7 +87,12 @@ const HARD_FINAL = ["Os últimos 4 dígitos são 4242.", "últimos 4 dígitos 42
   "Visa terminado em 42-42", "cartão com final 42 42", "A sua encomenda, a 4 471, já seguiu.", "A encomenda, a 44 71, seguiu.", "O pedido, o 4 471, seguiu.",
   "A reparação, a 4 471, está pronta.", "O seu número de cliente, 4 471, está no talão.", "encomenda - 4 471", `Encomenda ${String.fromCharCode(0x2013)} 44 71`,
   "Fatura FT 1-2345", "Fatura FT 01-2345", "Fatura FT 1 2345", "fatura FT 1.2345", "a referência da sua encomenda é 4512", "referência multibanco 123 456 789",
-  "entidade 12345 referência 123456789", "a sua referência é 4512"];
+  "entidade 12345 referência 123456789", "a sua referência é 4512",
+  // Verificação da ronda final: só com algarismos, a referência numa frase que começa pela encomenda, pelo pedido, pela
+  // reparação ou pelo talão é a do cliente.
+  "A reparação ficou com a referência 4471.", "A encomenda tem a referência 4471.", "A reparação tem a referência 4471.", "O pedido ficou com a referência 4471.",
+  "O talão tem a referência 4471.", "A encomenda ficou registada com a referência 4471.", "A reparação ficou com a ref. 4471.",
+  "Bom dia, a reparação ficou com a referência 4471."];
 const HARD_CORPUS = ["Fatura simplificada FS 1/234", "fatura FS 1/234", "Fatura FT 1/2345", "A fatura FT 01/2345 já foi emitida.", "Fatura-recibo FR 12/345",
   "Fatura FT1/2345", "A sua fatura é a FS 1/234.", "Encomenda n.º 4 471", "Encomenda 44 71", "Fatura 4.471", "Pedido 4 471", "O seu número de cliente é o 4 471.",
   "Número de cliente: 44-71-23", "Encomenda nº 4471", "ENCOMENDA Nº 4471", "Reparação nº 4471", "Pedido #4471", "gertrudes@sapo", "joana arroba gmail ponto com",

@@ -875,7 +875,9 @@ const POSSESSIVE = /(?<!\p{L})(?:sua|seu|suas|seus|vossa|vosso)(?!\p{L})/iu;
 // Multibanco: 4471 2210", "entidade 12345 referência 123456789"), com "sua"/"seu" antes ("a sua referência é 4512"),
 // logo a seguir a uma encomenda ("A sua encomenda (ref. 88123)"), com as palavras dessa encomenda ou desse pagamento até
 // ao número ("a referência da sua encomenda é 4512") ou só com algarismos numa frase sobre "a sua encomenda" ("A sua
-// encomenda tem a referência 4471"). Com letras ou pontos ("T137.410.11.051.00", "GA-2100-1A1ER") ou de um produto, do
+// encomenda tem a referência 4471") ou que começa (também depois de uma vírgula: "Bom dia, a reparação…") pela
+// encomenda, pelo pedido, pela reparação ou pelo talão ("A reparação ficou com a referência 4471.", "O talão tem a
+// referência 4471."). Com letras ou pontos ("T137.410.11.051.00", "GA-2100-1A1ER") ou de um produto, do
 // catálogo, do site ou de uma coleção ("a referência 2203 do catálogo", "Encomende pela referência 2203 no site") é
 // sempre um aviso de código.
 const PAYMENT_CONTEXT = /(?<!\p{L})(?:multibanco|mb|entidade|pagamentos?|pag(?:ar|ou|ue|uei|ámos)|transfer[êe]ncias?)(?!\p{L})/iu;
@@ -883,6 +885,8 @@ const OWN_REF_BEFORE = /(?<!\p{L})(?:sua|seu|vossa|vosso)[ \t]+$/iu;
 const ORDER_NOUN = "(?:encomendas?|pedidos?|compras?|repara[çc](?:[ãa]o|[õo]es)|reservas?|tal[ãa]o|tal[õo]es|faturas?|facturas?|recibos?|or[çc]amentos?)";
 const ORDER_REF_BEFORE = new RegExp(`(?<!\\p{L})${ORDER_NOUN}[ \\t]*(?:[(,:\\-][ \\t]*)?$`, "iu");
 const YOUR_ORDER = new RegExp(`(?<!\\p{L})(?:sua|seu|suas|seus|vossa|vosso)[ \\t]+${ORDER_NOUN}(?!\\p{L})`, "iu");
+const ORDER_SUBJECT = new RegExp(`(?:^|[,:])[ \\t]*["'«“(]?(?:a|o)[ \\t]+${ORDER_NOUN}(?!\\p{L})`, "iu");
+const yourOrder = (sentence: string) => YOUR_ORDER.test(sentence) || ORDER_SUBJECT.test(sentence);
 const ORDER_OR_PAYMENT_WORD = /(?<!\p{L})(?:seu|sua|mb|multibanco|pagamentos?|encomendas?|compras?|pedidos?|tal[ãa]o|repara[çc][ãa]o|reservas?)(?!\p{L})/iu;
 const PRODUCT_TAIL = /^[ \t]*(?:[,:][ \t]*)?(?:d[aeo]s?|n[aeo]s?|em|de|pel[oa])[ \t]+(?:cat[áa]logo|site|loja[ \t]+online|cole[çc][ãa]o|modelo|artigo|produto|marca|linha|s[ée]rie|fabricante|rel[óo]gio|pe[çc]a)(?!\p{L})/iu;
 const REF_WORD_ONE = new RegExp(REF_WORD_RE.source, "iu");
@@ -1000,12 +1004,12 @@ function orderRefs(text: string, allow: Allowlist): { block: boolean; codes: str
       const w = REF_WORDS_NUMBER.exec(tail.slice(0, 50));
       const x = w ? digits(w[1]) : "";
       if (x.length >= 3 && !kbNumber(x) && !HALLMARKS.has(x) && !isYear(x) && !isYearRange(w![1]) && !NUM_UNIT_AFTER.test(tail.slice(w!.index + w![0].length))
-        && !PRODUCT_TAIL.test(tail.slice(w!.index + w![0].length)) && (own || ORDER_OR_PAYMENT_WORD.test(w![0]) || YOUR_ORDER.test(sentence))) return { block: true, codes };
+        && !PRODUCT_TAIL.test(tail.slice(w!.index + w![0].length)) && (own || ORDER_OR_PAYMENT_WORD.test(w![0]) || yourOrder(sentence))) return { block: true, codes };
       continue;
     }
     const value = `${d![3] || ""}${n}${/^[\p{L}\p{N}.-]*/u.exec(tail.slice(d!.index + d![0].length))![0]}`;
     const product = /\p{L}/u.test(value) || (value.match(/\./g) || []).length >= 2 || PRODUCT_TAIL.test(tail.slice(d!.index + d![0].length));
-    if (!product && (own || YOUR_ORDER.test(sentence))) return { block: true, codes };
+    if (!product && (own || yourOrder(sentence))) return { block: true, codes };
     codes.push(`${m[0]} ${value}`);
   }
   // "#4512" e "#LDO1234" sozinhos: recusa numa frase sobre uma encomenda ou um pagamento; senão, aviso.
