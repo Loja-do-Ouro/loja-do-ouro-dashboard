@@ -109,7 +109,7 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
     sessionRpc<Settings>(viewer.session, "ldo_support_knowledge_settings").catch(() => null),
     sessionRpc<CardList>(viewer.session, "ldo_support_knowledge_cards", { p_estado: estado, p_q: search || null }).catch(() => null),
   ]);
-  const ok = one("cartoes_ok").slice(0, 300) || undefined;
+  const ok = one("cartoes_ok").slice(0, 600) || undefined;
   const error = one("cartoes_erro").slice(0, 900) || undefined;
   const knowledge = list ? list.knowledge.map((k) => `## ${k.title}\n${k.body}`).join("\n\n") : "";
   const allow = list ? companyAllowlist({ knowledge, stores: list.stores, extra: list.company || [] }) : null;
@@ -315,7 +315,7 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
             <div className="knowledge-row"><button type="submit" className="secondary-button">Criar proposta</button></div>
           </form>
           <p className="panel-note">
-            Privacidade. Nenhum modelo é treinado com as conversas. O Super Admin lê e confirma cada cartão; as regras não apanham tudo. Fica guardado: o texto do cartão, também o que as regras só assinalaram (nas propostas até 180 dias sem novas fontes, nos arquivados 365 dias); o tema, a loja, quem aprovou, quem confirmou e quando, em quantas conversas foi confirmado e, só enquanto é proposta, até 3 conversas de origem; os avisos (da resposta da equipa só citam palavras de uma lista fechada e números com a unidade; o resto fica «…»); e a confirmação, com os avisos mostrados, também no registo de auditoria até o cartão ser apagado. Não ficam guardados mensagens nem contactos de clientes. Quem tem acesso direto à base de dados ainda consegue deduzir de que conversa veio um cartão, pelo registo de pedidos e pelas conversas lidas e respostas guardadas, enquanto existirem (até 365 dias). &quot;Permitir em respostas automáticas&quot; só marca a resposta (nada é enviado): 7 dias depois de aprovar ou corrigir, revista nos últimos 90 dias, com o texto confirmado e, nos horários, moradas e contactos, com a loja.
+            Privacidade. Nenhum modelo é treinado com as conversas. O Super Admin lê e confirma cada cartão; as regras não apanham tudo. Fica guardado: o texto do cartão, também o que as regras só assinalaram (nas propostas até 180 dias sem novas confirmações, nos arquivados 365 dias, nos aprovados até serem arquivados); o tema, a loja, quem aprovou, quem confirmou e quando, em quantas conversas foi confirmado e, só enquanto é proposta, até 3 conversas de origem; os avisos (da resposta da equipa só citam palavras de uma lista fechada e números com a unidade; o resto fica «…»); e a confirmação, com os avisos mostrados (que podem citar palavras do texto do cartão), também no registo de auditoria até o cartão ser apagado. Não ficam guardados mensagens nem contactos de clientes. Quem tem acesso direto à base de dados ainda consegue deduzir de que conversa veio um cartão, pelo registo de pedidos, pelo registo das propostas (quem carregou no botão e quando) e pelas conversas lidas e respostas guardadas, enquanto existirem (até 365 dias). &quot;Permitir em respostas automáticas&quot; só marca a resposta (nada é enviado): 7 dias depois de aprovar ou corrigir, revista nos últimos 90 dias, com o texto confirmado e, nos horários, moradas e contactos, com a loja.
           </p>
         </>
       )}

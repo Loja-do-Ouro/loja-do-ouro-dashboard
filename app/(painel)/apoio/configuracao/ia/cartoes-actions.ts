@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { userMessage } from "@/lib/supabase";
 import { sessionRpc } from "@/lib/support/db";
 import {
-  ACK_LABEL, ACK_MAX_WARNINGS, autoOkBlockers, cardAlerts, CARD_ESTADOS, companyAllowlist, isIntent, needsConfirmation, PII_LABEL, reviewCard,
-  storeKeywords, type AutoCard, type CardEstado, type PiiProblem,
+  ACK_LABEL, ACK_MAX_WARNINGS, autoOkBlockers, cardAlerts, CARD_ESTADOS, companyAllowlist, isIntent, needsConfirmation, PII_LABEL, plainSpaces,
+  reviewCard, storeKeywords, type AutoCard, type CardEstado, type PiiProblem,
 } from "@/lib/support/knowledge-rules";
 import { requireViewer, type Viewer } from "@/lib/viewer";
 
@@ -23,7 +23,8 @@ async function superViewer() {
   return viewer;
 }
 
-const field = (form: FormData, name: string) => String(form.get(name) ?? "").replace(/\r\n?/g, "\n").trim();
+// Espaços que não quebram e caracteres invisíveis passam a espaços normais (as regras leem o texto assim).
+const field = (form: FormData, name: string) => plainSpaces(String(form.get(name) ?? "")).replace(/\r\n?/g, "\n").trim();
 const estadoOf = (form: FormData) => {
   const e = field(form, "voltar");
   return CARD_ESTADOS.includes(e as CardEstado) ? e : "proposta";
@@ -137,8 +138,9 @@ export async function saveCard(form: FormData) {
   if (!list) back({ cartoes_ok: done }, to, q, s.id);
   const blocks = blocksOf(list!, values);
   let ack: Ack = { ok: true, registada: false };
-  // Uma proposta nova (sem id) só se confirma depois de o painel mostrar os avisos.
-  if (id) {
+  // Uma proposta nova (sem id) só se confirma depois de o painel mostrar os avisos; um texto com dados pessoais claros
+  // nunca fica confirmado (a confirmação diz que não os tem).
+  if (id && !blocks.length) {
     try {
       ack = await confirmText(viewer, form, s.id, values, list!, s);
     } catch (e) {
@@ -209,18 +211,21 @@ export async function mergeCard(form: FormData) {
   const estado = estadoOf(form), q = queryOf(form);
   const into = field(form, "into");
   if (!into) back({ cartoes_erro: "Escolha a resposta a que quer juntar esta." }, estado, q, field(form, "id"));
-  let r: { estado: string; alterada: boolean; auto_retirada: boolean } | null = null;
+  let r: { estado: string; alterada: boolean; auto_retirada: boolean; avisos_cortados?: number } | null = null;
   try {
     r = await sessionRpc(viewer.session, "ldo_support_knowledge_card_merge", { p_id: field(form, "id"), p_into: into });
   } catch (e) {
     back({ cartoes_erro: userMessage(e) }, estado, q, field(form, "id"));
   }
+  const cut = r?.avisos_cortados ?? 0;
+  // Volta ao separador da outra resposta (proposta ou aprovada), com ela aberta: é essa que se confirma de novo.
   back({
     cartoes_ok: `Respostas juntas: esta ficou arquivada${r?.alterada ? " e a pergunta passou a ser uma das formas da outra" : " (a pergunta já era uma das formas da outra)"}.`
-      + " Leia e confirme de novo a outra antes de a aprovar ou publicar."
+      + " A confirmação da outra foi apagada: leia-a e confirme-a de novo antes de a aprovar ou publicar."
       + `${r?.alterada && r.estado === "aprovada" ? " Publique as alterações para a IA usar a nova versão." : ""}`
-      + `${r?.auto_retirada ? " A outra deixou de estar marcada para respostas automáticas." : ""}`,
-  }, estado, q, into);
+      + `${r?.auto_retirada ? " A outra deixou de estar marcada para respostas automáticas." : ""}`
+      + `${cut ? ` ${cut === 1 ? "1 aviso não coube" : `${cut} avisos não couberam`} na outra resposta (fica com 30, as contradições primeiro).` : ""}`,
+  }, CARD_ESTADOS.includes(r?.estado as CardEstado) ? r!.estado : estado, q, into);
 }
 
 // Publicar: nada é publicado enquanto uma resposta aprovada tiver dados pessoais ou o texto atual por confirmar (a BD
