@@ -57,7 +57,7 @@ export default async function ChatTestPage({ searchParams }: { searchParams: Pro
         <ol className="panel-note">
           <li>Abra o chat, escreva um nome, um email seu e uma mensagem.</li>
           <li>Noutro separador, abra o Apoio ao Cliente: a conversa aparece no canal “Chat do site”. Responda.</li>
-          <li>No Apoio ao Cliente, o separador Cliente mostra “No site agora”: a página em que o cliente está, há quanto tempo navega e o carrinho (nesta página de teste não há carrinho; no site aparece o da loja).</li>
+          <li>No Apoio ao Cliente, o separador Cliente mostra “No site agora”: a página em que o cliente está, há quanto tempo abriu o chat e o carrinho (nesta página de teste não há carrinho; no site aparece o da loja).</li>
           <li>A resposta aparece aqui em poucos segundos. Se fechar este separador e esperar 1 minuto antes de responder, a resposta segue também por email (quando o envio de emails estiver configurado).</li>
         </ol>
         <ChatTestTools />

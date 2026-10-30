@@ -8,9 +8,11 @@ export function OPTIONS(request: Request) {
   return preflight(request);
 }
 
-// O que o cliente está a fazer na loja (só depois de iniciar o chat): página atual, carrinho e início da
-// visita. Enviado pelo browser do cliente; para ajudar a equipa, não é informação confirmada. A língua só muda
-// quando o widget envia uma (o cliente mudou de língua na loja).
+// O que o cliente está a fazer na loja (só depois de iniciar o chat): página atual, carrinho e a visita, que conta a
+// partir de quando o cliente abriu o chat (visitStartedAt = essa hora, pages = páginas vistas desde então; num separador
+// onde o chat não abriu, mas aberto noutro nesta visita, só visitStartedAt, sem pages: a BD mantém a contagem; sem o
+// chat aberto nesta visita, só pages = 0). Enviado pelo browser do cliente; para ajudar a equipa, não é informação
+// confirmada. A língua só muda quando o widget envia uma (o cliente mudou de língua na loja).
 export async function POST(request: Request) {
   return chatHandle(request, async () => {
     checkOrigin(request);

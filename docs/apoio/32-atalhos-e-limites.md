@@ -37,6 +37,10 @@
 | Mensagem do cliente no chat do site | 2000 caracteres |
 | Pergunta ao assistente de IA | 4000 caracteres |
 | Resposta revista pela IA | Entre 25 e 4000 caracteres |
+| Resposta que pode ser guardada como resposta aprovada | 20 caracteres ou mais |
+| Resposta aprovada: pergunta | 5 a 300 caracteres |
+| Resposta aprovada: outras formas da pergunta | Até 5, com até 200 caracteres cada |
+| Resposta aprovada: resposta | Até 1500 caracteres |
 
 ## Listas e contagens
 <!-- perguntas: Quantas conversas mostra a lista? -->
@@ -52,6 +56,10 @@
 | Pedidos à IA por pessoa e por dia | 80 (de origem) |
 | Pedidos à IA em curso por pessoa | 2 |
 | Revisões da IA por pessoa e por dia | 300 |
+| Pedidos "Guardar como resposta aprovada" por pessoa e por dia (contam também os que deram erro ou não deram proposta) | 30 |
+| Propostas de respostas aprovadas por rever | 300 |
+| Respostas aprovadas em uso pela IA | 200, com até 80 000 caracteres |
+| Conversas lidas por dia pelas propostas automáticas | 12 |
 
 ## Tempos
 <!-- perguntas: De quanto em quanto tempo atualiza a lista? | Quanto tempo espera o pedido de avaliação? -->
@@ -66,6 +74,8 @@
 | "Está a ver" / "está a escrever" de uma colega | Último minuto / últimos 30 segundos |
 | "Não foi enviada" disponível | 1 minuto depois do envio |
 | Revisão da IA | Até 10 segundos; depois segue sem revisão |
+| Proposta de resposta aprovada (botão) | Até cerca de 30 segundos |
+| "Permitir em respostas automáticas" | 7 dias depois de aprovar ou corrigir; revista nos últimos 90 dias |
 | Cliente do chat "fora do site" | Sem contacto há mais de 45 segundos |
 | Espera antes do pedido de avaliação (Messenger, Instagram, email) | 10 minutos (de origem) |
 | Nota aceite depois do pedido de avaliação | 72 horas |
@@ -84,6 +94,9 @@
 | Dados do visitante do chat do site (sessão, página, carrinho) | 180 dias sem atividade |
 | Registo das revisões da IA (sem o texto) | 365 dias |
 | Comentário escrito numa avaliação | 12 meses (a nota fica) |
+| Propostas de respostas aprovadas | 180 dias sem novas confirmações |
+| Respostas aprovadas arquivadas | 365 dias (as aprovadas ficam até serem arquivadas) |
+| Registo dos pedidos de propostas à IA | 365 dias |
 | "Está a ver" / "está a escrever" | 1 dia |
 | Conversas, mensagens, notas internas, contactos, registo de ações | Sem prazo definido no sistema |
 

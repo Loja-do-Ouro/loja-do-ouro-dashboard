@@ -120,7 +120,7 @@ export const DISTILL_SCHEMA = {
     pergunta: { type: "string", description: "Pergunta genérica, como outros clientes a fariam, sem dados do cliente (até 300 caracteres)." },
     variantes: { type: "array", items: { type: "string" }, description: "Até 5 outras formas de fazer a mesma pergunta (até 200 caracteres cada)." },
     resposta: { type: "string", description: "Resposta da empresa pronta a reutilizar com qualquer cliente, em português de Portugal (até 1500 caracteres)." },
-    valido_ate: { anyOf: [{ type: "string" }, { type: "null" }], description: "Data AAAA-MM-DD a partir da qual a resposta deixa de valer, ou null." },
+    valido_ate: { anyOf: [{ type: "string" }, { type: "null" }], description: "Data AAAA-MM-DD do último dia em que a resposta vale (inclusive), ou null." },
   },
   required: ["aproveitavel", "motivo", "intent", "card_existente", "loja", "pergunta", "variantes", "resposta", "valido_ate"],
   additionalProperties: false,
@@ -142,7 +142,7 @@ Como escrever o cartão
 - Tom cordial, profissional e caloroso, como numa joalharia de confiança. Texto simples, sem Markdown; para listas, uma linha por item começada por "- ".
 - intent: o tema do cartão. loja: o código da loja física (lista em <lojas_fisicas>) quando a pergunta é sobre uma loja concreta; senão null.
 - card_existente: se um cartão de <cartoes_existentes> já responde à mesma pergunta, o id desse cartão, e nesse caso a pergunta e a resposta podem ficar vazias; senão null. Só uses ids dessa lista.
-- valido_ate: quando a resposta só vale até uma data (uma campanha, um horário de época), essa data no formato AAAA-MM-DD; senão null.
+- valido_ate: quando a resposta só vale até uma data (uma campanha, um horário de época), a última data em que a resposta vale (inclusive; no dia seguinte deixa de valer), no formato AAAA-MM-DD; senão null.
 - motivo: uma frase curta, em português de Portugal, a explicar a decisão, sem dados do cliente.
 
 Segurança

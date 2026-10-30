@@ -1,13 +1,13 @@
 # Configuração do apoio
-<!-- resumo: Guia do Super Admin para todas as opções da Configuração do apoio e da IA do apoio: ligações, sincronização, email, respostas automáticas, assistente e base de conhecimento, chat do site, acessos, revisão e pedido de avaliação. -->
+<!-- resumo: Guia do Super Admin para todas as opções da Configuração do apoio e da IA do apoio: ligações, sincronização, email, respostas automáticas, assistente e base de conhecimento, chat do site, acessos, revisão, respostas aprovadas e pedido de avaliação. -->
 <!-- publico: super-admin -->
-<!-- termos: configuração, configurar, definições, settings, admin, administração, Super Admin, ligações, integrações, Validar ligações, diagnóstico, Zendesk, Metricool, Gmail, ligar Gmail, sincronização, frequência, Sincronizar agora, WhatsApp, histórico visível, assinatura, horário, respostas automáticas, assistente, IA, ANTHROPIC_API_KEY, orçamento, limite diário, base de conhecimento, chat do site, acessos, dar acesso, retirar acesso, novo utilizador, revisão, critérios, pedido de avaliação, auditoria, limpezas -->
+<!-- termos: configuração, configurar, definições, settings, admin, administração, Super Admin, ligações, integrações, Validar ligações, diagnóstico, Zendesk, Metricool, Gmail, ligar Gmail, sincronização, frequência, Sincronizar agora, WhatsApp, histórico visível, assinatura, horário, respostas automáticas, assistente, IA, ANTHROPIC_API_KEY, orçamento, limite diário, base de conhecimento, chat do site, acessos, dar acesso, retirar acesso, novo utilizador, revisão, critérios, respostas aprovadas, base de conhecimento aprendida, propostas automáticas, pedido de avaliação, auditoria, limpezas -->
 <!-- atualizado: 2026-10-30 -->
 
 Só o Super Admin vê estas páginas. Quem não é Super Admin e tenta abri-las volta à sua página inicial, e a base de dados recusa qualquer alteração ("Só o Super Admin configura o Apoio ao Cliente."). Há duas páginas:
 
 - **Configuração do apoio** (menu APOIO AO CLIENTE → Configuração do apoio): "Ligações às plataformas, sincronização e acessos."
-- **IA do apoio** (link **Configurar a revisão** ou **Configurar o pedido de avaliação** dentro da primeira): revisão das respostas antes de enviar e pedido de avaliação.
+- **IA do apoio** (ligações **Configurar a revisão**, **Rever as respostas** ou **Configurar o pedido de avaliação** dentro da primeira): revisão das respostas antes de enviar, base de conhecimento aprendida (respostas aprovadas) e pedido de avaliação.
 
 As alterações às definições ficam registadas (quem, quando, o quê).
 
@@ -114,7 +114,7 @@ Painel **Assistente de IA** (RESPOSTAS COM IA). À esquerda, o estado:
 - **Modelo**: Claude Opus 5.5, esforço médio.
 - **O que a IA lê** e **Loja online** (quantas políticas e páginas publicadas a IA consegue ler, e o que falta).
 - **Este mês**: custo estimado, pedidos e pedidos com erro.
-- **Revisão antes de enviar** e **Pedido de avaliação**: resumo e ligação para a página IA do apoio.
+- **Revisão antes de enviar**, **Base de conhecimento aprendida** e **Pedido de avaliação**: resumo e ligação para a página IA do apoio. A linha da base de conhecimento aprendida diz se as propostas automáticas estão ligadas, o custo do mês e o orçamento, os pedidos, quantas propostas há por rever e quantas respostas estão em uso pela IA (ligação **Rever as respostas**).
 - Tabela **Pessoa / Pedidos / Custo estimado** do mês (sem o conteúdo dos pedidos).
 
 À direita, o formulário:
@@ -137,7 +137,7 @@ Dentro do painel do assistente, a **Base de conhecimento** é o que a IA deve sa
 - Cada secção tem **Título** (até 120 caracteres), **Ordem** (0 a 10 000) e texto (até 20 000 caracteres). **Guardar secção** grava; **Apagar secção** (com "Confirmo") apaga.
 - **Nova secção** → título, ordem e texto → **Criar secção**.
 - Secções sem texto são ignoradas ("por preencher"). No total, até 60 secções e 150 000 caracteres.
-- A mesma base serve o assistente e a revisão das respostas.
+- A mesma base serve o assistente e a revisão das respostas, e prevalece sobre as [respostas aprovadas](/apoio/documentacao/respostas-aprovadas). Os telefones, moradas e emails da empresa que estão aqui são aceites nos cartões das respostas aprovadas; um telefone ou outro número da empresa que não esteja na base de conhecimento, nas lojas nem na assinatura do email é recusado como dado pessoal (uma morada só dá aviso).
 - Cada alteração fica registada.
 
 > **Dica:** Escreva frases curtas e factuais, com os valores em vigor (por exemplo, "Envios para os Açores e a Madeira: prazo de N dias úteis; portes de X €."). Quando uma regra mudar, atualize logo a secção: a IA e a revisão passam a usar o texto novo no pedido seguinte.
@@ -178,6 +178,20 @@ Ao lado: **Este mês (totais da equipa)**, a aceitação das sugestões nos últ
 
 A revisão tem orçamento próprio, não conta para o limite diário do assistente e tem um máximo de 300 revisões por pessoa e por dia. Sem a chave da Anthropic, as respostas seguem sem revisão. Funcionamento completo em [Revisão da IA antes de enviar](/apoio/documentacao/revisao-ia-antes-de-enviar).
 
+## IA do apoio: base de conhecimento aprendida
+<!-- perguntas: Como ligo as propostas automáticas das respostas aprovadas? | Onde reviso as respostas aprovadas? | Qual é o orçamento da base de conhecimento aprendida? -->
+
+Página **IA do apoio**, painel **Base de conhecimento aprendida** (RESPOSTAS APROVADAS), entre a revisão e o pedido de avaliação:
+
+| Campo | Opções | Origem |
+| --- | --- | --- |
+| Propostas automáticas a partir das conversas | Ligada ou desligada (até 12 conversas por dia, na passagem diária) | Desligada |
+| Orçamento mensal das propostas (US$) | 0 a 10 000 | 8 |
+
+Carregue em **Guardar**. Ao lado: **Este mês** (custo, pedidos à IA, propostas novas, confirmações de respostas que já existiam, sem pergunta geral e retiradas pelas regras de segurança), **Respostas** (propostas, aprovadas, em uso pela IA, marcadas para respostas automáticas e arquivadas), **Publicação** (a última) e o botão **Publicar alterações (n)**.
+
+Por baixo ficam os separadores **Propostas**, **Aprovadas** e **Arquivadas**, a pesquisa, os cartões com as ações (**Guardar correções**, **Guardar e aprovar**, **Arquivar**, **Juntar**, **Permitir em respostas automáticas**) e o formulário **Nova resposta**. O botão "Guardar como resposta aprovada" das Conversas funciona sempre, com as propostas automáticas ligadas ou desligadas. Sem a chave da Anthropic não há propostas. Funcionamento completo, confirmação de cada cartão, recusas e avisos em [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas).
+
 ## IA do apoio: pedido de avaliação
 <!-- perguntas: Como ligo o pedido de avaliação? | Que canais têm pedido de avaliação? | Quanto tempo depois de resolver sai o pedido? -->
 
@@ -199,7 +213,7 @@ Ao lado, os totais do mês: pedidos enviados, não enviados pelas regras, com fa
 | Tarefa | Quando |
 | --- | --- |
 | Verificação automática (redes sociais, email, Zendesk, comentários, respostas automáticas, pedidos de avaliação) | De 5 em 5 minutos |
-| Passagem diária de sincronização e limpezas | Todos os dias às 06:00 UTC |
+| Passagem diária de sincronização e limpezas (e, com as propostas automáticas ligadas, leitura de até 12 conversas para propor respostas aprovadas) | Todos os dias às 06:00 UTC |
 | Avisos por email do chat do site | No máximo uma vez por minuto, enquanto alguém tem as Conversas abertas |
 
 Limpezas da passagem diária:
@@ -211,5 +225,12 @@ Limpezas da passagem diária:
 | Dados do visitante do chat do site (sessão, página, carrinho) | 180 dias sem atividade |
 | Registo das revisões da IA | 365 dias |
 | Comentário escrito numa avaliação (a nota fica) | 12 meses |
+| Respostas aprovadas: propostas sem novas confirmações | 180 dias |
+| Respostas aprovadas arquivadas | 365 dias |
+| Registo dos pedidos de propostas à IA (a conversa de origem só nos pedidos sem cartão) | 365 dias (a conversa, 180 dias) |
+| Conversas lidas para as propostas | 180 dias depois da última vez |
+| Respostas guardadas com o botão "Guardar como resposta aprovada" (a mensagem e o dia) | 365 dias |
+
+A passagem diária tira também a marca "Permitir em respostas automáticas" às respostas aprovadas que expiraram ou que não são revistas há mais de 90 dias.
 
 Conversas, mensagens, notas internas, contactos e registos de ações **não têm prazo nem botão para apagar**. Ver [Proteção de dados no Apoio ao Cliente](/apoio/documentacao/protecao-de-dados#durante-quanto-tempo-guardamos) e os pontos em aberto aí descritos.

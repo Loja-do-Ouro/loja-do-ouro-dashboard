@@ -4,7 +4,7 @@ import { isUuid } from "@/lib/support/rules";
 
 export const dynamic = "force-dynamic";
 
-// Chat do site: o que o cliente está a fazer na loja (página, carrinho, tempo de visita), para o painel.
+// Chat do site: o que o cliente está a fazer na loja (página, carrinho, há quanto tempo abriu o chat), para o painel.
 export async function GET(request: Request) {
   return handle(async () => {
     const viewer = await supportViewer(request);

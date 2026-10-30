@@ -200,10 +200,14 @@ function visitorText(v: SiteVisitorCtx) {
   const cart = !v.cart ? "sem informação" : !v.cart.count ? "vazio"
     : `${v.cart.count} artigo(s), total ${money(v.cart.total, v.cart.currency)}: ${v.cart.items.map((i) => `${i.quantity} × ${untrusted(i.title)}${i.variant ? ` (${untrusted(i.variant)})` : ""} ${money(i.price, v.cart!.currency)}`).join("; ")}`;
   const s = visitorSite(v);
+  // A visita conta a partir de quando o cliente abriu o chat; pages_viewed 0: ainda não o abriu nesta visita.
+  const visit = v.pages_viewed === 0 ? "; ainda não abriu o chat nesta visita"
+    : v.visit_started_at ? `; abriu o chat ${online ? "há " : ""}${min((online ? now : Date.parse(v.last_seen_at)) - Date.parse(v.visit_started_at))} min${online ? "" : " antes de sair"}${v.pages_viewed ? `, ${v.pages_viewed} página(s) vista(s) desde então` : ""}`
+    : "";
   return [
     "No site (informação enviada pelo browser do cliente, não confirmada):",
     siteContextLine(s.site, s.locale, s.country),
-    `- ${online ? "está no site agora" : `saiu do site há ${min(now - Date.parse(v.last_seen_at))} min`}${v.visit_started_at ? `; visita de ${min((online ? now : Date.parse(v.last_seen_at)) - Date.parse(v.visit_started_at))} min` : ""}${v.pages_viewed ? `, ${v.pages_viewed} página(s) vista(s)` : ""}`,
+    `- ${online ? "está no site agora" : `saiu do site há ${min(now - Date.parse(v.last_seen_at))} min`}${visit}`,
     `- página atual: ${v.page_title ? `«${untrusted(v.page_title)}» ` : ""}${v.page_url || "desconhecida"}`,
     `- carrinho: ${cart}`,
   ];

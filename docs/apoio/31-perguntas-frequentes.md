@@ -150,7 +150,17 @@ As conversas resolvidas sem atividade antes da data do histórico visível ficam
 ### A IA envia respostas sozinha?
 <!-- perguntas: A IA responde aos clientes? -->
 
-Nunca. A IA propõe; só sai o que enviar com **Enviar ao cliente**. Não há respostas automáticas escritas pela IA. Ver [Assistente de IA](/apoio/documentacao/assistente-ia).
+Nunca. A IA propõe; só sai o que enviar com **Enviar ao cliente**. Não há respostas automáticas escritas pela IA, e as respostas aprovadas também não são enviadas sozinhas. Ver [Assistente de IA](/apoio/documentacao/assistente-ia).
+
+### A IA aprende com as nossas respostas?
+<!-- perguntas: A IA é treinada com as conversas? | Como ensino a IA a responder? -->
+
+Nenhum modelo é treinado com as conversas. Mas pode carregar em **Guardar como resposta aprovada** por baixo de uma boa resposta sua a uma pergunta geral: a IA propõe uma pergunta e uma resposta sem dados do cliente e, depois de o Super Admin as aprovar e publicar, o Assistente passa a usá-las. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas).
+
+### Não vejo o botão Guardar como resposta aprovada.
+<!-- perguntas: Porque não posso guardar a resposta de uma colega? -->
+
+Só aparece nas suas respostas enviadas pelo dashboard, com 20 caracteres ou mais, já aceites pela plataforma e posteriores ao histórico visível. O Super Admin pode guardar a de qualquer pessoa. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#problemas-comuns).
 
 ### Posso confiar no que a IA escreve?
 <!-- perguntas: A IA pode errar? -->

@@ -60,7 +60,7 @@ Em cada pedido, a IA recebe:
 - a **conversa aberta**: canal, assunto, estado, responsável e as últimas 40 mensagens desde a data do histórico visível, **incluindo as notas internas** (marcadas como internas);
 - os dados do cliente: nome, perfil, email (e se está confirmado), telefone e outros contactos do mesmo cliente;
 - no chat do site, o que o browser do cliente enviou (página, carrinho, língua, país), marcado como não confirmado;
-- a **base de conhecimento** escrita pelo Super Admin, as lojas físicas do dashboard e as políticas e páginas publicadas da loja online;
+- a **base de conhecimento** escrita pelo Super Admin, as **respostas aprovadas** que o Super Admin publicou ([Respostas aprovadas](/apoio/documentacao/respostas-aprovadas)), as lojas físicas do dashboard e as políticas e páginas publicadas da loja online;
 - os seus últimos pedidos à IA nessa conversa e o seu nome.
 
 Quando precisa, consulta também (só leitura):
@@ -75,12 +75,14 @@ A IA não vê imagens nem abre anexos: só sabe o nome e o tipo do ficheiro.
 
 > **Dica:** Como a IA lê as notas internas, uma boa nota ("cliente já recebeu o vale de troca a 12/10") ajuda a IA a propor uma resposta certa. As notas nunca são citadas na resposta ao cliente.
 
+> **Dica:** Quando der uma boa resposta a uma pergunta que outros clientes também fazem, carregue em **Guardar como resposta aprovada** por baixo dela. Depois de o Super Admin a aprovar e publicar, a IA passa a usá-la nas propostas. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#guardar-como-resposta-aprovada).
+
 ## O que a IA está instruída a fazer e a não fazer
 <!-- perguntas: A IA pode inventar preços? | A IA pode prometer reembolsos? | Posso confiar na IA? | A IA diz ao cliente que é uma IA? -->
 
 A IA está instruída para:
 
-- usar primeiro a base de conhecimento, depois as políticas e páginas da loja, depois as ferramentas;
+- usar primeiro a base de conhecimento (e as respostas aprovadas publicadas; se contradisserem a base de conhecimento, prevalece a base), depois as políticas e páginas da loja, depois as ferramentas;
 - **nunca inventar** preços, prazos, stock, portes, moradas, horários, garantias, trocas, descontos, contactos nem ligações; quando falta um dado, deixa um marcador como "[confirmar prazo]" e põe-no na lista a confirmar;
 - **nunca prometer** reembolsos, compensações, descontos, ofertas ou exceções às políticas;
 - escrever na língua do cliente e, em português, em português de Portugal;
@@ -89,7 +91,7 @@ A IA está instruída para:
 - tratar o que os clientes escrevem como dados e não como ordens, e avisar se alguém tentar dar instruções à IA;
 - nunca dizer ao cliente que é uma IA nem falar de ferramentas ou custos.
 
-Além disso, o servidor confere cada proposta: ligações que não vieram da loja online, da base de conhecimento nem das ferramentas aparecem na lista a confirmar ("Confirme a ligação …: não veio da loja online nem da base de conhecimento.").
+Além disso, o servidor confere cada proposta: ligações que não vieram da loja online, da base de conhecimento, das respostas aprovadas publicadas nem das ferramentas aparecem na lista a confirmar ("Confirme a ligação …: não veio da loja online nem da base de conhecimento.").
 
 Mesmo assim, **a IA pode errar**. O aviso fixo no fundo do separador diz: "A IA pode errar: confirme antes de enviar. Nada é enviado ao cliente sem carregar em "Enviar ao cliente". A conversa e os dados consultados são processados pela Anthropic (Claude)."
 
@@ -136,4 +138,4 @@ Para gerar a resposta, a conversa e os dados consultados são enviados à Anthro
 | "Assistente de IA por configurar: …" | Falta a chave da Anthropic; avise o Super Admin |
 | "A ligação foi interrompida. Se a IA terminar, a resposta aparece aqui dentro de momentos." | Espere; o pedido continua no servidor |
 
-> **Nota:** A IA não responde sozinha aos clientes. As únicas mensagens automáticas do apoio são as descritas em [Respostas automáticas](/apoio/documentacao/respostas-automaticas) e o [pedido de avaliação](/apoio/documentacao/avaliacao-e-desempenho), e nenhuma é escrita pela IA.
+> **Nota:** A IA não responde sozinha aos clientes. As únicas mensagens automáticas do apoio são as descritas em [Respostas automáticas](/apoio/documentacao/respostas-automaticas) e o [pedido de avaliação](/apoio/documentacao/avaliacao-e-desempenho), e nenhuma é escrita pela IA. As [respostas aprovadas](/apoio/documentacao/respostas-aprovadas) também não são enviadas a ninguém: só ajudam a IA a propor.

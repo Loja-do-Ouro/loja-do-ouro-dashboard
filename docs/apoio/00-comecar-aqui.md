@@ -41,8 +41,8 @@ Quem só tem acesso ao Apoio ao Cliente entra diretamente nas **Conversas** depo
 
 Há dois papéis:
 
-- **Colaborador(a) do apoio** — quem tem o acesso "Apoio ao Cliente". Vê todas as conversas, responde às que são suas (ou às que ainda não têm responsável), escreve notas internas em qualquer conversa e usa o assistente de IA.
-- **Super Admin** — faz tudo o que a equipa faz e ainda configura o apoio, dá e retira acessos, deixa conversas sem responsável, vê os resultados de toda a equipa e cancela pedidos de avaliação.
+- **Colaborador(a) do apoio** — quem tem o acesso "Apoio ao Cliente". Vê todas as conversas, responde às que são suas (ou às que ainda não têm responsável), escreve notas internas em qualquer conversa, usa o assistente de IA e pode guardar as suas boas respostas para a IA ([Respostas aprovadas](/apoio/documentacao/respostas-aprovadas)).
+- **Super Admin** — faz tudo o que a equipa faz e ainda configura o apoio, dá e retira acessos, deixa conversas sem responsável, vê os resultados de toda a equipa, cancela pedidos de avaliação e revê, aprova e publica as respostas aprovadas que a IA usa.
 
 Só o Super Admin dá o acesso, em Administração → Utilizadores (caixa **Apoio ao Cliente**) ou em Configuração do apoio → **Quem usa o Apoio ao Cliente**. A tabela completa está em [Responsável e transferências](/apoio/documentacao/responsavel-e-transferencias#o-que-cada-papel-pode-fazer).
 
@@ -83,6 +83,7 @@ Só o Super Admin dá o acesso, em Administração → Utilizadores (caixa **Apo
 4. Responda. Numa conversa sem responsável, ao responder fica responsável por ela.
 5. Mude o estado: **A aguardar cliente** se fez uma pergunta, **Resolvido** se o assunto ficou tratado.
 6. Ao longo do dia, use **Não lidas** para ver mensagens novas. Não há som nem notificação: a lista atualiza-se sozinha a cada 20 segundos com a página aberta.
+7. Quando responder a uma pergunta geral que outros clientes também fazem (horários, envios, trocas), carregue em **Guardar como resposta aprovada** por baixo da sua resposta: se o Super Admin a aprovar e publicar, a IA passa a usá-la. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas).
 
 ## Como usar esta documentação
 <!-- perguntas: Como procuro um tema na documentação? | Como funciona a pesquisa da documentação? | Onde está a parte legal? | Não encontro o que procuro -->

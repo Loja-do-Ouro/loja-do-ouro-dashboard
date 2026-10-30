@@ -21,11 +21,12 @@ O Apoio ao Cliente também trata dados de quem lá trabalha: quem respondeu a ca
 | Ligação da sua conta Zendesk (nome, email e função na Zendesk; chaves cifradas) | Responder com a sua autoria no Zendesk | Até a desligar ou o Zendesk ser desligado |
 | Pedidos que fez ao Assistente de IA (pergunta, proposta, custo) | Ajudar a responder; controlar o orçamento | 180 dias |
 | Revisões da IA das suas respostas (só códigos, nunca o texto) e a sua escolha de ligar ou desligar a revisão | Estatísticas da revisão | 365 dias |
+| Respostas suas guardadas com "Guardar como resposta aprovada": quem carregou no botão, quando, o custo e o resultado; se for Super Admin, também quem aprovou e quem confirmou cada resposta aprovada | Limite diário, orçamento e registo das [respostas aprovadas](/apoio/documentacao/respostas-aprovadas) | 365 dias; quem aprovou ou confirmou, enquanto existir a resposta (também arquivada) e, no registo de auditoria, até a resposta ser apagada |
 | Avaliações dos clientes atribuídas a si e o tempo até responder | Satisfação e desempenho | A nota fica sem prazo automático; o comentário é apagado ao fim de 12 meses |
 
 **O que o cliente vê de si:** o seu primeiro nome na assinatura dos emails do apoio, no pedido de avaliação por email ("como correu o atendimento de…") e nos emails do chat do site; no chat do site, o seu primeiro nome aparece também enquanto escreve ("Ana está a escrever…") e no pedido de avaliação com estrelas ("Como avalia o atendimento de Ana?"); no Zendesk, o nome da sua conta Zendesk. No Messenger e no Instagram, o pedido de avaliação sai em nome da página.
 
-**O que vai para a Anthropic:** quando faz um pedido ao Assistente de IA, o seu nome segue com o pedido, para a IA saber com quem fala; na revisão antes de enviar, segue o texto da sua resposta.
+**O que vai para a Anthropic:** quando faz um pedido ao Assistente de IA, o seu nome segue com o pedido, para a IA saber com quem fala; na revisão antes de enviar, segue o texto da sua resposta; ao guardar uma resposta como aprovada, segue a conversa, com as mensagens da equipa marcadas só como "equipa", sem o nome de quem as escreveu.
 
 ## Quem vê o quê
 <!-- perguntas: Quem vê as minhas avaliações? | Os colegas veem a minha nota? | O Super Admin vê as minhas estatísticas da IA? | O que vejo em A minha conta? -->
