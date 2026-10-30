@@ -959,10 +959,11 @@ function orderRefs(text: string, allow: Allowlist): { block: boolean; codes: str
     const tail = tailOf(at + m[0].length);
     if (INVOICE_KEY.test(key) && invoiceAfter(tail)) return { block: true, codes };
     const plural = /s$/u.test(key);
-    // "vale" sem artigo nem determinante antes é o verbo valer ("o anel vale 1250").
+    // "vale" sem artigo nem determinante antes é o verbo valer ("o anel vale 1250"), menos com "n.º", "#" ou letras a
+    // seguir ("vale LDO4471": um código de vale).
     const verb = /^vales?$/u.test(key) && !VOUCHER_BEFORE.test(text.slice(Math.max(0, at - 40), at));
     const d = direct(tail, new RegExp(`${REF_MARK}[ \\t]+d[aeo]s?[ \\t]+$`, "iu").test(text.slice(Math.max(0, at - 20), at)), plural);
-    if (d && !(verb && !d[1] && !d[2])) {
+    if (d && !(verb && !d[1] && !d[2] && !d[3])) {
       // Um modelo logo a seguir a "reparação" ("A reparação GA2100 custa 45 €", "Reparação T137.410"): aviso de código.
       const value = `${d[3] || ""}${d[4]}${/^[\p{L}\p{N}.-]*/u.exec(tail.slice(d.index + d[0].length))![0]}`;
       if (d[3] && !d[1] && !d[2] && /^repara/u.test(key) && (!ID_PREFIX.test(d[3]) || value.includes(".")) && !POSSESSIVE.test(sentenceAt(text, at))) codes.push(value);

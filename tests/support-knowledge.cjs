@@ -2070,7 +2070,9 @@ test("Paraphrases from the round-4 verification: the same time in another form i
 
 test("DB rule ⊆ server rule on generated texts (keys × marks × numbers × suffixes): the database never refuses a text the server accepts", (t) => {
   const kb = [KNOWLEDGE, ...STORES.map((s) => `${s.name} ${s.city}`), "apoiocliente@lojadoouro.pt"].join("\n");
-  const keys = ["Encomenda", "encomendas", "Pedido", "pedidos", "Fatura", "faturas", "Fatura-recibo", "Cliente", "Reparação", "Orçamento", "Vale", "Talão", "ENCOMENDA"];
+  // "o anel vale", "A vale": "vale" também depois de uma palavra (o servidor lê-o como o verbo valer sem "n.º", "#" ou letras).
+  const keys = ["Encomenda", "encomendas", "Pedido", "pedidos", "Fatura", "faturas", "Fatura-recibo", "Cliente", "Reparação", "Orçamento", "Vale", "Talão", "ENCOMENDA",
+    "O anel vale", "A vale", "A reparação"];
   const marks = ["", " n.º", " nº", " n.", " número", " #", ":", " é o", " n.º:"];
   const nums = ["4471", "2026", "1000", "750", "365", "1500", "4 471", "44 71", "4.471", "1 500", "24-12", "12.12.2025", "12-11-23", "2025/2026", "2025/26", "1/2345",
     "FT 1/2345", "A/145", "2026/145", "LDO4471", "2026-2027", "1500-3000", "24/7", "c/ 23", "s/ 2", "123 456 789", "0457"];
