@@ -1,0 +1,275 @@
+{%- comment -%}
+  Loja do Ouro · Barra fina de Black Friday (anúncio por cima do banner / no cabeçalho)
+
+  - Uma linha: «Black Friday» em folha de ouro · «Até -30%» · contagem compacta · «Ver ofertas →»
+  - Durante a Black Friday a barra inteira é clicável (link = a coleção escolhida); em mobile o botão dá
+    lugar a uma seta para caber numa linha.
+  - O botão «Ver ofertas», a seta e o link só existem entre o Início e o Fim (hora de Lisboa) e podem
+    desligar-se nas definições. Antes do início a barra é só texto («Black Friday · Até -30% · Começa em …»):
+    sem botão, sem seta, sem link. O HTML já sai no estado certo e o script confirma a cada segundo com o
+    relógio do visitante: o link aparece no início e desaparece no fim sem recarregar, mesmo que a página
+    venha da cache da loja.
+  - Antes do início diz «Começa em», durante diz «Termina em»; pode esconder-se sozinha no fim.
+  - Textos automáticos em PT, EN, ES, FR, DE. Respeita «reduzir movimento».
+
+  Instalação: colar em sections/lod-black-friday-bar.liquid e, no editor do tema,
+  "Adicionar secção" no cabeçalho (ou no topo da página, por cima do banner) → "Barra Black Friday".
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign bb_lang = localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+  assign bb_lang = bb_lang | downcase | slice: 0, 2
+
+  case bb_lang
+    when 'pt'
+      assign t_upto = 'Até'
+      assign t_before = 'Começa em'
+      assign t_during = 'Termina em'
+      assign t_cta = 'Ver ofertas'
+    when 'es'
+      assign t_upto = 'Hasta'
+      assign t_before = 'Empieza en'
+      assign t_during = 'Termina en'
+      assign t_cta = 'Ver ofertas'
+    when 'fr'
+      assign t_upto = 'Jusqu’à'
+      assign t_before = 'Commence dans'
+      assign t_during = 'Se termine dans'
+      assign t_cta = 'Voir les offres'
+    when 'de'
+      assign t_upto = 'Bis zu'
+      assign t_before = 'Beginnt in'
+      assign t_during = 'Endet in'
+      assign t_cta = 'Angebote ansehen'
+    else
+      assign t_upto = 'Up to'
+      assign t_before = 'Starts in'
+      assign t_during = 'Ends in'
+      assign t_cta = 'Shop now'
+  endcase
+
+  assign bb_cta = s.cta_label | default: t_cta
+  assign bb_link = s.link | default: routes.all_products_collection_url
+
+  # Botão «Ver ofertas», seta e link: só durante a Black Friday (do Início ao Fim) e com a opção ligada.
+  # Estado à hora do pedido (fuso da loja: Europe/Lisbon); o script volta a ver a hora a cada segundo com o
+  # relógio do visitante (a página pode vir da cache da loja).
+  assign bb_now = 'now' | date: '%s' | plus: 0
+  assign bb_st = s.start | date: '%s' | plus: 0
+  assign bb_en = s.end | date: '%s' | plus: 0
+  assign bb_before = false
+  if bb_st > 1000000000 and bb_now < bb_st
+    assign bb_before = true
+  endif
+  assign bb_ended = false
+  if bb_en > 1000000000 and bb_now >= bb_en
+    assign bb_ended = true
+  endif
+  assign bb_on = true
+  if s.show_cta == false
+    assign bb_on = false
+  endif
+  assign bb_live = false
+  if bb_on and bb_before == false and bb_ended == false
+    assign bb_live = true
+  endif
+  if bb_before
+    assign bb_label = t_before
+  else
+    assign bb_label = t_during
+  endif
+-%}
+
+{%- if s.enabled -%}
+<style>
+  #lbb-{{ section.id }} {
+    --g1: #7a5a22; --g2: #bc914c; --g3: #e5c98e; --g4: #fff3cf;
+    --foil: linear-gradient(100deg, var(--g1) 0%, var(--g3) 18%, var(--g2) 34%, var(--g4) 50%, var(--g2) 66%, var(--g3) 82%, var(--g1) 100%);
+    --serif: var(--font-heading-family, Georgia), Georgia, serif;
+  }
+  .lbb { position: relative; display: block; overflow: hidden; isolation: isolate; background: #060504; color: var(--g4); text-decoration: none; font-family: var(--font-body-family, Arial, sans-serif); -webkit-tap-highlight-color: transparent; }
+  .lbb[hidden] { display: none !important; }
+  .lbb::before, .lbb::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--g2) 20%, var(--g3) 50%, var(--g2) 80%, transparent); opacity: .7; }
+  .lbb::before { top: 0; }
+  .lbb::after { bottom: 0; }
+  .lbb__glow { position: absolute; inset: 0; z-index: -1; background: radial-gradient(60% 140% at 50% 0%, rgba(188,145,76,.22), transparent 70%); }
+  .lbb__sweep { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(100deg, transparent 40%, rgba(255,236,190,.16) 50%, transparent 60%); transform: translateX(-100%); animation: lbb-sweep 7s ease-in-out infinite 1.5s; }
+
+  .lbb__row { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 42px; padding: 0 12px; white-space: nowrap; }
+  .lbb__title { font-family: var(--serif); font-size: 15px; letter-spacing: .14em; text-transform: uppercase; background: var(--foil); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: lbb-foil 6s linear infinite; }
+  .lbb__dot { width: 4px; height: 4px; transform: rotate(45deg); background: var(--g2); flex: 0 0 auto; }
+  .lbb__offer { font-size: 12px; letter-spacing: .08em; color: var(--g3); }
+  .lbb__offer b { font-family: var(--serif); font-weight: 400; font-size: 15px; color: var(--g4); letter-spacing: .02em; }
+  .lbb__count { display: inline-flex; align-items: baseline; gap: 6px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,243,207,.65); }
+  .lbb__clock { display: inline-flex; gap: 5px; font-variant-numeric: tabular-nums; letter-spacing: .02em; color: var(--g4); font-size: 13px; }
+  .lbb__clock span { display: inline-block; min-width: 2.6ch; text-align: right; }
+  .lbb__clock i { font-style: normal; font-size: 10px; color: var(--g3); margin-left: 1px; }
+  .lbb__cta { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; padding: 6px 14px; border: 1px solid rgba(229,201,142,.55); font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--g4); transition: background .25s, color .25s, border-color .25s; }
+  .lbb__cta svg, .lbb__arrow svg { width: 14px; height: 14px; transition: transform .25s; }
+  .lbb[href]:hover .lbb__cta { background: var(--g3); border-color: var(--g3); color: #060504; }
+  .lbb[href]:hover svg { transform: translateX(3px); }
+  .lbb:not([href]) { cursor: default; }
+  .lbb__cta[hidden], .lbb__arrow[hidden] { display: none !important; }
+  .lbb:focus-visible { outline: 2px solid var(--g3); outline-offset: -3px; }
+  .lbb__arrow { display: none; color: var(--g3); }
+
+  /* Mobile: uma só linha — título · oferta · contagem · seta */
+  @media (max-width: 749px) {
+    .lbb__row { gap: 8px; min-height: 40px; padding: 0 10px; }
+    .lbb__title { font-size: 13px; letter-spacing: .1em; }
+    .lbb__offer { font-size: 11px; }
+    .lbb__offer b { font-size: 13px; }
+    .lbb__count-label, .lbb__cta { display: none; }
+    .lbb__clock { font-size: 12px; gap: 3px; }
+    .lbb__arrow { display: inline-flex; }
+  }
+  @media (max-width: 419px) {
+    .lbb__row { gap: 6px; padding: 0 8px; }
+    .lbb__title { letter-spacing: .05em; }
+    .lbb__offer { letter-spacing: 0; }
+    .lbb__clock { gap: 2px; }
+    .lbb__clock span { min-width: 2ch; }
+  }
+  @media (max-width: 359px) {
+    .lbb__offer span { display: none; }
+    .lbb__clock .lbb__s { display: none; }
+  }
+
+  @keyframes lbb-foil { to { background-position: -250% 0; } }
+  @keyframes lbb-sweep { 0%, 60% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  @keyframes lbb-tick { from { opacity: .3; transform: translateY(-30%); } to { opacity: 1; transform: none; } }
+  .lbb__clock span.is-tick { animation: lbb-tick .45s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    .lbb *, .lbb::before, .lbb::after { animation: none !important; transition: none !important; }
+    .lbb__sweep { display: none; }
+  }
+</style>
+
+<a
+  id="lbb-{{ section.id }}"
+  class="lbb"
+  {% if bb_live %}href="{{ bb_link }}"{% endif %}
+  {% if bb_on %}data-href="{{ bb_link | escape }}"{% endif %}
+  data-lbb
+  data-start="{{ s.start | escape }}"
+  data-end="{{ s.end | escape }}"
+  data-hide="{{ s.hide_after_end }}"
+  data-before="{{ t_before | escape }}"
+  data-during="{{ t_during | escape }}"
+>
+  <span class="lbb__glow" aria-hidden="true"></span>
+  <span class="lbb__sweep" aria-hidden="true"></span>
+  <span class="lbb__row">
+    <span class="lbb__title">Black Friday</span>
+    {%- if s.discount != blank -%}
+      <span class="lbb__dot" aria-hidden="true"></span>
+      <span class="lbb__offer"><span>{{ t_upto }}</span> <b>{{ s.discount }}</b></span>
+    {%- endif -%}
+    {%- if s.show_countdown -%}
+      <span class="lbb__dot" aria-hidden="true"></span>
+      <span class="lbb__count">
+        <span class="lbb__count-label" data-label>{{ bb_label }}</span>
+        <span class="lbb__clock" role="timer" aria-live="off">
+          <span data-u="d">00</span><i>d</i>
+          <span data-u="h">00</span><i>h</i>
+          <span data-u="m">00</span><i>m</i>
+          <span class="lbb__s" data-u="s">00</span><i class="lbb__s">s</i>
+        </span>
+      </span>
+    {%- endif -%}
+    {%- if bb_on -%}
+    <span class="lbb__cta"{% unless bb_live %} hidden{% endunless %}>{{ bb_cta }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+    <span class="lbb__arrow" aria-hidden="true"{% unless bb_live %} hidden{% endunless %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+    {%- endif -%}
+  </span>
+</a>
+
+<script>
+  (function () {
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // "2026-11-27 00:00" → hora de Lisboa (em novembro = UTC)
+    function parse(v) {
+      if (!v) return null;
+      v = String(v).trim().replace(' ', 'T');
+      if (!/[zZ]|[+-]\d\d:?\d\d$/.test(v)) v += 'Z';
+      var t = Date.parse(v);
+      return isNaN(t) ? null : t;
+    }
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function init(root) {
+      if (!root || root._lbb) return;
+      var start = parse(root.dataset.start), end = parse(root.dataset.end);
+      var label = root.querySelector('[data-label]');
+      var nums = {};
+      root.querySelectorAll('[data-u]').forEach(function (n) { nums[n.dataset.u] = n; });
+      var design = window.Shopify && Shopify.designMode;
+      // botão «Ver ofertas», seta e link: só entre o início e o fim (sem data-href = opção desligada: nunca)
+      var href = root.getAttribute('data-href'), cta = root.querySelector('.lbb__cta'), arrow = root.querySelector('.lbb__arrow');
+      function live(on) {
+        on = on && href !== null;
+        if (on === root.hasAttribute('href')) return;
+        if (on) root.setAttribute('href', href); else root.removeAttribute('href');
+        if (cta) cta.hidden = !on;
+        if (arrow) arrow.hidden = !on;
+      }
+
+      function set(k, v) {
+        var n = nums[k]; if (!n) return;
+        v = pad(v);
+        if (n.textContent === v) return;
+        n.textContent = v;
+        if (!reduce) { n.classList.remove('is-tick'); void n.offsetWidth; n.classList.add('is-tick'); }
+      }
+      function tick() {
+        var now = Date.now(), target = end;
+        live(!(start && now < start) && !(end && now >= end));
+        if (start && now < start) { target = start; if (label) label.textContent = root.dataset.before; }
+        else if (label) label.textContent = root.dataset.during;
+        if (end && now >= end) {
+          if (root.dataset.hide === 'true' && !design) { root.hidden = true; clearInterval(root._lbb); return; }
+          target = now;
+        }
+        var diff = Math.max(0, (target || now) - now) / 1000;
+        set('d', Math.floor(diff / 86400)); set('h', Math.floor(diff % 86400 / 3600));
+        set('m', Math.floor(diff % 3600 / 60)); set('s', Math.floor(diff % 60));
+      }
+      tick();
+      root._lbb = setInterval(tick, 1000);
+    }
+
+    document.querySelectorAll('[data-lbb]').forEach(init);
+    document.addEventListener('shopify:section:load', function (e) { init(e.target.querySelector('[data-lbb]')); });
+    document.addEventListener('shopify:section:unload', function (e) {
+      var r = e.target.querySelector('[data-lbb]'); if (r && r._lbb) { clearInterval(r._lbb); r._lbb = null; }
+    });
+  })();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Barra Black Friday",
+  "tag": "div",
+  "class": "lod-black-friday-bar-section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Barra fina de anúncio. Use as mesmas datas da secção Black Friday."
+    },
+    { "type": "checkbox", "id": "enabled", "label": "Mostrar a barra", "default": true },
+    { "type": "header", "content": "Datas (hora de Lisboa)" },
+    { "type": "text", "id": "start", "label": "Início", "default": "2026-11-27 00:00", "info": "Formato AAAA-MM-DD HH:MM." },
+    { "type": "text", "id": "end", "label": "Fim", "default": "2026-11-30 23:59" },
+    { "type": "checkbox", "id": "hide_after_end", "label": "Esconder automaticamente depois do fim", "default": true },
+    { "type": "header", "content": "Conteúdo" },
+    { "type": "text", "id": "discount", "label": "Desconto", "default": "-30%", "info": "Aparece como «Até -30%». Vazio = não mostra." },
+    { "type": "checkbox", "id": "show_cta", "label": "Mostrar o botão «Ver ofertas» (só durante a Black Friday)", "default": true, "info": "Só aparece entre o Início e o Fim (hora de Lisboa) e só então a barra é clicável. Antes do início a barra mostra apenas «Black Friday · Até -30% · Começa em …», sem botão nem link. Desligado: a barra nunca tem botão nem link." },
+    { "type": "url", "id": "link", "label": "Botão «Ver ofertas»: coleção", "info": "Escolha a coleção ou categoria da Black Friday. Vazio = todos os produtos." },
+    { "type": "text", "id": "cta_label", "label": "Botão «Ver ofertas»: texto", "info": "Vazio = automático por idioma." },
+    { "type": "checkbox", "id": "show_countdown", "label": "Contagem decrescente", "default": true }
+  ],
+  "presets": [{ "name": "Barra Black Friday" }]
+}
+{% endschema %}
