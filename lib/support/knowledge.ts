@@ -9,7 +9,7 @@ import { HttpError } from "./http";
 import {
   CARD_LIMITS, DISTILL_INSTRUCTIONS, DISTILL_SCHEMA, KNOWLEDGE_BUTTON_CALL_MS, KNOWLEDGE_CRON_CALL_MS, KNOWLEDGE_CRON_END_MS, KNOWLEDGE_CRON_LIMIT,
   KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_EFFORT, KNOWLEDGE_MAX_TOKENS, KNOWLEDGE_MODEL, KnowledgeFormatError, cardPii, companyAllowlist,
-  conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, questionWarnings, safeAvisos, sourceWarnings, type KnowledgeBegin,
+  conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, proposalWarnings, safeAvisos, type KnowledgeBegin,
   type KnowledgeDiscard,
 } from "./knowledge-rules";
 
@@ -109,10 +109,11 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
     if (copiesCustomer([out.pergunta, ...out.variantes, out.resposta], inbound)) return discard("copia_cliente", out.motivo);
     const brand = conversationBrand(begin.conversation.channel, begin.conversation.site);
     if (otherBrandIn(out.resposta, brand) || otherBrandIn(questions, brand)) return discard("marca", out.motivo);
-    // Avisos em relação à resposta da equipa (só aqui há a resposta da equipa): ficam no cartão para o Super Admin. Citam
-    // só palavras comuns e números com a unidade; uma citação com dados pessoais passa a «…» (safeAvisos).
-    const avisos = safeAvisos([...sourceWarnings({ text: out.resposta, staff, knowledge, allow }), ...questionWarnings({ text: questions, staff, knowledge })],
-      allow, staffNames, contact);
+    // Avisos em relação à resposta da equipa (só aqui há a resposta da equipa): ficam no cartão como ajuda à leitura (o
+    // Super Admin confirma cada cartão). As contradições e os avisos da pergunta vêm primeiro (nunca ficam de fora dos 20).
+    // Da resposta da equipa citam só palavras de uma lista fechada e números com a unidade; uma citação com dados pessoais
+    // passa a «…» (safeAvisos).
+    const avisos = safeAvisos(proposalWarnings({ resposta: out.resposta, questions, staff, knowledge, allow }), allow, staffNames, contact);
     const loja = out.loja ? begin.stores.find((s) => s.code === out.loja)?.id ?? null : null;
     const r = await record({
       status: "done", cost, model, resultado: "novo",
@@ -136,7 +137,7 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
 function buttonNote(o: Outcome) {
   switch (o.resultado) {
     case "novo":
-      return "Guardada como proposta na base de conhecimento aprendida: as regras do servidor não encontraram emails, telefones, números de encomenda nem os nomes do cliente ou da equipa (possíveis nomes, moradas e contradições ficam assinalados). O Super Admin revê-a e aprova-a em Configuração → IA do apoio.";
+      return "Guardada como proposta na base de conhecimento aprendida: as regras do servidor não encontraram emails, telefones, números de encomenda nem os nomes do cliente ou da equipa (possíveis nomes, moradas e contradições ficam assinalados, mas as regras não apanham tudo). O Super Admin lê-a, confirma que não tem dados pessoais e aprova-a em Configuração → IA do apoio.";
     case "existente":
       return "Já existe uma resposta (proposta ou aprovada) para esta pergunta: ficou contada como mais uma confirmação.";
     case "nao_aproveitavel":
