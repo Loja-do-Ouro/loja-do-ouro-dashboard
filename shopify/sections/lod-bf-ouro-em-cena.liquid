@@ -2177,7 +2177,7 @@ function applyPhase(ph) {
   var offers = ph === 1 && ctaOn, was = holdCta ? holdCta.hidden : false;
   if (holdCta) holdCta.hidden = !(offers || ph === 2);
   pill(holdCta, ph === 2 ? TX.see : TX.cta, ph === 2 ? URLS.see : URLS.cta);
-  if (holdCta && holdCta.hidden !== was) onResize();
+  if (holdCta && holdCta.hidden !== was) { onResize(); endCta(S.endOn === true); }
   if (!bar) return;
   if (ph === 0) {
     barPrimary.hidden = true; pill(barPrimary, TX.cta, URLS.cta);
@@ -2708,7 +2708,7 @@ function setHold(h) {
   var act = h >= 0.5;
   if (hold._act !== act) { hold._act = act; if (act) hold.removeAttribute('inert'); else hold.setAttribute('inert', ''); }
 }
-function endCta(on) { if (bar) bar.classList.toggle('is-endcta', on && !!holdCta && !holdCta.hidden && W.innerWidth >= 900 && !bar.contains(D.activeElement)); }
+function endCta(on) { S.endOn = on; if (bar) bar.classList.toggle('is-endcta', on && !!holdCta && !holdCta.hidden && W.innerWidth >= 900 && !bar.contains(D.activeElement)); }
 function overlay(p) {
   var a, b;
   setBlk(ch1, 1 - sstep(0.12, 0.20, p), S.RM ? 0 : -12 * sstep(0.12, 0.20, p));
@@ -2743,6 +2743,7 @@ function resetOverlay() {
   hold.style.removeProperty('--h');
   hold.removeAttribute('inert');
   sec.classList.remove('is-holdon');
+  S.endOn = false;
   if (bar) bar.classList.remove('is-endcta');
 }
 $('.lbf3d__skip').addEventListener('click', function (e) {
@@ -3710,6 +3711,7 @@ function boot() {
   stage.addEventListener('pointerdown', function (e) {
     S.lastInput = now(); wake();
     if (!G) return;
+    if (e.target && e.target.closest && e.target.closest('a,button')) return;
     var t = now();
     G.drag = { id: e.pointerId, lx: e.clientX, ly: e.clientY, lt: t, t0: t, moved: 0, v: 0 };
     if (e.pointerType === 'mouse') { try { stage.setPointerCapture(e.pointerId); } catch (err) {} }
@@ -3913,7 +3915,7 @@ scan(D);
       "id": "cta_url",
       "label": "Botão «Descobrir ofertas»: coleção",
       "default": "/collections/all",
-      "info": "Escolha a coleção ou categoria da Black Friday. Vazio = página de todas as coleções."
+      "info": "Escolha a coleção ou categoria da Black Friday. Por omissão: todos os produtos (/collections/all). Vazio = página de todas as coleções."
     },
     {
       "type": "text",
