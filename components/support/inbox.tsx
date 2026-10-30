@@ -2208,6 +2208,8 @@ function SurveyPanel({ d, onAct, onReload }: {
 }
 
 // locale, site e country: vazios ou em falta (visitantes antigos, servidor anterior) contam como português e Loja do Ouro.
+// visit_started_at e pages_viewed: a hora a que o cliente abriu o chat e as páginas vistas desde então (o widget não
+// conta nada antes); pages_viewed 0 = conversa de antes, ainda sem abrir o chat nesta visita.
 type SiteVisitorInfo = {
   page_url: string | null; page_title: string | null; visit_started_at: string | null; pages_viewed: number | null;
   context_at: string | null; last_seen_at: string; created_at: string; verified: boolean; now: string;
@@ -2285,12 +2287,16 @@ function SiteVisitor({ state }: { state: SiteVisitorState | null }) {
                 <a href={info.page_url} target="_blank" rel="noopener noreferrer">{info.page_title || new URL(info.page_url).pathname}</a>
               ) : "—"}
             </dd>
-            <dt>Visita</dt>
+            <dt>Desde que abriu o chat</dt>
             <dd>
-              {info.visit_started_at
-                ? `${online ? "Na loja há" : "Esteve na loja"} ${duration((online ? now : Date.parse(info.last_seen_at)) - Date.parse(info.visit_started_at))}`
-                : "—"}
-              {info.pages_viewed ? <small className="muted block">{info.pages_viewed} página{info.pages_viewed === 1 ? "" : "s"} vista{info.pages_viewed === 1 ? "" : "s"} nesta visita</small> : null}
+              {info.pages_viewed === 0
+                ? "Ainda não abriu o chat nesta visita"
+                : info.visit_started_at
+                  ? online
+                    ? `Há ${duration(now - Date.parse(info.visit_started_at))}`
+                    : `${duration(Date.parse(info.last_seen_at) - Date.parse(info.visit_started_at))} até sair do site`
+                  : "—"}
+              {info.pages_viewed ? <small className="muted block">{info.pages_viewed} página{info.pages_viewed === 1 ? "" : "s"} vista{info.pages_viewed === 1 ? "" : "s"} desde então</small> : null}
             </dd>
             <dt>Carrinho</dt>
             <dd>

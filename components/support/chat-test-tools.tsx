@@ -25,6 +25,7 @@ export function ChatTestTools() {
     try {
       localStorage.removeItem("ldo-chat:v1");
       sessionStorage.removeItem("ldo-chat:aberto");
+      sessionStorage.removeItem("ldo-chat:visita-chat");
     } catch {
       // Sem armazenamento: basta recarregar.
     }
