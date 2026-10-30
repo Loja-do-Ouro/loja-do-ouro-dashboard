@@ -1,16 +1,17 @@
 # Inteligência artificial no apoio: regras e lei
-<!-- resumo: Como o Assistente de IA e a revisão antes de enviar se enquadram no Regulamento da IA e no RGPD: literacia, transparência, risco, revisão humana, o que a Anthropic recebe e o que nunca colar na IA. -->
+<!-- resumo: Como o Assistente de IA, a revisão antes de enviar e as propostas de respostas aprovadas se enquadram no Regulamento da IA e no RGPD: literacia, transparência, risco, revisão humana, o que a Anthropic recebe e o que nunca colar na IA. -->
 <!-- publico: todos -->
-<!-- termos: IA, inteligência artificial, Regulamento da IA, AI Act, Regulamento 2024/1689, Omnibus Digital, Regulamento 2026/1744, literacia em IA, formação em IA, transparência, artigo 50.º, marcação, rotulagem, risco elevado, alto risco, anexo III, prestador, responsável pela implantação, decisões automatizadas, artigo 22.º, revisão humana, Anthropic, Claude, subcontratante, treino, ChatGPT, Gemini, tradutor online, colar dados, dados sensíveis, robô, bot, dizer ao cliente que é IA, Sugerir resposta, Assistente IA, Revisão IA -->
+<!-- termos: IA, inteligência artificial, Regulamento da IA, AI Act, Regulamento 2024/1689, Omnibus Digital, Regulamento 2026/1744, literacia em IA, formação em IA, transparência, artigo 50.º, marcação, rotulagem, risco elevado, alto risco, anexo III, prestador, responsável pela implantação, decisões automatizadas, artigo 22.º, revisão humana, Anthropic, Claude, subcontratante, treino, ChatGPT, Gemini, tradutor online, colar dados, dados sensíveis, robô, bot, dizer ao cliente que é IA, Sugerir resposta, Assistente IA, Revisão IA, respostas aprovadas, base de conhecimento aprendida -->
 <!-- atualizado: 2026-10-30 -->
 
-O Apoio ao Cliente usa inteligência artificial (IA) em duas ferramentas: o **Assistente de IA**, que propõe respostas e procura informação, e a **Revisão da IA antes de enviar**, que verifica a sua resposta antes de sair. Este artigo explica o que a lei exige a quem as usa, o que vai para o fornecedor de IA e as regras da equipa. O funcionamento passo a passo está em [Assistente de IA](/apoio/documentacao/assistente-ia) e em [Revisão da IA antes de enviar](/apoio/documentacao/revisao-ia-antes-de-enviar).
+O Apoio ao Cliente usa inteligência artificial (IA) em três ferramentas: o **Assistente de IA**, que propõe respostas e procura informação, a **Revisão da IA antes de enviar**, que verifica a sua resposta antes de sair, e as **propostas de respostas aprovadas**, em que a IA lê uma conversa já respondida e propõe um texto para a base de conhecimento, que o Super Admin revê. Este artigo explica o que a lei exige a quem as usa, o que vai para o fornecedor de IA e as regras da equipa. O funcionamento passo a passo está em [Assistente de IA](/apoio/documentacao/assistente-ia), em [Revisão da IA antes de enviar](/apoio/documentacao/revisao-ia-antes-de-enviar) e em [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas).
 
 ## Em resumo
 <!-- perguntas: Posso usar a IA para responder aos clientes? | Quais são as regras da IA no apoio? | O que tenho de saber sobre a IA antes de começar? -->
 
 - A IA **propõe**; quem decide e envia é sempre uma pessoa. Nada do que a IA escreve chega ao cliente sem carregar em **Enviar ao cliente**.
-- Só o Assistente de IA e a revisão antes de enviar usam IA. As respostas automáticas, o pedido de avaliação e a página **Satisfação e desempenho** não usam IA.
+- Só o Assistente de IA, a revisão antes de enviar e as propostas de respostas aprovadas usam IA. As respostas automáticas, o pedido de avaliação e a página **Satisfação e desempenho** não usam IA.
+- Nenhum modelo é treinado com as conversas. As respostas aprovadas são textos que a IA propõe e o Super Admin lê, confirma e publica; nunca são enviados sozinhos a clientes.
 - O Regulamento da IA obriga a empresa a promover a **literacia em IA** de quem usa estas ferramentas. Ler esta documentação faz parte dessa formação.
 - Os usos do apoio **não são de risco elevado**, desde que a IA não seja usada para avaliar pessoas nem para decidir por elas.
 - O fornecedor é a **Anthropic** (Claude), como subcontratante: não treina modelos com os nossos dados e, em regra, apaga-os até 30 dias depois.
@@ -24,11 +25,12 @@ O Apoio ao Cliente usa inteligência artificial (IA) em duas ferramentas: o **As
 | --- | --- | --- | --- |
 | Assistente de IA ("✨ Sugerir resposta" e separador "✨ Assistente IA") | Sim: Claude Opus 5.5, da Anthropic | Propõe respostas, resume o caso, traduz, procura produtos e as encomendas do cliente da conversa | Quem atende: a proposta só passa para o campo com "Usar na resposta" e só sai com "Enviar ao cliente" |
 | Revisão da IA antes de enviar ("🔎 Revisão IA") | Sim: Claude Haiku 5.5 por omissão, ou Sonnet 5.5 | Verifica a resposta segundo os critérios de qualidade e pode sugerir uma versão melhorada | Quem atende: "Enviar a sugestão", "Enviar a minha versão", "Editar a sugestão" ou "Cancelar"; nunca bloqueia o envio |
+| Respostas aprovadas ("Guardar como resposta aprovada" e "Propostas automáticas a partir das conversas") | Sim: Claude Sonnet 5.5 | Lê uma conversa já respondida pela equipa e propõe um cartão (uma pergunta genérica e a resposta da empresa, sem dados do cliente) | O Super Admin: lê, confirma («Confirmo que li o texto…»), aprova e publica; só então o Assistente o usa. Nada é enviado a clientes |
 | Respostas automáticas (email "recebemos o seu email", Facebook e Instagram) | Não | Textos fixos escritos pelo Super Admin, com regras de horário e de frequência | O Super Admin liga e escreve os textos |
 | Pedido de avaliação e Satisfação e desempenho | Não | Regras fixas, contagens e médias das notas dos clientes | O Super Admin liga; as regras estão no sistema |
 | Separar pedidos de reações nas redes sociais | Não | Regras fixas (pergunta, texto, foto, só emoji) | — |
 
-> **Nota:** No sistema atual não há respostas automáticas geradas pela IA nem envio automático pela IA. Se um dia existirem, as regras de transparência mudam (veja abaixo) e este artigo tem de ser revisto antes de as ligar.
+> **Nota:** No sistema atual não há respostas automáticas geradas pela IA nem envio automático pela IA. Se um dia existirem, as regras de transparência mudam (veja abaixo) e este artigo tem de ser revisto antes de as ligar. A opção "Permitir em respostas automáticas" das respostas aprovadas só marca cartões para esse uso futuro: hoje não envia nada.
 
 ## O Regulamento da IA em poucas palavras
 <!-- perguntas: O que é o Regulamento da IA? | O AI Act aplica-se à Loja do Ouro? | O que é um prestador e um responsável pela implantação? | O que mudou com o Omnibus Digital da IA? -->
@@ -47,7 +49,7 @@ O regulamento distingue dois papéis (art. 3.º):
 - **Responsável pela implantação**: quem usa um sistema de IA sob a sua autoridade, numa atividade profissional (art. 3.º, ponto 4). A Loja do Ouro é responsável pela implantação do Assistente e da revisão.
 - **Prestador**: quem desenvolve, ou manda desenvolver, um sistema ou um modelo de IA e o coloca no mercado ou em serviço com o seu nome ou marca, incluindo para utilização própria (art. 3.º, pontos 3 e 11). A Anthropic é prestadora do modelo de IA de finalidade geral (Claude) e tem as suas próprias obrigações desde 2-8-2025.
 
-As orientações da Comissão sobre o art. 50.º dão como exemplo de prestador uma empresa que desenvolve internamente um sistema de IA e o põe em serviço para uso próprio, com o seu nome. O Assistente e a revisão foram desenvolvidos para o dashboard e só a empresa os usa. Se a Loja do Ouro é também prestadora destes dois sistemas, e com que obrigações, é **a confirmar com o jurista**.
+As orientações da Comissão sobre o art. 50.º dão como exemplo de prestador uma empresa que desenvolve internamente um sistema de IA e o põe em serviço para uso próprio, com o seu nome. O Assistente, a revisão e as propostas de respostas aprovadas foram desenvolvidos para o dashboard e só a empresa os usa. Se a Loja do Ouro é também prestadora destes sistemas, e com que obrigações, é **a confirmar com o jurista**.
 
 ## Datas que contam a 30-10-2026
 <!-- perguntas: Quando se aplica o Regulamento da IA? | As regras da IA já estão em vigor? | Quando se aplicam as regras de risco elevado? -->
@@ -70,7 +72,7 @@ As orientações da Comissão sobre o art. 50.º dão como exemplo de prestador 
 
 O art. 4.º, n.º 1, na redação em vigor desde 27-07-2026, diz que os prestadores e os responsáveis pela implantação "adotam medidas para promover a literacia no domínio da IA do seu pessoal", tendo em conta os conhecimentos, a experiência e a formação de cada pessoa e o contexto de uso. A lei não exige que cada pessoa atinja um nível específico.
 
-Para a equipa do apoio, isto quer dizer: antes de usar o Assistente ou a revisão, leia este artigo, [Assistente de IA](/apoio/documentacao/assistente-ia), [Revisão da IA antes de enviar](/apoio/documentacao/revisao-ia-antes-de-enviar) e [Boas práticas de privacidade no dia a dia](/apoio/documentacao/boas-praticas-de-privacidade). E conheça os limites da IA:
+Para a equipa do apoio, isto quer dizer: antes de usar o Assistente ou a revisão, leia este artigo, [Assistente de IA](/apoio/documentacao/assistente-ia), [Revisão da IA antes de enviar](/apoio/documentacao/revisao-ia-antes-de-enviar) e [Boas práticas de privacidade no dia a dia](/apoio/documentacao/boas-praticas-de-privacidade) e, se guarda respostas para a IA ou as aprova, [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas). E conheça os limites da IA:
 
 - **Pode inventar.** Preços, prazos, moradas, horários ou condições podem sair errados com ar convincente. A IA está instruída a não inventar e a pôr em "Confirmar antes de enviar" o que não confirmou, mas isso não é uma garantia.
 - **Só sabe o que está nas fontes**: base de conhecimento, políticas e páginas da loja online, produtos, encomendas do cliente, respostas anteriores da equipa. Se a base de conhecimento estiver errada, a IA repete o erro.
@@ -79,7 +81,7 @@ Para a equipa do apoio, isto quer dizer: antes de usar o Assistente ou a revisã
 - **Pode escrever no tom ou na língua errados**, incluindo português do Brasil. A revisão e as regras do servidor ajudam, mas a última palavra é sua.
 - **Não decide.** Reembolsos, descontos, exceções e garantias são decisões da equipa.
 
-> **Dica:** Se a IA erra sempre no mesmo ponto (um prazo, uma morada, uma política), avise o Super Admin: a correção faz-se na base de conhecimento, em Configuração do apoio.
+> **Dica:** Se a IA erra sempre no mesmo ponto (um prazo, uma morada, uma política), avise o Super Admin: a correção faz-se na base de conhecimento, em Configuração do apoio, ou numa resposta aprovada.
 
 ## Transparência: dizer ao cliente que usámos IA?
 <!-- perguntas: Tenho de dizer ao cliente que a resposta foi feita com IA? | O artigo 50.º aplica-se ao apoio? | O cliente perguntou se está a falar com um robô | Temos de marcar os textos escritos pela IA? -->
@@ -96,6 +98,7 @@ No apoio, o cliente não fala com a IA: fala com a equipa. As orientações da C
 
 - A **revisão antes de enviar** corrige uma resposta já escrita por uma pessoa, e o servidor retira as sugestões que acrescentem números, datas, ligações ou compromissos: na maior parte dos casos é edição.
 - O **Assistente** escreve propostas completas: não é edição.
+- As **propostas de respostas aprovadas** são textos internos: o Super Admin lê-os, confirma-os e publica-os, e servem só de informação para o Assistente. Não chegam ao cliente tal como estão.
 
 Hoje o dashboard não marca os textos. Se a Loja do Ouro tem de marcar as propostas do Assistente, e como o faria num email ou numa mensagem do Messenger, depende de ser ou não prestadora deste sistema: **a confirmar com o jurista**. As orientações reconhecem que ainda há poucas soluções técnicas fiáveis para marcar texto, e o código de práticas da Comissão sobre marcação e rotulagem (10-06-2026) é voluntário.
 
@@ -110,6 +113,7 @@ O anexo III, ponto 4, alínea b), considera de risco elevado os sistemas de IA c
 
 - **Assistente de IA.** Prepara respostas e consulta informação. Não está em nenhuma das áreas do anexo III: não decide sobre emprego, crédito, acesso a serviços essenciais ou outras áreas da lista.
 - **Revisão antes de enviar.** A finalidade é melhorar uma resposta já escrita por uma pessoa (tom, correção, clareza, marca), não avaliar quem a escreveu. Mesmo que se entendesse que toca na área do emprego, o art. 6.º, n.º 3, alínea b), exclui do risco elevado os sistemas destinados a melhorar o resultado de uma atividade humana previamente concluída, e o considerando 53 dá como exemplo melhorar a linguagem de documentos já redigidos (tom profissional, alinhamento com a mensagem da marca). Esta exclusão deixa de valer se o sistema fizer definição de perfis de pessoas (art. 6.º, n.º 3, último parágrafo). Por isso a revisão guarda só códigos (hash) dos textos, cada pessoa vê as suas estatísticas em **A minha conta** e o Super Admin vê só os totais da equipa. O próprio ecrã diz que os números servem para afinar a IA, não para avaliar pessoas. Se a Loja do Ouro for prestadora e precisar de invocar o art. 6.º, n.º 3, tem de documentar essa avaliação antes de pôr o sistema em serviço (art. 6.º, n.º 4) e registar o sistema na base de dados da UE (art. 49.º, n.º 2, com o conteúdo do anexo VIII simplificado pelo Regulamento (UE) 2026/1744) — a confirmar com o jurista.
+- **Respostas aprovadas.** A IA tira das respostas da equipa informação da empresa (horários, envios, trocas) para a base de conhecimento; não avalia quem respondeu. Fica registado quem carregou em "Guardar como resposta aprovada" (para o limite de 30 por dia e o orçamento), mas o painel só mostra totais do mês, nunca números por pessoa.
 - **Satisfação e desempenho.** Não usa IA (são contagens e médias das notas dos clientes), por isso fica fora do Regulamento da IA. Continua a ser tratamento de dados dos colaboradores: veja [Dados dos colaboradores e avaliação do atendimento](/apoio/documentacao/dados-dos-colaboradores).
 - **Uso do Assistente.** O Super Admin vê quantos pedidos cada pessoa fez à IA e o custo estimado, para controlar o orçamento. Nunca vê o conteúdo das perguntas nem das propostas: esse histórico só é visível a quem fez o pedido.
 
@@ -122,7 +126,7 @@ O anexo III, ponto 4, alínea b), considera de risco elevado os sistemas de IA c
 
 O art. 22.º do RGPD dá a cada pessoa o direito de não ficar sujeita a uma decisão tomada **exclusivamente** por meios automatizados, incluindo a definição de perfis, que produza efeitos jurídicos ou a afete significativamente de forma semelhante.
 
-No apoio não há decisões destas. A IA propõe e uma pessoa decide. As regras automáticas (respostas automáticas, uma nota de 1 ou 2 que devolve a conversa a "Novo", separar reações de pedidos) organizam o trabalho, mas não decidem sobre os direitos do cliente. Para continuar assim:
+No apoio não há decisões destas. A IA propõe e uma pessoa decide; nas respostas aprovadas, é o Super Admin quem decide o que entra na base de conhecimento. As regras automáticas (respostas automáticas, uma nota de 1 ou 2 que devolve a conversa a "Novo", separar reações de pedidos) organizam o trabalho, mas não decidem sobre os direitos do cliente. Para continuar assim:
 
 1. Leia a proposta toda antes de carregar em "Usar na resposta" e outra vez antes de enviar.
 2. Resolva cada ponto de "Confirmar antes de enviar" e cada marcador entre parênteses retos, como [confirmar prazo].
@@ -144,19 +148,19 @@ A Anthropic trata os dados por conta da Loja do Ouro, como **subcontratante** (a
 
 A lista completa de fornecedores e as regras das transferências estão em [Proteção de dados no Apoio ao Cliente](/apoio/documentacao/protecao-de-dados#fornecedores-e-transferencias-para-fora-da-ue).
 
-| O que segue para a Anthropic | Assistente de IA | Revisão antes de enviar |
-| --- | --- | --- |
-| Mensagens da conversa | As últimas 40 desde o "Histórico visível", **incluindo notas internas** e os nomes de quem escreveu | As últimas 15 desde o "Histórico visível", sem notas internas nem nomes de quem escreveu |
-| Dados do cliente | Nome, perfil, email, email associado pela equipa, email indicado e não confirmado, telefone e outros contactos do mesmo cliente | Só o nome |
-| Chat do site | Página, carrinho, há quanto tempo o cliente abriu o chat, língua e país (não confirmados) | Só a língua do site |
-| Encomendas | Quando a IA as consulta: as do email do cliente (número, data, estados, artigos, total, portes, seguimento), nunca moradas | Não |
-| Outras conversas do mesmo cliente | Quando a IA as consulta: as últimas mensagens | Não |
-| Respostas anteriores da equipa | Exemplos de outras conversas, sem nomes, contactos, números nem ligações | Não |
-| Informação da loja | Base de conhecimento, lojas físicas, políticas e páginas da loja online, produtos | Base de conhecimento e lojas físicas |
-| Equipa | O seu nome, o seu pedido e os seus pedidos anteriores nesta conversa | A sua resposta |
-| Anexos | Só o nome e o tipo (a IA não vê o conteúdo) | Só o número de anexos |
+| O que segue para a Anthropic | Assistente de IA | Revisão antes de enviar | Propostas de respostas aprovadas |
+| --- | --- | --- | --- |
+| Mensagens da conversa | As últimas 40 desde o "Histórico visível", **incluindo notas internas** e os nomes de quem escreveu | As últimas 15 desde o "Histórico visível", sem notas internas nem nomes de quem escreveu | As últimas 30 até à resposta escolhida (na passagem diária, até ao momento), desde o "Histórico visível", sem notas internas nem pedidos de avaliação, e sem nomes de quem escreveu: marcadas "cliente", "equipa" ou "equipa fora do dashboard" (respostas automáticas e as enviadas noutra plataforma) |
+| Dados do cliente | Nome, perfil, email, email associado pela equipa, email indicado e não confirmado, telefone e outros contactos do mesmo cliente | Só o nome | Nenhum, além do que estiver escrito nas mensagens |
+| Chat do site | Página, carrinho, há quanto tempo o cliente abriu o chat, língua e país (não confirmados) | Só a língua do site | Só o canal e a marca |
+| Encomendas | Quando a IA as consulta: as do email do cliente (número, data, estados, artigos, total, portes, seguimento), nunca moradas | Não | Não |
+| Outras conversas do mesmo cliente | Quando a IA as consulta: as últimas mensagens | Não | Não |
+| Respostas anteriores da equipa | Exemplos de outras conversas, sem nomes, contactos, números nem ligações | Não | Até 5 respostas aprovadas ou propostas parecidas (pergunta e resposta) |
+| Informação da loja | Base de conhecimento, respostas aprovadas publicadas, lojas físicas, políticas e páginas da loja online, produtos | Base de conhecimento e lojas físicas | Lojas físicas (a base de conhecimento fica no servidor, para conferir o cartão) |
+| Equipa | O seu nome, o seu pedido e os seus pedidos anteriores nesta conversa | A sua resposta | Nada (os nomes da equipa ficam no servidor, para os tirar do cartão) |
+| Anexos | Só o nome e o tipo (a IA não vê o conteúdo) | Só o número de anexos | Não |
 
-No dashboard, os seus pedidos ao Assistente ficam guardados 180 dias e só os vê quem os fez. Da revisão ficam só códigos (hash) da resposta e da sugestão, nunca o texto, durante 365 dias.
+No dashboard, os seus pedidos ao Assistente ficam guardados 180 dias e só os vê quem os fez. Da revisão ficam só códigos (hash) da resposta e da sugestão, nunca o texto, durante 365 dias. Das propostas ficam os cartões, sem mensagens de clientes, e o registo dos pedidos: ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#o-que-fica-guardado-e-durante-quanto-tempo).
 
 > **Nota:** Por baixo da caixa do Assistente está sempre o aviso "A conversa e os dados consultados são processados pela Anthropic (Claude)."
 
@@ -186,7 +190,7 @@ Para o Super Admin e o dono, à data desta revisão:
 - A política de privacidade da loja e o aviso do chat do site não dizem que a IA trata as conversas nem quem é o fornecedor (arts. 13.º e 14.º do RGPD).
 - O dashboard não esconde dados sensíveis antes de os enviar à IA, e a caixa de perguntas não lembra o que não colar.
 - Não há registo de quem leu esta documentação ou recebeu formação sobre IA.
-- Se a Loja do Ouro é prestadora do Assistente e da revisão, e se tem de marcar os textos gerados (art. 50.º, n.º 2): a confirmar com o jurista.
+- Se a Loja do Ouro é prestadora do Assistente, da revisão e das propostas de respostas aprovadas, e se tem de marcar os textos gerados (art. 50.º, n.º 2): a confirmar com o jurista.
 - Se o art. 106.º, n.º 3, alínea s), do Código do Trabalho obriga a informar por escrito sobre a revisão da IA: a confirmar com o jurista.
 - A ponderação do interesse legítimo para a IA e a eventual avaliação de impacto: veja [Proteção de dados no Apoio ao Cliente](/apoio/documentacao/protecao-de-dados).
 

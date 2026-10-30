@@ -30,7 +30,10 @@ Separador **✨ Assistente IA** de cada conversa, onde a IA propõe respostas, r
 Separador da lista com as conversas de redes sociais em que a pessoa só reagiu (story, gosto, emoji) e nunca fez um pedido. Só recebe conversas enquanto as respostas automáticas do Facebook e do Instagram estiverem ligadas. Ver [Respostas automáticas](/apoio/documentacao/respostas-automaticas#o-separador-automaticas).
 
 ## Base de conhecimento
-Textos escritos pelo Super Admin com o que a IA deve saber da empresa (lojas, envios, trocas, garantias, tom). A IA trata-os como verdade. Ver [Configuração do apoio](/apoio/documentacao/configuracao#base-de-conhecimento) (só Super Admin).
+Textos escritos pelo Super Admin com o que a IA deve saber da empresa (lojas, envios, trocas, garantias, tom). A IA trata-os como verdade e prevalecem sobre as respostas aprovadas. Ver [Configuração do apoio](/apoio/documentacao/configuracao#base-de-conhecimento) (só Super Admin).
+
+## Base de conhecimento aprendida
+O conjunto das respostas aprovadas: cartões que a IA propõe a partir das respostas da equipa e que o Super Admin aprova e publica. Nenhum modelo é treinado. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas).
 
 ## Bloqueado
 Estado de um canal cuja plataforma recusou o acesso. Só o Super Admin resolve; entretanto responde-se na própria plataforma. Ver [Resolução de problemas](/apoio/documentacao/resolucao-de-problemas#um-canal-esta-em-erro-ou-bloqueado).
@@ -38,8 +41,14 @@ Estado de um canal cuja plataforma recusou o acesso. Só o Super Admin resolve; 
 ## Canal
 Por onde a conversa chegou: Email, Facebook, Instagram, Comentários Facebook, Comentários Instagram, Chat do site, Zendesk ou WhatsApp. Ver [Canais](/apoio/documentacao/canais).
 
+## Cartão
+Uma resposta aprovada: uma pergunta genérica (com até 5 outras formas) e a resposta da empresa, sem dados do cliente, com tema, marca, loja e validade. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#o-que-e-um-cartao).
+
 ## Chat do site
 O botão "Fale connosco" em lojadoouro.pt e goldstorepremium.com. Ver [Chat do site](/apoio/documentacao/chat-do-site).
+
+## Confirmada em n conversas
+Etiqueta de uma resposta aprovada: em quantas conversas a equipa deu esta resposta. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#confirmada-em-n-conversas).
 
 ## Contacto
 O registo de quem escreve num canal (nome, perfil, email, telefone). O mesmo cliente pode ter um contacto por canal. Ver [Clientes e encomendas](/apoio/documentacao/clientes-e-encomendas#contactos-conhecidos).
@@ -61,6 +70,9 @@ A mensagem não saiu; o motivo aparece ao lado. Corrigir e enviar de novo. Ver [
 
 ## Gold Store Premium
 A marca internacional da empresa (goldstorepremium.com), servida pelo mesmo apoio. No chat do site responde-se com a marca e na língua do cliente.
+
+## Guardar como resposta aprovada
+Botão por baixo das suas respostas enviadas pelo dashboard: a IA prepara uma proposta de cartão, que o Super Admin aprova. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#guardar-como-resposta-aprovada).
 
 ## Histórico visível
 Data a partir da qual as conversas resolvidas aparecem na lista. As resolvidas sem atividade desde então ficam ocultas, mas não são apagadas. Ver [Histórico visível](/apoio/documentacao/historico-visivel).
@@ -86,6 +98,12 @@ Estado de uma conversa que ninguém tratou ainda. Ver [Estados da conversa](/apo
 ## Pedido de avaliação
 Mensagem que pede ao cliente uma nota de 1 a 5 depois de a conversa ser resolvida. Ver [Avaliação e desempenho](/apoio/documentacao/avaliacao-e-desempenho).
 
+## Permitir em respostas automáticas
+Opção das respostas aprovadas que só marca um cartão para umas respostas automáticas futuras. Nada é enviado aos clientes. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#permitir-em-respostas-automaticas).
+
+## Propostas automáticas
+Opção do Super Admin (vem desligada): uma vez por dia, a IA lê até 12 conversas já respondidas e propõe cartões para as respostas aprovadas. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#propostas-automaticas-super-admin).
+
 ## Registo
 Secção do separador Cliente com as últimas ações na conversa e quem as fez. Ver [Clientes e encomendas](/apoio/documentacao/clientes-e-encomendas#registo).
 
@@ -97,6 +115,9 @@ A pessoa a quem a conversa está atribuída: a única que pode responder ao clie
 
 ## Resposta pública
 Resposta a um comentário numa publicação: todos a veem. Nunca com dados pessoais. Ver [Comentários públicos](/apoio/documentacao/comentarios-publicos).
+
+## Respostas aprovadas
+Cartões com perguntas gerais e as respostas da empresa, propostos pela IA a partir das respostas da equipa (ou escritos pelo Super Admin), que o Super Admin confirma, aprova e publica. O Assistente de IA usa os publicados; nada é enviado sozinho. Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas).
 
 ## Resultado incerto
 A plataforma não respondeu e não se sabe se a mensagem saiu. Nunca reenviar sem **Verificar**. Ver [Envio e entrega](/apoio/documentacao/envio-e-entrega#quando-o-resultado-e-incerto).

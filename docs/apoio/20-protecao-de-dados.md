@@ -61,6 +61,7 @@ O art. 5.º do RGPD define sete princípios. É por eles que se decide o que é 
 | Comentários públicos do Facebook e do Instagram e a publicação comentada | Metricool | Responder em público |
 | Pedidos ao Assistente de IA (pergunta e proposta) | Equipa | Ajudar a preparar respostas |
 | Revisão da IA antes de enviar: só códigos (hash) da resposta e da sugestão, nunca o texto | Dashboard | Estatísticas da revisão |
+| Respostas aprovadas: pergunta genérica e resposta da empresa (sem mensagens nem contactos de clientes), avisos, quem aprovou e quem confirmou; nas propostas, até 3 conversas de origem; registo dos pedidos à IA (quem carregou no botão, custo, resultado) | Respostas da equipa lidas pela IA (botão "Guardar como resposta aprovada" ou propostas automáticas) | Ajudar a IA a propor respostas certas ([Respostas aprovadas](/apoio/documentacao/respostas-aprovadas)) |
 | Pedidos de avaliação: nota, comentário, quem foi avaliado, "não quer pedidos" | Cliente e equipa | Medir a satisfação e acompanhar notas baixas |
 | Registo de ações (atribuições, estados, transferências, pedidos cancelados) | Dashboard | Saber quem fez o quê |
 
@@ -83,7 +84,7 @@ Cada uso de dados pessoais precisa de uma das bases do art. 6.º, n.º 1, do RGP
 | Notas internas, responsável, transferências, registo de ações | A mesma base da conversa | Fazem parte do tratamento do pedido |
 | Contexto do chat do site (página, carrinho, hora a que o cliente abriu o chat, páginas vistas desde então) | Interesse legítimo | Só é enviado depois de o cliente abrir o chat, ver o aviso e iniciar a conversa e, enquanto a conversa estiver guardada no browser, também nas visitas seguintes (página e carrinho, sem a hora de abertura); o aviso ainda não fala de tudo (ver [Dever de informar os clientes](/apoio/documentacao/protecao-de-dados#dever-de-informar-os-clientes)); a confirmar com o jurista |
 | Limites contra abusos (IP e rede em hash) | Interesse legítimo (segurança) | — |
-| Assistente de IA e revisão antes de enviar | Interesse legítimo | Usa um fornecedor fora da UE (veja abaixo); a confirmar com o jurista |
+| Assistente de IA, revisão antes de enviar e propostas de respostas aprovadas | Interesse legítimo | Usa um fornecedor fora da UE (veja abaixo); nas propostas, a IA lê conversas já respondidas para escrever textos sem dados do cliente, que o Super Admin confirma; a confirmar com o jurista |
 | Pedido de avaliação depois de resolver | Interesse legítimo | O cliente pode recusar a qualquer momento; se o pedido por email conta como comunicação comercial é a confirmar com o jurista |
 | Respostas automáticas (email, Facebook, Instagram) | Interesse legítimo | — |
 
@@ -102,7 +103,7 @@ Como está hoje:
 
 - **Chat do site:** quando o cliente abre o chat, antes de começar, o widget mostra um aviso (a equipa vê a página e o carrinho) e a ligação para a política de privacidade. O aviso não fala do tempo desde que abriu o chat, do número de páginas, da língua, do país, do navegador nem da IA. Antes de o cliente abrir o chat, o widget não grava nada no browser (ver abaixo).
 - **Email, Messenger, Instagram e comentários:** não há aviso próprio; vale a política de privacidade da loja.
-- **Política de privacidade da loja online** ([ver a política](https://www.lojadoouro.pt/policies/privacy-policy)): fala do formulário de contacto, da newsletter e do recrutamento, e de um prazo máximo de 2 anos. Não fala do apoio por email, chat e redes sociais, do Assistente de IA, dos fornecedores nem de transferências para fora da UE. Está na lista de pontos em aberto.
+- **Política de privacidade da loja online** ([ver a política](https://www.lojadoouro.pt/policies/privacy-policy)): fala do formulário de contacto, da newsletter e do recrutamento, e de um prazo máximo de 2 anos. Não fala do apoio por email, chat e redes sociais, do Assistente de IA (nem das propostas de respostas aprovadas), dos fornecedores nem de transferências para fora da UE. Está na lista de pontos em aberto.
 
 **O que o chat do site guarda no browser do visitante.** Tal como um cookie, o widget pode guardar informação no próprio browser de quem visita a loja, mas **só depois de o cliente abrir o chat**. A quem só visita a loja e nunca abre o chat, o widget não grava nada: nem cookies, nem outro armazenamento do browser. Em cada página, ao carregar, só verifica se já há uma conversa iniciada antes ou um chat aberto (para os continuar) e apaga o contador de visita que a versão anterior do chat gravava em todas as páginas (e uma visita guardada que já acabou). Enquanto a conversa estiver guardada no browser, o widget envia à equipa a página e o carrinho também nas visitas seguintes, mesmo sem o cliente voltar a abrir o chat (sem a hora de abertura, e sem gravar nada).
 
@@ -133,6 +134,11 @@ Prazos que o dashboard aplica hoje (a passagem diária corre às 06:00 UTC):
 | Registo do visitante do chat do site (token, IP e rede em hash, navegador, página, carrinho) | Apagado 180 dias depois da última visita |
 | Pedidos ao Assistente de IA (pergunta e proposta) | Apagados ao fim de 180 dias |
 | Revisões da IA (só códigos, nunca o texto) | Apagadas ao fim de 365 dias |
+| Respostas aprovadas: propostas | Apagadas 180 dias depois da última confirmação |
+| Respostas aprovadas: aprovadas e arquivadas | Aprovadas: até serem arquivadas; arquivadas: apagadas 365 dias depois da última alteração (arquivar, corrigir ou juntar), com as confirmações no registo de auditoria |
+| Conversas de origem de uma proposta (até 3) | Até a proposta ser aprovada ou arquivada |
+| Registo dos pedidos de propostas à IA (hora, quem carregou no botão, custo, resultado) | 365 dias; a conversa e a mensagem de origem só nos pedidos que não deram cartão, 180 dias |
+| Conversas lidas e respostas guardadas para as propostas (sem o cartão) | 180 dias depois da última vez; 365 dias |
 | Comentário escrito numa avaliação | Apagado ao fim de 12 meses (a nota fica) |
 | Presença ("a ver" e "a escrever") | 1 dia |
 | Dados enviados à Anthropic (IA) | Regra geral, apagados pela Anthropic até 30 dias depois (conteúdo assinalado por violar a política de utilização: até 2 anos) |
@@ -142,6 +148,8 @@ Prazos que o dashboard aplica hoje (a passagem diária corre às 06:00 UTC):
 Os emails continuam também na caixa do Gmail, e as mensagens do Messenger, do Instagram e do Zendesk continuam nessas plataformas, com os prazos de cada uma.
 
 > **Nota:** O "Histórico visível" (Configuração do apoio) esconde as conversas resolvidas e sem atividade desde uma data, mas não apaga nada. Não é um prazo de conservação.
+
+> **Nota:** Nenhum modelo de IA é treinado com as conversas. As respostas aprovadas não copiam mensagens nem contactos de clientes, mas quem tem acesso direto à base de dados ainda consegue deduzir pelos registos de que conversa veio um cartão, enquanto existirem (até 365 dias). Ver [Respostas aprovadas](/apoio/documentacao/respostas-aprovadas#o-que-fica-guardado-e-durante-quanto-tempo).
 
 > **Atenção:** As conversas não têm prazo de conservação definido, e a política de privacidade publicada fala em 2 anos. A empresa tem de decidir um prazo para o apoio e aplicá-lo. Está na lista de pontos em aberto.
 
@@ -153,6 +161,7 @@ Os emails continuam também na caixa do Gmail, e as mensagens do Messenger, do I
 | Conversas, mensagens, notas internas e encomendas do cliente | Todas as pessoas com acesso "Apoio ao Cliente" e o Super Admin |
 | Configuração do apoio (ligações, acessos, diagnóstico, base de conhecimento, IA do apoio) | Só o Super Admin |
 | Pedidos que fez ao Assistente de IA | Só quem os fez (o Super Admin vê o número de pedidos e o custo por pessoa) |
+| Respostas aprovadas (cartões, avisos, conversas de origem, custo do mês) | Só o Super Admin; as publicadas são usadas pela IA nas propostas a toda a equipa |
 | Valor da nota e comentário guardados de uma avaliação, e o relatório por pessoa | O Super Admin e a pessoa avaliada |
 | Resposta do cliente ao pedido de avaliação com texto (por exemplo "2. Chegou partida") | Toda a equipa, na conversa (só uma resposta que é apenas a nota fica escondida); uma nota de 1 ou 2 reabre a conversa para acompanhamento |
 | Satisfação e desempenho | Cada pessoa vê a sua linha; o Super Admin vê todas |
@@ -174,7 +183,7 @@ Quando os dados saem do Espaço Económico Europeu, a transferência precisa de 
 | --- | --- | --- | --- |
 | Supabase | Base de dados do dashboard | Região eu-central-1 (Frankfurt, Alemanha) | Tabelas sem acesso direto: tudo passa por funções que confirmam quem pede. A região é onde os dados ficam guardados; a Supabase, Inc. é uma empresa sediada nos EUA, com subcontratantes e acesso de suporte que podem implicar transferência: mecanismo de transferência (cláusulas-tipo ou Quadro de Privacidade de Dados) a confirmar no contrato de tratamento |
 | Vercel | Servidor onde corre o dashboard; todas as mensagens passam por ele | Por omissão, as funções da Vercel correm em Washington (EUA, região iad1), salvo se outra região for escolhida | O código do dashboard não escolhe região; o Super Admin confirma nas definições do projeto. A Vercel Inc. é uma empresa sediada nos EUA: mecanismo de transferência (cláusulas-tipo ou Quadro de Privacidade de Dados) a confirmar no contrato de tratamento |
-| Anthropic | Assistente de IA e revisão antes de enviar | Contrato com a Anthropic Ireland, Limited; o tratamento pode ocorrer fora da UE | Cláusulas contratuais-tipo no acordo de tratamento de dados; não treina modelos com os nossos dados; apaga entradas e saídas da API até 30 dias (regra geral); avisa incidentes em 48 horas |
+| Anthropic | Assistente de IA (Claude Opus 5.5), revisão antes de enviar (Claude Haiku 5.5 ou Sonnet 5.5) e propostas de respostas aprovadas (Claude Sonnet 5.5) | Contrato com a Anthropic Ireland, Limited; o tratamento pode ocorrer fora da UE | Cláusulas contratuais-tipo no acordo de tratamento de dados; não treina modelos com os nossos dados; apaga entradas e saídas da API até 30 dias (regra geral); avisa incidentes em 48 horas |
 | Google (Gmail) | Caixa apoiocliente@lojadoouro.pt | — | Os emails ficam também no Gmail |
 | Metricool | Mensagens privadas e comentários do Facebook e do Instagram | — | Lê as mensagens e envia as respostas da equipa |
 | Meta (Facebook e Instagram) | Canais onde o cliente escreve | — | A Meta também trata estes dados por conta própria; a repartição exata de responsabilidades é a confirmar com o jurista |
@@ -260,7 +269,7 @@ Pontos que o Super Admin está a tratar ou tem de decidir (a equipa não precisa
 - avaliar e documentar se é obrigatório designar um encarregado de proteção de dados (art. 37.º do RGPD) — a confirmar com o jurista;
 - ter uma forma de exportar e de apagar os dados de um cliente (hoje não há botão no dashboard);
 - confirmar a região do servidor na Vercel e os contratos de tratamento de dados com cada fornecedor;
-- manter o registo das atividades de tratamento e escrever a ponderação do interesse legítimo para a IA, o contexto do chat e o pedido de avaliação.
+- manter o registo das atividades de tratamento e escrever a ponderação do interesse legítimo para a IA (incluindo as propostas de respostas aprovadas, que leem conversas já respondidas), o contexto do chat e o pedido de avaliação.
 
 ## Fontes
 

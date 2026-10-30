@@ -17,6 +17,8 @@ O sistema pode enviar sozinho algumas mensagens curtas, sempre com textos escrit
 
 No chat do site não há resposta automática: fora do horário, o próprio chat mostra uma mensagem de ausência ao cliente. Nos comentários públicos nunca há respostas automáticas.
 
+> **Nota:** A opção "Permitir em respostas automáticas" das [respostas aprovadas](/apoio/documentacao/respostas-aprovadas#permitir-em-respostas-automaticas) só marca um cartão para um uso futuro: não liga nenhuma destas mensagens e não envia nada.
+
 ## Recebemos o seu email
 <!-- perguntas: Quando é que o cliente recebe a resposta recebemos o seu email? | Porque é que um cliente não recebeu a resposta automática do email? | A resposta automática é enviada a newsletters? -->
 
