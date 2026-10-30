@@ -10,8 +10,20 @@
  * Línguas: pt, en, es, fr e de (tabela I18N abaixo). Marca: Loja do Ouro em lojadoouro.pt e Gold Store Premium
  * em goldstorepremium.com (a loja fora de Portugal), em qualquer língua.
  *
- * Privacidade: guarda no browser só o token da conversa e a hora de início da visita (localStorage).
- * Depois de o cliente iniciar o chat, envia à equipa a página em que está e o carrinho da loja.
+ * Privacidade: enquanto o cliente não abre o chat, o widget não grava nada no browser (localStorage,
+ * sessionStorage ou cookies), em nenhuma página. Ao carregar só lê o que já lá está (o token de uma conversa que o
+ * cliente iniciou antes e se o chat estava aberto) e apaga "ldo-chat:visita", o contador que as versões anteriores
+ * gravavam em todas as páginas. O que grava, e quando:
+ *   - ao abrir o chat: "ldo-chat:aberto" (sessionStorage; apagado ao fechar o chat) e "ldo-chat:visita-chat"
+ *     (sessionStorage: a hora a que o cliente abriu o chat e as páginas vistas desde então, neste separador; acaba
+ *     ao fechar o separador, ao fechar o chat sem ter iniciado conversa ou após 30 minutos sem páginas novas nem
+ *     contacto com o servidor);
+ *   - ao iniciar a conversa: "ldo-chat:v1" (localStorage: token da conversa, nome, email confirmado, a última
+ *     resposta vista e, enquanto valer, a mesma visita, para os outros separadores; apagado quando a conversa termina
+ *     ou recomeça).
+ * Depois de o cliente iniciar o chat, envia à equipa a página em que está, o carrinho da loja e, se abriu o chat
+ * nesta visita (neste separador ou noutro), há quanto tempo o abriu e quantas páginas viu desde então; enquanto a
+ * conversa estiver guardada, também nas visitas seguintes (a página e o carrinho, sem a hora).
  * Nenhum texto do cliente ou da equipa é interpretado como HTML.
  */
 (function () {
@@ -474,6 +486,10 @@
   }
   /* I18N:end */
 
+  // Contador de visita das versões anteriores (gravado em todas as páginas, mesmo sem chat): apaga-se ao carregar,
+  // antes de tudo (também onde o chat está escondido), sem gravar mais nada.
+  dropLegacyVisit();
+
   var raw = rawConfig();
   var SITE = pickSite(raw);
   var LANG = pickLang(raw, SITE);
@@ -493,13 +509,13 @@
   var API = String(cfg.api || "").replace(/\/+$/, "");
   var STORE_KEY = "ldo-chat:v1";
   var OPEN_KEY = "ldo-chat:aberto";
-  var VISIT_KEY = "ldo-chat:visita";
+  var VISIT_KEY = "ldo-chat:visita-chat";
   var POLL_OPEN = 3500;
   var POLL_CLOSED = 30000;
   var VISIT_GAP = 30 * 60 * 1000;
 
   var state = {
-    session: load(),        // { token, name, verifiedEmail, seenAt }
+    session: load(),        // { token, name, verifiedEmail, seenAt, visit? }
     messages: [],           // { id, from, author, key, body, created_at, inserted_at, local?, pending?, failed?, clientKey? }
     lastInserted: null,
     typing: false,
@@ -514,14 +530,19 @@
     cartSig: null,
     destroyed: false,
   };
-  var visit = trackVisit();
+  // Visita desde que o cliente abriu o chat (null enquanto não o abrir neste separador).
+  var visit = null;
 
   // Conversa confirmada de outro cliente (sessão terminada ou outra pessoa no mesmo browser): recomeça.
   var currentIdentity = cfg.identity ? String(cfg.identity.email || "").toLowerCase() : "";
   if (state.session && state.session.verifiedEmail && state.session.verifiedEmail !== currentIdentity) {
     state.session = null;
-    save();
+    save(); // apaga o token antigo; não grava nada
   }
+  // Visita partilhada que já acabou (30 minutos sem atividade): sai de "ldo-chat:v1" (só se apaga).
+  if (state.session && state.session.visit !== undefined && !sharedVisit(state.session)) save();
+  visit = continueVisit();
+  if (visit) saveVisit();
 
   // ------------------------------------------------------------ configuração e armazenamento
 
@@ -571,34 +592,111 @@
   function safeColor(v, d) { return typeof v === "string" && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : d; }
   function clampNum(v, min, max, d) { var n = Number(v); return isFinite(n) && n >= min && n <= max ? n : d; }
 
-  function readStore(key, storage) {
-    try { return JSON.parse((storage || localStorage).getItem(key) || "null"); } catch (e) { return null; }
+  // Armazenamento do browser: "local" (localStorage, por omissão) ou "session" (sessionStorage). O acesso fica dentro
+  // do try: com o armazenamento bloqueado, até ler window.localStorage dá erro (e tudo vale só nesta página).
+  function storageOf(kind) { return kind === "session" ? window.sessionStorage : window.localStorage; }
+  function readStore(key, kind) {
+    try { return JSON.parse(storageOf(kind).getItem(key) || "null"); } catch (e) { return null; }
   }
-  function writeStore(key, value, storage) {
+  function writeStore(key, value, kind) {
     try {
-      if (value == null) (storage || localStorage).removeItem(key);
-      else (storage || localStorage).setItem(key, JSON.stringify(value));
+      if (value == null) storageOf(kind).removeItem(key);
+      else storageOf(kind).setItem(key, JSON.stringify(value));
     } catch (e) { /* sem armazenamento: vale só nesta página */ }
+  }
+  function dropLegacyVisit() {
+    try {
+      var ls = storageOf("local");
+      if (ls.getItem("ldo-chat:visita") !== null) ls.removeItem("ldo-chat:visita");
+    } catch (e) { /* sem armazenamento: nada a apagar */ }
   }
   function load() {
     var s = readStore(STORE_KEY);
     return s && typeof s.token === "string" ? s : null;
   }
-  function save() { writeStore(STORE_KEY, state.session); }
+  // Grava a conversa (sem conversa, apaga-a). A visita partilhada (s.visit) é a deste separador ou, sem ela, a que já
+  // está gravada por outro separador (lida agora, não a da memória), enquanto valer.
+  function save() {
+    var s = null;
+    if (state.session) {
+      s = {};
+      for (var k in state.session) if (k !== "visit" && Object.prototype.hasOwnProperty.call(state.session, k)) s[k] = state.session[k];
+      var v = visitToShare(load());
+      if (v) s.visit = v;
+    }
+    writeStore(STORE_KEY, s);
+  }
 
-  // Visita: começa quando o cliente chega e acaba após 30 minutos sem páginas novas.
-  function trackVisit() {
+  // Visita: só começa quando o cliente abre o chat (startVisit, nunca antes) e conta as páginas a partir daí. Fica no
+  // sessionStorage do separador em que o cliente abriu o chat e continua nas páginas seguintes desse separador. Com uma
+  // conversa iniciada, fica também dentro de "ldo-chat:v1" (localStorage, que só existe com a conversa) para os outros
+  // separadores: um separador novo (um produto ou uma ligação do chat abertos noutro separador, Ctrl+clique) envia a
+  // mesma hora de abertura, sem contar páginas e sem gravar nada; se o cliente abrir o chat lá, a visita continua. Acaba
+  // após 30 minutos sem páginas novas nem contacto com o servidor num separador com o chat aberto nesta visita. Sem
+  // visita guardada, ao carregar a página não se grava nada.
+  function isVisit(v) {
+    return !!v && typeof v.start === "number" && typeof v.pages === "number" && typeof v.last === "number";
+  }
+  // A visita de outro separador guardada com a conversa (s: o que está em "ldo-chat:v1"), se for desta conversa e
+  // ainda valer.
+  function sharedVisit(s) {
+    var v = s && state.session && s.token === state.session.token ? s.visit : null;
+    return isVisit(v) && Date.now() - v.last <= VISIT_GAP ? v : null;
+  }
+  // A visita a guardar em "ldo-chat:v1": a deste separador (com as páginas que outro separador já contou desta mesma
+  // visita) ou, sem ela, a que lá está, enquanto valer.
+  function visitToShare(stored) {
+    var other = sharedVisit(stored);
+    if (!visit) return other ? { start: other.start, pages: other.pages, last: other.last } : null;
+    if (other && other.start === visit.start) {
+      visit.pages = Math.max(visit.pages, other.pages);
+      visit.last = Math.max(visit.last, other.last);
+    }
+    return { start: visit.start, pages: visit.pages, last: visit.last };
+  }
+  function continueVisit() {
+    var v = readStore(VISIT_KEY, "session");
+    if (!isVisit(v)) return null;
     var now = Date.now();
-    var v = readStore(VISIT_KEY);
-    if (!v || typeof v.start !== "number" || now - (v.last || 0) > VISIT_GAP) v = { start: now, pages: 0 };
-    v.pages = (v.pages || 0) + 1;
+    if (now - v.last > VISIT_GAP) { writeStore(VISIT_KEY, null, "session"); return null; }
+    // Noutro separador o cliente pode ter visto mais páginas desta visita: conta a partir daí.
+    var other = sharedVisit(load());
+    if (other && other.start === v.start && other.pages > v.pages) v.pages = other.pages;
+    v.pages += 1;
     v.last = now;
-    writeStore(VISIT_KEY, v);
     return v;
   }
+  // Grava a visita deste separador e, com a conversa guardada neste browser, partilha-a (só o campo "visit" de
+  // "ldo-chat:v1": o resto pode ter sido mudado por outro separador).
+  function saveVisit() {
+    var stored = state.session ? load() : null;
+    var shared = visitToShare(stored);
+    writeStore(VISIT_KEY, visit, "session");
+    if (stored && stored.token === state.session.token) {
+      stored.visit = shared;
+      writeStore(STORE_KEY, stored);
+    }
+  }
+  // O cliente abriu o chat: a visita começa agora, com esta página, ou continua a que começou noutro separador desta
+  // conversa (true se começou ou continuou agora neste separador).
+  function startVisit() {
+    if (visit) return false;
+    var now = Date.now();
+    var other = sharedVisit(load());
+    visit = other ? { start: other.start, pages: other.pages + 1, last: now } : { start: now, pages: 1, last: now };
+    saveVisit();
+    return true;
+  }
   function touchVisit() {
+    if (!visit) return;
     visit.last = Date.now();
-    writeStore(VISIT_KEY, visit);
+    saveVisit();
+  }
+  // Fechado sem conversa: a visita acaba aqui (se o cliente voltar a abrir o chat, conta desde esse momento).
+  function dropVisit() {
+    if (!visit) return;
+    visit = null;
+    writeStore(VISIT_KEY, null, "session");
   }
 
   function uuid() {
@@ -732,7 +830,7 @@
     }, Math.min(wait, 60000));
   }
 
-  // Página e carrinho (lido da própria loja) para a equipa, só com a conversa iniciada e quando mudam.
+  // Página, carrinho (lido da própria loja) e visita para a equipa, só com a conversa iniciada e quando mudam.
   function readCart() {
     if (!window.Shopify && !document.querySelector('link[href*="cdn.shopify.com"], script[src*="cdn.shopify.com"]')) return Promise.resolve(undefined);
     var root = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) || "/";
@@ -757,17 +855,31 @@
       })
       .catch(function () { return undefined; });
   }
+  var lastContextAt = 0;
   function sendContext(force) {
     if (!state.session) return Promise.resolve();
     return readCart().then(function (cart) {
-      var sig = JSON.stringify(cart || null) + "|" + location.href;
+      // Sem visita neste separador, a de outro separador desta conversa em que o cliente abriu o chat.
+      var other = visit ? null : sharedVisit(load());
+      var sig = JSON.stringify(cart || null) + "|" + location.href + "|" + (visit ? visit.start + ":" + visit.pages : other ? other.start + ":" : "");
       if (!force && sig === state.cartSig) return;
       state.cartSig = sig;
+      lastContextAt = Date.now();
       return request("POST", "/api/chat/context", {
-        page: location.href, title: document.title, visitStartedAt: new Date(visit.start).toISOString(), pages: visit.pages, cart: cart,
+        page: location.href, title: document.title, cart: cart,
+        // Visita: a hora a que o cliente abriu o chat e as páginas vistas desde então. Com o chat aberto só noutro
+        // separador, a mesma hora e nenhum "pages" (o servidor mantém a contagem desse separador). Sem o chat aberto
+        // nesta visita (conversa de antes), nenhuma hora e "pages: 0": o painel diz que ainda não o abriu.
+        visitStartedAt: visit || other ? new Date((visit || other).start).toISOString() : undefined,
+        pages: visit ? visit.pages : other ? undefined : 0,
         locale: LANG, country: COUNTRY || undefined,
       }).catch(function () { state.cartSig = null; });
     });
+  }
+  // A visita começou agora (o cliente abriu o chat): o servidor ignora um contexto a menos de 5 s do anterior,
+  // por isso espera-se o que faltar.
+  function sendVisitSoon() {
+    setTimeout(function () { if (!state.destroyed) sendContext(true); }, Math.max(0, lastContextAt + 5500 - Date.now()));
   }
   var lastCartCheck = 0;
   function checkCart() {
@@ -1289,9 +1401,12 @@
     renderBadge();
   }
 
+  // Abrir o chat (botão, ligação #chat, LdoChat.open() ou o chat que estava aberto noutra página): só a partir
+  // daqui o widget grava no browser.
   function open() {
     state.open = true;
-    writeStore(OPEN_KEY, true, sessionStorage);
+    writeStore(OPEN_KEY, true, "session");
+    if (startVisit() && state.session) sendVisitSoon();
     launcher.setAttribute("aria-expanded", "true");
     launcher.classList.add("is-open");
     panel.hidden = false;
@@ -1302,7 +1417,8 @@
   }
   function close() {
     state.open = false;
-    writeStore(OPEN_KEY, null, sessionStorage);
+    writeStore(OPEN_KEY, null, "session");
+    if (!state.session) dropVisit();
     launcher.setAttribute("aria-expanded", "false");
     launcher.classList.remove("is-open");
     panel.hidden = true;
@@ -1444,10 +1560,14 @@
 
   // ------------------------------------------------------------ arranque
 
+  // Até aqui, a quem ainda não abriu o chat neste separador, o widget só leu o armazenamento (e apagou o contador
+  // antigo, um token que já não serve ou uma visita partilhada que já acabou): se o chat não abrir, nada fica gravado.
   renderBadge();
   var wantOpen = /[?&]chat=abrir\b/.test(location.search) || location.hash === "#chat";
-  wantOpen = wantOpen || readStore(OPEN_KEY, sessionStorage) === true;
+  wantOpen = wantOpen || readStore(OPEN_KEY, "session") === true;
   if (state.session) {
+    // O chat abre já nesta página: a visita conta a partir de agora, antes de o contexto seguir.
+    if (wantOpen) startVisit();
     sendContext(true);
     fetchMessages().catch(function () {}).then(function () { if (wantOpen) open(); else schedule(); });
   } else if (wantOpen) open();

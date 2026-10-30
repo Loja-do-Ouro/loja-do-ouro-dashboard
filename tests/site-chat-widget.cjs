@@ -222,3 +222,459 @@ test("Product cards open in the shop and language the customer is on", () => {
   // Fora da loja (página de teste do dashboard): a ligação original.
   assert.equal(load({ host: "loja-do-ouro-dashboard.vercel.app" }).productHref(ldo, link), ldo);
 });
+
+// ---------------------------------------------------------------- o que o widget guarda no browser do visitante
+
+// Widget completo num DOM mínimo. Cada openPage() é uma página nova no mesmo browser: o mesmo localStorage e cookies e
+// o sessionStorage do separador atual (newSession() passa a outro separador, com o sessionStorage vazio; as páginas já
+// abertas ficam com o do seu separador). Cada escrita fica em b.log.
+const VISIT_KEY = "ldo-chat:visita-chat";
+const OPEN_KEY = "ldo-chat:aberto";
+const TOKEN_KEY = "ldo-chat:v1";
+const LEGACY_KEY = "ldo-chat:visita";
+let clock = Date.UTC(2026, 9, 30, 10, 0, 0);
+class FakeDate extends Date {
+  constructor(...a) { super(...(a.length ? a : [clock])); }
+  static now() { return clock; }
+}
+
+class FakeStorage {
+  constructor(name, log) { this.name = name; this.log = log; this.map = new Map(); }
+  getItem(k) { return this.map.has(k) ? this.map.get(k) : null; }
+  setItem(k, v) { this.log.push([this.name, "set", k]); this.map.set(k, String(v)); }
+  removeItem(k) { this.log.push([this.name, "remove", k]); this.map.delete(k); }
+}
+function browser() {
+  const log = [];
+  return { log, local: new FakeStorage("local", log), session: new FakeStorage("session", log) };
+}
+function newSession(b) { b.session = new FakeStorage("session", b.log); return b; }
+
+class FakeNode {
+  constructor(name, data = "") {
+    this.nodeName = name.toUpperCase();
+    this.data = data;
+    this.childNodes = [];
+    this.parentNode = null;
+    this.attrs = {};
+    this.listeners = {};
+    this.html = "";
+    this.value = "";
+    this.style = { setProperty() {} };
+    this.scrollTop = this.scrollHeight = this.clientHeight = 0;
+    const node = this;
+    this.classList = {
+      add(c) { if (!node.classes().includes(c)) node.className = [...node.classes(), c].join(" "); },
+      remove(c) { node.className = node.classes().filter((x) => x !== c).join(" "); },
+    };
+  }
+  classes() { return (this.attrs.class || "").split(/\s+/).filter(Boolean); }
+  get className() { return this.attrs.class || ""; }
+  set className(v) { this.attrs.class = String(v); }
+  get id() { return this.attrs.id || ""; }
+  set id(v) { this.attrs.id = String(v); }
+  get firstChild() { return this.childNodes[0] || null; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return Object.hasOwn(this.attrs, k) ? this.attrs[k] : null; }
+  removeAttribute(k) { delete this.attrs[k]; }
+  appendChild(c) {
+    if (c.nodeName === "#DOCUMENT-FRAGMENT") { [...c.childNodes].forEach((x) => this.appendChild(x)); return c; }
+    if (c.parentNode) c.parentNode.removeChild(c);
+    c.parentNode = this;
+    this.childNodes.push(c);
+    return c;
+  }
+  removeChild(c) { this.childNodes = this.childNodes.filter((x) => x !== c); c.parentNode = null; return c; }
+  replaceChild(n, o) {
+    if (n.parentNode) n.parentNode.removeChild(n);
+    this.childNodes[this.childNodes.indexOf(o)] = n;
+    n.parentNode = this;
+    o.parentNode = null;
+    return o;
+  }
+  get textContent() { return this.nodeName === "#TEXT" ? this.data : this.childNodes.map((c) => c.textContent).join(""); }
+  set textContent(v) {
+    this.childNodes.forEach((c) => { c.parentNode = null; });
+    this.childNodes = [];
+    this.html = "";
+    if (v != null && v !== "") this.appendChild(new FakeNode("#text", String(v)));
+  }
+  get innerHTML() {
+    return this.html + this.childNodes.map((c) => c.nodeName === "#TEXT" ? c.data
+      : `<${c.nodeName} ${JSON.stringify(c.attrs)}>${c.innerHTML}</${c.nodeName}>`).join("");
+  }
+  set innerHTML(v) { this.textContent = ""; this.html = String(v); }
+  addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+  removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter((x) => x !== fn); }
+  dispatch(type) { for (const fn of this.listeners[type] || []) fn({ type, target: this, preventDefault() {} }); }
+  click() { this.dispatch("click"); }
+  focus() {}
+  closest() { return null; }
+  matches(sel) {
+    let m;
+    if (sel === "*") return true;
+    if ((m = /^\[([\w-]+)=([\w-]+)\]$/.exec(sel))) return this.attrs[m[1]] === m[2];
+    if ((m = /^\.([\w-]+)$/.exec(sel))) return this.classes().includes(m[1]);
+    return /^[a-z]+$/.test(sel) && this.nodeName === sel.toUpperCase();
+  }
+  querySelectorAll(sel) {
+    const out = [];
+    const walk = (n) => n.childNodes.forEach((c) => { if (c.nodeName !== "#TEXT" && c.matches(sel)) out.push(c); walk(c); });
+    walk(this);
+    return out;
+  }
+  querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
+}
+
+// Servidor do chat falso: regista os pedidos (método, caminho, corpo e token).
+function fakeServer() {
+  const calls = [];
+  const fetch = (url, opts = {}) => {
+    const u = new URL(url, "https://www.lojadoouro.pt");
+    const call = { method: opts.method || "GET", path: u.pathname, body: opts.body ? JSON.parse(opts.body) : null, auth: (opts.headers || {}).Authorization || null };
+    calls.push(call);
+    const data = call.path === "/api/chat/start" ? { token: "tok-1", verified: null }
+      : call.path === "/api/chat/messages" && call.method === "GET" ? { messages: [], agent: null, typing: false } : { ok: true };
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) });
+  };
+  return { fetch, calls, context: () => calls.filter((c) => c.path === "/api/chat/context") };
+}
+const noServer = () => { throw new Error("pedido inesperado ao servidor"); };
+const flush = async () => { for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r)); };
+
+function openPage(b, { url = "https://www.lojadoouro.pt/", config = {}, fetch = noServer } = {}) {
+  const u = new URL(url);
+  const session = b.session;
+  const location = { href: u.href, hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin };
+  const body = new FakeNode("body");
+  const head = new FakeNode("head");
+  const document = {
+    documentElement: { lang: "" }, body, head, title: "Página", hidden: false,
+    getElementById: (id) => [...head.querySelectorAll("*"), ...body.querySelectorAll("*")].find((n) => n.id === id) || null,
+    createElement: (tag) => new FakeNode(tag),
+    createTextNode: (s) => new FakeNode("#text", String(s)),
+    createDocumentFragment: () => new FakeNode("#document-fragment"),
+    addEventListener() {}, removeEventListener() {},
+    querySelector: () => null,
+    get cookie() { return ""; },
+    set cookie(v) { b.log.push(["cookie", "set", v]); },
+  };
+  const window = {
+    LDO_CHAT_CONFIG: { api: "https://dash.example", ...config },
+    get localStorage() { return b.local; },
+    get sessionStorage() { return session; },
+    matchMedia: () => ({ matches: false }),
+  };
+  const timers = [];
+  const setTimeout = (fn, ms) => timers.push({ fn, ms: ms || 0, done: false });
+  new Function("window", "document", "location", "localStorage", "sessionStorage", "fetch", "setTimeout", "clearTimeout", "Date", SRC)(
+    window, document, location, b.local, session, fetch, setTimeout, () => {}, FakeDate);
+  const host = body.childNodes[0] || null;
+  const find = (cls) => (host ? host.querySelector("." + cls) : null);
+  return {
+    window, document, timers, host, launcher: find("launcher"), panel: find("panel"),
+    // O formulário só entra na página quando o chat abre.
+    get form() { return find("start"); },
+    isOpen() { return this.launcher.getAttribute("aria-expanded") === "true"; },
+    // Corre os temporizadores pendentes mais curtos do que max ms (não as consultas periódicas ao servidor).
+    runTimers(max) { for (const t of timers) if (!t.done && t.ms < max) { t.done = true; t.fn(); } },
+  };
+}
+const json = (s, k) => JSON.parse(s.getItem(k));
+
+test("Chat widget: nothing is stored on the visitor's device before the chat is opened, on any page", () => {
+  const b = browser();
+  const pages = [
+    ["https://www.lojadoouro.pt/", {}],
+    ["https://www.lojadoouro.pt/collections/aneis?page=2", {}],
+    ["https://www.lojadoouro.pt/products/anel-ouro#reviews", {}],
+    ["https://www.lojadoouro.pt/en/pages/contact", {}],
+    ["https://www.goldstorepremium.com/es/products/anillo", {}],
+    ["https://www.lojadoouro.pt/cart", { hideOn: "/cart" }],
+    ["https://www.lojadoouro.pt/", { enabled: false }],
+  ];
+  let shown = 0;
+  for (let i = 0; i < 3; i++) {
+    for (const [url, config] of pages) {
+      const page = openPage(b, { url, config });
+      if (page.launcher) {
+        shown++;
+        assert.equal(page.isOpen(), false, url);
+      }
+      clock += 45_000;
+    }
+    newSession(b);
+  }
+  assert.equal(shown, 15);
+  // 21 páginas vistas (em 3 separadores), nenhum pedido ao servidor e nada gravado nem apagado: localStorage,
+  // sessionStorage e cookies.
+  assert.deepEqual(b.log, []);
+  assert.equal(b.local.map.size, 0);
+  assert.equal(b.session.map.size, 0);
+});
+
+test("Chat widget: the old visit counter (ldo-chat:visita) is removed at load, and nothing else is written", () => {
+  const b = browser();
+  b.local.map.set(LEGACY_KEY, JSON.stringify({ start: clock - 3_600_000, pages: 7, last: clock - 60_000 }));
+  b.local.map.set("outra-aplicacao", "1");
+  const page = openPage(b);
+  assert.equal(page.isOpen(), false);
+  assert.deepEqual(b.log, [["local", "remove", LEGACY_KEY]]);
+  assert.equal(b.local.getItem(LEGACY_KEY), null);
+  assert.equal(b.local.getItem("outra-aplicacao"), "1");
+  // Já apagado: nas páginas seguintes não há mais nada a fazer.
+  openPage(b);
+  assert.deepEqual(b.log, [["local", "remove", LEGACY_KEY]]);
+  // Também onde o chat está escondido ou desligado, e com um valor que não é JSON.
+  for (const config of [{ hideOn: ["/cart"] }, { enabled: false }]) {
+    b.log.length = 0;
+    b.local.map.set(LEGACY_KEY, "{lixo");
+    openPage(b, { url: "https://www.lojadoouro.pt/cart", config });
+    assert.deepEqual(b.log, [["local", "remove", LEGACY_KEY]], JSON.stringify(config));
+  }
+  assert.equal(b.session.map.size, 0);
+});
+
+test("Chat widget: storage starts when the customer opens the chat; the visit counts from that moment", () => {
+  const b = browser();
+  const p1 = openPage(b, { url: "https://www.lojadoouro.pt/products/anel-ouro" });
+  clock += 10 * 60_000; // 10 minutos na página antes de abrir o chat: não contam
+  assert.deepEqual(b.log, []);
+  const opened = clock;
+  p1.launcher.click();
+  assert.equal(p1.isOpen(), true);
+  assert.deepEqual(b.log, [["session", "set", OPEN_KEY], ["session", "set", VISIT_KEY]]);
+  assert.equal(json(b.session, OPEN_KEY), true);
+  assert.deepEqual(json(b.session, VISIT_KEY), { start: opened, pages: 1, last: opened });
+  assert.equal(b.local.map.size, 0, "sem conversa, nada no localStorage");
+
+  // Página seguinte: o chat que estava aberto reabre e a visita continua (2 páginas desde que abriu o chat).
+  clock += 60_000;
+  const p2 = openPage(b, { url: "https://www.lojadoouro.pt/collections/aneis" });
+  assert.equal(p2.isOpen(), true);
+  assert.deepEqual(json(b.session, VISIT_KEY), { start: opened, pages: 2, last: clock });
+  // Fechar o chat sem iniciar conversa apaga "aberto" e a visita: nas páginas seguintes nada é gravado.
+  b.log.length = 0;
+  p2.launcher.click();
+  assert.equal(p2.isOpen(), false);
+  assert.deepEqual(b.log, [["session", "remove", OPEN_KEY], ["session", "remove", VISIT_KEY]]);
+  assert.equal(b.session.map.size, 0);
+  b.log.length = 0;
+  clock += 60_000;
+  openPage(b);
+  const p3 = openPage(b);
+  assert.equal(p3.isOpen(), false);
+  assert.deepEqual(b.log, []);
+  assert.equal(b.local.map.size, 0);
+
+  // Ao voltar a abrir, a visita conta desde esse momento.
+  clock += 60_000;
+  p3.launcher.click();
+  assert.deepEqual(json(b.session, VISIT_KEY), { start: clock, pages: 1, last: clock });
+  // Com o chat aberto, 31 minutos sem páginas novas nem contacto com o servidor: a visita acaba e recomeça nesta página.
+  clock += 31 * 60_000;
+  b.log.length = 0;
+  const p5 = openPage(b);
+  assert.equal(p5.isOpen(), true);
+  assert.deepEqual(b.log, [["session", "remove", VISIT_KEY], ["session", "set", OPEN_KEY], ["session", "set", VISIT_KEY]]);
+  assert.deepEqual(json(b.session, VISIT_KEY), { start: clock, pages: 1, last: clock });
+  p5.launcher.click();
+  assert.equal(b.session.map.size, 0);
+  assert.equal(b.local.map.size, 0);
+
+  // Separador novo: nada guardado de antes, nada gravado.
+  newSession(b);
+  b.log.length = 0;
+  openPage(b);
+  assert.deepEqual(b.log, []);
+
+  // Abrir pela ligação do tema (#chat) também é abrir o chat: a visita começa nesse momento.
+  const p4 = openPage(b, { url: "https://www.lojadoouro.pt/pages/contactos#chat" });
+  assert.equal(p4.isOpen(), true);
+  assert.deepEqual(json(b.session, VISIT_KEY), { start: clock, pages: 1, last: clock });
+  assert.ok(!b.log.some(([store]) => store === "local" || store === "cookie"));
+});
+
+test("Chat widget: a conversation started after opening is restored on the next pages", async () => {
+  const b = browser();
+  const srv = fakeServer();
+  const p1 = openPage(b, { url: "https://www.lojadoouro.pt/products/anel-ouro", fetch: srv.fetch });
+  clock += 5 * 60_000;
+  const opened = clock;
+  p1.launcher.click();
+  assert.deepEqual(b.log, [["session", "set", OPEN_KEY], ["session", "set", VISIT_KEY]]);
+  assert.equal(srv.calls.length, 0, "sem conversa, o widget não fala com o servidor");
+  p1.form.querySelector("[name=name]").value = "Ana";
+  p1.form.querySelector("[name=email]").value = "ana@example.com";
+  p1.form.querySelector("[name=message]").value = "Olá";
+  p1.form.dispatch("submit");
+  await flush();
+  // A conversa começou: o token fica no localStorage, com a visita (para os outros separadores), e a equipa recebe a
+  // hora a que o cliente abriu o chat.
+  const stored1 = json(b.local, TOKEN_KEY);
+  assert.equal(stored1.token, "tok-1");
+  assert.deepEqual(stored1.visit, { start: opened, pages: 1, last: opened });
+  assert.ok(p1.panel.querySelector(".chat"), "mostra a conversa");
+  const ctx1 = srv.context().at(-1).body;
+  assert.equal(ctx1.visitStartedAt, new Date(opened).toISOString());
+  assert.equal(ctx1.pages, 1);
+  assert.equal(ctx1.page, "https://www.lojadoouro.pt/products/anel-ouro");
+
+  // Página seguinte: a conversa e o chat aberto voltam; a visita continua desde a mesma hora.
+  clock += 2 * 60_000;
+  srv.calls.length = 0;
+  const p2 = openPage(b, { url: "https://www.lojadoouro.pt/collections/aneis", fetch: srv.fetch });
+  await flush();
+  assert.equal(p2.isOpen(), true);
+  assert.ok(p2.panel.querySelector(".chat"), "mostra a conversa, não o formulário");
+  assert.ok(srv.calls.some((c) => c.method === "GET" && c.path === "/api/chat/messages" && c.auth === "Bearer tok-1"));
+  const ctx2 = srv.context().at(-1).body;
+  assert.deepEqual([ctx2.visitStartedAt, ctx2.pages, ctx2.page], [new Date(opened).toISOString(), 2, "https://www.lojadoouro.pt/collections/aneis"]);
+  assert.deepEqual(json(b.local, TOKEN_KEY).visit, { start: opened, pages: 2, last: clock });
+
+  // Fechar o chat com a conversa iniciada: a visita continua nas páginas seguintes deste separador.
+  p2.launcher.click();
+  assert.equal(b.session.getItem(OPEN_KEY), null);
+  clock += 60_000;
+  const p3 = openPage(b, { fetch: srv.fetch });
+  await flush();
+  assert.equal(p3.isOpen(), false);
+  assert.deepEqual(json(b.session, VISIT_KEY), { start: opened, pages: 3, last: clock });
+  assert.equal(srv.context().at(-1).body.pages, 3);
+
+  // 31 minutos sem páginas novas nem contacto com o servidor: a visita acaba (sai do sessionStorage e de
+  // "ldo-chat:v1") e nada volta a ser gravado sem abrir o chat; a equipa recebe "pages: 0".
+  clock += 31 * 60_000;
+  b.log.length = 0;
+  openPage(b, { fetch: srv.fetch });
+  await flush();
+  assert.deepEqual(b.log, [["local", "set", TOKEN_KEY], ["session", "remove", VISIT_KEY]]);
+  assert.equal(json(b.local, TOKEN_KEY).visit, undefined);
+  assert.equal(json(b.local, TOKEN_KEY).token, "tok-1");
+  assert.deepEqual([srv.context().at(-1).body.pages, srv.context().at(-1).body.visitStartedAt], [0, undefined]);
+  b.log.length = 0;
+  openPage(b, { fetch: srv.fetch });
+  await flush();
+  assert.deepEqual(b.log, []);
+  assert.equal(b.session.map.size, 0);
+  assert.ok(!b.log.some(([store]) => store === "cookie"));
+});
+
+test("Chat widget: a new tab (product card, link, Ctrl+click) keeps the visit of the tab where the chat is open", async () => {
+  const b = browser();
+  const srv = fakeServer();
+  // O que a BD grava (ldo_support_site_context): sem "pages" ou sem hora, fica o valor anterior.
+  const db = { visit_started_at: null, pages_viewed: null };
+  const apply = () => {
+    for (const { body } of srv.context()) {
+      if (body.visitStartedAt) db.visit_started_at = body.visitStartedAt;
+      if (Number.isInteger(body.pages)) db.pages_viewed = body.pages;
+    }
+    srv.calls.length = 0;
+  };
+  // O painel: "Ainda não abriu o chat nesta visita" com pages_viewed 0; senão "Há N min".
+  const panel = () => db.pages_viewed === 0 ? "Ainda não abriu o chat nesta visita"
+    : db.visit_started_at ? `Há ${Math.round((clock - Date.parse(db.visit_started_at)) / 60_000)} min` : "—";
+
+  // Separador A: o cliente abre o chat, inicia a conversa e vê mais uma página.
+  const a1 = openPage(b, { url: "https://www.lojadoouro.pt/products/anel-ouro", fetch: srv.fetch });
+  const opened = clock;
+  a1.launcher.click();
+  a1.form.querySelector("[name=name]").value = "Ana";
+  a1.form.querySelector("[name=email]").value = "ana@example.com";
+  a1.form.querySelector("[name=message]").value = "Olá";
+  a1.form.dispatch("submit");
+  await flush();
+  clock += 60_000;
+  const a2 = openPage(b, { url: "https://www.lojadoouro.pt/collections/aneis", fetch: srv.fetch });
+  await flush();
+  assert.equal(a2.isOpen(), true);
+  apply();
+  assert.deepEqual(db, { visit_started_at: new Date(opened).toISOString(), pages_viewed: 2 });
+  const tabA = b.session;
+
+  // Separador B (um cartão de produto do chat abre noutro separador, com o sessionStorage vazio): o chat fica fechado,
+  // a equipa recebe a página com a mesma hora de abertura e sem "pages" (não 0), e nada é gravado.
+  clock += 60_000;
+  newSession(b);
+  b.log.length = 0;
+  const b1 = openPage(b, { url: "https://www.lojadoouro.pt/products/fio-ouro", fetch: srv.fetch });
+  await flush();
+  assert.equal(b1.isOpen(), false);
+  assert.deepEqual(b.log, []);
+  const ctxB = srv.context().at(-1).body;
+  assert.equal(ctxB.page, "https://www.lojadoouro.pt/products/fio-ouro");
+  assert.equal(ctxB.visitStartedAt, new Date(opened).toISOString());
+  assert.ok(!("pages" in ctxB), JSON.stringify(ctxB));
+  apply();
+  // Três minutos depois, com o separador B a consultar o servidor: o painel continua a mostrar a visita.
+  for (let i = 0; i < 6; i++) {
+    clock += 30_000;
+    b1.runTimers(30_001);
+    await flush();
+  }
+  apply();
+  assert.deepEqual(db, { visit_started_at: new Date(opened).toISOString(), pages_viewed: 2 });
+  assert.equal(panel(), "Há 5 min");
+  assert.deepEqual(b.log, []);
+
+  // O cliente abre o chat no separador B: continua a mesma visita (mais uma página), não começa outra.
+  b1.launcher.click();
+  await flush();
+  b1.runTimers(10_000);
+  await flush();
+  assert.deepEqual(json(b.session, VISIT_KEY), { start: opened, pages: 3, last: clock });
+  assert.deepEqual(json(b.local, TOKEN_KEY).visit, { start: opened, pages: 3, last: clock });
+  apply();
+  assert.deepEqual(db, { visit_started_at: new Date(opened).toISOString(), pages_viewed: 3 });
+  assert.equal(b.session.getItem(OPEN_KEY), "true");
+  assert.equal(tabA.getItem(OPEN_KEY), "true", "o separador A não muda");
+
+  // De volta ao separador A, outra página: conta também a que o cliente viu no separador B.
+  clock += 60_000;
+  b.session = tabA;
+  openPage(b, { url: "https://www.lojadoouro.pt/pages/contactos", fetch: srv.fetch });
+  await flush();
+  apply();
+  assert.deepEqual(db, { visit_started_at: new Date(opened).toISOString(), pages_viewed: 4 });
+  assert.equal(panel(), "Há 6 min");
+  assert.ok(!b.log.some(([store]) => store === "cookie"));
+});
+
+test("Chat widget: with an earlier conversation, a new visit stores nothing until the chat is opened", async () => {
+  const b = browser();
+  b.local.map.set(TOKEN_KEY, JSON.stringify({ token: "tok-1", name: "Ana", verifiedEmail: null, seenAt: "" }));
+  const srv = fakeServer();
+  // Noutro dia e separador: lê o token (as respostas e o aviso de mensagens novas continuam) e envia a página e o
+  // carrinho à equipa, sem visita ("pages: 0") e sem gravar nada.
+  openPage(b, { url: "https://www.lojadoouro.pt/products/anel-ouro", fetch: srv.fetch });
+  await flush();
+  clock += 3 * 60_000;
+  const p2 = openPage(b, { url: "https://www.lojadoouro.pt/collections/aneis", fetch: srv.fetch });
+  await flush();
+  assert.equal(p2.isOpen(), false);
+  assert.deepEqual(b.log, []);
+  assert.ok(srv.calls.some((c) => c.method === "GET" && c.path === "/api/chat/messages" && c.auth === "Bearer tok-1"));
+  const ctx = srv.context().at(-1).body;
+  assert.equal(ctx.pages, 0);
+  assert.equal(ctx.visitStartedAt, undefined);
+  assert.equal(ctx.page, "https://www.lojadoouro.pt/collections/aneis");
+
+  // Ao abrir o chat, a visita começa nesse momento e a equipa recebe-a (passados os 5 s que o servidor exige).
+  clock += 60_000;
+  const opened = clock;
+  srv.calls.length = 0;
+  p2.launcher.click();
+  // A visita fica neste separador e, com a conversa, também em "ldo-chat:v1" (para os outros separadores).
+  assert.deepEqual(b.log, [["session", "set", OPEN_KEY], ["session", "set", VISIT_KEY], ["local", "set", TOKEN_KEY]]);
+  await flush();
+  assert.equal(p2.isOpen(), true);
+  // Depois de abrir, a resposta do servidor atualiza a visita (última atividade); nada mais é gravado.
+  assert.ok(b.log.every(([store, op, key]) => op === "set" && (store === "session" ? [OPEN_KEY, VISIT_KEY].includes(key) : store === "local" && key === TOKEN_KEY)),
+    JSON.stringify(b.log));
+  p2.runTimers(3500);
+  await flush();
+  const after = srv.context().at(-1).body;
+  assert.deepEqual([after.visitStartedAt, after.pages], [new Date(opened).toISOString(), 1]);
+  assert.deepEqual(json(b.local, TOKEN_KEY), { token: "tok-1", name: "Ana", verifiedEmail: null, seenAt: "", visit: { start: opened, pages: 1, last: opened } });
+});
