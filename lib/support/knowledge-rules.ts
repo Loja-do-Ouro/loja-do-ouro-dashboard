@@ -824,11 +824,12 @@ const REF_WORDS_NUMBER = new RegExp(`^(?:[ \\t]*(?:(?:d[aeo]s?|de|para|por|pel[o
 // Fatura com o código do documento (SAF-T) e a série, em qualquer ponto ("FT 1/2345", "FT A/2026/145", "FT1/2345", "FS
 // 1/234"), e outros códigos de 2 ou 3 letras com uma série de 4 algarismos ("FAC 2026/145").
 const DOC_CODE = "(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)";
-// Uma série seguida de dias, semanas ou horas é um prazo ("FR 3/5 dias", "GR 5/7 dias úteis": França e Grécia).
-const NOT_INVOICE_AFTER = "(?![ \\t]*(?:dias?|semanas?|horas?|meses|m[êe]s|anos?|úteis|uteis)(?!\\p{L}))";
-const INVOICE_ANY = new RegExp(`(?<![\\p{L}\\p{N}])${DOC_CODE}[ \\t.\\-]*[A-Z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d+(?![\\p{L}\\p{N}\\/])${NOT_INVOICE_AFTER}`, "u");
+// Uma série curta (1 ou 2 algarismos de cada lado) seguida de dias, semanas ou horas é um prazo ("FR 3/5 dias", "GR 5/7
+// dias úteis": França e Grécia); com mais algarismos ("FT 1/2345 dias") é uma fatura.
+const NOT_DAY_RANGE = "(?!\\d{1,2}[ \\t]*\\/[ \\t]*\\d{1,2}[ \\t]*(?:dias?|semanas?|horas?|meses|m[êe]s|anos?|úteis|uteis)(?!\\p{L}))";
+const INVOICE_ANY = new RegExp(`(?<![\\p{L}\\p{N}])${DOC_CODE}[ \\t.\\-]*${NOT_DAY_RANGE}[A-Z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d+(?![\\p{L}\\p{N}\\/])`, "u");
 // O mesmo código em minúsculas ("a sua fatura ft 1/2345", "fs 1/234", "ft 2026/1450"), com 3 ou mais algarismos no fim.
-const INVOICE_ANY_LOWER = new RegExp(`(?<![\\p{L}\\p{N}])(?:${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*[A-Za-z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Za-z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d{3,}(?![\\p{L}\\p{N}\\/])(?![.,]\\d|[ \\t]*(?:%|€))${NOT_INVOICE_AFTER}`, "u");
+const INVOICE_ANY_LOWER = new RegExp(`(?<![\\p{L}\\p{N}])(?:${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*[A-Za-z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Za-z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d{3,}(?![\\p{L}\\p{N}\\/])(?![.,]\\d|[ \\t]*(?:%|€))`, "u");
 const INVOICE_CODE = /(?<![\p{L}\p{N}])[A-Z]{2,3}[ \t]+(?:[A-Z]{1,4}[ \t]*)?(\d{4})[ \t]*\/[ \t]*(\d+)(?![\p{L}\p{N}/])/u;
 // A série a seguir a "fatura" ou "recibo" (com "n.º", ":" ou "é a"): com o código ("FT 1/2345", "ft 1/2345") ou letras
 // ("A/145"), recusa; só com algarismos, recusa quando é uma série de 4 algarismos ("2026/145") ou o número tem 3 ou mais
@@ -838,7 +839,7 @@ const MARK_CS = "(?:[nN]\\.?[ \\t]*[º°]\\.?|[nN]\\.[ \\t]*[oO]\\.?|[nN]º|[nN]
 const INVOICE_AFTER = new RegExp(`^[ \\t]*(?:${MARK_CS}[ \\t]*)?(?::[ \\t]*|(?:é|e)[ \\t]+(?:a[ \\t]+|o[ \\t]+)?)?(?:([A-Z]{1,4}|${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*)?([A-Za-z]{1,4}|\\d{1,4})((?:[ \\t]*\\/[ \\t]*[A-Za-z0-9]{1,10})*)[ \\t]*\\/[ \\t]*(\\d+)(?![\\p{L}\\p{N}\\/])`, "u");
 // Com o código do documento, a série também com um hífen, um ponto ou um espaço ("Fatura FT 1-2345", "Fatura FT 01-2345",
 // "Fatura FT 1 2345", "fatura FT 1.2345").
-const INVOICE_AFTER_SEP = new RegExp(`^[ \\t]*(?:${MARK_CS}[ \\t]*)?(?::[ \\t]*|(?:é|e)[ \\t]+(?:a[ \\t]+|o[ \\t]+)?)?(?:${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*(?:\\d{1,4}|[A-Za-z]{1,4})(?:[ \\t]*[.\\-][ \\t]*|[ \\t]+)\\d{3,}(?![\\p{L}\\p{N}\\/]|[.,]\\d|[ \\t]*(?:%|€|eur))${NOT_INVOICE_AFTER}`, "u");
+const INVOICE_AFTER_SEP = new RegExp(`^[ \\t]*(?:${MARK_CS}[ \\t]*)?(?::[ \\t]*|(?:é|e)[ \\t]+(?:a[ \\t]+|o[ \\t]+)?)?(?:${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*(?:\\d{1,4}|[A-Za-z]{1,4})(?:[ \\t]*[.\\-][ \\t]*|[ \\t]+)\\d{3,}(?![\\p{L}\\p{N}\\/]|[.,]\\d|[ \\t]*(?:%|€|eur))`, "u");
 function invoiceAfter(tail: string) {
   if (INVOICE_AFTER_SEP.test(tail)) return true;
   const m = INVOICE_AFTER.exec(tail);

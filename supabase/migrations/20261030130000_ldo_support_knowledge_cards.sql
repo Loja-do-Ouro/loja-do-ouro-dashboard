@@ -223,8 +223,9 @@ $$;
 -- ("2026-2027", "2025/26"), datas, contrastes, valores, percentagens, unidades e contagens ("Encomendas 100% seguras",
 -- "pedidos 365 dias por ano", "Encomendas 2026", "Encomendas 10 000 por ano", "Clientes 5000 fidelizados"), e as faturas
 -- com a série ("fatura FT 1/2345", "fatura A/145", "fatura 2026/145", "FS 1/234"; não "fatura c/ 23% de IVA", "recibo s/
--- 2 vias" nem um prazo como "FR 3/5 dias"). Os números, emails, IBAN e NIF dos dados da empresa (p_kb: base de
--- conhecimento, lojas, caixas e assinatura do apoio) e o NIF do consumidor final (999999990) passam. Sem ligações, emails
+-- 2 vias" nem um prazo curto como "FR 3/5 dias"; "FT 1/2345 dias" é uma fatura). Os números, emails, IBAN e NIF dos
+-- dados da empresa (p_kb: base de conhecimento, lojas, caixas e assinatura do apoio) e o NIF do consumidor final
+-- (999999990) passam. Sem ligações, emails
 -- e perfis (vistos à parte).
 -- "referência", "ref." e "#" sozinhos não são recusa aqui (no servidor, só numa frase sobre uma encomenda ou um
 -- pagamento). Os espaços estreitos ou que não quebram (NBSP…) contam como espaços, os traços (—, –, −) como hífenes e
@@ -263,7 +264,7 @@ language sql immutable set search_path = '' as $$
           '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[A-Z]{1,4}[ \t.-]*(?:[A-Za-z]{1,4}|[0-9]{1,4})(?:[ \t]*/[ \t]*[A-Za-z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])',
           '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?:[A-Za-z]{2,4}|(?![cCsSpPnNvV][ \t]*/)[A-Za-z])[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])',
           '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?!(?:19|20)[0-9]{2}[ \t]*/[ \t]*[0-9]{2}(?![0-9]))[0-9]{4}[ \t]*/[ \t]*(?!(?:19|20)[0-9]{2}(?![0-9]))([0-9]+)(?![[:alnum:]/])',
-          '(?:^|[^[:alnum:]])(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)[ \t.-]*[A-Z0-9]{1,10}(?:[ \t]*/[ \t]*[A-Z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])(?![ \t]*(?:dias?|semanas?|horas?|meses|m(?:ê|e)s|anos?|úteis|uteis)(?![[:alpha:]]))']) as r(re)
+          '(?:^|[^[:alnum:]])(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)[ \t.-]*(?![0-9]{1,2}[ \t]*/[ \t]*[0-9]{1,2}[ \t]*(?:dias?|semanas?|horas?|meses|m(?:ê|e)s|anos?|úteis|uteis)(?![[:alpha:]]))[A-Z0-9]{1,10}(?:[ \t]*/[ \t]*[A-Z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])']) as r(re)
         cross join lateral regexp_matches(ldo_private.support_card_plain(p_text), r.re, 'g') as m(g)
         where not ldo_private.support_card_known(m.g[1], p_kb))
       then 'O texto tem um número de encomenda, de cliente ou de fatura.'

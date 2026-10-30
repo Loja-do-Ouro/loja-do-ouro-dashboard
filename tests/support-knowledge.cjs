@@ -89,10 +89,10 @@ const HARD_FINAL = ["Os últimos 4 dígitos são 4242.", "últimos 4 dígitos 42
   "Fatura FT 1-2345", "Fatura FT 01-2345", "Fatura FT 1 2345", "fatura FT 1.2345", "a referência da sua encomenda é 4512", "referência multibanco 123 456 789",
   "entidade 12345 referência 123456789", "a sua referência é 4512",
   // Verificação da ronda final: só com algarismos, a referência numa frase que começa pela encomenda, pelo pedido, pela
-  // reparação ou pelo talão é a do cliente.
+  // reparação ou pelo talão é a do cliente; uma série longa seguida de dias é uma fatura (só "FR 3/5 dias" é um prazo).
   "A reparação ficou com a referência 4471.", "A encomenda tem a referência 4471.", "A reparação tem a referência 4471.", "O pedido ficou com a referência 4471.",
   "O talão tem a referência 4471.", "A encomenda ficou registada com a referência 4471.", "A reparação ficou com a ref. 4471.",
-  "Bom dia, a reparação ficou com a referência 4471."];
+  "Bom dia, a reparação ficou com a referência 4471.", "FT 1/2345 dias", "A FT 1/2345 dias", "Encomenda FT 1/2345 dias", "Encomenda FT 1/2345 anos"];
 const HARD_CORPUS = ["Fatura simplificada FS 1/234", "fatura FS 1/234", "Fatura FT 1/2345", "A fatura FT 01/2345 já foi emitida.", "Fatura-recibo FR 12/345",
   "Fatura FT1/2345", "A sua fatura é a FS 1/234.", "Encomenda n.º 4 471", "Encomenda 44 71", "Fatura 4.471", "Pedido 4 471", "O seu número de cliente é o 4 471.",
   "Número de cliente: 44-71-23", "Encomenda nº 4471", "ENCOMENDA Nº 4471", "Reparação nº 4471", "Pedido #4471", "gertrudes@sapo", "joana arroba gmail ponto com",
@@ -1212,7 +1212,7 @@ const DB_RULE = {
     String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[A-Z]{1,4}[ \t.-]*(?:[A-Za-z]{1,4}|[0-9]{1,4})(?:[ \t]*/[ \t]*[A-Za-z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])`,
     String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?:[A-Za-z]{2,4}|(?![cCsSpPnNvV][ \t]*/)[A-Za-z])[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])`,
     String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?!(?:19|20)[0-9]{2}[ \t]*/[ \t]*[0-9]{2}(?![0-9]))[0-9]{4}[ \t]*/[ \t]*(?!(?:19|20)[0-9]{2}(?![0-9]))([0-9]+)(?![[:alnum:]/])`,
-    String.raw`(?:^|[^[:alnum:]])(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)[ \t.-]*[A-Z0-9]{1,10}(?:[ \t]*/[ \t]*[A-Z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])(?![ \t]*(?:dias?|semanas?|horas?|meses|m(?:ê|e)s|anos?|úteis|uteis)(?![[:alpha:]]))`,
+    String.raw`(?:^|[^[:alnum:]])(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)[ \t.-]*(?![0-9]{1,2}[ \t]*/[ \t]*[0-9]{1,2}[ \t]*(?:dias?|semanas?|horas?|meses|m(?:ê|e)s|anos?|úteis|uteis)(?![[:alpha:]]))[A-Z0-9]{1,10}(?:[ \t]*/[ \t]*[A-Z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])`,
   ],
 };
 const are = (s, flags) => new RegExp(s.replace(/\\m/g, "(?<![\\p{L}\\p{N}_])(?=[\\p{L}\\p{N}_])").replace(/\\M/g, "(?<=[\\p{L}\\p{N}_])(?![\\p{L}\\p{N}_])")
@@ -1247,6 +1247,9 @@ test("DB rule is a strict subset of the server rule: a faithful port of support_
   // Os falsos positivos (também as recusas falsas da BD da verificação anterior e as referências de produtos): nenhuma.
   const fp = [...FALSE_POSITIVES.flat(), ...FALSE_POSITIVE_TEXTS, ...DB_FALSE_BLOCKS, ...PRODUCT_REFS, ...PARAPHRASES.flat(), ...VERIFIER_STARTS];
   assert.deepEqual(fp.filter((s) => dbProblem(s, kb)), []);
+  // Só uma série curta seguida de dias é um prazo, também na BD; "FT 1/2345 dias" é uma fatura.
+  assert.equal(dbProblem("Prazos: FR 3/5 dias; GR 5/7 dias úteis; FR 10/15 dias.", ""), null);
+  for (const s of ["FT 1/2345 dias", "Encomenda FT 1/2345 dias", "Encomenda FT 1/2345 anos"]) assert.equal(dbProblem(s, ""), "encomenda", s);
   // O que a BD recusa, o servidor também recusa (sondas de ataque e de recusas, com dados da empresa).
   const companyKb = `${kb}\nEntidade 12345 Referência 123 456 789. IBAN PT50 0002 0123 1234 5678 9015 4. NIF 501234567. geral@parceiro.pt`;
   const companyAllow = k.companyAllowlist({ knowledge: `${KNOWLEDGE}\nEntidade 12345 Referência 123 456 789. IBAN PT50 0002 0123 1234 5678 9015 4. NIF 501234567. geral@parceiro.pt`,
