@@ -59,7 +59,11 @@ export function toZendeskStatus(s: Status): "open" | "pending" | "solved" {
 // Regra explícita de reabertura (conversas cujo estado pertence ao dashboard; espelha ldo_support_ingest):
 // mensagem nova do cliente em "Resolvido" → "Novo" sem responsável, "Em atendimento" com responsável;
 // em "A aguardar cliente" → "Em atendimento"; nos restantes estados nada muda.
-export function statusAfterCustomerMessage(status: Status, hasAssignee: boolean): Status {
+// rating: a mensagem foi tratada como resposta a um pedido de avaliação (ldo_private.support_take_rating: só a nota, as
+// estrelas ou «não»). Não reabre; só uma nota de 1 ou 2 numa conversa resolvida a devolve a "Novo", sem responsável,
+// para acompanhamento. Uma nota seguida de texto não é tratada aqui (rating null): reabre como qualquer mensagem.
+export function statusAfterCustomerMessage(status: Status, hasAssignee: boolean, rating: { score: number | null } | null = null): Status {
+  if (rating) return rating.score !== null && rating.score <= 2 && status === "resolvido" ? "novo" : status;
   if (status === "resolvido") return hasAssignee ? "em_atendimento" : "novo";
   if (status === "aguarda_cliente") return "em_atendimento";
   return status;
@@ -378,6 +382,17 @@ export function assignmentChange(o: Ownership, target: string | null, ownerName 
 export function firstName(fullName: string | null | undefined): string | null {
   const first = (fullName || "").trim().split(/\s+/)[0];
   return first || null;
+}
+
+// Primeiro nome do cliente nos textos automáticos (pedido de avaliação, emails do chat do site): só uma palavra de 2 a
+// 30 letras (com apóstrofo ou hífen pelo meio). Um nome de perfil com emoji, números, pontuação ou uma ligação dá "":
+// o texto segue sem nome ("Olá!"). Um nome só em maiúsculas ou só em minúsculas sai com maiúscula inicial ("MARIA" e
+// "maria" → "Maria"; "ANNE-MARIE" → "Anne-Marie"); com maiúsculas e minúsculas fica como está ("D'Angelo").
+export function safeFirstName(raw: string | null | undefined): string {
+  const first = (raw || "").trim().split(/\s+/)[0] || "";
+  if (!/^[\p{L}][\p{L}'-]{1,29}$/u.test(first)) return "";
+  if (first !== first.toUpperCase() && first !== first.toLowerCase()) return first;
+  return first.toLowerCase().replace(/(^|['-])(\p{L})/gu, (_, sep: string, c: string) => sep + c.toUpperCase());
 }
 
 // Histórico visível (configuração do apoio, por omissão 1 de setembro de 2026): numa conversa antiga que voltou a ter

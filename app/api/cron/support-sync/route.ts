@@ -22,5 +22,9 @@ export async function GET(request: Request) {
   const reviewsPurged = await serverRpc<number>("ldo_support_ai_review_purge").catch(() => null);
   // Chat do site: tokens de visitantes sem atividade há 180 dias deixam de funcionar.
   const sitePurged = await serverRpc<number>("ldo_support_site_purge").catch(() => null);
-  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged, aiPurged, reviewsPurged, sitePurged }, { headers: { "Cache-Control": "no-store" } });
+  // Avaliações do atendimento: o comentário apaga-se ao fim de 12 meses (a nota fica).
+  const surveysPurged = await serverRpc<number>("ldo_support_survey_purge").catch(() => null);
+  return Response.json({ ok: results.every((r) => r.ok !== false), results, purged, aiPurged, reviewsPurged, sitePurged, surveysPurged }, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

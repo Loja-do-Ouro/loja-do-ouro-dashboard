@@ -71,6 +71,10 @@
       sunday: "Dom.",
       transferred: "A conversa foi transferida para {name}.",
       someoneElse: "outra pessoa da equipa",
+      surveyRequest: "Obrigado por falar connosco! Como avalia o atendimento de {name}?",
+      surveyRequestNoName: "Obrigado por falar connosco! Como avalia o nosso atendimento?",
+      surveyThanks: "Obrigado pela sua avaliação!",
+      surveyStar: "{n} de 5",
       err_network: "Sem ligação. Verifique a internet e tente novamente.",
       err_status: "O chat está indisponível de momento (erro {status}). Tente novamente dentro de instantes.",
       err_chat_unavailable: "O chat está indisponível de momento. Tente novamente dentro de instantes.",
@@ -85,6 +89,8 @@
       err_conversation_unavailable: "Esta conversa já não está disponível. Inicie uma nova.",
       err_too_many_chats: "Demasiadas conversas iniciadas. Tente novamente mais tarde.",
       err_too_many_messages: "Enviou muitas mensagens seguidas. Aguarde um pouco.",
+      err_survey_closed: "Esta avaliação já não está disponível.",
+      err_rating_invalid: "Escolha de 1 a 5 estrelas.",
     },
     en: {
       title: "Chat with us",
@@ -133,6 +139,10 @@
       sunday: "Sun",
       transferred: "Your conversation has been transferred to {name}.",
       someoneElse: "another member of our team",
+      surveyRequest: "Thank you for talking to us! How would you rate {name}’s help?",
+      surveyRequestNoName: "Thank you for talking to us! How would you rate our help?",
+      surveyThanks: "Thank you for your feedback!",
+      surveyStar: "{n} of 5",
       err_network: "No connection. Please check your internet connection and try again.",
       err_status: "The chat is unavailable at the moment (error {status}). Please try again shortly.",
       err_chat_unavailable: "The chat is unavailable at the moment. Please try again shortly.",
@@ -147,6 +157,8 @@
       err_conversation_unavailable: "This conversation is no longer available. Please start a new one.",
       err_too_many_chats: "Too many chats have been started. Please try again later.",
       err_too_many_messages: "You have sent several messages in a row. Please wait a moment.",
+      err_survey_closed: "This rating is no longer available.",
+      err_rating_invalid: "Please choose 1 to 5 stars.",
     },
     es: {
       title: "Hable con nosotros",
@@ -195,6 +207,10 @@
       sunday: "Dom.",
       transferred: "Su conversación se ha transferido a {name}.",
       someoneElse: "otra persona del equipo",
+      surveyRequest: "¡Gracias por hablar con nosotros! ¿Cómo valora la atención de {name}?",
+      surveyRequestNoName: "¡Gracias por hablar con nosotros! ¿Cómo valora nuestra atención?",
+      surveyThanks: "¡Gracias por su valoración!",
+      surveyStar: "{n} de 5",
       err_network: "Sin conexión. Compruebe su conexión a internet e inténtelo de nuevo.",
       err_status: "El chat no está disponible en este momento (error {status}). Inténtelo de nuevo en unos instantes.",
       err_chat_unavailable: "El chat no está disponible en este momento. Inténtelo de nuevo en unos instantes.",
@@ -209,6 +225,8 @@
       err_conversation_unavailable: "Esta conversación ya no está disponible. Inicie una nueva.",
       err_too_many_chats: "Se han iniciado demasiadas conversaciones. Inténtelo de nuevo más tarde.",
       err_too_many_messages: "Ha enviado muchos mensajes seguidos. Espere un momento, por favor.",
+      err_survey_closed: "Esta valoración ya no está disponible.",
+      err_rating_invalid: "Elija de 1 a 5 estrellas.",
     },
     fr: {
       title: "Contactez-nous",
@@ -257,6 +275,10 @@
       sunday: "Dim.",
       transferred: "Votre conversation a été transférée à {name}.",
       someoneElse: "un autre membre de l’équipe",
+      surveyRequest: "Merci d’avoir échangé avec nous ! Comment évaluez-vous l’aide de {name} ?",
+      surveyRequestNoName: "Merci d’avoir échangé avec nous ! Comment évaluez-vous notre aide ?",
+      surveyThanks: "Merci pour votre avis !",
+      surveyStar: "{n} sur 5",
       err_network: "Pas de connexion. Veuillez vérifier votre connexion Internet et réessayer.",
       err_status: "Le chat est momentanément indisponible (erreur {status}). Veuillez réessayer dans quelques instants.",
       err_chat_unavailable: "Le chat est momentanément indisponible. Veuillez réessayer dans quelques instants.",
@@ -271,6 +293,8 @@
       err_conversation_unavailable: "Cette conversation n’est plus disponible. Veuillez en démarrer une nouvelle.",
       err_too_many_chats: "Trop de conversations ont été démarrées. Veuillez réessayer plus tard.",
       err_too_many_messages: "Vous avez envoyé plusieurs messages à la suite. Veuillez patienter un instant.",
+      err_survey_closed: "Cette évaluation n’est plus disponible.",
+      err_rating_invalid: "Choisissez de 1 à 5 étoiles.",
     },
     de: {
       title: "Schreiben Sie uns",
@@ -319,6 +343,10 @@
       sunday: "So.",
       transferred: "Ihr Chat wurde an {name} übergeben.",
       someoneElse: "eine andere Person aus unserem Team",
+      surveyRequest: "Danke, dass Sie uns geschrieben haben! Wie bewerten Sie die Beratung durch {name}?",
+      surveyRequestNoName: "Danke, dass Sie uns geschrieben haben! Wie bewerten Sie unsere Beratung?",
+      surveyThanks: "Vielen Dank für Ihre Bewertung!",
+      surveyStar: "{n} von 5",
       err_network: "Keine Verbindung. Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
       err_status: "Der Chat ist im Moment nicht verfügbar (Fehler {status}). Bitte versuchen Sie es gleich noch einmal.",
       err_chat_unavailable: "Der Chat ist im Moment nicht verfügbar. Bitte versuchen Sie es gleich noch einmal.",
@@ -333,6 +361,8 @@
       err_conversation_unavailable: "Dieser Chat ist nicht mehr verfügbar. Bitte starten Sie einen neuen.",
       err_too_many_chats: "Es wurden zu viele Chats gestartet. Bitte versuchen Sie es später erneut.",
       err_too_many_messages: "Sie haben viele Nachrichten hintereinander gesendet. Bitte warten Sie einen Moment.",
+      err_survey_closed: "Diese Bewertung ist nicht mehr verfügbar.",
+      err_rating_invalid: "Bitte wählen Sie 1 bis 5 Sterne.",
     },
   };
   var INTL = { pt: "pt-PT", en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" };
@@ -426,9 +456,15 @@
     if (message) return LANG === "pt" ? message : t("err_chat_unavailable");
     return status ? t("err_status", { status: status }) : "";
   }
+  // Pedido de avaliação: { kind: "survey", agent_first, rated } (primeiro nome de quem atendeu; sem nome, o texto geral).
+  function surveyText(m) {
+    var name = typeof m.agent_first === "string" && m.agent_first.trim() ? m.agent_first.trim().slice(0, 40) : "";
+    return name ? t("surveyRequest", { name: name }) : t("surveyRequestNoName");
+  }
   // Aviso de transferência: { kind: "transfer", to_first } ou, num servidor antigo, só o texto em português.
   function noticeText(m) {
     var body = String(m.body || "");
+    if (m.kind === "survey") return m.rated ? t("surveyThanks") : surveyText(m);
     if (m.kind === "transfer") {
       return t("transferred", { name: typeof m.to_first === "string" && m.to_first.trim() ? m.to_first.trim().slice(0, 40) : t("someoneElse") });
     }
@@ -664,6 +700,8 @@
     if (!state.lastInserted || m.inserted_at > state.lastInserted) state.lastInserted = m.inserted_at;
     for (var i = 0; i < state.messages.length; i++) {
       var x = state.messages[i];
+      // Pedido de avaliação respondido (noutro separador): passa a agradecimento.
+      if (x.id === m.id && x.kind === "survey" && m.rated && !x.rated) { x.rated = true; return true; }
       if (x.id === m.id) return false;
       // A mensagem local (a enviar ou falhada) com a mesma chave passa a ser a do servidor.
       if (x.local && m.key && x.clientKey === m.key) { state.messages[i] = m; return true; }
@@ -787,6 +825,24 @@
         local.pending = false;
         local.failed = true;
         setError(e.message);
+        renderMessages();
+      });
+  }
+
+  // Estrelas do pedido de avaliação (1 a 5). Um pedido que já fechou (a equipa voltou a escrever, passaram 72 h) sai da
+  // lista; outro erro fica visível e as estrelas voltam.
+  function rate(m, score) {
+    if (m.busy || m.rated) return;
+    m.busy = true;
+    setError("");
+    renderMessages();
+    return request("POST", "/api/chat/rating", { survey: m.id, score: score })
+      .then(function () { m.rated = true; }, function (e) {
+        if (e.message === t("err_survey_closed")) state.messages = state.messages.filter(function (x) { return x !== m; });
+        else setError(e.message);
+      })
+      .then(function () {
+        m.busy = false;
         renderMessages();
       });
   }
@@ -1132,8 +1188,25 @@
     return card;
   }
 
+  // Pedido de avaliação: a pergunta e 5 estrelas (botões, com "1 de 5"… para leitores de ecrã); depois, o agradecimento.
+  function surveyNode(m) {
+    if (m.rated) return el("div", { class: "msg notice survey", "data-id": m.id, role: "note" }, t("surveyThanks"));
+    var box = el("div", { class: "msg notice survey", "data-id": m.id, role: "group", "aria-label": surveyText(m) });
+    box.appendChild(el("p", {}, surveyText(m)));
+    var stars = el("div", { class: "stars" });
+    for (var n = 1; n <= 5; n++) {
+      var star = el("button", { type: "button", class: "star", "aria-label": t("surveyStar", { n: n }) }, "★");
+      if (m.busy) star.setAttribute("disabled", "");
+      star.addEventListener("click", rate.bind(null, m, n));
+      stars.appendChild(star);
+    }
+    box.appendChild(stars);
+    return box;
+  }
+
   function messageNode(m) {
     var d = new Date(m.created_at);
+    if (m.from === "notice" && m.kind === "survey") return surveyNode(m);
     // Aviso (ex.: a conversa foi transferida): linha centrada, sem balão.
     if (m.from === "notice") return el("div", { class: "msg notice", "data-id": m.id, role: "note" }, noticeText(m));
     var bubble = el("div", { class: "msg " + (m.from === "visitor" ? "me" : "team") + (m.failed ? " failed" : ""), "data-id": m.id });
@@ -1331,6 +1404,12 @@
       ".msg a { color: inherit; text-decoration: underline; }",
       ".who { display: block; font-size: 11px; color: #8a6428; font-weight: 600; margin-bottom: 2px; }",
       ".msg.notice { align-self: center; max-width: 92%; padding: 4px 12px; border: 0; border-radius: 999px; background: #f2f4ef; color: #4f5c55; font-size: 12px; text-align: center; }",
+      ".msg.notice.survey { padding: 10px 14px; border-radius: 12px; font-size: 13px; color: #253531; }",
+      ".stars { display: flex; justify-content: center; gap: 2px; margin-top: 6px; }",
+      // Estrelas por escolher e escolhidas com contraste de pelo menos 3:1 sobre o fundo do aviso (#f2f4ef).
+      ".star { background: none; border: 0; padding: 2px 4px; font-size: 26px; line-height: 1; color: #7a8077; cursor: pointer; }",
+      ".stars:hover .star:not([disabled]) { color: #b07f00; } .stars .star:hover ~ .star { color: #7a8077; }",
+      ".star[disabled] { cursor: default; opacity: .6; }",
       ".txt p + p, .txt p + ul, .txt p + ol, .txt ul + p, .txt ol + p { margin-top: 7px; }",
       ".txt ul, .txt ol { margin: 4px 0; padding-left: 20px; } .txt li { margin: 2px 0; overflow-wrap: anywhere; }",
       ".msg a.product { display: flex; gap: 10px; align-items: center; margin: 6px 0; padding: 8px; border: 1px solid #e6e9e3; border-radius: 10px; background: #fafbf8; color: #253531; text-decoration: none; }",

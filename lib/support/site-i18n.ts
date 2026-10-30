@@ -3,6 +3,7 @@
 // site-chat.ts. Marcadores: {brand}, {domain}, {name}, {url}.
 import { brandEmail, emailParagraph, emailQuote, esc } from "../email-layout";
 import { cut } from "./comment-rules";
+import { safeFirstName } from "./rules";
 import { isSite, normLocale, SITES, siteRoot, type Site, type SiteLocale } from "./site-rules";
 
 export const INTL: Record<SiteLocale, string> = { pt: "pt-PT", en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" };
@@ -192,7 +193,8 @@ function setup(v: Visitor, baseUrl: string, origin?: string | null) {
   const t = SITE_TEXTS[locale];
   const vars = { brand: info.brand, domain: info.domain };
   const tx = (k: keyof SiteTexts, more: Record<string, string> = {}) => fill(t[k], { ...vars, ...more });
-  const first = (v.name || "").trim().split(/\s+/)[0] || "";
+  // Nome escrito pelo visitante: só um primeiro nome "limpo"; senão a saudação sem nome.
+  const first = safeFirstName(v.name);
   return {
     site, locale, info, t, tx, first,
     hello: first ? tx("hello", { name: first }) : tx("helloNoName"),

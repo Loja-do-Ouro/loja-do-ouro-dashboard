@@ -316,6 +316,8 @@ export function mapThread(t: Thread, mailbox: string): MappedThread | null {
       attachments: messageAttachments(m.id, m.payload).map((a) => ({ ...a, name: cleanText(a.name) })),
       created_at: new Date(at(m) || Date.now()).toISOString(),
       ...(own ? { delivery: "accepted" as const } : {}),
+      // Resposta automática do cliente (ausência): logo a seguir a um pedido de avaliação não reabre nem conta como nota.
+      ...(!own && isAutoSubmitted(m) ? { auto_submitted: true } : {}),
     });
   }
   const subject = Array.from(cleanText(cleanSubject(header(msgs[0].payload, "Subject")))).slice(0, 300).join("");

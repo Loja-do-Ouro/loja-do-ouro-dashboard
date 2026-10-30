@@ -31,7 +31,8 @@ export async function GET(request: Request, ctx: Ctx) {
 }
 
 type Action = {
-  action: "read" | "unread" | "presence" | "review" | "reply" | "note" | "update" | "verify" | "confirm_sent" | "not_sent";
+  action: "read" | "unread" | "presence" | "review" | "reply" | "note" | "update" | "verify" | "confirm_sent" | "not_sent" | "survey_preview"
+    | "survey_cancel";
   composing: boolean;
   body: string;
   clientKey: string;
@@ -45,6 +46,10 @@ type Action = {
   review: unknown;
   // Proposta da IA posta no campo de resposta com "Usar na resposta".
   aiDraftId: string;
+  // Pedido de avaliação: a caixa ao resolver (modo "perguntar") e o cancelamento pelo Super Admin.
+  survey: boolean;
+  surveyId: string;
+  reason: string;
 };
 
 // Uma ação por pedido. "reply" é sempre resposta pública ao cliente pelo canal da conversa;
@@ -76,14 +81,24 @@ export async function POST(request: Request, ctx: Ctx) {
         return json(await sendMessage(viewer, id, b.action === "reply" ? "outbound" : "note", b.body, b.clientKey, uploads, request.url, links));
       }
       case "update": {
-        const handover = await updateConversation(viewer, id, {
+        const { handover, note } = await updateConversation(viewer, id, {
           ...("status" in b ? { status: b.status } : {}),
           ...("assigneeId" in b ? { assigneeId: b.assigneeId } : {}),
+          ...(typeof b.survey === "boolean" ? { survey: b.survey } : {}),
         });
         // Aviso por email ao colega que recebe a conversa, depois de responder (não atrasa o ecrã).
         if (handover) after(() => notifyHandover(handover).catch(() => undefined));
-        return json({ ok: true });
+        // note: o pedido de avaliação ao resolver (agendado, ou o motivo para não haver).
+        return json({ ok: true, note });
       }
+      // Antes de resolver no modo "perguntar": pode pedir-se avaliação, e porque não.
+      case "survey_preview":
+        return json(await sessionRpc(viewer.session, "ldo_support_survey_preview", { p_conv: id }));
+      // Só o Super Admin (a BD confirma), com o motivo, que fica na conversa.
+      case "survey_cancel":
+        if (!isUuid(b.surveyId) || typeof b.reason !== "string") throw new HttpError(400, "Pedido inválido.");
+        await sessionRpc(viewer.session, "ldo_support_survey_cancel", { p_id: b.surveyId, p_reason: b.reason.slice(0, 300) });
+        return json({ ok: true });
       case "verify":
         if (!isUuid(b.messageId)) throw new HttpError(400, "Pedido inválido.");
         return json(await verifyMessage(viewer, id, b.messageId));

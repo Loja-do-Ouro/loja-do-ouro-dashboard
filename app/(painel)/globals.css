@@ -4129,6 +4129,12 @@ textarea:focus-visible,
 .customer-panel dt { color: var(--muted); }
 .customer-panel dd { margin: 0; overflow-wrap: anywhere; }
 .customer-actions, .link-form, .related { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* Pedido de avaliação: a pergunta ao resolver (modo "perguntar") e o estado no painel do cliente. */
+.survey-confirm { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid #eee1ca; border-radius: 8px; background: #fffaf0; }
+.survey-confirm strong { font-size: 13.5px; color: #253531; }
+.customer-panel .checkbox-label { flex-direction: row; align-items: flex-start; font-size: 13px; color: var(--ink); }
+.customer-panel .checkbox-label input { margin-top: 2px; }
+.survey-state { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 13px; }
 .link-form input { flex: 1 1 160px; width: auto; }
 .customer-panel .small, .customer-panel small { font-size: 12px; }
 .orders ul, .audit { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }

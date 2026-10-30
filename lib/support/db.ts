@@ -43,6 +43,9 @@ export type IngestMessage = {
   created_at: string;
   delivery?: "accepted" | "delivered" | "read" | null;
   deleted?: boolean;
+  // Email recebido marcado como automático (Auto-Submitted, ex.: ausência): logo a seguir a um pedido de avaliação fica
+  // guardado sem reabrir a conversa nem contar como nota (ldo_support_ingest).
+  auto_submitted?: boolean;
 };
 export type Attachment = { name: string; type: string | null; size: number | null; ref: string; inline?: boolean };
 export type IngestConversation = {
