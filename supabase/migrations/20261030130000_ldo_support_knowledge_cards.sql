@@ -6,10 +6,12 @@
 -- (ldo_support_ai_begin), e o texto publicado só muda quando se publica (a cache de 1 h da IA é reescrita uma vez por
 -- publicação; arquivar retira logo). Nada aqui envia mensagens a clientes.
 -- * O que fica guardado: nos cartões, o texto (pergunta, variantes e resposta), o tema, a marca, a loja, quem aprovou e
---   quando, os avisos da proposta e a confirmação do Super Admin (quem, quando e que avisos confirmou, também no
---   registo de auditoria) e quantas conversas confirmaram a resposta (fontes: cada conversa conta uma vez enquanto
---   está nas conversas lidas, nunca o chat do site anónimo); só nas propostas, até 3 conversas de origem (amostras),
---   apagadas ao aprovar ou arquivar. As mensagens dos clientes e os contactos não são copiados para estas tabelas.
+--   quando, os avisos da proposta (da resposta da equipa citam só palavras comuns e números com a unidade; o resto fica
+--   «…») e a confirmação do Super Admin (quem, quando e que avisos confirmou, também no registo de auditoria, de onde a
+--   lista sai quando o cartão é apagado) e quantas conversas confirmaram a resposta (fontes: cada conversa conta uma vez
+--   enquanto está nas conversas lidas, nunca o chat do site anónimo); só nas propostas, até 3 conversas de origem
+--   (amostras), apagadas ao aprovar ou arquivar. As mensagens dos clientes e os contactos não são copiados para estas
+--   tabelas.
 --   Para não ler nem contar a mesma conversa duas vezes ficam as conversas lidas (ldo_support_knowledge_seen: a
 --   conversa, até que resposta da equipa foi lida e se já contou; 180 dias depois da última vez) e as respostas
 --   guardadas com o botão (ldo_support_knowledge_used: a mensagem e o dia; 365 dias), ambas sem o cartão. O registo
@@ -22,19 +24,21 @@
 --   histórico visível (e nos últimos 170 dias, dentro dos 180 em que as conversas vistas ficam registadas), resolvidas ou
 --   sem atividade há 72 h, ainda não lidas com êxito (ou com respostas novas desde então). Uma conversa só fica vista
 --   quando o pedido acaba bem; com erro tenta-se outra vez no dia seguinte, no máximo duas vezes por resposta nova.
--- * Recusas na BD ao gravar um cartão: emails fora dos domínios da empresa, IBAN/NIF e números de encomenda ou de
---   referência. As outras recusas (telefones, números de cartão, ligações de perfis, nomes do cliente e da equipa) e os
---   avisos (possíveis nomes, moradas, perfis sem @, contradições e condições em falta em relação à resposta da equipa)
---   são do servidor (lib/support/knowledge-rules.ts). Um aviso não retira uma proposta: aprovar, publicar e "Permitir em
---   respostas automáticas" só avançam depois de o Super Admin confirmar que o texto não tem dados pessoais nem contradiz
---   a resposta da equipa (avisos_ok, apagados quando o texto muda; a BD confere os avisos guardados na proposta).
+-- * Recusas na BD ao gravar um cartão e os avisos de uma proposta: emails fora dos domínios da empresa, IBAN/NIF e
+--   números de encomenda ou de referência. As outras recusas (telefones, números de cartão, ligações de perfis, nomes do
+--   cliente e da equipa) e os avisos (possíveis nomes, moradas, perfis sem @, contradições e condições em falta em
+--   relação à resposta da equipa) são do servidor (lib/support/knowledge-rules.ts). Um aviso não retira uma proposta:
+--   aprovar, publicar e "Permitir em respostas automáticas" só avançam depois de o Super Admin confirmar que o texto não
+--   tem dados pessoais nem contradiz a resposta da equipa (avisos_ok, apagados quando o texto muda; a BD confere os
+--   avisos guardados na proposta).
 -- * "Permitir em respostas automáticas" (auto_ok) só marca o cartão para as respostas automáticas futuras: nada aqui
 --   envia mensagens. Só 7 dias depois de aprovado ou da última correção do texto (texto_em), revisto há menos de 90 dias,
 --   publicado tal como está, com a loja nos temas de uma loja e sem outro cartão automático para a mesma loja. Qualquer
 --   correção ou junção tira a marca; a limpeza diária tira-a aos cartões expirados ou por rever há mais de 90 dias.
 -- * Orçamento próprio (US$ 8 por omissão), 30 propostas pelo botão por pessoa e por dia, 300 propostas por rever.
 -- * Limpeza diária: registo de pedidos e respostas já guardadas ao fim de 365 dias, conversas vistas 180 dias depois da
---   última vez, propostas sem novas fontes ao fim de 180 dias e cartões arquivados ao fim de 365.
+--   última vez, propostas sem novas fontes ao fim de 180 dias e cartões arquivados ao fim de 365 (com as confirmações
+--   dos avisos no registo de auditoria).
 -- Funções alteradas, a partir do texto em produção a 30-10-2026 (pg_get_functiondef):
 -- * ldo_support_ai_admin (md5 adc9e6bb1fb5ded3040b60f127147471, já com o bloco 'review' de 20261030110000): cópia
 --   igual, mais o bloco 'cards' com os totais do mês.
@@ -183,10 +187,11 @@ language sql immutable set search_path = '' as $$
     'variantes', to_jsonb(c.variantes), 'resposta', c.resposta, 'valido_ate', c.valido_ate);
 $$;
 
--- Dados que nunca ficam num cartão (mesmas regras no servidor, com mais algumas): emails fora dos domínios da empresa,
--- IBAN ou NIF e números de encomenda (logo a seguir, com palavras pelo meio e "nº" ou "#", ou com letras: "LDO12345") ou
--- de referência com "nº" (compra, reparação, guia, reserva, talão, recibo, referência, cliente). Devolve o motivo (ou
--- null).
+-- Dados que nunca ficam num cartão nem nos avisos de uma proposta (mesmas regras no servidor, com mais algumas): emails
+-- fora dos domínios da empresa, IBAN ou NIF e números de encomenda (logo a seguir, com palavras pelo meio e "nº" ou "#",
+-- ou com letras: "LDO12345"), de referência com "nº" (compra, reparação, guia, reserva, talão, recibo, referência,
+-- cliente, processo, caso, ticket, sócio, orçamento, vale, senha, cartão-oferta; "ref.ª 4512") e séries de faturas
+-- ("fatura FT 2026/145", "fatura FR A/145"). Devolve o motivo (ou null).
 create function ldo_private.support_card_problem(p_text text) returns text
 language sql immutable set search_path = '' as $$
   select case
@@ -200,7 +205,9 @@ language sql immutable set search_path = '' as $$
       or coalesce(p_text, '') ~* '\m(encomenda|pedido|order|fatura|factura)s?\M[^0-9]{0,25}(n\.?[[:space:]]*[ºo°]|nº|número|numero|nr\.?|#)[[:space:]]*:?[[:space:]]*#?[[:space:]]*[a-z]{0,4}-?[0-9]{3,}'
       or coalesce(p_text, '') ~* '\m(encomenda|pedido|order|fatura|factura)s?[[:space:]]+#?[a-z]{2,4}-?[0-9]{3,}'
       or coalesce(p_text, '') ~* '#[a-z]{2,4}-?[0-9]{3,}'
-      or coalesce(p_text, '') ~* '\m(compras?|repara(ção|cao|ções|coes)|guias?|reservas?|tal(ão|ao|ões|oes)|recibos?|refer(ê|e)ncias?|clientes?)\M[[:space:]]*(n\.?[[:space:]]*[ºo°]\.?|nº|n\.|número|numero|nr\.?)[[:space:]]*:?[[:space:]]*[0-9]{3,}'
+      or coalesce(p_text, '') ~* '\m(compras?|repara(ção|cao|ções|coes)|guias?|reservas?|tal(ão|ao|ões|oes)|recibos?|refer(ê|e)ncias?|clientes?|processos?|casos?|tickets?|s(ó|o)cios?|or(ç|c)amentos?|vales?|senhas?|cart(ão|ao)(-|[[:space:]]+(de[[:space:]]+)?)(oferta|presente))\M[[:space:]]*(n\.?[[:space:]]*[ºo°]\.?|nº|n\.|número|numero|nr\.?)[[:space:]]*:?[[:space:]]*[0-9]{3,}'
+      or coalesce(p_text, '') ~* '\mref\.?ª[[:space:]]*:?[[:space:]]*[0-9]{3,}'
+      or coalesce(p_text, '') ~* '\m(fatura|factura|recibo)s?(-recibo)?\M[^0-9\n.]{0,15}([a-z]{1,4}|[0-9]{4})[[:space:]]*/[[:space:]]*[0-9]+'
       then 'O texto tem um número de encomenda ou de referência.'
   end;
 $$;
@@ -517,10 +524,12 @@ begin
       v_valido := null;
     end;
     v_variantes := ldo_private.support_card_variants(v_card -> 'variantes', v_card ->> 'pergunta');
+    -- Os avisos citam palavras da resposta da equipa: um aviso com um email, um IBAN/NIF ou um número de encomenda ou de
+    -- referência não fica guardado (o servidor já os substitui por «…»).
     select coalesce(array_agg(left(btrim(e.x), 300) order by e.pos), '{}') into v_avisos
     from jsonb_array_elements_text(case when jsonb_typeof(v_card -> 'avisos') = 'array' then v_card -> 'avisos' else '[]'::jsonb end)
       with ordinality as e(x, pos)
-    where btrim(e.x) <> '' and e.pos <= 20;
+    where btrim(e.x) <> '' and e.pos <= 20 and ldo_private.support_card_problem(e.x) is null;
     v_problem := ldo_private.support_card_invalid(v_card ->> 'intent', coalesce(v_card ->> 'brand', 'ldo'), v_loja, btrim(v_card ->> 'pergunta'),
       v_variantes, btrim(v_card ->> 'resposta'), v_valido);
     if v_problem is not null then
@@ -603,7 +612,8 @@ $$;
 
 -- Limpeza diária (só o servidor): pedidos com mais de 365 dias (a conversa e a mensagem de origem dos pedidos sem cartão
 -- ao fim de 180), respostas já guardadas há mais de 365, conversas vistas 180 dias depois da última vez,
--- propostas sem novas fontes há 180 dias e cartões arquivados há 365. As respostas marcadas para respostas automáticas que expiraram ou não
+-- propostas sem novas fontes há 180 dias e cartões arquivados há 365 (e, no registo de auditoria, as confirmações dos
+-- avisos desses cartões). As respostas marcadas para respostas automáticas que expiraram ou não
 -- são revistas há mais de 90 dias perdem a marca.
 create function public.ldo_support_knowledge_purge(p_token text) returns integer
 language plpgsql volatile security definer set search_path = '' as $$
@@ -634,9 +644,16 @@ begin
   delete from public.ldo_support_knowledge_seen where atualizada_em < v_today - 180;
   get diagnostics v_n = row_count;
   v_total := v_total + v_n;
-  delete from public.ldo_support_knowledge_cards
-  where (estado = 'proposta' and ultima_vez < now() - interval '180 days') or (estado = 'arquivada' and updated_at < now() - interval '365 days');
-  get diagnostics v_n = row_count;
+  -- As confirmações dos avisos (com a lista dos avisos) saem do registo de auditoria com a resposta.
+  with gone as (
+    delete from public.ldo_support_knowledge_cards
+    where (estado = 'proposta' and ultima_vez < now() - interval '180 days') or (estado = 'arquivada' and updated_at < now() - interval '365 days')
+    returning id),
+  acks as (
+    delete from public.ldo_support_audit a using gone
+    where a.action = 'ai.knowledge.card' and a.details ->> 'acao' = 'avisos_confirmados' and a.details ->> 'id' = gone.id::text
+    returning 1)
+  select count(*) into v_n from gone;
   return v_total + v_n;
 end;
 $$;
