@@ -7,19 +7,24 @@
   - Melhoria progressiva: o HTML já é a versão estática (emblema vetorial em ouro + capítulo 01 + oferta).
     Com o «Contador de carregamento» ligado, um véu escuro desenhado pelo servidor cobre o palco desde o
     primeiro desenho (emblema a traço dourado + percentagem real) e o capítulo 01 espera por baixo dele;
-    o three.js (r149, jsDelivr) é pedido logo na leitura da página (preload, só onde o 3D pode correr),
-    uma vez por página, e o véu abre-se para o ouro 3D enquanto o título sobe (abre aos 2,5 s, ou aos 3 s
-    se só faltarem os últimos passos; aí abre para a versão estática e o 3D só a substitui se estiver
-    pronto pouco depois e o leitor ainda estiver no início). Se o script não arrancar, o véu retira-se
-    sozinho por CSS aos 3,4 s; sem JavaScript nem aparece. Com o contador desligado, o three.js só é
-    pedido depois do primeiro desenho. Sem WebGL, se o three.js falhar ou (opcional) com «reduzir
-    movimento», fica a versão estática, sem erros.
+    o three.js (r149, ficheiro do tema assets/lbf3d-three-r149.min.js; jsDelivr só se esse falhar) é
+    pedido logo na leitura da página (preload, só onde o 3D pode correr), uma vez por página, e o véu
+    abre-se para o ouro 3D enquanto o título sobe, logo que o 3D esteja pronto (no mínimo 0,35 s). Por
+    baixo do véu a secção já toma a forma da sequência, por isso nada na página mexe quando o 3D chega.
+    Se ao fim de 5 s o 3D ainda não estiver pronto (primeira visita numa rede lenta), o véu abre para o
+    cartaz e o 3D entra depois com uma transição suave, enquanto o leitor estiver no capítulo 01 (se já
+    tiver avançado, quando voltar ao início ou com a secção fora do ecrã), sem mexer na página.
+    Se o script não arrancar, o véu retira-se sozinho por CSS aos 5,5 s; sem JavaScript nem aparece.
+    Com o contador desligado, o three.js só é pedido depois do primeiro desenho. Sem WebGL, se o
+    three.js falhar ou (opcional) com «reduzir movimento», fica a versão estática, sem erros; o motivo
+    fica no atributo data-lbf3d-why da secção (diagnóstico, invisível).
   - Textos automáticos em PT, EN, ES, FR, DE (campos vazios no editor = texto traduzido automático).
   - Datas em hora de Lisboa. Antes do início mostra «Começa em», durante «Termina em»; pode esconder-se
     sozinha antes do início e/ou depois do fim (no editor de temas fica sempre visível, com um aviso).
   - O palco fixo começa por baixo do cabeçalho fixo do tema (altura medida em tempo real).
 
-  Instalação: sections/lod-bf-ouro-em-cena.liquid → editor de temas, página inicial →
+  Instalação: assets/lbf3d-three-r149.min.js (o three.js r149 oficial, sem alterações) e
+  sections/lod-bf-ouro-em-cena.liquid → editor de temas, página inicial →
   «Adicionar secção» → «LOD · BF Ouro em Cena» → arrastar para o topo (acima de «Ouro que inspira»).
   Fazê-lo primeiro no contexto predefinido e depois mudar o contexto de mercado do editor para
   «Portugal» e adicionar/mover a secção também aí, acima de «Ouro que inspira»: a página inicial do
@@ -365,8 +370,11 @@
   assign bar_side = s.bar_side_inset | default: 0 | at_least: 0 | at_most: 96
   assign q_cap = s.quality | default: 'auto'
 
-  # three.js r149: o mesmo endereço que o motor usa (o preload só é reaproveitado se coincidir)
-  assign three_url = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
+  # three.js r149: o ficheiro do tema assets/lbf3d-three-r149.min.js (CDN da própria loja, na mesma ligação da
+  # página); o preload, o script logo a seguir à secção e o motor pedem este mesmo endereço (o preload só é
+  # reaproveitado se coincidir). O jsDelivr (a mesma versão) só é pedido se o ficheiro do tema falhar.
+  assign three_url = 'lbf3d-three-r149.min.js' | asset_url
+  assign three_alt = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
   # Véu de carregamento desenhado pelo servidor: visível no primeiro desenho; nunca no editor de temas
   assign use_ld = false
   if s.show_loader
@@ -413,12 +421,12 @@
 
 {%- if bf_render -%}
 {%- if ld_preload %}
-{%- comment -%} Com o véu: o three.js começa a descarregar já na leitura do HTML (o scanner do browser vê-o logo); o script logo a seguir à secção usa este pedido, uma vez por página {%- endcomment %}
-<link rel="preload" as="script" href="{{ three_url }}" crossorigin="anonymous"{% if s.reduce_motion_static %} media="(prefers-reduced-motion: no-preference)"{% endif %}>
+{%- comment -%} Com o véu: o three.js (ficheiro do tema, servido pelo CDN da própria loja na mesma ligação da página) começa a descarregar já na leitura do HTML (o scanner do browser vê-o logo); o script logo a seguir à secção usa este pedido, uma vez por página. O jsDelivr é só o recurso se o ficheiro do tema falhar (sem voltar a pedi-lo). {%- endcomment %}
+<link rel="preload" as="script" href="{{ three_url }}" crossorigin="anonymous" data-alt="{{ three_alt }}" onerror="try{window.__lbf3dNoAsset=1;var l=document.createElement('link');l.rel='preload';l.as='script';l.crossOrigin='anonymous';l.href=this.getAttribute('data-alt');(document.head||document.documentElement).appendChild(l)}catch(e){}"{% if s.reduce_motion_static %} media="(prefers-reduced-motion: no-preference)"{% endif %}>
 {%- endif %}
 <script>
-  /* Antes do primeiro desenho e sem bloquear: liga ao CDN do three.js e (opcional) pede as fontes
-     Bodoni Moda + Inter uma única vez por página, mesmo com várias secções. */
+  /* Antes do primeiro desenho e sem bloquear: (opcional) pede as fontes Bodoni Moda + Inter uma única
+     vez por página, mesmo com várias secções. */
   (function (d) {
     try {
       var h = d.head || d.documentElement;
@@ -426,7 +434,6 @@
         if (d.querySelector('link[rel="preconnect"][href="' + u + '"]')) return;
         var l = d.createElement('link'); l.rel = 'preconnect'; l.href = u; if (c) l.crossOrigin = 'anonymous'; h.appendChild(l);
       }
-      pc('https://cdn.jsdelivr.net', 1);
       {%- if s.font_source != 'theme' %}
       var gf = 'https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..600&family=Inter:wght@400;500;600&display=swap';
       if (!d.getElementById('lbf3d-gf') && !d.querySelector('link[href="' + gf + '"]')) {
@@ -530,11 +537,21 @@
 #lbf3d-{{ section.id }}.is-3d .lbf3d__poster{opacity:0;transition:opacity .6s var(--ease)}
 #lbf3d-{{ section.id }}.is-3d.is-lost .lbf3d__poster{opacity:1}
 #lbf3d-{{ section.id }}.is-3d.is-lost .lbf3d__canvas{opacity:0}
-#lbf3d-{{ section.id }}.is-3d.is-lost .lbf3d__em{transition:opacity .4s var(--ease)}
-#lbf3d-{{ section.id }}.is-3d.is-lost.is-holdon .lbf3d__em{opacity:0}
+#lbf3d-{{ section.id }}.is-3d.is-lost .lbf3d__em,#lbf3d-{{ section.id }}.is-3d.is-wait .lbf3d__em{transition:opacity .4s var(--ease)}
+#lbf3d-{{ section.id }}.is-3d.is-lost.is-holdon .lbf3d__em,#lbf3d-{{ section.id }}.is-3d.is-wait.is-holdon .lbf3d__em{opacity:0}
+/* past chapter 01 (p > .27, where the 3D emblem has shattered) the poster's intact emblem steps aside: chapters 02/03
+   never run over it */
+#lbf3d-{{ section.id }}.is-3d.is-lost.is-past1 .lbf3d__em,#lbf3d-{{ section.id }}.is-3d.is-wait.is-past1 .lbf3d__em{opacity:0}
 /* hidden at once (warm-up runs underneath), faded back in with the .6s rule above */
 #lbf3d-{{ section.id }}.is-fadein .lbf3d__canvas{opacity:0;transition:none}
 #lbf3d-{{ section.id }}.is-fadein .lbf3d__poster{opacity:1;transition:none}
+/* the late crossfade: the canvas is in at once under the still opaque poster, which then fades out over it (a
+   true dissolve: no dip in brightness halfway, as when both faded at once) */
+#lbf3d-{{ section.id }}.is-xfade .lbf3d__canvas{transition:none}
+/* the film's layout before the film is ready (set under the veil, so the reader's scroll never moves the page
+   when the 3D arrives): the static poster's own backdrop, sticky, the chapters following the scroll; is-xfade
+   keeps that backdrop (and the CSS numerals) while the poster crossfades into the 3D */
+#lbf3d-{{ section.id }}.is-3d.is-wait .lbf3d__poster,#lbf3d-{{ section.id }}.is-3d.is-xfade .lbf3d__poster{background:radial-gradient(70% 45% at 0% 100%,rgba(29,62,71,.22),transparent 70%),radial-gradient(64vmin 64vmin at var(--em-x,50%) var(--em-y,40%),#1a130a 0%,#0b0806 58%,#060504 100%),var(--ink)}
 
 /* scrims (static, short) */
 #lbf3d-{{ section.id }} .lbf3d__scrim{display:block;position:absolute;left:0;right:0;z-index:2;pointer-events:none}
@@ -625,8 +642,9 @@
 #lbf3d-{{ section.id }}.is-3d .lbf3d__hold{position:absolute;inset:0;--h:0;visibility:hidden}
 #lbf3d-{{ section.id }}.is-3d .lbf3d__hold a{pointer-events:auto}
 #lbf3d-{{ section.id }}.is-3d .lbf3d__foilnum{display:none}
-/* context lost or performance poster: the CSS numerals take the slot of the 3D ones */
-#lbf3d-{{ section.id }}.is-3d.is-lost .lbf3d__foilnum{display:flex;align-items:center;justify-content:center;position:absolute;left:0;right:0;top:var(--num-t,30%);height:calc(var(--num-b,62%) - var(--num-t,30%));margin:0;font-size:calc((var(--num-b,62%) - var(--num-t,30%)) * 1.2);line-height:1;opacity:var(--h)}
+/* context lost, performance poster or film not ready yet: the CSS numerals take the slot of the 3D ones */
+#lbf3d-{{ section.id }}.is-3d.is-lost .lbf3d__foilnum,#lbf3d-{{ section.id }}.is-3d.is-wait .lbf3d__foilnum,#lbf3d-{{ section.id }}.is-3d.is-xfade .lbf3d__foilnum{display:flex;align-items:center;justify-content:center;position:absolute;left:0;right:0;top:var(--num-t,30%);height:calc(var(--num-b,62%) - var(--num-t,30%));margin:0;font-size:calc((var(--num-b,62%) - var(--num-t,30%)) * 1.2);line-height:1;opacity:var(--h)}
+#lbf3d-{{ section.id }}.is-3d.is-xfade:not(.is-wait) .lbf3d__foilnum{opacity:0;transition:opacity .6s var(--ease)}
 #lbf3d-{{ section.id }}.is-3d .lbf3d__ate{position:absolute;left:var(--num-l,16px);top:var(--num-t,30%);--o:clamp(0, var(--h) * 2.75, 1);opacity:var(--o);transform:translateY(calc(-100% - 8px + (1 - var(--o)) * 10px))}
 #lbf3d-{{ section.id }}.is-3d .lbf3d__low{position:absolute;left:0;right:0;top:calc(var(--num-b,62%) + 14px);padding-left:var(--gl);padding-right:var(--gr)}
 #lbf3d-{{ section.id }}.is-3d .lbf3d__line{--o:clamp(0, (var(--h) - .273) * 2.75, 1)}
@@ -647,12 +665,17 @@
 #lbf3d-{{ section.id }}.is-revealing .lbf3d__sub,#lbf3d-{{ section.id }}.is-revealing .lbf3d__date,#lbf3d-{{ section.id }}.is-revealing .lbf3d__offer{animation:lbf3dFade .45s var(--ease) .55s both}
 /* With the veil (lbf3d--ld), chapter 01 waits in that pre-reveal state from the first paint, so it is
    never seen static before it rises (it stays in the DOM for search engines and screen readers).
-   Failsafe: on its own it rises right after the veil's own CSS lift (separate keyframe names, so the
-   script's is-revealing always starts a fresh rise). is-revealed: already past it, no rise. */
+   Failsafe (no script took over the veil): on its own it rises right after the veil's own CSS lift
+   (separate keyframe names, so the script's is-revealing always starts a fresh rise); while the script
+   drives the veil (is-veiled) it never runs. is-revealed: already past it, no rise. */
 @keyframes lbf3dRiseF{from{transform:translateY(130%)}to{transform:none}}
 @keyframes lbf3dFadeF{from{opacity:0}to{opacity:1}}
-#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__ln>span{animation:lbf3dRiseF .7s var(--ease) 3.45s both}
-#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__sub,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__date,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__offer{animation:lbf3dFadeF .45s var(--ease) 3.8s both}
+#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__ln>span{animation:lbf3dRiseF .7s var(--ease) 5.55s both}
+#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__sub,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__date,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__offer{animation:lbf3dFadeF .45s var(--ease) 5.9s both}
+/* once this script drives the veil (is-jsrise), chapter 01 waits hidden after the veil for the script's own rise
+   (revealCopy), and the failsafe rise above is off: it never rises twice */
+#lbf3d-{{ section.id }}.lbf3d--ld.is-jsrise:not(.is-veiled):not(.is-revealing):not(.is-revealed) .lbf3d__ln>span{transform:translateY(130%)}
+#lbf3d-{{ section.id }}.lbf3d--ld.is-jsrise:not(.is-veiled):not(.is-revealing):not(.is-revealed) .lbf3d__sub,#lbf3d-{{ section.id }}.lbf3d--ld.is-jsrise:not(.is-veiled):not(.is-revealing):not(.is-revealed) .lbf3d__date,#lbf3d-{{ section.id }}.lbf3d--ld.is-jsrise:not(.is-veiled):not(.is-revealing):not(.is-revealed) .lbf3d__offer{opacity:0}
 
 /* loader: a veil over the stage only (never the theme header), server-rendered with the class
    lbf3d--ld so it is there in the first paint. The opaque veil hides the poster underneath. The
@@ -661,12 +684,16 @@
    first paint), then hands over. */
 #lbf3d-{{ section.id }} .lbf3d__loader{position:absolute;inset:0;z-index:10;pointer-events:none;overflow:hidden}
 #lbf3d-{{ section.id }} .lbf3d__loader[hidden]{display:none}
-/* CSS failsafe: it lifts itself 3.4 s after its first frame if no script takes over (blocked or
+/* CSS failsafe: it lifts itself 5.5 s after its first frame if no script takes over (blocked or
    failing script; without JavaScript at all a <noscript> rule removes it). Opacity only, so the
-   compositor can run it even while long tasks hold the page (it never takes pointer events). The
-   engine counts from the veil's first frame (ldClock) and always opens it first (by 3 s). */
-#lbf3d-{{ section.id }}.lbf3d--ld .lbf3d__loader{animation:lbf3dLdLift .45s var(--ease) 3.4s forwards}
+   compositor can run it even while long tasks hold the page (it never takes pointer events). Once the
+   engine drives the veil (is-live) the failsafe is off: the engine counts from the veil's first frame
+   (ldClock) and opens it by 5 s at the latest. */
+#lbf3d-{{ section.id }}.lbf3d--ld .lbf3d__loader{animation:lbf3dLdLift .45s var(--ease) 5.5s forwards}
+#lbf3d-{{ section.id }}.lbf3d--ld .lbf3d__loader.is-live{animation:none}
 @keyframes lbf3dLdLift{to{opacity:0}}
+/* the same lift, armed by the engine for its hard maximum (ldCss): its own name, so it always starts afresh */
+@keyframes lbf3dLdCap{to{opacity:0}}
 #lbf3d-{{ section.id }} .lbf3d__ld-veil{display:block;position:absolute;inset:0;background:radial-gradient(64vmin 64vmin at var(--em-x,50%) var(--em-y,calc(max(470px,var(--stage-h)) * .4)),#140f08 0%,#090705 58%,#060504 100%),var(--ink)}
 @media (min-width:900px){#lbf3d-{{ section.id }} .lbf3d__ld-veil{background:radial-gradient(64vmin 64vmin at var(--em-x,62%) var(--em-y,calc(max(470px,var(--stage-h)) * .5)),#140f08 0%,#090705 58%,#060504 100%),var(--ink)}}
 #lbf3d-{{ section.id }} .lbf3d__ld-box{display:block;position:absolute;left:var(--em-x,50%);top:var(--em-y,calc(max(470px,var(--stage-h)) * .4));width:var(--em-d);aspect-ratio:1/1;transform:translate(-50%,-50%)}
@@ -765,8 +792,8 @@
   #lbf3d-{{ section.id }} .lbf3d__loader.is-live .lbf3d__ld-box{transition:none}
   #lbf3d-{{ section.id }} .lbf3d__loader.is-out *{transition:none!important}
   #lbf3d-{{ section.id }}.lbf3d--ld .lbf3d__loader{animation-duration:.01s}
-  #lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__ln>span{animation:lbf3dFadeF .01s linear 3.4s both}
-  #lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__sub,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__date,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed) .lbf3d__offer{animation:lbf3dFadeF .01s linear 3.4s both}
+  #lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__ln>span{animation:lbf3dFadeF .01s linear 5.5s both}
+  #lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__sub,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__date,#lbf3d-{{ section.id }}.lbf3d--ld:not(.is-revealing):not(.is-revealed):not(.is-veiled):not(.is-jsrise) .lbf3d__offer{animation:lbf3dFadeF .01s linear 5.5s both}
   /* "static with reduced motion" setting: no 3D will come, so no veil either, and nothing waits for it */
   #lbf3d-{{ section.id }}.lbf3d--rmstatic .lbf3d__loader{display:none}
   #lbf3d-{{ section.id }}.lbf3d--ld.lbf3d--rmstatic:not(.is-revealing):not(.is-revealed) .lbf3d__ln>span,#lbf3d-{{ section.id }}.lbf3d--ld.lbf3d--rmstatic:not(.is-revealing):not(.is-revealed) .lbf3d__sub,#lbf3d-{{ section.id }}.lbf3d--ld.lbf3d--rmstatic:not(.is-revealing):not(.is-revealed) .lbf3d__date,#lbf3d-{{ section.id }}.lbf3d--ld.lbf3d--rmstatic:not(.is-revealing):not(.is-revealed) .lbf3d__offer{animation:none}
@@ -811,7 +838,7 @@
     {%- comment -%}
       Véu de carregamento: primeiro filho do palco, lido antes do cartaz (nenhum desenho parcial mostra o
       cartaz antes dele). Cobre só o palco, nunca o cabeçalho do tema. O emblema a traço reutiliza o sprite
-      (<use>), sem duplicar os vetores. Se o script não arrancar, retira-se sozinho por CSS (lbf3dLdLift, 3,4 s);
+      (<use>), sem duplicar os vetores. Se o script não arrancar, retira-se sozinho por CSS (lbf3dLdLift, 5,5 s);
       sem JavaScript nem aparece (<noscript> acima).
     {%- endcomment %}
     <div class="lbf3d__loader" role="progressbar" aria-hidden="true" aria-label="{{ t_ld_aria | escape }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"{% unless use_ld %} hidden{% endunless %}>
@@ -919,9 +946,12 @@
   /* Logo a seguir à secção, antes do primeiro desenho: a altura do cabeçalho do tema e da barra e o
      enquadramento do emblema (as mesmas contas do motor: measureTop, barH, emFrame), para que nada mude
      de sítio quando o motor arranca. Com o véu: sem WebGL, com ?lbf3d=static ou com «reduzir movimento»
-     quando a definição pede a versão estática, retira-o antes de ser visto (não virá 3D); de resto, no
-     seu primeiro frame guarda a hora (o relógio do véu), recomeça a varredura das linhas e pede já o
-     three.js (descarregado desde o preload): corre logo a seguir a esse frame, sem esperar pelo motor. */
+     quando a definição pede a versão estática, retira-o antes de ser visto (não virá 3D); de resto, pede
+     já o three.js (descarregado desde o preload: numa página da loja ainda a carregar, a sua execução
+     esperava mais de 1 s na fila quando só era pedido no primeiro frame do véu) e, nesse primeiro frame,
+     guarda a hora (o relógio do véu) e recomeça a varredura das linhas. O motor nunca começa o 3D antes
+     desse frame. Se o ficheiro do tema falhar, pede a mesma versão ao jsDelivr (w.__lbf3dT3: um só pedido
+     por página, partilhado com o motor). */
   (function (d, w) {
     try {
       var s = d.getElementById('lbf3d-{{ section.id }}');
@@ -937,16 +967,31 @@
           w.requestAnimationFrame(function (t) {
             s.__lbf3dF0 = w.performance && performance.now ? performance.now() : t;
             try { [].forEach.call(ld.querySelectorAll('.lbf3d__ld-wipe,.lbf3d__ld-in'), function (el) { (el.getAnimations ? el.getAnimations() : []).forEach(function (a) { a.currentTime = 0; }); }); } catch (e) {}
-            try {
-              if (!w.THREE && !d.querySelector('script[data-lbf3d-three]')) {
-                var sc = d.createElement('script');
-                sc.src = {{ three_url | json }}; sc.async = true; sc.crossOrigin = 'anonymous'; sc.setAttribute('data-lbf3d-three', '');
-                sc.onload = function () { sc.setAttribute('data-lbf3d-done', ''); };
-                sc.onerror = function () { sc.setAttribute('data-lbf3d-done', 'error'); };
-                (d.head || d.documentElement).appendChild(sc);
-              }
-            } catch (e) {}
           });
+          (function () {
+            try {
+              var T3 = w.__lbf3dT3 || (w.__lbf3dT3 = {
+                s: 0, q: [],
+                on: function (f) { if (this.s) f(this.s); else this.q.push(f); },
+                fire: function () { var q = this.q, k; this.q = []; for (k = 0; k < q.length; k++) { try { q[k](this.s); } catch (e) {} } },
+                go: function (us) {
+                  var R = this, i = 0;
+                  if (R.g) return;
+                  R.g = 1; R.t0 = performance.now();
+                  (function nx() {
+                    var u = us[i++], sc;
+                    if (u && w.__lbf3dNoAsset && us[i] && /lbf3d-three-r149/.test(u)) { R.e = (R.e || 0) + 1; u = us[i++]; }
+                    if (!u) { R.s = 2; R.fire(); return; }
+                    sc = d.createElement('script'); sc.src = u; sc.async = true; sc.crossOrigin = 'anonymous'; sc.setAttribute('data-lbf3d-three', '');
+                    sc.onload = function () { R.s = 1; R.u = u; R.t1 = performance.now(); R.fire(); };
+                    sc.onerror = function () { if (sc.parentNode) sc.parentNode.removeChild(sc); R.e = (R.e || 0) + 1; nx(); };
+                    (d.head || d.documentElement).appendChild(sc);
+                  })();
+                }
+              });
+              if (!w.THREE) T3.go([{{ three_url | json }}, {{ three_alt | json }}]);
+            } catch (e) {}
+          })();
         }
       }
       var hd = d.querySelector('.lod-header__shell'), h = 64;
@@ -983,6 +1028,7 @@
   "barOff": {{ bar_off | json }},
   "quality": {{ q_cap | json }},
   "rmStatic": {{ s.reduce_motion_static | json }},
+  "three": [{{ three_url | json }}, {{ three_alt | json }}],
   "brand": {{ t_brand | json }},
   "lang": {{ bf_lang | json }},
   "t": {
@@ -1012,6 +1058,7 @@
 var W = window, D = document;
 if (W.__lbf3dOEC) { try { W.__lbf3dOEC.scan(D); } catch (e) {} return; }
 var NS = W.__lbf3dOEC = { scan: function () {} };
+var ENG_T0 = W.performance && performance.now ? performance.now() : 0;
 var THREE = null;
 var THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js';
 var GF_URL = 'https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..600&family=Inter:wght@400;500;600&display=swap';
@@ -1068,10 +1115,34 @@ var yieldTask = (function () {
     return function (fn, urgent, delay) { if (delay) { setTimeout(fn, delay); return; } q.push(fn); ch.port2.postMessage(0); };
   } catch (e) { return function (fn, urgent, delay) { setTimeout(fn, delay || 0); }; }
 })();
-function loadThree(eager, painted) {
+function t3rec() {
+  return W.__lbf3dT3 || (W.__lbf3dT3 = {
+    s: 0, q: [],
+    on: function (f) { if (this.s) f(this.s); else this.q.push(f); },
+    fire: function () { var q = this.q, k; this.q = []; for (k = 0; k < q.length; k++) { try { q[k](this.s); } catch (e) {} } },
+    go: function (us) {
+      var R = this, i = 0;
+      if (R.g) return;
+      R.g = 1; R.t0 = now();
+      (function nx() {
+        var u = us[i++], sc;
+        if (u && W.__lbf3dNoAsset && us[i] && /lbf3d-three-r149/.test(u)) { R.e = (R.e || 0) + 1; u = us[i++]; }
+        if (!u) { R.s = 2; R.fire(); return; }
+        sc = D.createElement('script'); sc.src = u; sc.async = true; sc.crossOrigin = 'anonymous'; sc.setAttribute('data-lbf3d-three', '');
+        sc.onload = function () { R.s = 1; R.u = u; R.t1 = now(); R.fire(); };
+        sc.onerror = function () { if (sc.parentNode) sc.parentNode.removeChild(sc); R.e = (R.e || 0) + 1; nx(); };
+        (D.head || D.documentElement).appendChild(sc);
+      })();
+    }
+  });
+}
+function whyErr(why, msg) { var e = new Error(msg); e.why = why; return e; }
+function loadThree(eager, painted, urls) {
   if (NS.threeP) { if (eager && NS.threeKick) NS.threeKick(painted); return NS.threeP; }
+  urls = (urls && urls.length ? urls.slice() : []).filter(function (u) { return typeof u === 'string' && u; });
+  if (urls.indexOf(THREE_URL) < 0) urls.push(THREE_URL);
   NS.threeP = new Promise(function (res, rej) {
-    function ok() { var T = W.THREE; if (T && T.WebGLRenderer && String(T.REVISION) === '149') res(T); else rej(new Error('three.js r149 indisponível')); }
+    function ok() { var T = W.THREE; if (T && T.WebGLRenderer && String(T.REVISION) === '149') res(T); else rej(whyErr('three-other', 'three.js r149 indisponível')); }
     if (W.THREE) { ok(); return; }
     var started = false;
     function start(painted) {
@@ -1086,20 +1157,10 @@ function loadThree(eager, painted) {
     }
     function add() {
       if (W.THREE) { ok(); return; }
-      var el = D.querySelector('script[data-lbf3d-three]');
-      if (el && el.hasAttribute('data-lbf3d-done')) {
-        if (el.getAttribute('data-lbf3d-done') === 'error') rej(new Error('three.js não carregou')); else ok();
-        return;
-      }
-      if (!el) {
-        el = D.createElement('script');
-        el.src = THREE_URL; el.async = true; el.crossOrigin = 'anonymous';
-        el.setAttribute('data-lbf3d-three', '');
-        (D.head || D.documentElement).appendChild(el);
-      }
-      el.addEventListener('load', function () { yieldTask(ok, NS.threeUrgent); });
-      el.addEventListener('error', function () { rej(new Error('three.js não carregou')); });
-      setTimeout(function () { if (W.THREE) ok(); else rej(new Error('three.js: tempo esgotado')); }, 15000);
+      var R = t3rec();
+      R.go(urls);
+      R.on(function (st) { if (st === 1) yieldTask(ok, NS.threeUrgent); else rej(whyErr('three-failed', 'three.js não carregou')); });
+      setTimeout(function () { if (W.THREE) ok(); else if (R.s !== 1) rej(whyErr('three-timeout', 'three.js: tempo esgotado')); }, 30000);
     }
     NS.threeKick = function (painted) { NS.threeUrgent = true; start(painted); };
     if (eager) NS.threeKick(painted); else afterPaint(function () { start(true); });
@@ -1894,6 +1955,7 @@ try {
   var qv = new URLSearchParams(W.location.search).get('lbf3d');
   if (qv) qv.split(',').forEach(function (k) { k = k.trim(); if (TIERS[k]) QS.tier = k; else if (k) QS[k] = 1; });
 } catch (e) {}
+if (QS.debug) QS.trace = 1;
 function dbg(e) { if (!QS.debug) return; try { console.warn('[lbf3d] versão estática:', e && e.message ? e.message : e); } catch (x) {} }
 var TIER_RANK = { low: 0, mid: 1, high: 2, desktop: 3 };
 function readCfg(sid) {
@@ -1968,7 +2030,7 @@ if (design && badDate) {
 (function () { var pre = D.getElementById('lbf3d-pre-' + sid); if (pre && pre.parentNode) pre.parentNode.removeChild(pre); })();
 sec.classList.remove('lbf3d--nojs');
 var stage = $('.lbf3d__stage'), canvas = $('.lbf3d__canvas'), sym = $('[data-lbf3d-emb]'), probe = $('.lbf3d__probe'), h1 = $('.lbf3d__h1');
-var loader = $('.lbf3d__loader'), ldPc = $('.lbf3d__ld-pc b');
+var loader = $('.lbf3d__loader'), ldPc = $('.lbf3d__ld-pc b'), ldPcBox = $('.lbf3d__ld-pc');
 var ch1 = $('.lbf3d__ch1'), ch2 = $('.lbf3d__ch2'), ch3 = $('.lbf3d__ch3'), hold = $('.lbf3d__hold'), cue = $('.lbf3d__cue'), low = $('.lbf3d__low');
 var eyes = $$('.lbf3d__eye'), rmVeil = $('.lbf3d__rmveil'), offer = $('.lbf3d__ate'), fim = $('.lbf3d__fim'), holdCta = $('.lbf3d__cta');
 var barPrimary = bar && bar.querySelector('[data-primary]'), barSecond = bar && bar.querySelector('[data-remind]'), barStatus = bar && bar.querySelector('.lbf3d-bar__status');
@@ -1978,9 +2040,12 @@ var useLoader = !!loader && cfg.loader !== false && !design && sec.classList.con
 var S = {
   mode: 'static', RM: !!mqRM.matches, p: 0, pT: 0, stageW: 0, stageH: 0, topOff: 64,
   inView: true, docVis: !D.hidden, lastInput: now(), glReady: false, glFailed: false,
-  revealT: null, cdAnim: false, skip: false, fontReady: false, fontOk: false, fontP: null
+  revealT: null, cdAnim: false, skip: false, fontReady: false, fontOk: false, fontP: null,
+  film: false, wantStatic: false, why: '', probe: null, preLift: false
 };
 var G = null, renderer = null;
+var TL = [];
+function tl(ev, v) { if (QS.trace) TL.push(v === undefined ? [Math.round(now()), ev] : [Math.round(now()), ev, v]); }
 var headNode = null;
 function headEl() {
   var el = D.querySelector('.lod-header__shell');
@@ -2134,13 +2199,14 @@ if (barSecond) barSecond.addEventListener('click', function (e) {
     barApply();
   }, LO({ passive: true }));
 })();
-var LDW = { dom: 5, three: 35, env: 10, geo1: 10, font: 10, geo2: 5, steps: 20, compile: 5 };
-var LDO = ['dom', 'three', 'env', 'geo1', 'font', 'geo2', 'steps', 'compile'];
+var LDW = { dom: 5, three: 35, env: 10, geo1: 10, steps: 30, compile: 10 };
+var LDO = ['dom', 'three', 'env', 'geo1', 'steps', 'compile'];
 var LD = {
   real: 0, shown: 0, parts: {}, t0: null, f0: null, lts: 0, tBoot: now(), tReal: now(),
-  min: 350, cap: 2500, capMax: 3000, fin: 180, lift: 3400, late: 5000, open: 800, exitY: 0,
-  out: false, closing: null, readyT: null, exitT: null, aria: -1, pc: -1,
-  pts: 0, vsN: 0, vsMin: 1e9, vs: 0, dirty: false, probe: null, probed: false
+  min: 350, cap: 5000, capMax: 5000, fin: 180, lift: 5500, late: 0, open: 800, exitY: 0,
+  out: false, closing: null, readyT: null, exitT: null, aria: -1, pc: -1, hidT: null, hidMs: 0,
+  pts: 0, vsN: 0, vsMin: 1e9, vs: 0, dirty: false, probe: null, probed: false, fN: 0, fMin: 1e9,
+  cssAt: null, cssFix: false, pcLead: 140, mapB: null, ramp: 58, lm: 120
 };
 function vsync() { return LD.vs || 16.667; }
 function vsSample(ts) {
@@ -2158,6 +2224,11 @@ function armProbe() { LD.probe = { n: 0, min: 1e9 }; }
 function vsFilm(m) {
   if (m < vsync() - 1 || (!LD.vs && Math.abs(m - 33.333) < 4)) LD.vs = clamp(m, 6.9, 34);
 }
+function filmCadence(raw) {
+  if (LD.fN >= 40 || raw <= 4 || raw >= 60) return;
+  LD.fMin = Math.min(LD.fMin, raw);
+  if (++LD.fN >= 40 && LD.fMin > 28 && LD.fMin < 40 && vsync() < 28) LD.vs = 33.333;
+}
 var lsT = 0;
 function ldSet(k, v) {
   if ((LD.parts[k] || 0) >= v) return;
@@ -2165,13 +2236,19 @@ function ldSet(k, v) {
   var r = 0;
   for (var i = 0; i < LDO.length; i++) r += LD.parts[LDO[i]] || 0;
   LD.real = Math.min(100, r); LD.tReal = now();
+  if (k === 'three' && !LD.mapB && LD.shown > LD.real && LD.real < 100) LD.mapB = { s: LD.shown, r: LD.real };
+}
+function ldMap(v) {
+  var B = LD.mapB;
+  return !B || v <= B.r ? v : B.s + (v - B.r) * (100 - B.s) / (100 - B.r);
 }
 function ldAdd(k) { if (LDW[k]) ldSet(k, LDW[k]); }
+function ldSteps() { return G.fullFirst ? G.steps.length : (G.nA || G.steps.length); }
 function ldStep() {
   if (!G || !G.steps) return;
-  var f = G.si, w = G.warm;
+  var n = ldSteps(), f = Math.min(G.si, n), w = G.warm;
   if (w && w.plan && G.steps[G.si] === stWarm) f += Math.min(1, w.i / w.plan.length);
-  ldSet('steps', LDW.steps * Math.min(1, f / G.steps.length));
+  ldSet('steps', LDW.steps * Math.min(1, f / n));
 }
 function warmMemo(med) {
   var key = G.tierName + '|' + G.bufW + 'x' + G.bufH + '|' + (W.devicePixelRatio || 1);
@@ -2183,6 +2260,8 @@ function warmMemo(med) {
 }
 function matDefs() {
   return {
+    emb: [VS_EMB, FS_EMB, {}],
+    dia: [VS_DIA, FS_DIA, { defines: { CRYS_TAPS: G.T.taps }, side: THREE.DoubleSide }],
     shard: [VS_SHARD, FS_SHARD, { defines: { CRYS_TAPS: G.T.taps } }],
     shardLow: [VS_SHARD, FS_SHARD, { defines: { CRYS_TAPS: G.T.taps === 3 ? 1 : 0 } }],
     glint: [VS_GLINT, FS_GLINT, { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }, 1],
@@ -2204,21 +2283,6 @@ function stPreMats() {
   G.preGeo = new THREE.BufferGeometry();
   G.preGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
   return true;
-}
-function stPreCompile(k) {
-  var st = function () {
-    if (S.fontReady) return 'next';
-    var m = G.mats && G.mats[k];
-    if (m) { compileOne({ isPoints: !!matDefs()[k][3], geometry: G.preGeo, material: m }); m.userData.lbf3dDone = 1; }
-    return true;
-  };
-  st.heavy = true; st.pre = true;
-  return st;
-}
-function stepHeavy(st) {
-  if (!st.heavy) return false;
-  if (st.pre) return !S.fontReady;
-  try { var m = st.mat && st.mat(); return !(m && m.userData && m.userData.lbf3dDone); } catch (e) { return true; }
 }
 function stNumA() {
   var fam = numFam();
@@ -2275,7 +2339,7 @@ function ldClock(ts) {
   if (LD.t0 !== null) return;
   var e0 = sec.__lbf3dF0, st = null, found = false;
   if (typeof ts === 'number' && LD.f0 === null) LD.f0 = Math.min(ts, now());
-  if (typeof e0 === 'number') { LD.t0 = Math.min(e0, now()); return; }
+  if (typeof e0 === 'number') { LD.t0 = Math.min(e0, now()); tl('veil-f0'); ldCss(); return; }
   if (e0 === null && now() - LD.tBoot < 1000) return;
   try {
     var as = loader.getAnimations ? loader.getAnimations() : [];
@@ -2283,6 +2347,7 @@ function ldClock(ts) {
   } catch (e) { found = false; }
   if (typeof st === 'number' && isFinite(st)) LD.t0 = Math.min(st, LD.f0 !== null ? LD.f0 : Infinity, now());
   else if (LD.f0 !== null && (!found || now() - LD.tBoot > 300)) LD.t0 = LD.f0;
+  if (LD.t0 !== null) { tl('veil-f0'); ldCss(); }
 }
 function ldPaint(v) {
   if (v !== LD.pc) { LD.pc = v; if (ldPc) ldPc.textContent = v; }
@@ -2297,6 +2362,15 @@ function ldStart() {
     requestAnimationFrame(vsProbe);
     return;
   }
+  if (S.preLift || ldFailsafe()) {
+    tl('lifted-before-js');
+    LD.out = true; LD.exitT = now();
+    loader.setAttribute('aria-hidden', 'true'); barShow();
+    var fsAt = ldAnimAt('lbf3dLdLift');
+    setTimeout(function () { if (alive) loader.hidden = true; }, Math.max(600, Math.ceil((typeof fsAt === 'number' ? fsAt : now()) + 550 - now())));
+    filmWait();
+    return;
+  }
   ldClock();
   if (S.glFailed && LD.t0 === null) {
     LD.out = true; LD.exitT = now();
@@ -2306,49 +2380,118 @@ function ldStart() {
   loader.removeAttribute('aria-hidden');
   loader.classList.add('is-live');
   sec.classList.add('is-veiled');
+  sec.classList.add('is-jsrise');
   ldPaint(0);
   requestAnimationFrame(ldFrame);
   ldArm();
 }
-function ldLimit() { return S.glFailed ? LD.min : (G && G.numer ? LD.capMax : LD.cap); }
+function ldLimit() { return S.glFailed ? LD.min : LD.cap; }
 function ldClose(t, end) {
   if (LD.closing || LD.out) return;
-  LD.closing = { t: t, from: LD.shown, end: end };
+  LD.closing = { t: t, from: LD.shown, to: S.glFailed ? 100 : LD.shown, end: end };
+  tl('closing');
   ldArm();
 }
+function revealBusy() {
+  if (!G || S.mode !== '3d' || S.RM) return false;
+  if (G.xfT && now() - G.xfT < 700) return true;
+  return S.revealT !== null && S.revealT > -1e8 && G.time - S.revealT < 1.25 && LD.exitT !== null && now() - LD.exitT < 2000;
+}
 function ldHold(st) {
-  if (!useLoader || !G) return false;
-  var t = now();
-  if (LD.out) {
-    var w = LD.exitT + (S.RM ? 0 : LD.open) - t;
+  if (!G) return false;
+  var held2 = G.si >= G.nA && S.mode === '3d' && !S.RM && (LD.out ? revealBusy() : useLoader);
+  if (held2 || LD.out) {
+    var w = 0;
+    if (held2) w = LD.out ? 120 : 60;
+    else if (useLoader && st.heavy && !G.px) w = LD.exitT + (S.RM ? 0 : LD.open) - now();
     if (w <= 0) return false;
-    if (!G.heldT) G.heldT = yieldTask(function () { if (G) G.heldT = 0; if (alive && G && G.held) { G.held = false; runSteps(); } }, true, Math.ceil(w)) || 1;
+    if (!G.heldT) G.heldT = yieldTask(function () { if (G) G.heldT = 0; if (alive && G && G.held) { G.held = false; runSteps(); } }, useLoader && S.mode !== '3d', Math.ceil(w)) || 1;
     return true;
   }
-  if (LD.closing) return true;
-  if (G.cMax > 0 && LD.t0 !== null && t + 1.2 * G.cMax > LD.t0 + ldLimit() - LD.fin && stepHeavy(st)) {
-    ldClose(t, Math.max(t + LD.fin, LD.t0 + LD.min));
-    return true;
-  }
-  return false;
+  return useLoader && !!LD.closing;
 }
 function bootNext(ms) {
   if (!G) return;
-  if (useLoader && LD.out && !lateOk()) { lateGiveUp(); return; }
-  var urgent = useLoader;
+  if (S.mode === '3d') { G.bw = 0; afterFrame(runSteps, useLoader); return; }
+  var urgent = useLoader && !G.swapWait;
   G.bw = urgent ? (G.bw || 0) + ms : 0;
   if (urgent && G.bw >= 100) { G.bw = 0; yieldTask(runSteps, true, 16); }
   else yieldTask(runSteps, urgent);
 }
-function lateOk() { return !useLoader || LD.exitT === null || (!S.readerMoved && now() - LD.exitT <= LD.late); }
-function lateGiveUp() {
-  if (!G) return;
-  if (sec.classList.contains('is-3d')) { readScroll(); G.wantStatic = true; enterPoster(); if (!S.inView || S.pT <= 0.001) goStatic(); }
-  else goStatic();
+function ldVis(hid) {
+  var t = now(), d;
+  if (hid) { if (LD.hidT === null) { LD.hidT = t; ldCss(true); } return; }
+  if (LD.hidT === null) return;
+  d = t - LD.hidT; LD.hidT = null; LD.hidMs += d;
+  tl('visible', Math.round(d));
+  if (LD.out) return;
+  LD.tBoot += d; LD.tReal += d;
+  if (LD.t0 !== null) LD.t0 += d;
+  if (LD.closing) { LD.closing.t += d; LD.closing.end += d; }
+  ldCss();
+  ldArm();
+}
+function ldCss(off) {
+  if (!useLoader || LD.out || !loader) return;
+  try {
+    if (LD.cssAt !== null && ldCapLifting()) return;
+    if (off || LD.t0 === null) { loader.style.animation = ''; if (ldPcBox) ldPcBox.style.animation = ''; LD.cssAt = null; return; }
+    LD.cssAt = LD.t0 + LD.cap + 150; LD.cssFix = false;
+    var d = Math.max(0, Math.round(LD.cssAt - now()));
+    loader.style.animation = 'lbf3dLdCap ' + (S.RM ? '.01s linear ' : '.45s cubic-bezier(.2,.7,.2,1) ') + d + 'ms forwards';
+    if (ldPcBox) ldPcBox.style.animation = 'lbf3dLdCap ' + (S.RM ? '.01s' : '.15s') + ' linear ' + Math.max(0, d - LD.pcLead) + 'ms forwards';
+  } catch (e) {}
+}
+function ldCssFix() {
+  if (LD.cssFix || LD.cssAt === null || LD.out) return;
+  var els = [loader, ldPcBox], i, j, as, an, want, wait = false;
+  try {
+    for (i = 0; i < els.length; i++) {
+      as = els[i] && els[i].getAnimations ? els[i].getAnimations() : [];
+      for (j = 0; j < as.length; j++) {
+        an = as[j];
+        if (an.animationName !== 'lbf3dLdCap') continue;
+        if (an.startTime === null || an.startTime === undefined) { wait = true; continue; }
+        want = Math.max(0, Math.round(LD.cssAt - (els[i] === loader ? 0 : LD.pcLead) - an.startTime));
+        if (Math.abs((+an.effect.getTiming().delay || 0) - want) > 20) els[i].style.animationDelay = want + 'ms';
+      }
+    }
+  } catch (e) { wait = false; }
+  if (!wait) LD.cssFix = true;
+}
+function ldAnimAt(name) {
+  try {
+    var as = loader.getAnimations ? loader.getAnimations() : null, i, a, dl;
+    if (!as) return undefined;
+    for (i = 0; i < as.length; i++) {
+      a = as[i];
+      if (a.animationName !== name) continue;
+      if (a.startTime === null || a.startTime === undefined) return null;
+      dl = a.effect && a.effect.getTiming ? +a.effect.getTiming().delay || 0 : 0;
+      return a.startTime + dl;
+    }
+    return null;
+  } catch (e) { return undefined; }
+}
+function ldCapLifting() {
+  if (LD.cssAt === null) return false;
+  var at = ldAnimAt('lbf3dLdCap');
+  return now() >= Math.min(typeof at === 'number' ? at : LD.cssAt, LD.cssAt) - LD.lm;
+}
+function ldFailsafe() {
+  if (!loader) return false;
+  var at = ldAnimAt('lbf3dLdLift'), f0 = sec.__lbf3dF0, op = 1;
+  if (typeof at === 'number') return now() >= at - LD.lm;
+  if (typeof f0 === 'number' && now() >= f0 + LD.lift - LD.lm) return true;
+  if (at === null) return false;
+  try { op = +getComputedStyle(loader).opacity; } catch (e) {}
+  return op < 0.97;
 }
 function ldCheck() {
   if (LD.out || !alive) return true;
+  if (D.hidden || LD.hidT !== null) return false;
   ldClock();
+  ldCssFix();
   var t = now(), el = LD.t0 === null ? -1 : t - LD.t0;
   if (S.glReady && S.mode === '3d') {
     if (LD.readyT === null) LD.readyT = t;
@@ -2372,7 +2515,7 @@ function ldArm() {
 function ldBack() {
   if (LD.out || !alive) return;
   ldClock();
-  if (LD.t0 === null && !D.hidden && now() - LD.tBoot > LD.lift) { ldExit(); return; }
+  if (LD.t0 === null && !D.hidden && LD.hidT === null && now() - LD.tBoot > LD.cap) { tl('veil-noframe'); ldExit(); return; }
   if (!ldCheck()) ldArm();
 }
 function ldFrame(ts) {
@@ -2381,13 +2524,18 @@ function ldFrame(ts) {
   ldClock(ts);
   var dt = typeof ts === 'number' && LD.lts ? clamp(ts - LD.lts, 0, 1000) : 16.667, c = LD.closing;
   if (typeof ts === 'number') LD.lts = ts;
-  if (c) LD.shown = Math.max(LD.shown, c.from + (100 - c.from) * clamp((now() - c.t) / Math.max(1, c.end - c.t), 0, 1));
+  if (c) LD.shown = Math.max(LD.shown, c.from + (c.to - c.from) * clamp((now() - c.t) / Math.max(1, c.end - c.t), 0, 1));
   else if (!S.glFailed) {
     var target = 100;
     if (!S.glReady) {
-      var nx = 0, i, k;
+      var nx = 0, i, k = '';
       for (i = 0; i < LDO.length; i++) { k = LDO[i]; if ((LD.parts[k] || 0) < LDW[k]) { nx = LDW[k] - (LD.parts[k] || 0); break; } }
-      target = Math.min(99, LD.real + 0.5 * nx * (1 - Math.exp(-(now() - LD.tReal) / 900)));
+      if (k === 'three') target = Math.max(LD.real, LDW.dom + (LD.ramp - LDW.dom) * clamp(LD.t0 === null ? 0 : (now() - LD.t0) / LD.cap, 0, 1));
+      else {
+        if (k === 'steps' && G && G.steps) nx = Math.min(nx, LDW.steps / ldSteps());
+        target = ldMap(LD.real + 0.9 * nx * (1 - Math.exp(-(now() - LD.tReal) / 600)));
+      }
+      target = Math.min(99, target);
     }
     if (target > LD.shown) LD.shown = target - LD.shown < 0.5 ? target : LD.shown + (target - LD.shown) * (1 - Math.exp(-dt / (S.glReady ? 15 : 150)));
   }
@@ -2407,19 +2555,24 @@ function ldExit() {
   if (LD.out) return;
   LD.out = true; LD.exitT = now(); LD.exitY = W.pageYOffset || D.documentElement.scrollTop || 0;
   clearTimeout(lsT);
-  var lifted = LD.t0 !== null && LD.exitT - LD.t0 >= LD.lift;
   var ready = !!G && S.mode === '3d' && S.glReady;
-  if (!ready && G && S.mode === 'boot') {
-    G.late = true;
-    if (sec.classList.contains('is-3d')) syncOverlay();
+  tl('exit', ready ? '3d' : (S.glFailed ? 'static' : 'poster'));
+  var lifted = ldCapLifting(), capAt = lifted ? ldAnimAt('lbf3dLdCap') : null;
+  if (!lifted) { loader.style.animation = ''; if (ldPcBox) ldPcBox.style.animation = ''; LD.cssAt = null; }
+  if (!ready) {
+    if (G) G.late = true;
+    filmWait();
   }
-  if (ready || LD.closing) { LD.shown = 100; ldPaint(100); }
+  if (ready || (LD.closing && LD.closing.to >= 100)) { LD.shown = 100; ldPaint(100); }
   loader.setAttribute('aria-hidden', 'true');
   sec.classList.remove('is-veiled');
   barShow();
   if (G && G.held) { G.held = false; afterFrame(runSteps); }
   if (lifted) {
-    loader.hidden = true;
+    tl('lifted');
+    sec.classList.add('is-revealed');
+    var endAt = Math.max(typeof capAt === 'number' ? capAt : 0, LD.cssAt || 0) + (S.RM ? 10 : 450);
+    setTimeout(function () { if (alive) loader.hidden = true; }, Math.max(500, Math.ceil(endAt + 100 - now())));
     if (ready) lateReveal();
     return;
   }
@@ -2431,28 +2584,44 @@ function ldExit() {
   setTimeout(function () { if (alive) loader.hidden = true; }, 820);
 }
 function revealCopy() {
-  var past;
+  var past, t = now(), done = false;
   if (sec.classList.contains('is-3d')) { readScroll(); past = S.pT >= 0.12; }
   else past = ch1.getBoundingClientRect().bottom <= S.topOff;
   if (past) { sec.classList.add('is-revealed'); return; }
-  if (S.fontOk || !S.fontP) { sec.classList.add('is-revealing'); return; }
-  within(S.fontP, 400).then(function () { if (alive) sec.classList.add('is-revealing'); });
+  function rise() {
+    if (done || !alive) return;
+    done = true;
+    if (!sec.classList.contains('is-revealed')) sec.classList.add('is-revealing');
+    tl('rise', Math.round(now() - t));
+  }
+  if (S.fontOk || !S.fontP) { rise(); return; }
+  S.fontP.then(rise);
+  (function chk() { if (done || !alive) return; if (S.fontOk || now() - t >= 400) rise(); else requestAnimationFrame(chk); })();
 }
 function handover() {
   sec.classList.add('is-cut');
-  sec.classList.remove('is-fadein');
+  sec.classList.remove('is-fadein', 'is-wait');
   if (!S.RM) {
     readScroll();
-    if (S.pT > 0.05) S.p = S.pT;
+    if (S.pT > 0.05) S.p = G.full === false ? Math.min(S.pT, 0.26) : S.pT;
     startReveal3D();
     overlay(S.p);
   } else startReveal3D();
   requestAnimationFrame(function () { requestAnimationFrame(function () { sec.classList.remove('is-cut'); }); });
 }
 function lateReveal() {
-  if (!S.RM) { readScroll(); S.p = S.pT; startReveal3D(); S.revealT = -1e9; updateScene(S.p, G.time); renderNow(); overlay(S.p); }
+  var hero = $('.lbf3d__hero'), y0 = W.pageYOffset || 0, h0 = hero.getBoundingClientRect().top, s0 = sec.offsetHeight;
+  G.xfT = now();
+  if (!S.RM) { readScroll(); S.p = G.full === false ? Math.min(S.pT, 0.26) : S.pT; startReveal3D(); S.revealT = -1e9; updateScene(S.p, G.time); renderNow(); overlay(S.p); }
   else startReveal3D();
-  requestAnimationFrame(function () { sec.classList.remove('is-fadein'); });
+  sec.classList.add('is-xfade');
+  requestAnimationFrame(function () {
+    sec.classList.remove('is-fadein', 'is-wait');
+    if (QS.trace) requestAnimationFrame(function () {
+      tl('swap', { y0: Math.round(y0), y1: Math.round(W.pageYOffset || 0), h0: Math.round(h0), h1: Math.round(hero.getBoundingClientRect().top), s0: s0, s1: sec.offsetHeight, p: Math.round(S.p * 1000) / 1000 });
+    });
+  });
+  setTimeout(function () { if (alive) sec.classList.remove('is-xfade'); }, 800);
 }
 function setBlk(el, o, ty) {
   if (!el) return;
@@ -2495,6 +2664,8 @@ function overlayRM(f) {
 function syncOverlay() {
   readScroll(); S.p = S.pT;
   if (!S.RM) overlay(S.p); else overlayRM(S.pT < 0.33 ? 0 : S.pT < 0.66 ? 1 : 2);
+  var past = S.pT > 0.27;
+  if (S.past1 !== past) { S.past1 = past; sec.classList.toggle('is-past1', past); }
 }
 function resetOverlay() {
   [ch1, ch2, ch3, cue, hold].concat(eyes).forEach(function (el) {
@@ -2588,7 +2759,8 @@ function camState(p, t) {
   cam.setViewOffset(S.stageW, S.stageH, (0.5 - fx) * S.stageW, (0.5 - fy) * S.stageH, S.stageW, S.stageH);
   cam.updateMatrixWorld();
 }
-function bakeEnv() {
+function bakeEnv(issue) {
+  if (G.skyTmp && !issue) { var t0 = G.skyTmp; G.skyTmp = null; new THREE.CubeCamera(0.5, 100, G.envRT).update(renderer, t0.sc); t0.geo.dispose(); t0.m.dispose(); return; }
   var sc = new THREE.Scene(), geo = new THREE.SphereGeometry(40, 32, 16);
   var m = new THREE.ShaderMaterial({
     vertexShader: VS_SKY, fragmentShader: FS_SKY, side: THREE.BackSide, depthTest: false, depthWrite: false, toneMapped: false,
@@ -2596,6 +2768,7 @@ function bakeEnv() {
   });
   sc.add(new THREE.Mesh(geo, m));
   if (!G.envRT) G.envRT = new THREE.WebGLCubeRenderTarget(128, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, type: THREE.UnsignedByteType, format: THREE.RGBAFormat });
+  if (issue) { G.skyTmp = { sc: sc, geo: geo, m: m }; renderer.setRenderTarget(G.envRT, 0); try { parIssue(sc.children[0]); } finally { renderer.setRenderTarget(null); } return; }
   new THREE.CubeCamera(0.5, 100, G.envRT).update(renderer, sc);
   geo.dispose(); m.dispose();
 }
@@ -2611,7 +2784,8 @@ function compileOne(obj, alt) {
   renderer.compile(tmp, G.camera);
   tmp.remove(proxy);
   var ps = renderer.info.programs || [];
-  for (var i = 0; i < ps.length; i++) if (ps[i].diagnostics && ps[i].diagnostics.runnable === false) throw new Error('shader');
+  for (var i = 0; i < ps.length; i++) if (ps[i].diagnostics && ps[i].diagnostics.runnable === false) throw whyErr('boot-error:shader', 'shader');
+  linkCheck();
 }
 function applySize() {
   G.dpr = pickDpr();
@@ -2645,36 +2819,12 @@ function holdLayout() {
 }
 function setRung(r) {
   G.rung = r;
-  G.shards.material = r >= 1 ? G.shardMatLow : G.shardMat;
+  if (G.shards) G.shards.material = r >= 1 ? G.shardMatLow : G.shardMat;
   G.dust.geometry.setDrawRange(0, r >= 2 ? (G.dustN >> 1) : G.dustN);
   G.glintsOn = r < 3 && G.T.glints;
   G.heroesOn = r < 4;
   var n = r >= 5 ? Math.floor(G.N * 0.7) : G.N;
-  G.shardGeo.instanceCount = n; G.glintGeo.instanceCount = n;
-}
-function adapt(dtMs, idle, budget) {
-  if (S.RM || idle > 6000 || dtMs > 100 || G.sinceResize < 0.5) return;
-  var A = G.ad, s = dtMs / 1000;
-  A.ema = A.ema ? A.ema + (dtMs - A.ema) * 0.1 : dtMs;
-  if (A.ema > budget * 1.25) { A.hi += s; A.lo = 0; }
-  else if (A.ema < budget * 1.08) { A.lo += s; A.hi = 0; }
-  else { A.hi = Math.max(0, A.hi - s); A.lo = 0; }
-  A.floor = A.ema > Math.max(40, budget * 2.4) ? A.floor + s : 0;
-  if (A.floor > 3) { G.wantStatic = true; return; }
-  if (A.hi > 1.5) {
-    A.hi = 0;
-    if (G.time - A.upT < 10) A.need = Math.min(30, A.need * 2);
-    if (G.rung < 5) setRung(G.rung + 1);
-    else if (G.dpr > 1.0 && G.time - G.lastDprT > 10) G.pendingDpr = Math.max(1.0, G.dpr - 0.25);
-  } else if (A.lo > A.need) {
-    A.lo = 0; A.upT = G.time;
-    if (G.rung > G.bootRung) setRung(G.rung - 1);
-    else if (G.dprCap < G.dprMax && !G.pendingDpr) {
-      var up = Math.min(G.dprMax, G.dprCap + 0.25);
-      if (pickDpr(up) > G.dpr + 0.01) G.pendingDpr = up;
-      else G.dprCap = up;
-    }
-  }
+  if (G.shardGeo) { G.shardGeo.instanceCount = n; G.glintGeo.instanceCount = n; }
 }
 function updateScene(p, t) {
   var U = G.U, cam = G.camera, rm = S.RM;
@@ -2693,9 +2843,8 @@ function updateScene(p, t) {
   G.emb.visible = p < 0.32;
   G.dia.visible = !swapped;
   U.uGone.value = swapped ? Math.max(0.001, U.uFly.value / 0.10) : 0;
-  G.shards.visible = swapped;
-  G.glints.visible = swapped && G.glintsOn;
-  G.relief.visible = reveal > 0.002;
+  if (G.shards) { G.shards.visible = swapped; G.glints.visible = swapped && G.glintsOn; }
+  if (G.relief) G.relief.visible = reveal > 0.002;
   U.uCrack.value = crack;
   U.uGather.value = clamp((p - 0.52) / 0.28, 0, 1);
   U.uLock.value = sstep(0.76, 0.82, p);
@@ -2760,17 +2909,6 @@ function interactions(dt) {
   var target = G.fine ? G.par.x * 0.436 : clamp(G.velS * 2.5, -1, 1) * 0.436;
   G.keyOff += (target - G.keyOff) * kk;
 }
-function stickyBroken() {
-  if (G.stickyOk || S.pT <= 0.02 || S.pT >= 0.98) return false;
-  G.stickyOk = true;
-  return Math.abs(stage.getBoundingClientRect().top - S.topOff) > 2;
-}
-function enterPoster() {
-  if (G.poster) return;
-  G.poster = true; stopLoop();
-  sec.classList.add('is-lost');
-  syncOverlay();
-}
 function frame(ts) {
   if (!G) return;
   G.raf = 0;
@@ -2782,6 +2920,8 @@ function frame(ts) {
     if (raw > 4) pr.min = Math.min(pr.min, raw);
     if (++pr.n >= 10) { LD.probe = null; vsFilm(pr.min); }
   }
+  if (G.lastTs >= 0 && !LD.dirty) filmCadence(raw);
+  LD.dirty = false;
   G.lastTs = ts;
   if (idle > 30000 && G.drawn > 2) return;
   G.raf = requestAnimationFrame(frame);
@@ -2793,27 +2933,26 @@ function frame(ts) {
   G.acc = 0;
   G.time += dt; G.sinceResize += dt;
   readScroll();
+  if (G.full === false && (S.pT > 0.18 || S.skip) && (S.fontReady || S.skip)) { finishNow(); if (!G) return; }
   if (G.relJob && (S.pT > 0.6 || S.skip)) reliefFlush();
-  if (G.wantStatic) {
-    if (!S.inView || S.pT <= 0.001) { goStatic(); return; }
-    enterPoster(); return;
-  }
-  if (stickyBroken()) { goStatic(); return; }
+  if (stickyBroken()) return;
   if (S.skip) { S.p = S.pT; S.skip = false; }
   else {
     var d = S.pT - S.p, lam = Math.abs(d) > 0.35 ? 9 : 5.5;
     S.p += d * (1 - Math.exp(-lam * dt));
     if (Math.abs(S.pT - S.p) < 1e-4) S.p = S.pT;
   }
+  if (G.full === false && S.p > 0.26) S.p = 0.26;
   interactions(dt);
   if (G.pendingDpr && Math.abs(S.pT - S.p) < 1e-3 && idle > 500) { G.dprCap = G.pendingDpr; G.pendingDpr = 0; G.lastDprT = G.time; applySize(); }
   updateScene(S.p, G.time);
   renderNow(); G.drawn++;
   overlay(S.p);
   adapt(dtMs, idle, Math.max(16.667, G.div * vsync()));
-  if (QS.lose && !G.loseDone && G.time > 3) {
+  if (!G) return;
+  if ((QS.lose || QS.lose2) && !G.loseDone && !G.rebuilds && G.time > 3) {
     G.loseDone = true;
-    try { renderer.forceContextLoss(); setTimeout(function () { try { if (renderer) renderer.forceContextRestore(); } catch (e) {} }, 1500); } catch (e) {}
+    try { renderer.forceContextLoss(); setTimeout(function () { try { if (renderer && QS.lose) renderer.forceContextRestore(); } catch (e) {} }, 1500); } catch (e) {}
   }
 }
 function rmRender() {
@@ -2821,8 +2960,9 @@ function rmRender() {
   G.rmRaf = 0;
   if (G.dead || G.lost || S.mode !== '3d' || !S.RM) return;
   readScroll();
-  if (stickyBroken()) { goStatic(); return; }
+  if (stickyBroken()) return;
   var f = S.pT < 0.33 ? 0 : S.pT < 0.66 ? 1 : 2;
+  if (f > 0 && G.full === false) { finishNow(); if (!G) return; }
   if (f === 2 && G.relJob) reliefFlush();
   if (f === G.rmF && !G.rmDirty) return;
   var first = G.rmF < 0;
@@ -2847,25 +2987,6 @@ function startReveal3D() {
   S.revealT = (S.pT > 0.05 || S.RM) ? -1e9 : G.time;
   if (S.RM) { G.rmDirty = true; rmKick(); } else wake();
 }
-function disposeGL() {
-  if (!G) return;
-  var g = G; G = null; g.dead = true;
-  if (g.raf) cancelAnimationFrame(g.raf);
-  if (g.rmRaf) cancelAnimationFrame(g.rmRaf);
-  clearTimeout(g.lostT);
-  canvas.removeEventListener('webglcontextlost', onLost, false);
-  canvas.removeEventListener('webglcontextrestored', onRestored, false);
-  try {
-    if (g.scene) g.scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
-    if (g.shardMat) g.shardMat.dispose();
-    if (g.shardMatLow) g.shardMatLow.dispose();
-    if (g.U && g.U.uWireA.value) g.U.uWireA.value.dispose();
-    if (g.U && g.U.uRelief.value) g.U.uRelief.value.dispose();
-    if (g.envRT) g.envRT.dispose();
-    if (renderer) { renderer.dispose(); if (!g.lost) renderer.forceContextLoss(); }
-  } catch (e) {}
-  renderer = null;
-}
 function keepView(fn) {
   if (design) { fn(); return; }
   var host = (sec.closest && sec.closest('.shopify-section')) || sec, ref = host.nextElementSibling;
@@ -2873,43 +2994,6 @@ function keepView(fn) {
   var past = sec.getBoundingClientRect().bottom <= S.topOff, y0 = ref ? ref.getBoundingClientRect().top : 0;
   fn();
   if (past && ref) { var dy = ref.getBoundingClientRect().top - y0; if (Math.abs(dy) > 0.5) W.scrollBy(0, dy); }
-}
-function goStatic() {
-  disposeGL();
-  keepView(function () {
-    sec.classList.remove('is-3d', 'is-lost', 'is-rm', 'is-fadein', 'is-short', 'is-tight', 'is-holdon');
-    resetOverlay();
-  });
-  S.mode = 'static'; S.glFailed = true; LD.real = 100;
-}
-function glFail(e) {
-  dbg(e);
-  S.glFailed = true; LD.real = 100;
-  goStatic();
-}
-function armLost() {
-  clearTimeout(G.lostT);
-  G.lostT = setTimeout(function () { if (G && G.lost) { G.lostStatic = true; if (!S.inView) goStatic(); } }, 3000);
-}
-function onLost(e) {
-  e.preventDefault();
-  if (!G) return;
-  G.lost = true; stopLoop();
-  sec.classList.add('is-lost');
-  if (sec.classList.contains('is-3d')) syncOverlay();
-  if (!D.hidden) armLost();
-}
-function onRestored() {
-  if (!G) return;
-  try {
-    bakeEnv();
-    if (G.U.uRelief.value) G.U.uRelief.value.needsUpdate = true;
-    if (G.U.uWireA.value) G.U.uWireA.value.needsUpdate = true;
-    G.lost = false; G.lostStatic = false; clearTimeout(G.lostT);
-    if (!S.RM) { updateScene(S.p, G.time); renderNow(); }
-    if (!G.poster) sec.classList.remove('is-lost');
-    G.rmDirty = true; wake();
-  } catch (err) { glFail(err); }
 }
 function stRenderer() {
   renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: G.T.aa, alpha: false, stencil: false, depth: true, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'default' });
@@ -2919,6 +3003,8 @@ function stRenderer() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0;
   renderer.setClearColor(0x060504, 1);
+  renderer.debug.checkShaderErrors = !!QS.debug;
+  parInit();
   canvas.addEventListener('webglcontextlost', onLost, false);
   canvas.addEventListener('webglcontextrestored', onRestored, false);
   measureStage();
@@ -2968,8 +3054,8 @@ function stEmbRest() {
 function stEmblem() {
   G.embGeo = mergeParts(G.embParts); G.embParts = null;
   G.U.uWireA.value = wireTex(1024);
-  G.embMesh = new THREE.Mesh(G.embGeo, makeMat(VS_EMB, FS_EMB));
-  G.dia = new THREE.Mesh(G.diaGeo, makeMat(VS_DIA, FS_DIA, { defines: { CRYS_TAPS: G.T.taps }, side: THREE.DoubleSide }));
+  G.embMesh = new THREE.Mesh(G.embGeo, preMat('emb'));
+  G.dia = new THREE.Mesh(G.diaGeo, preMat('dia'));
   G.diaGeo = null;
   G.dia.renderOrder = 1;
   G.emb = new THREE.Group();
@@ -2999,7 +3085,261 @@ function stShards() {
   G.scene.add(G.shards, G.glints);
   return true;
 }
-function stScene() {
+function stCompile(get, alt) {
+  var st = function () { compileOne(get(), alt ? alt() : null); return true; };
+  st.heavy = true;
+  return st;
+}
+function stWarm() {
+  if (S.RM) return 'next';
+  var w = G.warm, t = now(), k;
+  if (!w) {
+    w = G.warm = { i: 0, plan: [], times: [], last: t, memo: warmMemo() };
+    if (w.memo) w.plan.push(0.05, 0.1, 0.19);
+    else {
+      w.plan.push(0.05);
+      for (k = 0; k < 9; k++) w.plan.push(0.1);
+      w.plan.push(0.19);
+    }
+  }
+  if (w.i >= w.plan.length) return 'next';
+  updateScene(w.plan[w.i], w.i * 0.016);
+  renderNow();
+  if (w.plan[w.i] === 0.1) { try { renderer.getContext().finish(); } catch (e) {} w.times.push(now() - t); }
+  w.i++; ldStep();
+  return false;
+}
+function atTop() { return sec.getBoundingClientRect().top >= S.topOff - 2; }
+function applyFilm() {
+  if (S.film) return;
+  S.film = true;
+  sec.classList.add('is-3d', 'is-fadein', 'is-wait');
+  if (S.RM) sec.classList.add('is-rm');
+  measureStage(); emLayout(); holdGuess();
+  tl('film');
+  syncOverlay();
+}
+function holdGuess() {
+  if (G && G.numer) return;
+  var w = S.stageW, h = S.stageH, asp = 3.47;
+  if (!(w > 1 && h > 1)) return;
+  try {
+    var cx = D.createElement('canvas').getContext('2d');
+    cx.font = '600 100px ' + numFam();
+    var m = cx.measureText(numStr), bw = (m.actualBoundingBoxLeft || 0) + (m.actualBoundingBoxRight || 0), bh = (m.actualBoundingBoxAscent || 0) + (m.actualBoundingBoxDescent || 0);
+    if (bw > 0 && bh > 0) asp = clamp(bw / bh, 1.5, 6);
+  } catch (e) {}
+  var pt = w / h < 1, nw = (pt ? 0.703 : 0.376) * w, nh = nw / asp, cy = (pt ? 0.40 : 0.39) * h;
+  sec.style.setProperty('--num-l', Math.round(Math.max(8, (w - nw) / 2)) + 'px');
+  sec.style.setProperty('--num-t', Math.round(cy - nh / 2) + 'px');
+  sec.style.setProperty('--num-b', Math.round(cy + nh / 2) + 'px');
+  sec.classList.toggle('is-short', h < 600);
+  sec.classList.remove('is-tight');
+  var barTop = h - (bar ? bar.firstElementChild.offsetHeight + 20 + (+cfg.barOff || 0) : 16);
+  if (cy + nh / 2 + 14 + low.offsetHeight > barTop) sec.classList.add('is-tight');
+}
+function filmWait() {
+  if (!S.film) return;
+  stopLoop();
+  sec.classList.add('is-fadein', 'is-wait');
+  sec.classList.remove('is-xfade', 'is-lost');
+  syncOverlay();
+}
+function toStatic(why) {
+  if (S.why) return;
+  S.why = why || 'error';
+  tl('static', S.why);
+  try { sec.setAttribute('data-lbf3d-why', S.why); } catch (e) {}
+  if (QS.debug) { try { console.info('[lbf3d] versão estática (' + S.why + ')', tlSum()); } catch (e) {} }
+  S.glFailed = true; LD.real = 100;
+  if (S.film && S.inView && !design) {
+    readScroll();
+    if (S.pT > 0.001) { disposeGL(); S.mode = 'static'; S.glReady = false; S.wantStatic = true; filmWait(); return; }
+  }
+  goStatic();
+}
+function goStatic() {
+  disposeGL();
+  keepView(function () {
+    sec.classList.remove('is-3d', 'is-lost', 'is-rm', 'is-fadein', 'is-wait', 'is-xfade', 'is-short', 'is-tight', 'is-holdon', 'is-past1');
+    S.past1 = false;
+    resetOverlay();
+  });
+  S.mode = 'static'; S.film = false; S.wantStatic = false; S.glReady = false; S.glFailed = true; LD.real = 100;
+  if (!S.why) { S.why = 'error'; try { sec.setAttribute('data-lbf3d-why', S.why); } catch (e) {} }
+  tl('static-layout');
+}
+function stepName() {
+  try { var st = G && G.steps && G.steps[G.si]; return (st && (st.lbl || st.name)) || 'init'; } catch (e) { return 'init'; }
+}
+function glFail(e) {
+  dbg(e);
+  if (G && ctxLost()) { markLost(); return; }
+  toStatic((e && e.why) || (G && G.rebuilds ? 'ctx-lost' : 'boot-error:' + stepName()));
+}
+function disposeGL(keep) {
+  if (!G) return;
+  var g = G; G = null; g.dead = true;
+  if (g.raf) cancelAnimationFrame(g.raf);
+  if (g.rmRaf) cancelAnimationFrame(g.rmRaf);
+  clearTimeout(g.lostT);
+  canvas.removeEventListener('webglcontextlost', onLost, false);
+  canvas.removeEventListener('webglcontextrestored', onRestored, false);
+  try {
+    if (g.scene) g.scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    if (g.shardMat) g.shardMat.dispose();
+    if (g.shardMatLow) g.shardMatLow.dispose();
+    if (g.mats) for (var k in g.mats) if (g.mats[k]) g.mats[k].dispose();
+    if (g.preGeo) g.preGeo.dispose();
+    if (g.skyTmp) { g.skyTmp.geo.dispose(); g.skyTmp.m.dispose(); }
+    if (g.U && g.U.uWireA.value) g.U.uWireA.value.dispose();
+    if (g.U && g.U.uRelief.value) g.U.uRelief.value.dispose();
+    if (g.envRT) g.envRT.dispose();
+    if (renderer) { renderer.dispose(); if (!g.lost && !keep) renderer.forceContextLoss(); }
+  } catch (e) {}
+  renderer = null;
+}
+function armLost() {
+  if (!G) return;
+  clearTimeout(G.lostT);
+  G.lostT = setTimeout(function () { if (G && G.lost && !D.hidden) rebuild(false); }, 3000);
+}
+function onLost(e) {
+  e.preventDefault();
+  markLost();
+}
+function ctxLost() {
+  try { return !!(renderer && renderer.getContext().isContextLost()); } catch (e) { return false; }
+}
+function markLost() {
+  if (!G || G.lost) return;
+  G.lost = true; stopLoop();
+  tl('ctx-lost', S.mode);
+  if (S.film) { sec.classList.add('is-lost'); syncOverlay(); }
+  if (!D.hidden) armLost();
+}
+function onRestored() {
+  if (!G) return;
+  clearTimeout(G.lostT);
+  tl('ctx-restored', S.mode);
+  if (S.mode !== '3d') { rebuild(true); return; }
+  try {
+    parInit();
+    bakeEnv();
+    if (G.U.uRelief.value) G.U.uRelief.value.needsUpdate = true;
+    if (G.U.uWireA.value) G.U.uWireA.value.needsUpdate = true;
+    G.lost = false;
+    if (!S.RM) { updateScene(S.p, G.time); renderNow(); }
+    sec.classList.remove('is-lost');
+    G.rmDirty = true; wake();
+    if (G.si < G.steps.length) bootNext(0);
+  } catch (err) { dbg(err); rebuild(false); }
+}
+function rebuild(same) {
+  if (!G) return;
+  var n = (G.rebuilds || 0) + 1;
+  if (n > 2) { toStatic('ctx-lost'); return; }
+  tl('rebuild', same ? 'same' : 'fresh');
+  disposeGL(same);
+  if (!same && canvas.parentNode) { var c2 = canvas.cloneNode(false); canvas.parentNode.replaceChild(c2, canvas); canvas = c2; }
+  S.mode = 'static'; S.glReady = false; S.revealT = null;
+  filmWait();
+  try { init3D(n); } catch (e) { dbg(e); toStatic('ctx-lost'); }
+}
+function stickyBroken() {
+  if (G.stickyOk || S.pT <= 0.02 || S.pT >= 0.98) return false;
+  if (Math.abs(stage.getBoundingClientRect().top - S.topOff) <= 2) { G.stickyOk = true; return false; }
+  G.stickyBad = (G.stickyBad || 0) + 1;
+  if (G.stickyBad === 1 || G.stickyBad === 10) { measureTop(); return false; }
+  if (G.stickyBad < 20) return false;
+  toStatic('sticky');
+  return true;
+}
+function adapt(dtMs, idle, budget) {
+  if (S.RM || idle > 6000 || G.sinceResize < 0.5) return;
+  var A = G.ad, settled = now() - (G.liveT || 0) > 8000 && D.readyState === 'complete';
+  if (dtMs > 100 && !settled) return;
+  var d = Math.min(dtMs, 250), s = d / 1000;
+  if (G.rung >= 5 && G.dpr <= 1.01 && settled) {
+    A.floor = dtMs > 111 ? A.floor + s : Math.max(0, A.floor - 2 * s);
+    if (A.floor > 4) { toStatic('slow'); return; }
+  } else A.floor = 0;
+  A.ema = A.ema ? A.ema + (d - A.ema) * 0.1 : d;
+  if (A.ema > budget * 1.25) { A.hi += s; A.lo = 0; }
+  else if (A.ema < budget * 1.08) { A.lo += s; A.hi = 0; }
+  else { A.hi = Math.max(0, A.hi - s); A.lo = 0; }
+  if (A.hi > 1.5) {
+    A.hi = 0;
+    if (G.time - A.upT < 10) A.need = Math.min(30, A.need * 2);
+    tl('rung', { to: G.rung < 5 ? G.rung + 1 : 'dpr', p: Math.round(S.p * 100) / 100, ema: Math.round(A.ema * 10) / 10, settled: settled });
+    if (G.rung < 5) setRung(G.rung + 1);
+    else if (G.dpr > 1.0 && G.time - G.lastDprT > 10) G.pendingDpr = Math.max(1.0, G.dpr - 0.25);
+  } else if (A.lo > A.need) {
+    A.lo = 0; A.upT = G.time;
+    if (G.rung > G.bootRung) { tl('rung', { to: G.rung - 1, p: Math.round(S.p * 100) / 100, ema: Math.round(A.ema * 10) / 10 }); setRung(G.rung - 1); }
+    else if (G.dprCap < G.dprMax && !G.pendingDpr) {
+      var up = Math.min(G.dprMax, G.dprCap + 0.25);
+      if (pickDpr(up) > G.dpr + 0.01) G.pendingDpr = up;
+      else G.dprCap = up;
+    }
+  }
+}
+var PAR_PEND = { lbf3dPending: 1 };
+function parInit() {
+  var gl = renderer.getContext(), ext = null;
+  G.pend = []; G.px = 0;
+  if (QS.nopar || renderer.debug.checkShaderErrors) return;
+  try { ext = gl.getExtension('KHR_parallel_shader_compile'); } catch (e) {}
+  if (!ext) return;
+  G.px = ext.COMPLETION_STATUS_KHR;
+  var gpp = gl.__lbf3dGpp || (gl.__lbf3dGpp = gl.getProgramParameter);
+  G.gpp = function (p, n) { return gpp.call(gl, p, n); };
+  gl.getProgramParameter = function (p, n) {
+    if (G && G.issuing && n === gl.ACTIVE_UNIFORMS && !gpp.call(gl, p, G.px)) { G.pend.push({ p: p, t: now() }); throw PAR_PEND; }
+    return gpp.call(gl, p, n);
+  };
+}
+function parIssue(obj, alt) {
+  if (!G.px) { compileOne(obj, alt); return; }
+  G.issuing = true;
+  try { compileOne(obj, alt); } catch (e) { if (e !== PAR_PEND) throw e; } finally { G.issuing = false; }
+}
+function stIssuePre(keys) {
+  var st = function () {
+    while (st.i < keys.length) {
+      var k = keys[st.i++], m = G.mats && G.mats[k];
+      if (m) parIssue({ isPoints: !!matDefs()[k][3], geometry: G.preGeo, material: m });
+      if (!G.px && st.i < keys.length) return 'more';
+    }
+    return true;
+  };
+  st.i = 0; st.heavy = true; st.lbl = 'issue:' + keys.join(',');
+  return st;
+}
+function stEnvIssue() { bakeEnv(true); return true; }
+stEnvIssue.heavy = true;
+function stParWait() {
+  var gl = renderer.getContext(), i, q;
+  if (G.px) {
+    for (i = 0; i < G.pend.length; i++) {
+      q = G.pend[i];
+      if (!q.done) { if (!G.gpp(q.p, G.px) && now() - q.t < 8000) return 'wait'; q.done = now(); }
+    }
+    for (i = 0; i < G.pend.length; i++) if (!G.gpp(G.pend[i].p, gl.LINK_STATUS)) throw whyErr('boot-error:shader', 'shader');
+    if (QS.trace) G.parLog = (G.parLog || []).concat(G.pend.map(function (x) { return Math.round(x.t) + '>' + Math.round(x.done); }));
+  }
+  G.pend = [];
+  return true;
+}
+function linkCheck() {
+  var gl = renderer.getContext(), ps = renderer.info.programs || [];
+  for (var i = 0; i < ps.length; i++) if (!ps[i].lbf3dOk) {
+    if (G.px && !G.gpp(ps[i].program, G.px)) continue;
+    if (!gl.getProgramParameter(ps[i].program, gl.LINK_STATUS)) throw whyErr('boot-error:shader', 'shader');
+    ps[i].lbf3dOk = 1;
+  }
+}
+function stSceneA() {
   var n = G.T.dust, rng = mulberry32(31), pos = new Float32Array(n * 3), seed = new Float32Array(n), i;
   for (i = 0; i < n; i++) {
     var u = rng() * 2 - 1, a = rng() * Math.PI * 2, s = Math.sqrt(1 - u * u), r = 1.3 + 2.7 * Math.pow(rng(), 0.8);
@@ -3011,82 +3351,124 @@ function stScene() {
   G.dustN = n;
   G.dust = new THREE.Points(dg, preMat('dust'));
   G.dust.frustumCulled = false; G.dust.renderOrder = 4;
-  G.U.uRelief.value = G.numer.tex;
-  G.relief = new THREE.Mesh(new THREE.PlaneGeometry(G.numer.planeW, G.numer.planeH), preMat('rel'));
-  G.relief.position.set(G.numer.planeX, G.numer.planeY, G.ZN - 0.01);
-  G.relief.renderOrder = 3; G.relief.visible = false; G.relief.frustumCulled = false;
   var bgG = new THREE.BufferGeometry();
   bgG.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
   G.bg = new THREE.Mesh(bgG, preMat('bg'));
   G.bg.frustumCulled = false; G.bg.renderOrder = 10;
-  G.scene.add(G.dust, G.relief, G.bg);
+  G.scene.add(G.dust, G.bg);
   setRung(0);
+  return true;
+}
+function stSceneB() {
+  G.U.uRelief.value = G.numer.tex;
+  G.relief = new THREE.Mesh(new THREE.PlaneGeometry(G.numer.planeW, G.numer.planeH), preMat('rel'));
+  G.relief.position.set(G.numer.planeX, G.numer.planeY, G.ZN - 0.01);
+  G.relief.renderOrder = 3; G.relief.visible = false; G.relief.frustumCulled = false;
+  G.scene.add(G.relief);
+  setRung(G.rung);
   holdLayout();
   return true;
 }
-function stCompile(get, alt) {
-  var st = function () { compileOne(get(), alt ? alt() : null); var m = st.mat(); if (m) m.userData.lbf3dDone = 1; return true; };
-  st.heavy = true;
-  st.mat = function () { var o = get(); return alt ? alt() : o && o.material; };
-  return st;
+function stWarmB() {
+  if (S.RM) return 'next';
+  var w = G.warmB, t;
+  if (!w) w = G.warmB = { i: 0, plan: [0.26, 0.42, 0.42, 0.42, 0.42, 0.42, 0.42, 0.42, 0.42, 0.9], times: [] };
+  if (w.i >= w.plan.length) return 'next';
+  t = now();
+  updateScene(w.plan[w.i], G.time);
+  renderNow();
+  if (w.plan[w.i] === 0.42) { try { renderer.getContext().finish(); } catch (e) {} w.times.push(now() - t); }
+  updateScene(S.p, G.time); renderNow();
+  w.i++;
+  return false;
+}
+function stFull() {
+  var w = G.warmB, budget = Math.max(16.667, vsync()), rung = G.rung || 0, med = 0;
+  if (w && w.times.length > 6) {
+    var a = w.times.slice(2).sort(function (x, y) { return x - y; }), rel;
+    med = Math.max(vsync(), a[a.length >> 1]); rel = med / budget;
+    G.warmMedB = med;
+    if (rel > 2.7) rung = 5; else if (rel > 1.8) rung = Math.max(rung, 2); else if (rel > 1.25) rung = Math.max(rung, 1);
+    if (G.tierName === 'mid' && med <= 11 && (W.devicePixelRatio || 1) >= 1.5 && G.dprMax < 1.5) { G.dprMax = 1.5; G.mpCap = 0.8; G.pendingDpr = 1.5; }
+  }
+  setRung(rung);
+  G.full = true; G.fullT = now();
+  tl('full', { med: Math.round(med * 10) / 10, rung: rung });
+  reliefStart();
+  if (G.fullFirst) { G.fullFirst = false; return goLive(); }
+  trySwap();
+  return true;
+}
+function finishNow() {
+  var guard = 0, t = now(), st, r;
+  try {
+    while (G && !G.dead && !G.lost && G.si < G.steps.length && guard++ < 400) {
+      if (ctxLost()) { markLost(); return; }
+      st = G.steps[G.si];
+      if (st === stFont) { fontDone(); r = true; }
+      else if (st === stParWait && G.px) { var gl = renderer.getContext(); G.pend.forEach(function (q) { G.gpp(q.p, gl.LINK_STATUS); }); r = st(); }
+      else r = st();
+      if (r === 'stop' || r === 'park' || !G) return;
+      if (r === false || r === 'more' || r === 'wait') continue;
+      G.si++;
+    }
+  } catch (e) { glFail(e); return; }
+  if (G) { G.syncMs = Math.round(now() - t); tl('finish-now', G.syncMs); }
 }
 function stEnter() {
-  var r = sec.getBoundingClientRect();
-  if (!LD.out) {
-    if (r.top + $('.lbf3d__hero').offsetHeight <= S.topOff) { goStatic(); return 'stop'; }
-    sec.classList.add('is-3d', 'is-fadein');
-    if (S.RM) sec.classList.add('is-rm');
-  } else {
-    if (r.top < S.topOff - 0.05 * S.stageH || !lateOk()) { goStatic(); return 'stop'; }
-    sec.classList.add('is-3d', 'is-fadein');
-    if (S.RM) sec.classList.add('is-rm');
-    G.late = true;
+  if (!S.film) {
+    if (!atTop()) { if (!G.waitTop) tl('wait-top'); G.waitTop = true; return 'park'; }
+    G.waitTop = false;
+    applyFilm();
   }
+  if (LD.out) G.late = true;
   S.mode = 'boot';
   measureStage(); applySize();
   return 'next';
 }
-function stWarm() {
-  if (S.RM) return 'next';
-  var w = G.warm, t = now(), k;
-  if (!w) {
-    w = G.warm = { i: 0, plan: [], times: [], last: t, memo: warmMemo() };
-    if (w.memo) w.plan.push(0.26, 0.42, 0.9);
-    else {
-      for (k = 0; k < 2; k++) w.plan.push(0.26);
-      for (k = 0; k < 14; k++) w.plan.push(0.42);
-      for (k = 0; k < 2; k++) w.plan.push(0.9);
-    }
-  }
-  if (w.i >= w.plan.length) return 'next';
-  updateScene(w.plan[w.i], w.i * 0.016);
-  renderNow();
-  if (w.plan[w.i] === 0.42) { try { renderer.getContext().finish(); } catch (e) {} w.times.push(now() - t); }
-  w.i++; ldStep();
-  return false;
-}
 function stDone() {
   var w = G.warm, rung = 0, budget = Math.max(16.667, vsync());
+  G.full = false;
   if (w && (w.times.length > 6 || w.memo)) {
     var a = w.times.slice(2).sort(function (x, y) { return x - y; }), raw = w.times.length > 6 ? a[a.length >> 1] : w.memo.med, med = Math.max(vsync(), raw), rel = med / budget;
     G.warmMed = med;
-    if (w.times.length > 6) warmMemo(raw);
-    if (rel > 2.7) { glFail(new Error('desempenho insuficiente')); return 'stop'; }
-    if (rel > 1.8) rung = 2; else if (rel > 1.25) rung = 1;
-    if (G.tierName === 'mid' && med <= 11 && (W.devicePixelRatio || 1) >= 1.5) { G.dprCap = G.dprMax = 1.5; G.mpCap = 0.8; applySize(); }
+    if (rel > 2.7) { rung = 5; G.dprCap = Math.max(1, Math.min(G.dprCap, G.dpr - 0.25)); applySize(); }
+    else if (rel > 1.8) rung = 2; else if (rel > 1.25) rung = 1;
+    if (w.times.length > 6 && rel <= 1.25) warmMemo(raw);
   }
   G.bootRung = rung; setRung(rung);
-  if (G.late && !lateOk()) {
-    lateGiveUp();
-    return 'stop';
+  tl('done-a', { med: Math.round((G.warmMed || 0) * 10) / 10, rung: rung });
+  readScroll();
+  if (S.pT > 0.15) { G.fullFirst = true; tl('full-first', Math.round(S.pT * 1000) / 1000); return true; }
+  return goLive();
+}
+function swapOk() {
+  if (!S.inView) return G.full !== false;
+  var ae = D.activeElement;
+  if (ae && ae !== D.body && sec.contains(ae)) return false;
+  readScroll();
+  return S.pT <= 0.2;
+}
+function trySwap() {
+  if (!alive || !G || !G.swapWait || G.lost || G.dead || !swapOk()) return;
+  G.swapWait = false;
+  tl('swap-go', Math.round(S.pT * 1000) / 1000);
+  goLive();
+}
+function goLive() {
+  if (G.late && !swapOk()) {
+    if (!G.swapWait) { G.swapWait = true; tl('swap-wait', Math.round(S.pT * 1000) / 1000); }
+    return true;
   }
-  S.mode = '3d'; S.glReady = true;
-  ldAdd('compile', 10);
+  G.swapWait = false;
+  S.mode = '3d'; S.glReady = true; G.liveT = now();
+  ldAdd('compile');
+  tl('ready', G.late ? 'late' : (LD.out ? 'noveil' : 'veil'));
+  if (QS.debug) { try { console.info('[lbf3d] 3D pronto', tlSum()); } catch (e) {} }
   armProbe();
-  reliefStart();
-  if (G.late) {
-    lateReveal();
-  } else {
+  if (G.numer) reliefStart();
+  if (G.late) lateReveal();
+  else {
     if (!S.RM) overlay(S.p);
     if (LD.out) startReveal3D();
   }
@@ -3095,30 +3477,34 @@ function stDone() {
   return true;
 }
 function runSteps() {
-  if (!alive || !G || G.dead) return;
-  var t0 = now(), r;
+  if (!alive || !G || G.dead || G.lost) return;
+  if (ctxLost()) { markLost(); return; }
+  var t0 = now(), r, st;
   LD.dirty = true;
   try {
     while (G && G.si < G.steps.length) {
-      var st = G.steps[G.si];
+      st = G.steps[G.si];
       if (ldHold(st)) { G.held = true; return; }
       var ts = now();
       r = st();
-      if (st.heavy && r === true && G) G.cMax = Math.max(G.cMax || 0, now() - ts);
-      if (QS.debug && G) (G.dbgT || (G.dbgT = [])).push(G.si + ':' + Math.round(now() - ts) + (r === false ? '~' : '') + '@' + Math.round(ts) + (renderer && renderer.info.programs ? '#' + renderer.info.programs.length : ''));
-      if (r === false) break;
-      if (r === 'stop' || !G) return;
+      if (QS.trace && G) (G.dbgT || (G.dbgT = [])).push(G.si + ':' + Math.round(now() - ts) + (r === false || r === 'wait' || r === 'more' ? '~' : '') + '@' + Math.round(ts) + (renderer && renderer.info.programs ? '#' + renderer.info.programs.length : ''));
+      if (r === 'stop' || r === 'park' || !G) return;
+      if (r === false || r === 'wait' || r === 'more') break;
       G.si++; ldStep();
-      if (r !== 'next' && now() - t0 > 6) break;
+      if (S.mode === '3d') { var nx = G.steps[G.si]; if (!nx || nx.cpu || (nx.heavy && !G.px) || now() - t0 > 3) break; }
+      else if (r !== 'next' && now() - t0 > 6) break;
     }
   } catch (e) { glFail(e); return; }
   if (!G || G.dead || G.si >= G.steps.length) return;
-  if (r === false && G.steps[G.si] !== stWarm) requestAnimationFrame(runSteps); else bootNext(now() - t0);
+  if (r === 'wait') yieldTask(runSteps, useLoader && S.mode !== '3d', 12);
+  else if (r === false && G.steps[G.si] !== stWarm && G.steps[G.si] !== stWarmB) requestAnimationFrame(runSteps);
+  else bootNext(now() - t0);
 }
-function init3D() {
-  var pr = probeTier(cfg.quality);
-  if (!pr) throw new Error('WebGL indisponível');
-  if (!fixAncestors()) throw new Error('position: sticky indisponível');
+function init3D(rebuilds) {
+  var pr = (!rebuilds && S.probe) || probeTier(cfg.quality);
+  S.probe = null;
+  if (!pr) throw whyErr(rebuilds ? 'ctx-lost' : 'nowebgl', 'WebGL indisponível');
+  if (!fixAncestors()) throw whyErr('sticky', 'position: sticky indisponível');
   THREE.ColorManagement.legacyMode = false;
   var T = {}, base = TIERS[pr.tier], k;
   for (k in base) T[k] = base[k];
@@ -3127,24 +3513,33 @@ function init3D() {
     yaw: 0, yawV: 0, par: { x: 0, y: 0 }, parT: { x: 0, y: 0 }, keyOff: 0, velS: 0, pPrev: 0, tapT: -1, drag: null,
     fine: mq('(pointer: fine)').matches, rung: 0, bootRung: 0, glintsOn: T.glints, heroesOn: true,
     dprCap: T.dpr, dprMax: T.dpr, mpCap: T.mp, dpr: 1, pendingDpr: 0, lastDprT: -99, sinceResize: 0,
-    ad: { ema: 0, hi: 0, lo: 0, floor: 0, need: 6, upT: -99 }, wantStatic: false, poster: false, lost: false, lostStatic: false, stickyOk: false, dead: false,
+    ad: { ema: 0, hi: 0, lo: 0, floor: 0, need: 6, upT: -99 }, lost: false, stickyOk: false, dead: false,
     v1: new THREE.Vector3(), v2: new THREE.Vector3(), v3: new THREE.Vector3(), v4: new THREE.Vector3(),
     q: new THREE.Quaternion(), m4: new THREE.Matrix4(),
-    keyAz0: Math.atan2(-3, 5), keyEl: Math.atan2(4, Math.sqrt(34)), keyHold: new THREE.Vector3(0.6, 1.4, 2.0).normalize()
+    keyAz0: Math.atan2(-3, 5), keyEl: Math.atan2(4, Math.sqrt(34)), keyHold: new THREE.Vector3(0.6, 1.4, 2.0).normalize(),
+    rebuilds: rebuilds || 0, late: LD.out, full: null, pend: [], px: 0
   };
-  G.steps = [stRenderer, stEnv, stEmbParse, stEmbFil, stEmbRest, stEmblem,
-    stCompile(function () { return G.embMesh; }),
-    stCompile(function () { return G.dia; }),
-    stPreMats, stPreCompile('shard'), stPreCompile('shardLow'), stPreCompile('glint'), stPreCompile('dust'), stPreCompile('rel'), stPreCompile('bg'),
-    stFont, stNumA, stNumB, stShards, stScene,
-    stCompile(function () { return G.bg; }),
-    stCompile(function () { return G.shards; }),
-    stCompile(function () { return G.shards; }, function () { return G.shardMatLow; }),
-    stCompile(function () { return G.glints; }),
-    stCompile(function () { return G.dust; }),
-    stCompile(function () { return G.relief; }),
-    stEnter, stWarm, stDone];
+  tl('init', pr.tier + (rebuilds ? '/rebuild' + rebuilds : ''));
+  var C = function (o, a) { var st = stCompile(function () { return G[o]; }, a ? function () { return G[a]; } : null); st.lbl = 'compile:' + o + (a ? ':' + a : ''); return st; };
+  G.steps = [stRenderer, stEnvIssue, stPreMats, stIssuePre(['emb', 'dia', 'bg', 'dust']), stEmbParse, stEmbFil, stEmbRest, stEmblem, stSceneA,
+    stParWait, stEnv, C('embMesh'), C('dia'), C('bg'), C('dust'), stEnter, stWarm, stDone,
+    stIssuePre(['shard', 'shardLow', 'glint', 'rel']), stFont, stNumA, stNumB, stShards, stSceneB, stParWait,
+    C('shards'), C('shards', 'shardMatLow'), C('glints'), C('relief'), stWarmB, stFull];
+  G.nA = G.steps.indexOf(stDone) + 1;
+  stNumA.cpu = stNumB.cpu = stShards.cpu = stWarmB.cpu = stWarm.cpu = stFont.cpu = true;
   runSteps();
+}
+function tlSum() {
+  var R = W.__lbf3dT3 || {}, r = function (x) { return typeof x === 'number' ? Math.round(x) : null; }, ev = {};
+  TL.forEach(function (e) { if (!(e[1] in ev)) ev[e[1]] = e[0]; });
+  return {
+    why: S.why || null, mode: S.mode, veilF0: r(LD.t0), exit: r(LD.exitT), hidden: r(LD.hidMs),
+    three: { url: R.u || null, req: r(R.t0), loaded: r(R.t1), failedCopies: R.e || 0 },
+    init: r(ev.init), ready: r(ev.ready), full: r(ev.full), swap: TL.filter(function (e) { return e[1] === 'swap'; }).map(function (e) { return e[2]; })[0] || null,
+    tier: G ? G.tierName : null, dpr: G ? G.dpr : null, rung: G ? G.rung : null, parallel: G ? !!G.px : null, steps: G && G.dbgT ? G.dbgT.length : 0,
+    rungs: TL.filter(function (e) { return e[1] === 'rung' || e[1] === 'done-a' || e[1] === 'full'; }).map(function (e) { return [e[0], e[1], e[2]]; }),
+    tl: TL.slice()
+  };
 }
 var rsT = 0;
 function onResize() {
@@ -3153,7 +3548,7 @@ function onResize() {
   rsT = setTimeout(function () {
     if (!alive) return;
     measureTop(); barH();
-    if (!G || !renderer || !G.camera) { emLayout(); return; }
+    if (!G || !renderer || !G.camera) { if (S.film) { measureStage(); holdGuess(); } emLayout(); if (S.film && S.mode !== '3d') syncOverlay(); return; }
     var w0 = S.stageW, h0 = S.stageH;
     measureStage();
     if (Math.abs(S.stageW - w0) > 0.5 || Math.abs(S.stageH - h0) > 0.5) applySize();
@@ -3164,8 +3559,8 @@ function onResize() {
 function onRMChange() {
   if (!alive) return;
   S.RM = !!mqRM.matches;
+  if (S.RM && rmStatic && (G || S.film)) { toStatic('rm-static'); return; }
   if (!G || S.mode !== '3d') return;
-  if (S.RM && rmStatic) { goStatic(); return; }
   sec.classList.toggle('is-rm', S.RM);
   resetOverlay();
   G.rmF = -1; G.rmDirty = true;
@@ -3177,20 +3572,24 @@ function onScroll() {
   if (!alive) return;
   barLead();
   S.lastInput = now();
-  if (LD.out && !S.readerMoved && Math.abs((W.pageYOffset || D.documentElement.scrollTop || 0) - LD.exitY) > 2) S.readerMoved = true;
-  if (G && (G.lost || G.poster || (G.late && S.mode === 'boot')) && sec.classList.contains('is-3d')) {
+  if (G && G.waitTop && atTop()) { G.waitTop = false; tl('top'); bootNext(0); }
+  if (S.film && (S.mode !== '3d' || (G && G.lost))) {
     syncOverlay();
-    if ((G.wantStatic || G.lostStatic) && (!S.inView || S.pT <= 0.001)) goStatic();
+    if (S.wantStatic && (!S.inView || S.pT <= 0.001)) goStatic();
+    else trySwap();
     return;
   }
   wake();
 }
 var io = null, ioBar = null, ro = null, roBar = null;
 function boot() {
-  if (QS.debug) W.__lbf3d = { S: S, LD: LD, G: function () { return G; } };
+  if (QS.trace) W.__lbf3d = { S: S, LD: LD, G: function () { return G; }, tl: TL, sum: tlSum };
+  tl('boot', Math.round(ENG_T0));
   var wantGL = !QS.static && !!W.WebGLRenderingContext && !(rmStatic && S.RM);
-  var threeP = wantGL ? loadThree(useLoader, typeof sec.__lbf3dF0 === 'number') : null;
+  var threeP = wantGL ? loadThree(useLoader, typeof sec.__lbf3dF0 === 'number', cfg.three) : null;
   measureTop(); barH(); emLayout();
+  S.preLift = useLoader && ldFailsafe();
+  if (wantGL && useLoader && !S.preLift && (typeof sec.__lbf3dF0 !== 'number' || atTop()) && fixAncestors()) applyFilm();
   if (bar) {
     bar.classList.add('is-pre');
     var r0 = sec.getBoundingClientRect(), vh0 = W.innerHeight || D.documentElement.clientHeight;
@@ -3210,7 +3609,7 @@ function boot() {
     if (bar) bar.classList.toggle('is-free', !S.inView);
     offClass();
     if (S.inView) { cdLoop(); wake(); }
-    else { stopLoop(); if (G && (G.wantStatic || G.lostStatic)) goStatic(); }
+    else { stopLoop(); if (S.wantStatic) goStatic(); else trySwap(); }
   }, '100px 0px', sec);
   if (bar) ioBar = observe(function (es) {
     if (!alive) return;
@@ -3221,8 +3620,14 @@ function boot() {
     if (!alive) return;
     S.docVis = !D.hidden;
     offClass();
-    if (S.docVis) { cdLoop(); if (G && G.lost && !G.lostStatic) armLost(); wake(); }
+    ldVis(D.hidden);
+    if (S.docVis) { cdLoop(); if (G && G.lost) armLost(); wake(); }
     else { stopLoop(); clearTimeout(cdTimer); if (G) clearTimeout(G.lostT); }
+  }, LO());
+  W.addEventListener('pageshow', function (e) {
+    if (!alive || !e || !e.persisted) return;
+    tl('bfcache');
+    if (G && S.mode === '3d' && !G.lost) { G.lastTs = -1; G.rmDirty = true; if (!S.RM) { try { updateScene(S.p, G.time); renderNow(); } catch (x) {} } wake(); }
   }, LO());
   D.addEventListener('scroll', onScroll, LO({ passive: true, capture: true }));
   W.addEventListener('resize', onResize, LO({ passive: true }));
@@ -3234,8 +3639,7 @@ function boot() {
     if (bar) { roBar = new ResizeObserver(barH); roBar.observe(bar.firstElementChild); }
   }
   onMQ(mqRM, onRMChange);
-  D.addEventListener('pointerdown', function () { if (!alive) return; if (LD.out) S.readerMoved = true; if (!LD.probed) { LD.probed = true; armProbe(); } }, LO({ passive: true, capture: true }));
-  D.addEventListener('keydown', function () { if (alive && LD.out) S.readerMoved = true; }, LO({ passive: true, capture: true }));
+  D.addEventListener('pointerdown', function () { if (!alive) return; if (!LD.probed) { LD.probed = true; armProbe(); } }, LO({ passive: true, capture: true }));
   stage.addEventListener('pointerdown', function (e) {
     S.lastInput = now(); wake();
     if (!G) return;
@@ -3268,19 +3672,32 @@ function boot() {
   stage.addEventListener('pointerup', endDrag, LO({ passive: true }));
   stage.addEventListener('pointercancel', endDrag, LO({ passive: true }));
   stage.addEventListener('pointerleave', function (e) { if (G && e.pointerType === 'mouse') { G.parT.x = 0; G.parT.y = 0; } }, LO({ passive: true }));
-  if (!wantGL) S.glFailed = true;
+  if (!wantGL) {
+    S.glFailed = true;
+    S.why = QS.static ? 'param' : !W.WebGLRenderingContext ? 'nowebgl' : 'rm-static';
+    sec.setAttribute('data-lbf3d-why', S.why);
+  }
+  if (D.hidden) ldVis(true);
   ldStart();
+  tl('booted');
+  if (wantGL) afterFrame(function () {
+    if (!alive || S.glFailed || G || S.probe) return;
+    var pr = null;
+    try { pr = probeTier(cfg.quality); } catch (e) { pr = null; }
+    tl('probe', pr ? pr.tier : 'none');
+    if (pr) S.probe = pr; else toStatic('nowebgl');
+  }, useLoader);
   if (threeP) threeP.then(function (T3) {
-    if (!alive) return;
+    if (!alive || S.glFailed) return;
     THREE = T3;
     ldAdd('three');
+    tl('three');
     var go = function () {
-      if (!alive) return;
-      if (useLoader && LD.out && !lateOk()) { goStatic(); return; }
-      try { init3D(); } catch (e) { glFail(e); }
+      if (!alive || S.glFailed || G) return;
+      try { init3D(0); } catch (e) { glFail(e); }
     };
     if (useLoader && !LD.out && LD.t0 !== null && typeof sec.__lbf3dF0 === 'number') yieldTask(go, true);
-    else afterFrame(go, useLoader && !LD.out);
+    else afterFrame(go, useLoader);
   }, function (e) { if (alive) glFail(e); }).catch(noop);
 }
 function onMQ(m, fn) {
@@ -3316,7 +3733,13 @@ function scan(t) {
     if (sec.__lbf3d) return;
     var inst = null;
     try { inst = create(sec); } catch (e) { dbg(e); inst = null; }
-    if (!inst) { try { var ld = sec.querySelector('.lbf3d__loader'); if (ld) ld.hidden = true; sec.classList.remove('lbf3d--ld', 'is-veiled'); } catch (e) {} }
+    if (!inst) {
+      try {
+        var ld = sec.querySelector('.lbf3d__loader'); if (ld) ld.hidden = true;
+        sec.classList.remove('lbf3d--ld', 'is-veiled', 'is-3d', 'is-fadein', 'is-wait', 'is-rm');
+        sec.setAttribute('data-lbf3d-why', 'init-error');
+      } catch (e) {}
+    }
     sec.__lbf3d = inst || DONE;
   });
 }
@@ -3568,7 +3991,7 @@ scan(D);
       "id": "show_loader",
       "label": "Contador de carregamento",
       "default": true,
-      "info": "Ligado (recomendado): véu escuro com o emblema a traço dourado e a percentagem real de carregamento, no máximo 2,5 s (3 s se só faltarem os últimos passos do 3D); nunca no editor de temas. Desligado: a versão estática aparece logo e o 3D entra mais tarde."
+      "info": "Ligado (recomendado): véu escuro com o emblema a traço dourado e a percentagem real de carregamento; abre logo que o 3D esteja pronto e nunca fica mais de 5 s (numa primeira visita com rede lenta abre para a versão estática e o 3D entra depois, com uma transição suave, sem mexer na página); nunca no editor de temas. Desligado: a versão estática aparece logo e o 3D entra mais tarde."
     },
     {
       "type": "select",
