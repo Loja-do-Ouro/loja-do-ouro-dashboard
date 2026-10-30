@@ -2106,6 +2106,8 @@ test("Actions: a text with clear personal data is never confirmed, and joining r
   // Depois de "Juntar" e de uma publicação recusada, sem a pesquisa: o cartão a confirmar fica à vista e aberto.
   assert.match(actions, /\}, CARD_ESTADOS\.includes\(r\?\.estado as CardEstado\) \? r!\.estado : estado, "", into\);/);
   assert.match(actions, /\}, "aprovada", "", blocked\[0\] \|\| unconfirmed\[0\]\);/);
+  // Publicação recusada pela própria BD: também nas Aprovadas e sem a pesquisa.
+  assert.match(actions, /ldo_support_knowledge_publish"\);\n\s+\} catch \(e\) \{\n(\s+\/\/.*\n)*\s+back\(\{ cartoes_erro: userMessage\(e\) \}, "aprovada", ""\);/);
   assert.match(actions, /A confirmação da outra foi apagada: leia-a e confirme-a de novo antes de a aprovar ou publicar\./);
   assert.match(actions, /avisos não couberam/);
   // Os campos chegam sem espaços que não quebram nem caracteres invisíveis.

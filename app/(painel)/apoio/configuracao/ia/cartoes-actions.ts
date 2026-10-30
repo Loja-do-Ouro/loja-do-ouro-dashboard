@@ -257,7 +257,9 @@ export async function publishCards(form: FormData) {
   try {
     r = await sessionRpc<{ alteradas: number; em_uso: number }>(viewer.session, "ldo_support_knowledge_publish");
   } catch (e) {
-    back({ cartoes_erro: userMessage(e) }, estado, q);
+    // Recusada pela BD (que volta a verificar dados pessoais e confirmações): também nas Aprovadas e sem a pesquisa, onde
+    // está o que falta corrigir ou confirmar.
+    back({ cartoes_erro: userMessage(e) }, "aprovada", "");
   }
   back({ cartoes_ok: `Publicadas ${r?.alteradas ?? 0} alteração(ões). A IA usa agora ${r?.em_uso ?? 0} resposta(s) aprovada(s).` }, estado, q);
 }
