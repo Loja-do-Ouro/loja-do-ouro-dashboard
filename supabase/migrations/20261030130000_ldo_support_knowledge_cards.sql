@@ -7,15 +7,16 @@
 -- publicação; arquivar retira logo). Nada aqui envia mensagens a clientes.
 -- * Privacidade. O Super Admin lê e confirma cada cartão ("Confirmo que li o texto: não tem dados pessoais nem contradiz a
 --   resposta da equipa") antes de o aprovar; as regras não apanham tudo. Fica guardado: o texto do cartão (pergunta,
---   variantes e resposta, também o que as regras só assinalaram), nas propostas até 180 dias sem novas fontes e nos
---   arquivados 365 dias; o tema, a marca, a loja, quem aprovou, quem confirmou e quando, os avisos (da resposta da equipa
---   citam só palavras de uma lista fechada e números com a unidade; o resto fica «…») e em quantas conversas a resposta foi
---   confirmada (fontes: cada conversa conta uma vez enquanto está nas conversas lidas, nunca o chat do site anónimo); só
---   enquanto é proposta, até 3 conversas de origem (amostras). A confirmação (quem, quando e os avisos mostrados, que podem
---   citar palavras do cartão) fica também no registo de auditoria até o cartão ser apagado. As mensagens e os contactos
---   dos clientes não são copiados para estas tabelas. Quem tem acesso direto à base de dados ainda consegue deduzir de que
---   conversa veio um cartão pelo registo de pedidos e pelas conversas lidas e respostas guardadas, enquanto existirem (até
---   365 dias).
+--   variantes e resposta, também o que as regras só assinalaram), nas propostas até 180 dias sem novas confirmações, nos
+--   arquivados 365 dias e nos aprovados até serem arquivados; o tema, a marca, a loja, quem aprovou, quem confirmou e
+--   quando, os avisos (da resposta da equipa citam só palavras de uma lista fechada e números com a unidade; o resto fica
+--   «…»), em quantas conversas a resposta foi confirmada (fontes: cada conversa conta uma vez enquanto está nas conversas
+--   lidas, nunca o chat do site anónimo) e, só enquanto é proposta, até 3 conversas de origem (amostras). A confirmação
+--   (quem, quando e os avisos mostrados, que podem citar palavras do texto do cartão) fica também no registo de auditoria
+--   até o cartão ser apagado. As mensagens e os contactos dos clientes não são copiados para estas tabelas. Quem tem acesso
+--   direto à base de dados ainda consegue deduzir de que conversa veio um cartão pelo registo de pedidos, pelo registo de
+--   auditoria das propostas (quem carregou no botão e quando) e pelas conversas lidas e respostas guardadas, enquanto
+--   existirem (até 365 dias).
 --   Para não ler nem contar a mesma conversa duas vezes ficam as conversas lidas (ldo_support_knowledge_seen: a
 --   conversa, até que resposta da equipa foi lida e se já contou; 180 dias depois da última vez) e as respostas
 --   guardadas com o botão (ldo_support_knowledge_used: a mensagem e o dia; 365 dias), ambas sem o cartão. O registo
@@ -41,9 +42,9 @@
 --   publicado tal como está, com a loja nos temas de uma loja e sem outro cartão automático para a mesma loja. Qualquer
 --   correção ou junção tira a marca; a limpeza diária tira-a aos cartões expirados ou por rever há mais de 90 dias.
 -- * Orçamento próprio (US$ 8 por omissão), 30 propostas pelo botão por pessoa e por dia, 300 propostas por rever.
--- * Limpeza diária: registo de pedidos e respostas já guardadas ao fim de 365 dias, conversas vistas 180 dias depois da
---   última vez, propostas sem novas fontes ao fim de 180 dias e cartões arquivados ao fim de 365 (com as confirmações
---   no registo de auditoria).
+-- * Limpeza diária: registo de pedidos, registo de auditoria das propostas e respostas já guardadas ao fim de 365 dias,
+--   conversas vistas 180 dias depois da última vez, propostas sem novas confirmações ao fim de 180 dias e cartões
+--   arquivados ao fim de 365 (com as confirmações e o registo das propostas no registo de auditoria).
 -- Funções alteradas, a partir do texto em produção a 30-10-2026 (pg_get_functiondef):
 -- * ldo_support_ai_admin (md5 adc9e6bb1fb5ded3040b60f127147471, já com o bloco 'review' de 20261030110000): cópia
 --   igual, mais o bloco 'cards' com os totais do mês.
@@ -89,8 +90,9 @@ create table public.ldo_support_knowledge_cards (
   -- Aprovação ou última correção do texto de uma resposta aprovada (os 7 dias de "Permitir em respostas automáticas").
   texto_em timestamptz,
   -- Avisos da proposta da IA em relação à resposta da equipa (possíveis contradições, condições em falta, palavras que a
-  -- equipa não escreveu), calculados no servidor no momento da proposta (depois já não há a resposta da equipa).
-  avisos text[] not null default '{}' check (cardinality(avisos) <= 20 and length(array_to_string(avisos, '|')) <= 6100),
+  -- equipa não escreveu), calculados no servidor no momento da proposta (depois já não há a resposta da equipa): até 20
+  -- numa proposta e até 30 depois de juntar outras respostas.
+  avisos text[] not null default '{}' check (cardinality(avisos) <= 30 and length(array_to_string(avisos, '|')) <= 9200),
   -- "Confirmo que li o texto: não tem dados pessoais nem contradiz a resposta da equipa", pedida em todos os cartões: quem
   -- e quando (avisos_ok_em não nulo = o texto atual foi confirmado) e os avisos (do texto e da proposta) que o painel
   -- mostrou nesse momento, talvez nenhum. O gatilho apaga-a quando a pergunta, as variantes ou a resposta mudam.
@@ -216,15 +218,17 @@ $$;
 -- cópia em JavaScript destas expressões, tests/support-knowledge.cjs). Recusa emails fora dos domínios da empresa, IBAN
 -- ou NIF e números de encomenda, de cliente ou de fatura: depois de "encomenda", "pedido", "fatura", "compra",
 -- "reparação", "talão", "cliente"… com "n.º", "#" ou letras ("n.º 4 471", "#4471", "LDO1234"), só o número com 4 ou
--- mais algarismos (também em grupos: "44 71", "4.471"), sem anos, datas, contrastes, valores, percentagens e unidades
--- ("Encomendas 100% seguras", "pedidos 365 dias por ano", "Encomendas 2026"), e as faturas com a série ("fatura FT
--- 1/2345", "fatura A/145", "fatura 2026/145", "FS 1/234"). Os números, emails, IBAN e NIF dos dados da empresa (p_kb:
--- base de conhecimento, lojas, caixas e assinatura do apoio) passam. Sem ligações, emails e perfis (vistos à parte).
+-- mais algarismos (também em grupos: "44 71", "4.471"), o grupo inteiro, sem anos, épocas ("2026-2027", "2025/26"),
+-- datas, contrastes, valores, percentagens e unidades ("Encomendas 100% seguras", "pedidos 365 dias por ano",
+-- "Encomendas 2026"), e as faturas com a série ("fatura FT 1/2345", "fatura A/145", "fatura 2026/145", "FS 1/234"; não
+-- "fatura c/ 23% de IVA" nem "recibo s/ 2 vias"). Os números, emails, IBAN e NIF dos dados da empresa (p_kb: base de
+-- conhecimento, lojas, caixas e assinatura do apoio) passam. Sem ligações, emails e perfis (vistos à parte).
 -- "referência", "ref." e "#" sozinhos não são recusa aqui (no servidor, só numa frase sobre uma encomenda ou um
--- pagamento). Devolve o motivo (ou null).
+-- pagamento). Os espaços estreitos ou que não quebram (NBSP…) contam como espaços, os traços (—, –, −) como hífenes e
+-- os caracteres invisíveis saem, como no servidor. Devolve o motivo (ou null).
 create function ldo_private.support_card_plain(p_text text) returns text
 language sql immutable set search_path = '' as $$
-  select regexp_replace(coalesce(p_text, ''), '(?:https?://|www\.)[^[:space:]]+|[^[:space:]]*@[^[:space:]]*|[^[:space:]]*[[:alnum:]]\.[[:alpha:]]{2,}/[^[:space:]]*', ' ', 'gi');
+  select regexp_replace(translate(coalesce(p_text, ''), E'\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63\uff0d\u00ad\u200b\u200c\u200d\u2060\ufeff', '                ----------'), '(?:https?://|www\.)[^[:space:]]+|[^[:space:]]*@[^[:space:]]*|[^[:space:]]*[[:alnum:]]\.[[:alpha:]]{2,}/[^[:space:]]*', ' ', 'gi');
 $$;
 -- Um número dos dados da empresa: os seus algarismos são um grupo de p_kb ou vários grupos seguidos ("217 123 456",
 -- "1500-123"), como os números que o servidor aceita (allow.numbers).
@@ -249,13 +253,13 @@ language sql immutable set search_path = '' as $$
           '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?|no\.(?=[ \t]*[0-9]))[ \t]*(?:(?:é|:|=)[ \t]*(?:(?:o|a)[ \t]+)?)?#?[ \t]*(?:[a-z]{1,4}-?)?([0-9](?:[ .-]?[0-9]){2,})(?![0-9])',
           '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*#[ \t]*(?:[a-z]{1,4}-?)?([0-9](?:[ .-]?[0-9]){2,})(?![0-9])',
           '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]+([a-z]{1,4}-?[0-9](?:[ .-]?[0-9]){2,})(?![0-9])',
-          '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?::[ \t]*)?(?!(?:1[ .-]?9|2[ .-]?0)[ .-]?[0-9][ .-]?[0-9](?![ .-]?[0-9]))(?!1[ .-]?0[ .-]?0[ .-]?0(?![ .-]?[0-9]))(?![0-9]{1,2}[.-][0-9]{1,2}(?:[.-](?:[0-9]{2}|[0-9]{4}))?(?![ .-]?[0-9]))([0-9](?:[ .-]?[0-9]){3,})(?![0-9])(?![.,:][0-9])(?!(?:[.,][0-9]+)?[ \t]*(?:€|\$|£|eur|euros?|%|por[ \t]+cento|h|horas?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?|pts|lojas?|clientes?|pessoas?|artigos?)(?![[:alpha:]]))']) as r(re)
+          '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?::[ \t]*)?(?!(?:1[ .-]?9|2[ .-]?0)[ .-]?[0-9][ .-]?[0-9](?![ .-]?[0-9]))(?!(?:19|20)[0-9]{2}[ \t]*[-/][ \t]*(?:(?:19|20)[0-9]{2}|[0-9]{2})(?![0-9]))(?!1[ .-]?0[ .-]?0[ .-]?0(?![ .-]?[0-9]))(?![0-9]{1,2}[.-][0-9]{1,2}(?:[.-](?:[0-9]{2}|[0-9]{4}))?(?![ .-]?[0-9]))([0-9](?:[ .-]?[0-9]){3,})(?![ .-]?[0-9])(?![.,:][0-9])(?!(?:[.,][0-9]+)?[ \t]*(?:€|\$|£|eur|euros?|%|por[ \t]+cento|h|horas?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?|pts|lojas?|clientes?|pessoas?|artigos?)(?![[:alpha:]]))']) as r(re)
         cross join lateral regexp_matches(ldo_private.support_card_plain(p_text), r.re, 'gi') as m(g)
         where not ldo_private.support_card_known(m.g[1], p_kb))
       or exists (select 1 from unnest(array[
           '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[A-Z]{1,4}[ \t.-]*(?:[A-Za-z]{1,4}|[0-9]{1,4})(?:[ \t]*/[ \t]*[A-Za-z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])',
-          '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?:[A-Za-z]{1,4})[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])',
-          '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[0-9]{4}[ \t]*/[ \t]*(?!(?:19|20)[0-9]{2}(?![0-9]))([0-9]+)(?![[:alnum:]/])',
+          '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?:[A-Za-z]{2,4}|(?![cCsSpPnNvV][ \t]*/)[A-Za-z])[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])',
+          '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?!(?:19|20)[0-9]{2}[ \t]*/[ \t]*[0-9]{2}(?![0-9]))[0-9]{4}[ \t]*/[ \t]*(?!(?:19|20)[0-9]{2}(?![0-9]))([0-9]+)(?![[:alnum:]/])',
           '(?:^|[^[:alnum:]])(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)[ \t.-]*[A-Z0-9]{1,10}(?:[ \t]*/[ \t]*[A-Z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])']) as r(re)
         cross join lateral regexp_matches(ldo_private.support_card_plain(p_text), r.re, 'g') as m(g)
         where not ldo_private.support_card_known(m.g[1], p_kb))
@@ -674,10 +678,10 @@ end;
 $$;
 
 -- Limpeza diária (só o servidor): pedidos com mais de 365 dias (a conversa e a mensagem de origem dos pedidos sem cartão
--- ao fim de 180), respostas já guardadas há mais de 365, conversas vistas 180 dias depois da última vez,
--- propostas sem novas fontes há 180 dias e cartões arquivados há 365 (e, no registo de auditoria, as confirmações dos
--- avisos desses cartões). As respostas marcadas para respostas automáticas que expiraram ou não
--- são revistas há mais de 90 dias perdem a marca.
+-- ao fim de 180), respostas já guardadas há mais de 365, conversas vistas 180 dias depois da última vez, o registo de
+-- auditoria das propostas ao fim de 365 dias, propostas sem novas confirmações há 180 dias e cartões arquivados há 365
+-- (e, no registo de auditoria, as confirmações dos avisos e o registo das propostas desses cartões). As respostas
+-- marcadas para respostas automáticas que expiraram ou não são revistas há mais de 90 dias perdem a marca.
 create function public.ldo_support_knowledge_purge(p_token text) returns integer
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -707,14 +711,19 @@ begin
   delete from public.ldo_support_knowledge_seen where atualizada_em < v_today - 180;
   get diagnostics v_n = row_count;
   v_total := v_total + v_n;
-  -- As confirmações dos avisos (com a lista dos avisos) saem do registo de auditoria com a resposta.
+  -- O registo de auditoria das propostas (quem carregou no botão, quando e o cartão) sai ao fim de 365 dias, como o
+  -- registo de pedidos.
+  delete from public.ldo_support_audit where action = 'ai.knowledge.proposta' and created_at < now() - interval '365 days';
+  -- As confirmações dos avisos (com a lista dos avisos) e o registo das propostas saem do registo de auditoria com a
+  -- resposta.
   with gone as (
     delete from public.ldo_support_knowledge_cards
     where (estado = 'proposta' and ultima_vez < now() - interval '180 days') or (estado = 'arquivada' and updated_at < now() - interval '365 days')
     returning id),
   acks as (
     delete from public.ldo_support_audit a using gone
-    where a.action = 'ai.knowledge.card' and a.details ->> 'acao' = 'avisos_confirmados' and a.details ->> 'id' = gone.id::text
+    where (a.action = 'ai.knowledge.card' and a.details ->> 'acao' = 'avisos_confirmados' and a.details ->> 'id' = gone.id::text)
+      or (a.action = 'ai.knowledge.proposta' and a.details ->> 'card_id' = gone.id::text)
     returning 1)
   select count(*) into v_n from gone;
   return v_total + v_n;
@@ -911,8 +920,8 @@ $$;
 -- arquivar (sai logo da IA e das respostas automáticas). Aprovar exige a confirmação do Super Admin para o texto atual
 -- (em todos os cartões, com ou sem avisos), com os avisos da proposta (os avisos do texto são vistos no servidor). As
 -- amostras (até 3 conversas de origem) apagam-se nos dois casos. Isto não apaga tudo o que liga o cartão a uma conversa:
--- quem lê as tabelas diretamente ainda o pode deduzir pelo registo de pedidos (a hora e quem carregou no botão) e pelas
--- respostas guardadas e conversas lidas, enquanto estes existirem (até 365 dias).
+-- quem lê as tabelas diretamente ainda o pode deduzir pelo registo de pedidos e pelo registo de auditoria das propostas (a
+-- hora e quem carregou no botão) e pelas respostas guardadas e conversas lidas, enquanto estes existirem (até 365 dias).
 create function public.ldo_support_knowledge_card_state(p_session text, p_id uuid, p_estado text) returns void
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -1057,10 +1066,12 @@ $$;
 -- que já contou não conta para nenhum outro cartão enquanto está nas conversas lidas) e p_id fica arquivado e em
 -- p_into.juntadas, com os que já lhe tinham sido juntos (uma confirmação nova de um deles conta para p_into). Recusa
 -- quando a pergunta de p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Os
--- avisos da pergunta de p_id ("Pergunta com um compromisso…", "Âmbito alargado na pergunta…") passam para p_into, à
--- frente (a pergunta passa a ser uma variante). Se as variantes de p_into mudarem, perde a marca de resposta automática e
--- a confirmação (o gatilho) e, se estiver aprovada, os 7 dias contam de novo; com avisos novos, a confirmação também tem
--- de ser feita de novo. Devolve {estado (de p_into), alterada, auto_retirada}.
+-- avisos da pergunta de p_id ("Pergunta com um compromisso…", "Âmbito alargado na pergunta…") passam para p_into (a
+-- pergunta passa a ser uma variante), por tipo: contradições, avisos da pergunta (os de p_id primeiro), números trocados,
+-- condições em falta e o resto, no máximo 30 (os que não cabem contam-se em avisos_cortados e no registo de auditoria).
+-- Juntar apaga sempre a confirmação de p_into e a marca de resposta automática (o Super Admin lê e confirma de novo); se
+-- as variantes mudarem e estiver aprovada, os 7 dias contam de novo. Devolve {estado (de p_into), alterada,
+-- auto_retirada, avisos_cortados}.
 create function public.ldo_support_knowledge_card_merge(p_session text, p_id uuid, p_into uuid) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -1069,6 +1080,7 @@ declare
   v_into public.ldo_support_knowledge_cards;
   v_variantes text[];
   v_avisos text[];
+  v_total integer;
   v_changed boolean;
 begin
   if v_me is null then
@@ -1096,12 +1108,17 @@ begin
     raise exception 'A outra resposta já tem 5 formas da pergunta (ou esta pergunta passa de 200 caracteres): encurte ou retire uma primeiro.' using errcode = '22023';
   end if;
   v_changed := v_variantes is distinct from v_into.variantes;
-  -- Os avisos da pergunta juntada, à frente dos de p_into (no máximo 20).
-  select coalesce(array_agg(x.a order by x.o), '{}') into v_avisos from (
-    select a, min(o) as o from (
-      select a, o from unnest(v_from.avisos) with ordinality as f(a, o) where a like 'Pergunta com %' or a like 'Âmbito alargado na pergunta%'
-      union all select a, 100 + o from unnest(v_into.avisos) with ordinality as i(a, o)) y
-    group by a order by min(o) limit 20) x;
+  -- Os avisos da pergunta juntada e os de p_into, por tipo (contradições, avisos da pergunta, números trocados, condições
+  -- em falta, o resto), no máximo 30; os que não cabem contam-se (nunca se perdem em silêncio).
+  select count(distinct a) into v_total from (select unnest(v_into.avisos) as a union all
+    select a from unnest(v_from.avisos) as f(a) where a like 'Pergunta com %' or a like 'Âmbito alargado na pergunta%') y;
+  select coalesce(array_agg(x.a order by x.k, x.o), '{}') into v_avisos from (
+    select a, min(k) as k, min(o) as o from (
+      select a, 1 as k, o from unnest(v_from.avisos) with ordinality as f(a, o) where a like 'Pergunta com %' or a like 'Âmbito alargado na pergunta%'
+      union all select a, case when a like 'Possível contradição%' then 0 when a like 'Pergunta com %' or a like 'Âmbito alargado na pergunta%' then 1
+          when a like 'Números trocados%' then 2 when a like 'Condição em falta%' then 3 else 4 end, 100 + o
+        from unnest(v_into.avisos) with ordinality as i(a, o)) y
+    group by a order by min(k), min(o) limit 30) x;
   update public.ldo_support_knowledge_cards set
     variantes = v_variantes,
     avisos = v_avisos,
@@ -1111,8 +1128,8 @@ begin
     amostras = case when estado = 'proposta' then (select coalesce(array_agg(a), '{}') from (
       select distinct a from unnest(amostras || v_from.amostras) as a limit 3) y) else '{}' end,
     texto_em = case when estado = 'aprovada' and v_changed then now() else texto_em end,
-    auto_ok = auto_ok and not v_changed and v_avisos <@ avisos_ok,
-    auto_ok_em = case when auto_ok and not v_changed and v_avisos <@ avisos_ok then auto_ok_em end,
+    avisos_ok = '{}', avisos_ok_por = null, avisos_ok_em = null,
+    auto_ok = false, auto_ok_em = null,
     updated_at = now(), updated_by = v_me
   where id = p_into;
   -- As fontes de p_id passam para p_into (e os pedidos que as contaram, para o registo do mês).
@@ -1121,8 +1138,10 @@ begin
   where id = p_id;
   update public.ldo_support_knowledge_runs set card_id = p_into where card_id = p_id;
   insert into public.ldo_support_audit (actor, action, details)
-  values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'juntada', 'em', p_into, 'auto_retirada', v_into.auto_ok and v_changed));
-  return jsonb_build_object('estado', v_into.estado, 'alterada', v_changed, 'auto_retirada', v_into.auto_ok and v_changed);
+  values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'juntada', 'em', p_into, 'auto_retirada', v_into.auto_ok,
+    'avisos_cortados', greatest(v_total - cardinality(v_avisos), 0)));
+  return jsonb_build_object('estado', v_into.estado, 'alterada', v_changed, 'auto_retirada', v_into.auto_ok,
+    'avisos_cortados', greatest(v_total - cardinality(v_avisos), 0));
 end;
 $$;
 
@@ -1140,6 +1159,9 @@ begin
   if v_me is null then
     raise exception 'Só o Super Admin configura o Apoio ao Cliente.' using errcode = '42501';
   end if;
+  -- As respostas aprovadas ficam presas até ao fim: uma correção gravada entre a verificação e a publicação (que apaga a
+  -- confirmação) espera, e a publicação só copia textos confirmados.
+  perform 1 from public.ldo_support_knowledge_cards where estado = 'aprovada' order by id for update;
   select count(*), coalesce(sum(length(pergunta) + length(array_to_string(variantes, ' ')) + length(resposta)), 0) into v_n, v_chars
   from public.ldo_support_knowledge_cards
   where estado = 'aprovada' and (valido_ate is null or valido_ate >= (now() at time zone 'Europe/Lisbon')::date);
@@ -1153,7 +1175,8 @@ begin
     raise exception 'Há respostas aprovadas por confirmar (o texto mudou ou tem avisos novos): confirme-as nas Aprovadas antes de publicar.' using errcode = '22023';
   end if;
   update public.ldo_support_knowledge_cards c set publicado = ldo_private.support_card_content(c), publicada_em = now()
-  where c.estado = 'aprovada' and c.publicado is distinct from ldo_private.support_card_content(c);
+  where c.estado = 'aprovada' and c.publicado is distinct from ldo_private.support_card_content(c)
+    and c.avisos_ok_em is not null and c.avisos <@ c.avisos_ok;
   get diagnostics v_changed = row_count;
   insert into public.ldo_support_audit (actor, action, details)
   values (v_me, 'ai.knowledge.publish', jsonb_build_object('alteradas', v_changed, 'em_uso', v_n, 'caracteres', v_chars));
