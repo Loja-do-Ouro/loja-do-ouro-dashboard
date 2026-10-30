@@ -67,7 +67,7 @@ const HARD_ROUND8 = [`Ligue 912${NB}345${NB}678 depois das 18h.`, `+351${NB}912$
   "Fatura n. A/145", "Encomenda n. LDO4471", "A sua encomenda n. LDO4471 já seguiu.", "Encomenda Nº. LDO4471", "Encomenda n.º. LDO4471", "Pedido n. VIP2026",
   "Número de cliente: 12-11-23", "O seu número de cliente é o 12-11-23.", "A ref. do seu pagamento é 4471.", "A referência do seu pagamento é 4471.",
   "A referência MB é 4471 2210.", "Referência Multibanco: 4471 2210", "A referência de pagamento é a 447 122.", "ref. pagamento 4471", "joana.silva@ gmail.com",
-  "o email é joanasilva no gmail", "912_345_678", "zero seis um dois três quatro cinco seis sete oito"];
+  "o email é joanasilva no gmail", "912_345_678", "zero seis um dois três quatro cinco seis sete oito", "A sua encomenda do Rolex 4512 já seguiu."];
 const HARD_CORPUS = ["Fatura simplificada FS 1/234", "fatura FS 1/234", "Fatura FT 1/2345", "A fatura FT 01/2345 já foi emitida.", "Fatura-recibo FR 12/345",
   "Fatura FT1/2345", "A sua fatura é a FS 1/234.", "Encomenda n.º 4 471", "Encomenda 44 71", "Fatura 4.471", "Pedido 4 471", "O seu número de cliente é o 4 471.",
   "Número de cliente: 44-71-23", "Encomenda nº 4471", "ENCOMENDA Nº 4471", "Reparação nº 4471", "Pedido #4471", "gertrudes@sapo", "joana arroba gmail ponto com",

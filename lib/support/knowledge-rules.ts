@@ -855,11 +855,13 @@ const phoneShaped = (d: string) => (d.length === 9 && /^[29]/.test(d)) || (d.len
 // ("Rolex Datejust 126334", "calibre ETA 2824", "movimentos Miyota 8215", "Omega 2500").
 const MODEL_WORDS = new Set(`modelo modelos ref ref.ª refª referência referências calibre calibres cal movimento movimentos mecanismo mecanismos máquina
   série coleção linha eta sellita valjoux miyota ronda unitas soprod lemania peseux unitas`.split(/\s+/).filter(Boolean));
-function modelBefore(before: string) {
+// brands: false numa frase sobre a encomenda do cliente ("A sua encomenda do Rolex 4512"): aí só um calibre, um movimento
+// ou um modelo isentam o número.
+function modelBefore(before: string, brands = true) {
   const words = (before.split(/[.!?;:\n]/).pop() || "").match(/\p{L}[\p{L}.ª'’-]*/gu)?.slice(-2) || [];
   return words.some((w) => {
     const low = w.toLowerCase().replace(/[.'’-]+$/, "");
-    return MODEL_WORDS.has(low) || BRAND_WORDS.has(low);
+    return MODEL_WORDS.has(low) || (brands && BRAND_WORDS.has(low));
   });
 }
 // Uma data em grupos ("24-12", "24.12.2025"): não é um número de encomenda.
@@ -917,7 +919,7 @@ function orderRefs(text: string, allow: Allowlist): { block: boolean; codes: str
       // movimento ou um modelo ("a reparação do calibre ETA 2824", "orçamento para o Omega 2500") não é uma encomenda.
       if (n[0].length < 4 && !/^[ \t]*(?:d[aeo]s?|de)[ \t]+\p{L}+[ \t]*$/iu.test(before)) continue;
       if (isYear(n[0]) || HALLMARKS.has(n[0]) || NUM_UNIT_AFTER.test(after) || /^[.,:]\d/.test(after) || THRESHOLD_BEFORE.test(before)
-        || kbNumber(n[0]) || modelBefore(before)) continue;
+        || kbNumber(n[0]) || modelBefore(before, !/(?<!\p{L})(?:sua|seu|suas|seus)(?!\p{L})/iu.test(sentenceAt(text, m.index ?? 0)))) continue;
       return { block: true, codes };
     }
   }
