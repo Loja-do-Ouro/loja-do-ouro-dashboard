@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiPanel } from "./ai-panel";
 import { AttachmentViewer, sizeLabel, type ViewerItem } from "./attachment-viewer";
@@ -1211,6 +1212,9 @@ export function SupportInbox({
           <button type="button" className="secondary-button" onClick={() => sync(true).then(loadList).then(() => { if (selected) return loadDetail(selected); })} disabled={syncing}>
             {syncing ? "A atualizar…" : "Atualizar"}
           </button>
+          <Link href="/apoio/documentacao" className="docs-help-link" title="Documentação do Apoio ao Cliente: como funciona e enquadramento legal">
+            Ajuda
+          </Link>
         </span>
         {syncNote && <small className="support-sync-note" role="status">{syncNote}</small>}
       </div>

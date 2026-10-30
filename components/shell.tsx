@@ -62,6 +62,8 @@ export async function AppShell({
         { key: "apoio", label: "Conversas", href: "/apoio", icon: "chat" },
         // Cada pessoa vê os seus resultados; o Super Admin, os de toda a equipa.
         { key: "apoio-desempenho", label: "Satisfação e desempenho", href: "/apoio/desempenho", icon: "star" },
+        // Como funciona o apoio e o enquadramento legal, com pesquisa (docs/apoio); para toda a gente do apoio.
+        { key: "apoio-docs", label: "Documentação", href: "/apoio/documentacao", icon: "list" },
         ...(viewer.isSuper ? [{ key: "apoio-config", label: "Configuração do apoio", href: "/apoio/configuracao", icon: "plug" }] : []),
       ],
     });

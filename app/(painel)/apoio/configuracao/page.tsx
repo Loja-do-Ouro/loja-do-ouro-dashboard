@@ -146,7 +146,10 @@ export default async function SupportConfigPage({ searchParams }: { searchParams
   return (
     <AppShell viewer={viewer} current="apoio-config" title="Configuração do apoio">
       <PageHeading eyebrow="APOIO AO CLIENTE" title="Configuração do apoio" text="Ligações às plataformas, sincronização e acessos. Só o Super Admin vê esta página.">
-        <Link className="outline-button" href="/apoio/configuracao?diagnostico=1">Validar ligações</Link>
+        <div className="heading-actions">
+          <Link className="docs-help-link" href="/apoio/documentacao" title="Documentação do Apoio ao Cliente: como funciona e enquadramento legal">Ajuda</Link>
+          <Link className="outline-button" href="/apoio/configuracao?diagnostico=1">Validar ligações</Link>
+        </div>
       </PageHeading>
       {!aiFlash && !emailFlash && !socialFlash && <Flash ok={flashOk} error={flashError} />}
       {!serverConfigured() && <div className="notice error-notice">O servidor não tem ligação ao Supabase (BI_INGEST_TOKEN): a sincronização não pode gravar.</div>}
