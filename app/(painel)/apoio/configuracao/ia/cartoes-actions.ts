@@ -10,7 +10,8 @@ import {
 import { requireViewer, type Viewer } from "@/lib/viewer";
 
 // Base de conhecimento aprendida (só o Super Admin; verificado aqui e na BD). As mensagens voltam ao painel dos cartões,
-// com parâmetros próprios (a revisão da IA, na mesma página, tem os seus), com o estado e a pesquisa que estavam abertos.
+// com parâmetros próprios (a revisão da IA, na mesma página, tem os seus), com o estado e a pesquisa que estavam abertos
+// (menos depois de "Juntar" ou de uma publicação recusada: aí sem a pesquisa, para o cartão a confirmar estar à vista).
 // Nenhuma mensagem leva texto do cartão nem os avisos (que podem citar um nome ou uma morada): só contagens e o id do
 // cartão (cartoes_card), que o painel abre com os avisos à vista.
 const back = (params: Record<string, string>, estado?: string, q?: string, card?: string | null): never =>
@@ -218,14 +219,15 @@ export async function mergeCard(form: FormData) {
     back({ cartoes_erro: userMessage(e) }, estado, q, field(form, "id"));
   }
   const cut = r?.avisos_cortados ?? 0;
-  // Volta ao separador da outra resposta (proposta ou aprovada), com ela aberta: é essa que se confirma de novo.
+  // Volta ao separador da outra resposta (proposta ou aprovada), com ela aberta e sem a pesquisa (a outra foi escolhida
+  // pelo tema e pode não corresponder à pesquisa): é essa que se confirma de novo.
   back({
     cartoes_ok: `Respostas juntas: esta ficou arquivada${r?.alterada ? " e a pergunta passou a ser uma das formas da outra" : " (a pergunta já era uma das formas da outra)"}.`
       + " A confirmação da outra foi apagada: leia-a e confirme-a de novo antes de a aprovar ou publicar."
       + `${r?.alterada && r.estado === "aprovada" ? " Publique as alterações para a IA usar a nova versão." : ""}`
       + `${r?.auto_retirada ? " A outra deixou de estar marcada para respostas automáticas." : ""}`
       + `${cut ? ` ${cut === 1 ? "1 aviso não coube" : `${cut} avisos não couberam`} na outra resposta (fica com 30, as contradições primeiro).` : ""}`,
-  }, CARD_ESTADOS.includes(r?.estado as CardEstado) ? r!.estado : estado, q, into);
+  }, CARD_ESTADOS.includes(r?.estado as CardEstado) ? r!.estado : estado, "", into);
 }
 
 // Publicar: nada é publicado enquanto uma resposta aprovada tiver dados pessoais ou o texto atual por confirmar (a BD
@@ -243,13 +245,14 @@ export async function publishCards(form: FormData) {
     back({ cartoes_erro: userMessage(e) }, estado, q);
   }
   const n = (l: string[]) => (l.length === 1 ? "uma resposta aprovada tem" : `${l.length} respostas aprovadas têm`);
+  // Nas Aprovadas, sem a pesquisa, com a primeira a corrigir ou a confirmar aberta (podia não corresponder à pesquisa).
   if (blocked.length || unconfirmed.length)
     back({
       cartoes_erro: `Nada foi publicado: ${[
         blocked.length ? `${n(blocked)} dados pessoais; corrija-as nas Aprovadas (${PII_HINT})` : "",
         unconfirmed.length ? `${n(unconfirmed)} o texto por confirmar; leia-as e confirme-as nas Aprovadas` : "",
       ].filter(Boolean).join("; ")}.`,
-    }, "aprovada", q, blocked[0] || unconfirmed[0]);
+    }, "aprovada", "", blocked[0] || unconfirmed[0]);
   let r: { alteradas: number; em_uso: number } | null = null;
   try {
     r = await sessionRpc<{ alteradas: number; em_uso: number }>(viewer.session, "ldo_support_knowledge_publish");
