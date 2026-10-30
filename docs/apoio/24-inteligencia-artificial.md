@@ -148,7 +148,7 @@ A lista completa de fornecedores e as regras das transferências estão em [Prot
 | --- | --- | --- |
 | Mensagens da conversa | As últimas 40 desde o "Histórico visível", **incluindo notas internas** e os nomes de quem escreveu | As últimas 15 desde o "Histórico visível", sem notas internas nem nomes de quem escreveu |
 | Dados do cliente | Nome, perfil, email, email associado pela equipa, email indicado e não confirmado, telefone e outros contactos do mesmo cliente | Só o nome |
-| Chat do site | Página, carrinho, duração da visita, língua e país (não confirmados) | Só a língua do site |
+| Chat do site | Página, carrinho, há quanto tempo o cliente abriu o chat, língua e país (não confirmados) | Só a língua do site |
 | Encomendas | Quando a IA as consulta: as do email do cliente (número, data, estados, artigos, total, portes, seguimento), nunca moradas | Não |
 | Outras conversas do mesmo cliente | Quando a IA as consulta: as últimas mensagens | Não |
 | Respostas anteriores da equipa | Exemplos de outras conversas, sem nomes, contactos, números nem ligações | Não |

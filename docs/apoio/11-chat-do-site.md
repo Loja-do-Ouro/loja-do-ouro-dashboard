@@ -1,6 +1,6 @@
 # Chat do site
 <!-- resumo: Como funciona o chat "Fale connosco" da Loja do Ouro e da Gold Store Premium: o que o cliente vê, como responder, marcas e línguas, o que acontece quando o cliente sai do site e como testar. -->
-<!-- termos: chat, chat do site, live chat, chat ao vivo, widget, botão, Fale connosco, chatbot, Bluedot, site, loja online, lojadoouro.pt, Gold Store Premium, goldstorepremium.com, GSP, inglês, espanhol, francês, alemão, tradução, língua, idioma, no site agora, carrinho, página, visitante, terminar conversa, cópia da conversa, fora do horário, a escrever, testar o chat, chat-teste -->
+<!-- termos: chat, chat do site, live chat, chat ao vivo, widget, botão, Fale connosco, chatbot, Bluedot, site, loja online, lojadoouro.pt, Gold Store Premium, goldstorepremium.com, GSP, inglês, espanhol, francês, alemão, tradução, língua, idioma, no site agora, carrinho, página, visitante, visita, desde que abriu o chat, cookies, browser, terminar conversa, cópia da conversa, fora do horário, a escrever, testar o chat, chat-teste -->
 <!-- atualizado: 2026-10-30 -->
 
 O chat do site é o botão **Fale connosco** que aparece em lojadoouro.pt e em goldstorepremium.com. As conversas entram no canal **Chat do site** e chegam no momento: o indicador na barra de cima diz "Em direto". É o único canal em que o dashboard é a própria plataforma, por isso é também o único que mostra se o cliente recebeu e leu a resposta.
@@ -50,7 +50,7 @@ No chat, o cliente pode carregar em **Terminar conversa**. Aparece "Terminar a c
 Na equipa aparece o acontecimento "O cliente terminou a conversa no site" (e "… e pediu uma cópia por email"). Pode continuar a responder: as respostas seguem por email. Numa conversa terminada pelo cliente já não sai pedido de avaliação.
 
 ## No site agora
-<!-- perguntas: Como sei se o cliente do chat ainda está no site? | Em que página está o cliente? | O que tem o cliente no carrinho? | De onde vem a informação do carrinho? -->
+<!-- perguntas: Como sei se o cliente do chat ainda está no site? | Em que página está o cliente? | O que tem o cliente no carrinho? | De onde vem a informação do carrinho? | Há quanto tempo o cliente abriu o chat? | Quantas páginas viu o cliente? | O chat guarda alguma coisa no browser do cliente? -->
 
 No separador **Cliente**, as conversas do chat têm uma secção que se atualiza a cada 15 segundos:
 
@@ -60,12 +60,14 @@ No separador **Cliente**, as conversas do chat têm uma secção que se atualiza
 | Site / Marca | Loja do Ouro ou Gold Store Premium, com ligação para o site |
 | Língua / País | A língua do site e o país |
 | Página | A página em que está (ou esteve), com ligação |
-| Visita | "Na loja há 12 min" ou "Esteve na loja 12 min", e o número de páginas vistas nesta visita |
+| Desde que abriu o chat | "Há 12 min" (ou "12 min até sair do site") e as páginas vistas desde então; "Ainda não abriu o chat nesta visita" quando o cliente volta ao site com uma conversa de antes e ainda não abriu o chat |
 | Carrinho | "Sem informação", "Vazio" ou o número de artigos, o total e a lista |
 
-Por baixo: "Enviado pelo browser do cliente (não confirmado)". Esta informação só é enviada depois de o cliente iniciar a conversa e serve para o ajudar (por exemplo, saber de que produto fala). Não a use para outros fins nem a comente com o cliente sem necessidade.
+Por baixo: "Enviado pelo browser do cliente (não confirmado)". Esta informação só é enviada depois de o cliente iniciar a conversa (e, enquanto a conversa estiver guardada no browser, também nas visitas seguintes: a página e o carrinho) e serve para o ajudar (por exemplo, saber de que produto fala). Não a use para outros fins nem a comente com o cliente sem necessidade.
 
-> **Lei:** Quando abre o chat, antes de o iniciar, o cliente é informado de que a equipa vê a página e o carrinho. Mas o widget conta a visita (início e páginas vistas) no browser do visitante em todas as páginas da loja, antes de qualquer chat e antes desse aviso, e guarda esse contador no browser sem prazo. Se isto precisa de consentimento de cookies (art. 5.º da Lei n.º 41/2004) é a confirmar com o jurista. Ver [Proteção de dados no Apoio ao Cliente](/apoio/documentacao/protecao-de-dados#dever-de-informar-os-clientes).
+O tempo e as páginas só começam a contar quando o cliente **abre o chat**: o tempo que andou pela loja antes disso não é contado nem enviado. Se o cliente abrir outro separador da loja (um produto ou uma ligação que lhe enviou no chat, por exemplo), o painel continua a mostrar a hora a que abriu o chat; as páginas desse separador só contam se o cliente abrir o chat lá.
+
+> **Lei:** Quando abre o chat, antes de o iniciar, o cliente é informado de que a equipa vê a página e o carrinho. A quem só visita a loja e nunca abre o chat, o widget não grava nada no browser (nem cookies). Só depois de o cliente abrir o chat guarda que o chat está aberto (até o cliente o fechar) e há quanto tempo o abriu (até fechar o separador, fechar o chat sem iniciar conversa ou passarem 30 minutos sem atividade); quando inicia a conversa, guarda também o token da conversa, para a continuar noutras páginas, noutros separadores e noutro dia (até a conversa terminar), e com ele a hora a que abriu o chat, para os outros separadores. Ver [Proteção de dados no Apoio ao Cliente](/apoio/documentacao/protecao-de-dados#dever-de-informar-os-clientes).
 
 ## Transferências no chat
 <!-- perguntas: O cliente do chat vê quando transfiro a conversa? -->

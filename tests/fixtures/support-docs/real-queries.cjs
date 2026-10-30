@@ -133,4 +133,9 @@ module.exports = [
   ["literacia em ia", ["inteligencia-artificial#literacia-em-ia-esta-documentacao-faz-parte-da-formacao"]],
   ["o patrao pode usar as notas para me despedir", ["dados-dos-colaboradores#regras-para-usar-os-resultados", "dados-dos-colaboradores#o-que-diz-a-lei-do-trabalho", "dados-dos-colaboradores#os-seus-direitos-como-colaborador"]],
   ["que dados meus o sistema guarda", ["dados-dos-colaboradores#que-dados-seus-o-sistema-regista"]],
+  // o que o chat do site guarda no browser do visitante
+  ["localstorage do chat", ["protecao-de-dados#dever-de-informar-os-clientes"]],
+  ["o chat do site usa cookies", ["protecao-de-dados#dever-de-informar-os-clientes", "chat-do-site#no-site-agora"]],
+  ["sessionstorage", ["protecao-de-dados#dever-de-informar-os-clientes"]],
+  ["o cliente abriu um produto noutro separador", ["chat-do-site#no-site-agora"]],
 ];

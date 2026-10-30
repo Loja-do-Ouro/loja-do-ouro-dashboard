@@ -75,7 +75,7 @@ Erro da Meta quando a pessoa bloqueou a página, deixou de aceitar mensagens ou 
 Plataforma que faz a ponte entre o dashboard e o Facebook e o Instagram (mensagens privadas e comentários).
 
 ## No site agora
-Secção do separador Cliente, nas conversas do chat do site, com a página, a visita e o carrinho do cliente. Ver [Chat do site](/apoio/documentacao/chat-do-site#no-site-agora).
+Secção do separador Cliente, nas conversas do chat do site, com a página, há quanto tempo o cliente abriu o chat e o carrinho. Ver [Chat do site](/apoio/documentacao/chat-do-site#no-site-agora).
 
 ## Nota interna
 Mensagem só para a equipa, que nunca é enviada ao cliente (no Zendesk ligado, é um comentário privado). A IA lê-a. Ver [Responder](/apoio/documentacao/responder#resposta-ao-cliente-ou-nota-interna).

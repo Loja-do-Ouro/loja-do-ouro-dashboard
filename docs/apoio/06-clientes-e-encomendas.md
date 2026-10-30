@@ -93,7 +93,7 @@ As conversas **não se juntam**: cada uma continua no seu canal, com o seu estad
 ## No site agora (chat do site)
 <!-- perguntas: Como sei em que página está o cliente do chat? | Consigo ver o carrinho do cliente? -->
 
-Nas conversas do chat do site há uma secção com o que o browser do cliente envia: se está no site agora ("No site agora" ou "Saiu do site · visto há 4 min"), o site e a marca, a língua e o país, a página em que está, há quanto tempo navega e o carrinho. Os detalhes estão em [Chat do site](/apoio/documentacao/chat-do-site#no-site-agora).
+Nas conversas do chat do site há uma secção com o que o browser do cliente envia: se está no site agora ("No site agora" ou "Saiu do site · visto há 4 min"), o site e a marca, a língua e o país, a página em que está, há quanto tempo abriu o chat e o carrinho. Os detalhes estão em [Chat do site](/apoio/documentacao/chat-do-site#no-site-agora).
 
 ## Registo
 <!-- perguntas: Onde vejo quem mudou o estado da conversa? | Como sei quem respondeu ao cliente? | Existe histórico das ações numa conversa? -->
