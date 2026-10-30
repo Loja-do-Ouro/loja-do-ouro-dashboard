@@ -4,11 +4,11 @@
   - Uma linha: «Black Friday» em folha de ouro · «Até -30%» · contagem compacta · «Ver ofertas →»
   - Durante a Black Friday a barra inteira é clicável (link = a coleção escolhida); em mobile o botão dá
     lugar a uma seta para caber numa linha.
-  - O botão «Ver ofertas», a seta e o link só existem entre o Início e o Fim (hora de Lisboa) e podem
-    desligar-se nas definições. Antes do início a barra é só texto («Black Friday · Até -30% · Começa em …»):
-    sem botão, sem seta, sem link. O HTML já sai no estado certo e o script confirma a cada segundo com o
-    relógio do visitante: o link aparece no início e desaparece no fim sem recarregar, mesmo que a página
-    venha da cache da loja.
+  - O botão «Ver ofertas», a seta e o link só existem entre o Início e o Fim (hora de Lisboa; o minuto do Fim
+    conta, como na secção «BF Ouro em Cena») e podem desligar-se nas definições. Antes do início a barra é só
+    texto («Black Friday · Até -30% · Começa em …»): sem botão, sem seta, sem link. O HTML já sai no estado
+    certo e o script confirma a cada segundo com o relógio do visitante: o link aparece no início e desaparece
+    no fim sem recarregar, mesmo que a página venha da cache da loja.
   - Antes do início diz «Começa em», durante diz «Termina em»; pode esconder-se sozinha no fim.
   - Textos automáticos em PT, EN, ES, FR, DE. Respeita «reduzir movimento».
 
@@ -53,17 +53,30 @@
   assign bb_link = s.link | default: routes.all_products_collection_url
 
   # Botão «Ver ofertas», seta e link: só durante a Black Friday (do Início ao Fim) e com a opção ligada.
-  # Estado à hora do pedido (fuso da loja: Europe/Lisbon); o script volta a ver a hora a cada segundo com o
-  # relógio do visitante (a página pode vir da cache da loja).
+  # Estado à hora do pedido, lido como a secção «BF Ouro em Cena» o lê: fuso da loja (Europe/Lisbon), o minuto
+  # do Fim conta e datas ilegíveis = 27 a 30 de novembro de 2026. O script volta a ver a hora a cada segundo
+  # com o relógio do visitante (a página pode vir da cache da loja).
+  assign bb_start = s.start | default: '2026-11-27 00:00' | strip
+  assign bb_end = s.end | default: '2026-11-30 23:59' | strip
   assign bb_now = 'now' | date: '%s' | plus: 0
-  assign bb_st = s.start | date: '%s' | plus: 0
-  assign bb_en = s.end | date: '%s' | plus: 0
+  assign bb_st = bb_start | date: '%s' | plus: 0
+  if bb_st < 1000000000
+    assign bb_st = '2026-11-27 00:00' | date: '%s' | plus: 0
+  endif
+  assign bb_en = bb_end | date: '%s' | plus: 0
+  if bb_en < 1000000000
+    assign bb_en = '2026-11-30 23:59' | date: '%s' | plus: 0
+  endif
+  assign bb_en = bb_en | plus: 60
+  if bb_en <= bb_st
+    assign bb_en = bb_st | plus: 60
+  endif
   assign bb_before = false
-  if bb_st > 1000000000 and bb_now < bb_st
+  if bb_now < bb_st
     assign bb_before = true
   endif
   assign bb_ended = false
-  if bb_en > 1000000000 and bb_now >= bb_en
+  if bb_now >= bb_en
     assign bb_ended = true
   endif
   assign bb_on = true
@@ -188,19 +201,34 @@
 <script>
   (function () {
     var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // "2026-11-27 00:00" → hora de Lisboa (em novembro = UTC)
-    function parse(v) {
-      if (!v) return null;
-      v = String(v).trim().replace(' ', 'T');
-      if (!/[zZ]|[+-]\d\d:?\d\d$/.test(v)) v += 'Z';
-      var t = Date.parse(v);
-      return isNaN(t) ? null : t;
+    // «AAAA-MM-DD HH:MM» das definições → hora de Lisboa (Intl, também na hora de verão), como na secção
+    // «BF Ouro em Cena»; uma data ilegível dá a data por omissão (27 a 30 de novembro de 2026), como no Liquid
+    var TZ = 'Europe/Lisbon';
+    function tzOff(ts) {
+      var f = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      var o = {};
+      f.formatToParts(new Date(ts)).forEach(function (x) { o[x.type] = x.value; });
+      return Date.UTC(+o.year, +o.month - 1, +o.day, (+o.hour) % 24, +o.minute, +o.second) - Math.floor(ts / 1000) * 1000;
     }
+    function lisbon(y, mo, d, h, mi) {
+      var wall = Date.UTC(y, mo - 1, d, h, mi, 0);
+      try { var t = wall - tzOff(wall); return wall - tzOff(t); } catch (e) { return wall; }
+    }
+    function parseLis(v) {
+      var m = /^\s*(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]+(\d{1,2}):(\d{1,2}))?/.exec(String(v || ''));
+      if (!m) return NaN;
+      var y = +m[1], mo = +m[2], d = +m[3], h = m[4] ? +m[4] : 0, mi = m[5] ? +m[5] : 0;
+      if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return NaN;
+      return lisbon(y, mo, d, h, mi);
+    }
+    function parse(v, dflt) { var t = parseLis(v); return isNaN(t) ? parseLis(dflt) : t; }
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
     function init(root) {
       if (!root || root._lbb) return;
-      var start = parse(root.dataset.start), end = parse(root.dataset.end);
+      // o minuto do Fim conta (a barra e a secção «BF Ouro em Cena» acabam no mesmo instante)
+      var start = parse(root.dataset.start, '2026-11-27 00:00'), end = parse(root.dataset.end, '2026-11-30 23:59') + 60000;
+      if (end <= start) end = start + 60000;
       var label = root.querySelector('[data-label]');
       var nums = {};
       root.querySelectorAll('[data-u]').forEach(function (n) { nums[n.dataset.u] = n; });
@@ -261,7 +289,7 @@
     { "type": "checkbox", "id": "enabled", "label": "Mostrar a barra", "default": true },
     { "type": "header", "content": "Datas (hora de Lisboa)" },
     { "type": "text", "id": "start", "label": "Início", "default": "2026-11-27 00:00", "info": "Formato AAAA-MM-DD HH:MM." },
-    { "type": "text", "id": "end", "label": "Fim", "default": "2026-11-30 23:59" },
+    { "type": "text", "id": "end", "label": "Fim", "default": "2026-11-30 23:59", "info": "Inclui o último minuto, como na secção «LOD · BF Ouro em Cena»." },
     { "type": "checkbox", "id": "hide_after_end", "label": "Esconder automaticamente depois do fim", "default": true },
     { "type": "header", "content": "Conteúdo" },
     { "type": "text", "id": "discount", "label": "Desconto", "default": "-30%", "info": "Aparece como «Até -30%». Vazio = não mostra." },
