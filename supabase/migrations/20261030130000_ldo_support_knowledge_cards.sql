@@ -5,32 +5,37 @@
 -- os cartões aprovados E publicados entram no bloco da base de conhecimento das propostas de resposta
 -- (ldo_support_ai_begin), e o texto publicado só muda quando se publica (a cache de 1 h da IA é reescrita uma vez por
 -- publicação; arquivar retira logo). Nada aqui envia mensagens a clientes.
--- * O que fica guardado: nos cartões, o texto (pergunta, variantes e resposta), o tema, a marca, a loja, quem aprovou e
---   quando, os avisos da proposta (da resposta da equipa citam só palavras comuns e números com a unidade; o resto fica
---   «…») e a confirmação do Super Admin (quem, quando e que avisos confirmou, também no registo de auditoria, de onde a
---   lista sai quando o cartão é apagado) e quantas conversas confirmaram a resposta (fontes: cada conversa conta uma vez
---   enquanto está nas conversas lidas, nunca o chat do site anónimo); só nas propostas, até 3 conversas de origem
---   (amostras), apagadas ao aprovar ou arquivar. As mensagens dos clientes e os contactos não são copiados para estas
---   tabelas.
+-- * Privacidade. O Super Admin lê e confirma cada cartão ("Confirmo que li o texto: não tem dados pessoais nem contradiz a
+--   resposta da equipa") antes de o aprovar; as regras não apanham tudo. Fica guardado: o texto do cartão (pergunta,
+--   variantes e resposta, também o que as regras só assinalaram), nas propostas até 180 dias sem novas fontes e nos
+--   arquivados 365 dias; o tema, a marca, a loja, quem aprovou, quem confirmou e quando, os avisos (da resposta da equipa
+--   citam só palavras de uma lista fechada e números com a unidade; o resto fica «…») e em quantas conversas a resposta foi
+--   confirmada (fontes: cada conversa conta uma vez enquanto está nas conversas lidas, nunca o chat do site anónimo); só
+--   enquanto é proposta, até 3 conversas de origem (amostras). A confirmação (quem, quando e os avisos mostrados, que podem
+--   citar palavras do cartão) fica também no registo de auditoria até o cartão ser apagado. As mensagens e os contactos
+--   dos clientes não são copiados para estas tabelas. Quem tem acesso direto à base de dados ainda consegue deduzir de que
+--   conversa veio um cartão pelo registo de pedidos e pelas conversas lidas e respostas guardadas, enquanto existirem (até
+--   365 dias).
 --   Para não ler nem contar a mesma conversa duas vezes ficam as conversas lidas (ldo_support_knowledge_seen: a
 --   conversa, até que resposta da equipa foi lida e se já contou; 180 dias depois da última vez) e as respostas
 --   guardadas com o botão (ldo_support_knowledge_used: a mensagem e o dia; 365 dias), ambas sem o cartão. O registo
 --   de pedidos (ldo_support_knowledge_runs, 365 dias) tem a hora, a origem, quem carregou no botão, o cartão, o modelo, o custo, a
 --   duração e o resultado; a conversa (e, nos do botão, a mensagem) só nos pedidos que não deram um cartão, 180 dias.
---   As regras não apanham tudo: o Super Admin lê cada proposta antes de a aprovar.
 -- * Duas origens: o botão "Guardar como resposta aprovada" numa resposta enviada pelo dashboard (a própria pessoa ou o
 --   Super Admin; funciona sempre, com orçamento) e a passagem diária (support-sync), só com "Propostas automáticas a
 --   partir das conversas" ligada (desligada por omissão): conversas com resposta da equipa pelo dashboard desde o
 --   histórico visível (e nos últimos 170 dias, dentro dos 180 em que as conversas vistas ficam registadas), resolvidas ou
 --   sem atividade há 72 h, ainda não lidas com êxito (ou com respostas novas desde então). Uma conversa só fica vista
 --   quando o pedido acaba bem; com erro tenta-se outra vez no dia seguinte, no máximo duas vezes por resposta nova.
--- * Recusas na BD ao gravar um cartão e os avisos de uma proposta: emails fora dos domínios da empresa, IBAN/NIF e
---   números de encomenda ou de referência. As outras recusas (telefones, números de cartão, ligações de perfis, nomes do
---   cliente e da equipa) e os avisos (possíveis nomes, moradas, perfis sem @, contradições e condições em falta em
---   relação à resposta da equipa) são do servidor (lib/support/knowledge-rules.ts). Um aviso não retira uma proposta:
---   aprovar, publicar e "Permitir em respostas automáticas" só avançam depois de o Super Admin confirmar que o texto não
---   tem dados pessoais nem contradiz a resposta da equipa (avisos_ok, apagados quando o texto muda; a BD confere os
---   avisos guardados na proposta).
+-- * Recusas na BD ao gravar um cartão e os avisos de uma proposta (um subconjunto estrito das do servidor, que é a regra
+--   principal: a BD nunca recusa um texto que o servidor aceita): emails fora dos domínios da empresa, IBAN/NIF e números
+--   de encomenda, de cliente ou de fatura, menos os dos dados da empresa. As outras recusas (telefones, números de cartão,
+--   ligações de perfis, nomes do cliente e da equipa) e os avisos (possíveis nomes, moradas, perfis sem @, contradições e
+--   condições em falta em relação à resposta da equipa) são do servidor (lib/support/knowledge-rules.ts). Um aviso não
+--   retira uma proposta e ajuda a ler o texto: aprovar, publicar e "Permitir em respostas automáticas" só avançam depois de
+--   o Super Admin confirmar o texto atual de cada cartão, com ou sem avisos (avisos_ok_em, avisos_ok_por e os avisos
+--   mostrados em avisos_ok; o gatilho apaga-os quando o texto muda; a BD confere a confirmação e os avisos guardados na
+--   proposta).
 -- * "Permitir em respostas automáticas" (auto_ok) só marca o cartão para as respostas automáticas futuras: nada aqui
 --   envia mensagens. Só 7 dias depois de aprovado ou da última correção do texto (texto_em), revisto há menos de 90 dias,
 --   publicado tal como está, com a loja nos temas de uma loja e sem outro cartão automático para a mesma loja. Qualquer
@@ -38,7 +43,7 @@
 -- * Orçamento próprio (US$ 8 por omissão), 30 propostas pelo botão por pessoa e por dia, 300 propostas por rever.
 -- * Limpeza diária: registo de pedidos e respostas já guardadas ao fim de 365 dias, conversas vistas 180 dias depois da
 --   última vez, propostas sem novas fontes ao fim de 180 dias e cartões arquivados ao fim de 365 (com as confirmações
---   dos avisos no registo de auditoria).
+--   no registo de auditoria).
 -- Funções alteradas, a partir do texto em produção a 30-10-2026 (pg_get_functiondef):
 -- * ldo_support_ai_admin (md5 adc9e6bb1fb5ded3040b60f127147471, já com o bloco 'review' de 20261030110000): cópia
 --   igual, mais o bloco 'cards' com os totais do mês.
@@ -86,8 +91,9 @@ create table public.ldo_support_knowledge_cards (
   -- Avisos da proposta da IA em relação à resposta da equipa (possíveis contradições, condições em falta, palavras que a
   -- equipa não escreveu), calculados no servidor no momento da proposta (depois já não há a resposta da equipa).
   avisos text[] not null default '{}' check (cardinality(avisos) <= 20 and length(array_to_string(avisos, '|')) <= 6100),
-  -- "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa": os avisos (do texto e da
-  -- proposta) que o Super Admin viu e confirmou para o texto atual, quem e quando; apagados quando o texto muda.
+  -- "Confirmo que li o texto: não tem dados pessoais nem contradiz a resposta da equipa", pedida em todos os cartões: quem
+  -- e quando (avisos_ok_em não nulo = o texto atual foi confirmado) e os avisos (do texto e da proposta) que o painel
+  -- mostrou nesse momento, talvez nenhum. O gatilho apaga-a quando a pergunta, as variantes ou a resposta mudam.
   avisos_ok text[] not null default '{}' check (cardinality(avisos_ok) <= 60 and length(array_to_string(avisos_ok, '|')) <= 18100),
   avisos_ok_por uuid references public.ldo_app_users (id) on delete set null,
   avisos_ok_em timestamptz,
@@ -103,7 +109,10 @@ create table public.ldo_support_knowledge_cards (
   check (estado = 'proposta' or cardinality(amostras) = 0),
   check (estado <> 'aprovada' or (aprovada_em is not null and texto_em is not null)),
   check (not auto_ok or (estado = 'aprovada' and auto_ok_em is not null)),
-  check (not auto_ok or intent not in ('horario_loja', 'morada_loja', 'contactos') or loja_id is not null)
+  check (not auto_ok or intent not in ('horario_loja', 'morada_loja', 'contactos') or loja_id is not null),
+  check (avisos_ok_em is not null or (cardinality(avisos_ok) = 0 and avisos_ok_por is null)),
+  -- Marcada para respostas automáticas só com o texto atual confirmado.
+  check (not auto_ok or avisos_ok_em is not null)
 );
 create index ldo_support_knowledge_cards_fts_idx on public.ldo_support_knowledge_cards using gin (fts);
 create index ldo_support_knowledge_cards_estado_idx on public.ldo_support_knowledge_cards (estado, ultima_vez desc);
@@ -180,6 +189,21 @@ $$;
 create trigger ldo_support_knowledge_cards_fts before insert or update of pergunta, variantes, resposta
   on public.ldo_support_knowledge_cards for each row execute function ldo_private.support_card_fts();
 
+-- Outro texto (pergunta, variantes ou resposta), por qualquer caminho: a confirmação do Super Admin deixa de valer.
+create function ldo_private.support_card_ack_reset() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if (new.pergunta, new.variantes, new.resposta) is distinct from (old.pergunta, old.variantes, old.resposta) then
+    new.avisos_ok := '{}';
+    new.avisos_ok_por := null;
+    new.avisos_ok_em := null;
+  end if;
+  return new;
+end;
+$$;
+create trigger ldo_support_knowledge_cards_ack_reset before update of pergunta, variantes, resposta
+  on public.ldo_support_knowledge_cards for each row execute function ldo_private.support_card_ack_reset();
+
 -- Texto de um cartão como fica publicado (comparado com publicado para saber o que falta publicar).
 create function ldo_private.support_card_content(c public.ldo_support_knowledge_cards) returns jsonb
 language sql immutable set search_path = '' as $$
@@ -187,29 +211,67 @@ language sql immutable set search_path = '' as $$
     'variantes', to_jsonb(c.variantes), 'resposta', c.resposta, 'valido_ate', c.valido_ate);
 $$;
 
--- Dados que nunca ficam num cartão nem nos avisos de uma proposta (mesmas regras no servidor, com mais algumas): emails
--- fora dos domínios da empresa, IBAN ou NIF e números de encomenda (logo a seguir, com palavras pelo meio e "nº" ou "#",
--- ou com letras: "LDO12345"), de referência com "nº" (compra, reparação, guia, reserva, talão, recibo, referência,
--- cliente, processo, caso, ticket, sócio, orçamento, vale, senha, cartão-oferta; "ref.ª 4512") e séries de faturas
--- ("fatura FT 2026/145", "fatura FR A/145"). Devolve o motivo (ou null).
-create function ldo_private.support_card_problem(p_text text) returns text
+-- Dados que nunca ficam num cartão nem nos avisos de uma proposta. É um subconjunto estrito das recusas do servidor
+-- (lib/support/knowledge-rules.ts, que é a regra principal): nunca recusa um texto que o servidor aceita (testado com uma
+-- cópia em JavaScript destas expressões, tests/support-knowledge.cjs). Recusa emails fora dos domínios da empresa, IBAN
+-- ou NIF e números de encomenda, de cliente ou de fatura: depois de "encomenda", "pedido", "fatura", "compra",
+-- "reparação", "talão", "cliente"… com "n.º", "#" ou letras ("n.º 4 471", "#4471", "LDO1234"), só o número com 4 ou
+-- mais algarismos (também em grupos: "44 71", "4.471"), sem anos, datas, contrastes, valores, percentagens e unidades
+-- ("Encomendas 100% seguras", "pedidos 365 dias por ano", "Encomendas 2026"), e as faturas com a série ("fatura FT
+-- 1/2345", "fatura A/145", "fatura 2026/145", "FS 1/234"). Os números, emails, IBAN e NIF dos dados da empresa (p_kb:
+-- base de conhecimento, lojas, caixas e assinatura do apoio) passam. Sem ligações, emails e perfis (vistos à parte).
+-- "referência", "ref." e "#" sozinhos não são recusa aqui (no servidor, só numa frase sobre uma encomenda ou um
+-- pagamento). Devolve o motivo (ou null).
+create function ldo_private.support_card_plain(p_text text) returns text
+language sql immutable set search_path = '' as $$
+  select regexp_replace(coalesce(p_text, ''), '(?:https?://|www\.)[^[:space:]]+|[^[:space:]]*@[^[:space:]]*|[^[:space:]]*[[:alnum:]]\.[[:alpha:]]{2,}/[^[:space:]]*', ' ', 'gi');
+$$;
+-- Um número dos dados da empresa: os seus algarismos são um grupo de p_kb ou vários grupos seguidos ("217 123 456",
+-- "1500-123"), como os números que o servidor aceita (allow.numbers).
+create function ldo_private.support_card_known(p_number text, p_kb text) returns boolean
+language sql immutable set search_path = '' as $$
+  select regexp_replace(coalesce(p_number, ''), '[^0-9]', '', 'g') <> ''
+    and (' ' || regexp_replace(regexp_replace(coalesce(p_kb, ''), '([0-9])(?:[ \t]{1,3}|[ \t]?[./–-][ \t]?)(?=[0-9])', '\1|', 'g'), '[^0-9|]+', ' ', 'g') || ' ')
+      ~ ('[ |]' || regexp_replace(regexp_replace(p_number, '[^0-9]', '', 'g'), '([0-9])(?=[0-9])', '\1[|]?', 'g') || '[ |]');
+$$;
+create function ldo_private.support_card_problem(p_text text, p_kb text) returns text
 language sql immutable set search_path = '' as $$
   select case
-    when exists (select 1 from regexp_matches(coalesce(p_text, ''), '[[:alnum:]._%+-]+@([[:alnum:].-]+\.[[:alpha:]]{2,})', 'g') as m(g)
-        where lower(m.g[1]) !~ '(^|\.)(lojadoouro\.pt|goldstorepremium\.com)$')
+    when exists (select 1 from regexp_matches(coalesce(p_text, ''), '([[:alnum:]._%+-]+@([[:alnum:].-]+\.[[:alpha:]]{2,}))', 'g') as m(g)
+        where lower(m.g[2]) !~ '(^|\.)(lojadoouro\.pt|goldstorepremium\.com)$' and strpos(lower(coalesce(p_kb, '')), lower(m.g[1])) = 0)
       then 'O texto tem um email que não é da empresa.'
-    when coalesce(p_text, '') ~* '\m(nif|nipc|contribuinte)\M[^0-9]{0,20}[0-9]{9}' or coalesce(p_text, '') ~ '\m[A-Z]{2}[0-9]{2}( ?[A-Z0-9]{4}){4,7}'
+    when exists (select 1 from regexp_matches(ldo_private.support_card_plain(p_text), '\m(?:nif|nipc|contribuinte)\M[^0-9]{0,20}([0-9]{9})', 'gi') as m(g)
+        where not ldo_private.support_card_known(m.g[1], p_kb))
+      or exists (select 1 from regexp_matches(ldo_private.support_card_plain(p_text), '\m([A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]{4}){4,7})(?![[:alnum:]])', 'g') as m(g)
+        where not ldo_private.support_card_known(m.g[1], p_kb))
       then 'O texto tem um IBAN ou um NIF.'
-    when coalesce(p_text, '') ~* '\m(encomenda|pedido|order|fatura|factura)s?\M[[:space:]]*(n\.?[[:space:]]*[ºo°]|nº|n\.|número|numero|nr\.?|no\.)?[[:space:]]*:?[[:space:]]*#?[[:space:]]*[0-9]{3,}'
-      or coalesce(p_text, '') ~ '#[[:space:]]?[0-9]{4,}'
-      or coalesce(p_text, '') ~* '\m(encomenda|pedido|order|fatura|factura)s?\M[^0-9]{0,25}(n\.?[[:space:]]*[ºo°]|nº|número|numero|nr\.?|#)[[:space:]]*:?[[:space:]]*#?[[:space:]]*[a-z]{0,4}-?[0-9]{3,}'
-      or coalesce(p_text, '') ~* '\m(encomenda|pedido|order|fatura|factura)s?[[:space:]]+#?[a-z]{2,4}-?[0-9]{3,}'
-      or coalesce(p_text, '') ~* '#[a-z]{2,4}-?[0-9]{3,}'
-      or coalesce(p_text, '') ~* '\m(compras?|repara(ção|cao|ções|coes)|guias?|reservas?|tal(ão|ao|ões|oes)|recibos?|refer(ê|e)ncias?|clientes?|processos?|casos?|tickets?|s(ó|o)cios?|or(ç|c)amentos?|vales?|senhas?|cart(ão|ao)(-|[[:space:]]+(de[[:space:]]+)?)(oferta|presente))\M[[:space:]]*(n\.?[[:space:]]*[ºo°]\.?|nº|n\.|número|numero|nr\.?)[[:space:]]*:?[[:space:]]*[0-9]{3,}'
-      or coalesce(p_text, '') ~* '\mref\.?ª[[:space:]]*:?[[:space:]]*[0-9]{3,}'
-      or coalesce(p_text, '') ~* '\m(fatura|factura|recibo)s?(-recibo)?\M[^0-9\n.]{0,15}([a-z]{1,4}|[0-9]{4})[[:space:]]*/[[:space:]]*[0-9]+'
-      then 'O texto tem um número de encomenda ou de referência.'
+    when exists (select 1 from unnest(array[
+          '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?|no\.(?=[ \t]*[0-9]))[ \t]*(?:(?:é|:|=)[ \t]*(?:(?:o|a)[ \t]+)?)?#?[ \t]*(?:[a-z]{1,4}-?)?([0-9](?:[ .-]?[0-9]){2,})(?![0-9])',
+          '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*#[ \t]*(?:[a-z]{1,4}-?)?([0-9](?:[ .-]?[0-9]){2,})(?![0-9])',
+          '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]+([a-z]{1,4}-?[0-9](?:[ .-]?[0-9]){2,})(?![0-9])',
+          '\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?::[ \t]*)?(?!(?:1[ .-]?9|2[ .-]?0)[ .-]?[0-9][ .-]?[0-9](?![ .-]?[0-9]))(?!1[ .-]?0[ .-]?0[ .-]?0(?![ .-]?[0-9]))(?![0-9]{1,2}[.-][0-9]{1,2}(?:[.-](?:[0-9]{2}|[0-9]{4}))?(?![ .-]?[0-9]))([0-9](?:[ .-]?[0-9]){3,})(?![0-9])(?![.,:][0-9])(?!(?:[.,][0-9]+)?[ \t]*(?:€|\$|£|eur|euros?|%|por[ \t]+cento|h|horas?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?|pts|lojas?|clientes?|pessoas?|artigos?)(?![[:alpha:]]))']) as r(re)
+        cross join lateral regexp_matches(ldo_private.support_card_plain(p_text), r.re, 'gi') as m(g)
+        where not ldo_private.support_card_known(m.g[1], p_kb))
+      or exists (select 1 from unnest(array[
+          '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[A-Z]{1,4}[ \t.-]*(?:[A-Za-z]{1,4}|[0-9]{1,4})(?:[ \t]*/[ \t]*[A-Za-z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])',
+          '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?:[A-Za-z]{1,4})[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])',
+          '(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[0-9]{4}[ \t]*/[ \t]*(?!(?:19|20)[0-9]{2}(?![0-9]))([0-9]+)(?![[:alnum:]/])',
+          '(?:^|[^[:alnum:]])(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)[ \t.-]*[A-Z0-9]{1,10}(?:[ \t]*/[ \t]*[A-Z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])']) as r(re)
+        cross join lateral regexp_matches(ldo_private.support_card_plain(p_text), r.re, 'g') as m(g)
+        where not ldo_private.support_card_known(m.g[1], p_kb))
+      then 'O texto tem um número de encomenda, de cliente ou de fatura.'
   end;
+$$;
+
+-- Dados da empresa aceites num cartão (como no servidor): a base de conhecimento, as lojas, as caixas de email do apoio e a
+-- assinatura.
+create function ldo_private.support_card_kb() returns text
+language sql stable security definer set search_path = '' as $$
+  select concat_ws(E'\n',
+    (select string_agg(k.title || E'\n' || k.body, E'\n\n' order by k.position, k.id) from public.ldo_support_knowledge k),
+    (select string_agg(concat_ws(' ', s.name, s.city), E'\n' order by s.name) from public.ldo_app_stores s),
+    (select string_agg(distinct c.account, E'\n') from public.ldo_support_conversations c where c.channel = 'email' and c.account like '%@%'),
+    (select s.email_signature from public.ldo_support_settings s where s.id = 1));
 $$;
 
 -- Variantes de uma pergunta: sem espaços a mais, sem vazias, sem repetidas (maiúsculas à parte) nem iguais à pergunta.
@@ -253,7 +315,7 @@ begin
   if p_valido_ate is not null and p_valido_ate < (now() at time zone 'Europe/Lisbon')::date then
     return 'A data de validade já passou.';
   end if;
-  return ldo_private.support_card_problem(concat_ws(E'\n', p_pergunta, array_to_string(p_variantes, E'\n'), p_resposta));
+  return ldo_private.support_card_problem(concat_ws(E'\n', p_pergunta, array_to_string(p_variantes, E'\n'), p_resposta), ldo_private.support_card_kb());
 end;
 $$;
 
@@ -525,17 +587,18 @@ begin
     end;
     v_variantes := ldo_private.support_card_variants(v_card -> 'variantes', v_card ->> 'pergunta');
     -- Os avisos citam palavras da resposta da equipa: um aviso com um email, um IBAN/NIF ou um número de encomenda ou de
-    -- referência não fica guardado (o servidor já os substitui por «…»).
+    -- fatura não fica guardado (o servidor já os substitui por «…»). A ordem é a do servidor (contradições e avisos da
+    -- pergunta primeiro).
     select coalesce(array_agg(left(btrim(e.x), 300) order by e.pos), '{}') into v_avisos
     from jsonb_array_elements_text(case when jsonb_typeof(v_card -> 'avisos') = 'array' then v_card -> 'avisos' else '[]'::jsonb end)
       with ordinality as e(x, pos)
-    where btrim(e.x) <> '' and e.pos <= 20 and ldo_private.support_card_problem(e.x) is null;
+    where btrim(e.x) <> '' and e.pos <= 20 and ldo_private.support_card_problem(e.x, '') is null;
     v_problem := ldo_private.support_card_invalid(v_card ->> 'intent', coalesce(v_card ->> 'brand', 'ldo'), v_loja, btrim(v_card ->> 'pergunta'),
       v_variantes, btrim(v_card ->> 'resposta'), v_valido);
     if v_problem is not null then
       v_res := 'descartado';
       v_desc := case when ldo_private.support_card_problem(concat_ws(E'\n', v_card ->> 'pergunta', array_to_string(v_variantes, E'\n'),
-        v_card ->> 'resposta')) is not null then 'dados_pessoais' else 'formato' end;
+        v_card ->> 'resposta'), ldo_private.support_card_kb()) is not null then 'dados_pessoais' else 'formato' end;
     elsif (select count(*) from public.ldo_support_knowledge_cards where estado = 'proposta') >= 300 then
       v_res := 'descartado';
       v_desc := 'limite';
@@ -738,7 +801,8 @@ begin
         'valido_ate', x.valido_ate, 'revisto_em', x.revisto_em, 'criada_por', x.criada_por,
         'aprovada_por', (select coalesce(u.full_name, u.username) from public.ldo_app_users u where u.id = x.aprovada_por),
         'aprovada_em', x.aprovada_em, 'texto_em', x.texto_em, 'publicada_em', x.publicada_em, 'publicado', x.publicado is not null,
-        'avisos', to_jsonb(x.avisos), 'avisos_ok', to_jsonb(x.avisos_ok),
+        'avisos', to_jsonb(x.avisos), 'avisos_ok', to_jsonb(x.avisos_ok), 'confirmado', x.avisos_ok_em is not null, 'avisos_ok_em', x.avisos_ok_em,
+        'avisos_ok_por', (select coalesce(u.full_name, u.username) from public.ldo_app_users u where u.id = x.avisos_ok_por),
         'por_publicar', x.estado = 'aprovada' and x.dif, 'updated_at', x.updated_at) order by x.n)
       from (select c.*, c.publicado is distinct from ldo_private.support_card_content(c) as dif,
               row_number() over (order by case when v_estado = 'proposta' then c.fontes end desc nulls last,
@@ -770,8 +834,8 @@ $$;
 -- Cria (p_id null: proposta escrita pelo Super Admin) ou corrige um cartão. p_values: {"intent", "brand", "loja_id",
 -- "pergunta", "variantes": [...], "resposta", "valido_ate"}. Corrigir uma resposta aprovada conta como revista e recomeça
 -- os 7 dias (texto_em); qualquer correção tira a marca de resposta automática; outro texto (pergunta, variantes ou
--- resposta) apaga a confirmação dos avisos (têm de ser confirmados de novo). Devolve {id, estado, alterada,
--- auto_retirada, avisos, avisos_ok}.
+-- resposta) apaga a confirmação (o gatilho ldo_support_knowledge_cards_ack_reset): tem de ser confirmado de novo. Devolve
+-- {id, estado, alterada, auto_retirada, avisos, avisos_ok, confirmado}.
 create function public.ldo_support_knowledge_card_save(p_session text, p_id uuid, p_values jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -813,7 +877,8 @@ begin
     insert into public.ldo_support_knowledge_cards (intent, brand, loja_id, pergunta, variantes, resposta, valido_ate, criada_por, updated_by)
     values (v_intent, v_brand, v_loja, v_pergunta, v_variantes, v_resposta, v_valido, 'pessoa', v_me) returning id into v_id;
     insert into public.ldo_support_audit (actor, action, details) values (v_me, 'ai.knowledge.card', jsonb_build_object('id', v_id, 'acao', 'criada'));
-    return jsonb_build_object('id', v_id, 'estado', 'proposta', 'alterada', true, 'auto_retirada', false, 'avisos', '[]'::jsonb, 'avisos_ok', '[]'::jsonb);
+    return jsonb_build_object('id', v_id, 'estado', 'proposta', 'alterada', true, 'auto_retirada', false, 'avisos', '[]'::jsonb, 'avisos_ok', '[]'::jsonb,
+      'confirmado', false);
   end if;
   select * into v_c from public.ldo_support_knowledge_cards where id = p_id for update;
   if v_c.id is null then
@@ -822,7 +887,7 @@ begin
   if (v_c.intent, v_c.brand, v_c.loja_id, v_c.pergunta, v_c.variantes, v_c.resposta, v_c.valido_ate)
       is not distinct from (v_intent, v_brand, v_loja, v_pergunta, v_variantes, v_resposta, v_valido) then
     return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', false, 'auto_retirada', false, 'avisos', to_jsonb(v_c.avisos),
-      'avisos_ok', to_jsonb(v_c.avisos_ok));
+      'avisos_ok', to_jsonb(v_c.avisos_ok), 'confirmado', v_c.avisos_ok_em is not null);
   end if;
   v_txt := (v_c.pergunta, v_c.variantes, v_c.resposta) is distinct from (v_pergunta, v_variantes, v_resposta);
   -- Qualquer correção (também da pergunta e das variantes, que escolhem a resposta nas respostas automáticas) tira a marca
@@ -832,25 +897,22 @@ begin
     revisto_em = case when estado = 'aprovada' then (now() at time zone 'Europe/Lisbon')::date else revisto_em end,
     texto_em = case when estado = 'aprovada' then now() else texto_em end,
     auto_ok = false, auto_ok_em = null,
-    -- Outro texto: os avisos têm de ser confirmados de novo.
-    avisos_ok = case when v_txt then '{}' else avisos_ok end,
-    avisos_ok_por = case when v_txt then null else avisos_ok_por end,
-    avisos_ok_em = case when v_txt then null else avisos_ok_em end,
     updated_at = now(), updated_by = v_me
   where id = p_id;
   insert into public.ldo_support_audit (actor, action, details)
   values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id, 'acao', 'editada', 'estado', v_c.estado, 'auto_retirada', v_c.auto_ok,
     'avisos_retirados', v_txt and cardinality(v_c.avisos_ok) > 0));
   return jsonb_build_object('id', p_id, 'estado', v_c.estado, 'alterada', true, 'auto_retirada', v_c.auto_ok, 'avisos', to_jsonb(v_c.avisos),
-    'avisos_ok', case when v_txt then '[]'::jsonb else to_jsonb(v_c.avisos_ok) end);
+    'avisos_ok', case when v_txt then '[]'::jsonb else to_jsonb(v_c.avisos_ok) end, 'confirmado', not v_txt and v_c.avisos_ok_em is not null);
 end;
 $$;
 
 -- Aprovar (de uma proposta ou de arquivada; numa resposta já aprovada, confirma que continua certa: revisto_em) ou
--- arquivar (sai logo da IA e das respostas automáticas). Aprovar exige os avisos da proposta confirmados para o texto
--- atual (os avisos do texto são vistos no servidor). As amostras (as conversas de origem) apagam-se nos dois casos (os
--- pedidos já não as guardam; das fontes fica a contagem; a regra de uma proposta por resposta continua em
--- ldo_support_knowledge_used).
+-- arquivar (sai logo da IA e das respostas automáticas). Aprovar exige a confirmação do Super Admin para o texto atual
+-- (em todos os cartões, com ou sem avisos), com os avisos da proposta (os avisos do texto são vistos no servidor). As
+-- amostras (até 3 conversas de origem) apagam-se nos dois casos. Isto não apaga tudo o que liga o cartão a uma conversa:
+-- quem lê as tabelas diretamente ainda o pode deduzir pelo registo de pedidos (a hora e quem carregou no botão) e pelas
+-- respostas guardadas e conversas lidas, enquanto estes existirem (até 365 dias).
 create function public.ldo_support_knowledge_card_state(p_session text, p_id uuid, p_estado text) returns void
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -873,8 +935,8 @@ begin
     if v_problem is not null then
       raise exception '%', v_problem using errcode = '22023';
     end if;
-    if not (v_c.avisos <@ v_c.avisos_ok) then
-      raise exception 'Confirme primeiro os avisos desta resposta («Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa»).'
+    if v_c.avisos_ok_em is null or not (v_c.avisos <@ v_c.avisos_ok) then
+      raise exception 'Confirme primeiro o texto desta resposta («Confirmo que li o texto: não tem dados pessoais nem contradiz a resposta da equipa»).'
         using errcode = '22023';
     end if;
     update public.ldo_support_knowledge_cards set
@@ -891,17 +953,17 @@ begin
     where id = p_id;
   end if;
   -- Os pedidos deste cartão já não têm a conversa nem a mensagem de origem (saíram ao gravar o resultado); ao aprovar ou
-  -- arquivar saem as amostras, a última ligação do cartão às conversas.
+  -- arquivar saem as amostras (ver o comentário da função sobre o que ainda permite deduzir a origem).
   insert into public.ldo_support_audit (actor, action, details)
   values (v_me, 'ai.knowledge.card', jsonb_build_object('id', p_id,
     'acao', case when p_estado = 'arquivada' then 'arquivada' when v_c.estado = 'aprovada' then 'revista' else 'aprovada' end));
 end;
 $$;
 
--- "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa": guarda os avisos que o servidor
--- mostrou para o texto atual (p_avisos: 1 a 60 textos), só se o texto for ainda o que o Super Admin viu (p_texto:
--- pergunta, variantes e resposta) e se incluírem os avisos guardados na proposta. No registo de auditoria ficam quem,
--- quando e a lista dos avisos confirmados.
+-- "Confirmo que li o texto: não tem dados pessoais nem contradiz a resposta da equipa", em todos os cartões: guarda quem,
+-- quando e os avisos que o servidor mostrou para o texto atual (p_avisos: 0 a 60 textos; uma lista vazia quando não havia
+-- avisos), só se o texto for ainda o que o Super Admin viu (p_texto: pergunta, variantes e resposta) e se incluírem os
+-- avisos guardados na proposta. No registo de auditoria ficam quem, quando e a lista tal como foi mostrada.
 create function public.ldo_support_knowledge_card_ack(p_session text, p_id uuid, p_texto jsonb, p_avisos jsonb) returns void
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -917,7 +979,7 @@ begin
   if jsonb_typeof(p_avisos) is distinct from 'array' or jsonb_typeof(p_texto) is distinct from 'object' then
     raise exception 'Avisos inválidos.' using errcode = '22023';
   end if;
-  if jsonb_array_length(p_avisos) not between 1 and 60
+  if jsonb_array_length(p_avisos) > 60
      or exists (select 1 from jsonb_array_elements(p_avisos) e(x) where jsonb_typeof(e.x) <> 'string' or length(e.x #>> '{}') not between 1 and 300) then
     raise exception 'Avisos inválidos.' using errcode = '22023';
   end if;
@@ -941,7 +1003,7 @@ end;
 $$;
 
 -- "Permitir em respostas automáticas" (só marca o cartão; nada é enviado aqui). Ligar exige: aprovada (ou corrigida)
--- há 7 dias ou mais (texto_em), revista nos últimos 90 dias, publicada tal como está, os avisos da proposta confirmados,
+-- há 7 dias ou mais (texto_em), revista nos últimos 90 dias, publicada tal como está, o texto atual confirmado,
 -- a loja nos temas de uma loja e nenhuma outra resposta automática para o mesmo tema, loja e marca. O texto (português do Brasil, ligações, marca, base
 -- de conhecimento) é visto no servidor.
 create function public.ldo_support_knowledge_card_auto(p_session text, p_id uuid, p_auto_ok boolean) returns void
@@ -970,8 +1032,8 @@ begin
     if v_c.publicado is distinct from ldo_private.support_card_content(v_c) then
       raise exception 'Publique primeiro as alterações desta resposta.' using errcode = '22023';
     end if;
-    if not (v_c.avisos <@ v_c.avisos_ok) then
-      raise exception 'Confirme primeiro os avisos desta resposta.' using errcode = '22023';
+    if v_c.avisos_ok_em is null or not (v_c.avisos <@ v_c.avisos_ok) then
+      raise exception 'Confirme primeiro o texto desta resposta.' using errcode = '22023';
     end if;
     if v_c.intent in ('horario_loja', 'morada_loja', 'contactos') then
       if v_c.loja_id is null then
@@ -994,9 +1056,11 @@ $$;
 -- "Juntar a…": a pergunta e as variantes de p_id passam a variantes de p_into (até 5), as fontes somam-se (uma conversa
 -- que já contou não conta para nenhum outro cartão enquanto está nas conversas lidas) e p_id fica arquivado e em
 -- p_into.juntadas, com os que já lhe tinham sido juntos (uma confirmação nova de um deles conta para p_into). Recusa
--- quando a pergunta de p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Se as variantes de
--- p_into mudarem, perde a marca de resposta automática e a confirmação dos avisos e, se estiver aprovada, os 7 dias
--- contam de novo. Devolve {estado (de p_into), alterada, auto_retirada}.
+-- quando a pergunta de p_id não cabe (p_into já tem 5 formas ou a pergunta passa de 200 caracteres), em vez de a perder. Os
+-- avisos da pergunta de p_id ("Pergunta com um compromisso…", "Âmbito alargado na pergunta…") passam para p_into, à
+-- frente (a pergunta passa a ser uma variante). Se as variantes de p_into mudarem, perde a marca de resposta automática e
+-- a confirmação (o gatilho) e, se estiver aprovada, os 7 dias contam de novo; com avisos novos, a confirmação também tem
+-- de ser feita de novo. Devolve {estado (de p_into), alterada, auto_retirada}.
 create function public.ldo_support_knowledge_card_merge(p_session text, p_id uuid, p_into uuid) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -1004,6 +1068,7 @@ declare
   v_from public.ldo_support_knowledge_cards;
   v_into public.ldo_support_knowledge_cards;
   v_variantes text[];
+  v_avisos text[];
   v_changed boolean;
 begin
   if v_me is null then
@@ -1031,19 +1096,23 @@ begin
     raise exception 'A outra resposta já tem 5 formas da pergunta (ou esta pergunta passa de 200 caracteres): encurte ou retire uma primeiro.' using errcode = '22023';
   end if;
   v_changed := v_variantes is distinct from v_into.variantes;
+  -- Os avisos da pergunta juntada, à frente dos de p_into (no máximo 20).
+  select coalesce(array_agg(x.a order by x.o), '{}') into v_avisos from (
+    select a, min(o) as o from (
+      select a, o from unnest(v_from.avisos) with ordinality as f(a, o) where a like 'Pergunta com %' or a like 'Âmbito alargado na pergunta%'
+      union all select a, 100 + o from unnest(v_into.avisos) with ordinality as i(a, o)) y
+    group by a order by min(o) limit 20) x;
   update public.ldo_support_knowledge_cards set
     variantes = v_variantes,
+    avisos = v_avisos,
     fontes = fontes + v_from.fontes,
     juntadas = (select coalesce(array_agg(distinct j), '{}') from unnest(juntadas || p_id || v_from.juntadas) as j where j <> p_into),
     ultima_vez = greatest(ultima_vez, v_from.ultima_vez),
     amostras = case when estado = 'proposta' then (select coalesce(array_agg(a), '{}') from (
       select distinct a from unnest(amostras || v_from.amostras) as a limit 3) y) else '{}' end,
     texto_em = case when estado = 'aprovada' and v_changed then now() else texto_em end,
-    auto_ok = auto_ok and not v_changed,
-    auto_ok_em = case when auto_ok and not v_changed then auto_ok_em end,
-    avisos_ok = case when v_changed then '{}' else avisos_ok end,
-    avisos_ok_por = case when v_changed then null else avisos_ok_por end,
-    avisos_ok_em = case when v_changed then null else avisos_ok_em end,
+    auto_ok = auto_ok and not v_changed and v_avisos <@ avisos_ok,
+    auto_ok_em = case when auto_ok and not v_changed and v_avisos <@ avisos_ok then auto_ok_em end,
     updated_at = now(), updated_by = v_me
   where id = p_into;
   -- As fontes de p_id passam para p_into (e os pedidos que as contaram, para o registo do mês).
@@ -1058,8 +1127,8 @@ end;
 $$;
 
 -- "Publicar alterações": o texto das respostas aprovadas passa a ser o que a IA usa (uma reescrita da cache por
--- publicação). No máximo 200 respostas em uso e 80 000 caracteres; nenhuma com avisos da proposta por confirmar (os
--- avisos do texto são vistos no servidor).
+-- publicação). No máximo 200 respostas em uso e 80 000 caracteres; todas com o texto atual confirmado pelo Super Admin,
+-- com os avisos da proposta (os avisos do texto são vistos no servidor).
 create function public.ldo_support_knowledge_publish(p_session text) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -1080,8 +1149,8 @@ begin
   if v_chars > 80000 then
     raise exception 'As respostas aprovadas passam de 80 000 caracteres (%): arquive ou encurte algumas.', v_chars using errcode = '22023';
   end if;
-  if exists (select 1 from public.ldo_support_knowledge_cards where estado = 'aprovada' and not (avisos <@ avisos_ok)) then
-    raise exception 'Há respostas aprovadas com avisos por confirmar: confirme-os nas Aprovadas antes de publicar.' using errcode = '22023';
+  if exists (select 1 from public.ldo_support_knowledge_cards where estado = 'aprovada' and (avisos_ok_em is null or not (avisos <@ avisos_ok))) then
+    raise exception 'Há respostas aprovadas por confirmar (o texto mudou ou tem avisos novos): confirme-as nas Aprovadas antes de publicar.' using errcode = '22023';
   end if;
   update public.ldo_support_knowledge_cards c set publicado = ldo_private.support_card_content(c), publicada_em = now()
   where c.estado = 'aprovada' and c.publicado is distinct from ldo_private.support_card_content(c);
@@ -1176,7 +1245,11 @@ $do$;
 revoke all on function
   ldo_private.support_card_fts(),
   ldo_private.support_card_content(public.ldo_support_knowledge_cards),
-  ldo_private.support_card_problem(text),
+  ldo_private.support_card_ack_reset(),
+  ldo_private.support_card_plain(text),
+  ldo_private.support_card_known(text, text),
+  ldo_private.support_card_problem(text, text),
+  ldo_private.support_card_kb(),
   ldo_private.support_card_variants(jsonb, text),
   ldo_private.support_card_invalid(text, text, uuid, text, text[], text, date),
   ldo_private.support_knowledge_month_cost(),
