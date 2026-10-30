@@ -9,7 +9,8 @@ import { HttpError } from "./http";
 import {
   CARD_LIMITS, DISTILL_INSTRUCTIONS, DISTILL_SCHEMA, KNOWLEDGE_BUTTON_CALL_MS, KNOWLEDGE_CRON_CALL_MS, KNOWLEDGE_CRON_END_MS, KNOWLEDGE_CRON_LIMIT,
   KNOWLEDGE_CRON_STOP_MS, KNOWLEDGE_DISCARD_TEXT, KNOWLEDGE_EFFORT, KNOWLEDGE_MAX_TOKENS, KNOWLEDGE_MODEL, KnowledgeFormatError, cardPii, companyAllowlist,
-  conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, sourceWarnings, type KnowledgeBegin, type KnowledgeDiscard,
+  conversationBrand, copiesCustomer, distillUserText, parseDistill, poisonReason, questionWarnings, safeAvisos, sourceWarnings, type KnowledgeBegin,
+  type KnowledgeDiscard,
 } from "./knowledge-rules";
 
 // Base de conhecimento aprendida (Claude Sonnet 5.5, só no servidor): uma chamada por conversa, sem ferramentas, sem
@@ -89,14 +90,16 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
     }
     // Verificações antes de gravar, na pergunta, nas variantes e na resposta. Retiram a proposta só os dados pessoais
     // sem ambiguidade (emails, telefones, IBAN, NIF, números de cartão, de encomenda ou de cliente, ligações de perfis, o
-    // nome do cliente ou de alguém da equipa), os números, ligações, contactos e compromissos que a equipa não escreveu,
-    // o texto copiado do cliente e a outra marca. A pergunta e as variantes também são publicadas para a IA: um número,
-    // uma ligação ou a outra marca numa pergunta também retiram a proposta. O resto (possíveis nomes, moradas,
-    // contradições e condições em falta) fica na proposta como aviso, que o Super Admin confirma antes de aprovar.
+    // nome do cliente e os nomes da equipa que não são palavras), os números, ligações, contactos e compromissos que a
+    // equipa não escreveu, o texto copiado do cliente e a outra marca. A pergunta e as variantes também são publicadas
+    // para a IA: um número, uma ligação ou a outra marca numa pergunta também retiram a proposta. O resto (possíveis
+    // nomes, moradas, contradições e condições em falta) fica na proposta como aviso, que o Super Admin confirma antes de
+    // aprovar.
     const knowledge = begin.knowledge.map((k) => `## ${k.title}\n${k.body}`).join("\n\n");
     const allow = companyAllowlist({ knowledge, stores: begin.stores, extra: begin.company });
-    const names = [begin.conversation.contact_name, begin.conversation.contact_handle, ...begin.staff_names];
-    if (cardPii(out, allow, names).length) return discard("dados_pessoais", out.motivo);
+    const staffNames = begin.staff_names;
+    const contact = [begin.conversation.contact_name, begin.conversation.contact_handle];
+    if (cardPii(out, allow, staffNames, contact).length) return discard("dados_pessoais", out.motivo);
     // Só as respostas da equipa enviadas pelo dashboard confirmam factos; a escolhida no botão, se houver, conta como as outras.
     const staff = begin.messages.filter((m) => m.kind === "outbound" && m.dashboard).map((m) => m.body).join("\n\n");
     const questions = [out.pergunta, ...out.variantes].join("\n");
@@ -106,8 +109,10 @@ async function distill(begin: KnowledgeBegin, timeoutMs: number, effort: "low" |
     if (copiesCustomer([out.pergunta, ...out.variantes, out.resposta], inbound)) return discard("copia_cliente", out.motivo);
     const brand = conversationBrand(begin.conversation.channel, begin.conversation.site);
     if (otherBrandIn(out.resposta, brand) || otherBrandIn(questions, brand)) return discard("marca", out.motivo);
-    // Avisos em relação à resposta da equipa (só aqui há a resposta da equipa): ficam no cartão para o Super Admin.
-    const avisos = sourceWarnings({ text: out.resposta, staff, knowledge });
+    // Avisos em relação à resposta da equipa (só aqui há a resposta da equipa): ficam no cartão para o Super Admin. Citam
+    // só palavras comuns e números com a unidade; uma citação com dados pessoais passa a «…» (safeAvisos).
+    const avisos = safeAvisos([...sourceWarnings({ text: out.resposta, staff, knowledge, allow }), ...questionWarnings({ text: questions, staff, knowledge })],
+      allow, staffNames, contact);
     const loja = out.loja ? begin.stores.find((s) => s.code === out.loja)?.id ?? null : null;
     const r = await record({
       status: "done", cost, model, resultado: "novo",

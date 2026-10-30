@@ -243,19 +243,22 @@ export function parseDistill(text: string, ctx: { similar: string[]; stores: str
 // ---------------------------------------------------------------- dados pessoais
 //
 // Cada texto de um cartão (pergunta, variantes e resposta) dá duas listas:
-// - Recusas (PiiProblem), só para dados pessoais sem ambiguidade: emails fora dos domínios da empresa; telefones (+351,
-//   00351, 0044, grupos com espaços, pontos, hífens ou barras, 9 algarismos); IBAN, NIF e números de cartão; números de
-//   encomenda ou de referência depois de "encomenda", "pedido", "order", "fatura", "compra", "reparação", "guia",
-//   "reserva", "talão", "recibo", "referência" ou "(número de) cliente"; códigos de envio e números longos; ligações com
-//   um telefone, um perfil ou um id no caminho (wa.me, m.me, t.me, instagram.com/<x>, facebook.com/<x>, tiktok,
-//   páginas de ligações, encurtadores, 7+ algarismos, parâmetros, caminhos de conta) e perfis @; e os nomes do cliente
-//   da conversa e da equipa, em qualquer forma. Os dados da empresa (base de conhecimento, lojas, caixas e assinatura do
-//   apoio) passam. Uma proposta da IA com uma recusa é retirada; uma correção do Super Admin fica guardada, mas não é
-//   aprovada nem publicada.
-// - Avisos: tudo o que é heurístico (possíveis nomes, moradas, perfis sem @, códigos, emails da empresa e ligações que
-//   não estão na base de conhecimento), cada um com a palavra ou a frase («…»). Nunca retiram uma proposta: ficam no
-//   cartão, e aprovar, publicar e "Permitir em respostas automáticas" só avançam depois de o Super Admin marcar
-//   ACK_LABEL para o texto atual do cartão.
+// - Recusas (PiiProblem), só para dados pessoais sem ambiguidade: emails fora dos domínios da empresa (também sem domínio
+//   de topo); telefones (+351, 00351, 0044, grupos com espaços, pontos, hífens ou barras, 9 algarismos, letras no lugar
+//   de algarismos, por extenso); IBAN, NIF, números de cartão e o fim de um cartão; números de encomenda ou de referência
+//   depois de "encomenda", "pedido", "order", "fatura" (e a série "FT 2026/145"), "compra", "reparação", "guia",
+//   "reserva", "talão", "recibo", "referência"/"ref.ª", "(número de) cliente", "processo", "caso", "ticket", "sócio",
+//   "orçamento", "vale", "cartão-oferta" ou "senha", e "n.º" com 3+ algarismos fora de uma morada; códigos de envio e
+//   números longos; ligações com um telefone, um perfil ou um id no caminho (wa.me, m.me, t.me, instagram.com/<x>,
+//   facebook.com/<x>, tiktok, páginas de ligações, encurtadores, 7+ algarismos, parâmetros, caminhos de conta) e perfis
+//   @; o nome do cliente da conversa, em qualquer forma; e os nomes da equipa (os que também são palavras, lugares ou
+//   marcas, como "Vale", "Graça" ou "Lima", são avisos). Os dados da empresa (base de conhecimento, lojas, caixas e
+//   assinatura do apoio) passam. Uma proposta da IA com uma recusa é retirada; uma correção do Super Admin fica
+//   guardada, mas não é aprovada nem publicada.
+// - Avisos: tudo o que é heurístico (possíveis nomes, moradas, perfis sem @, códigos, números por extenso, instruções
+//   para a IA, emails da empresa e ligações que não estão na base de conhecimento), cada um com a palavra ou a frase
+//   («…»). Nunca retiram uma proposta: ficam no cartão, e aprovar, publicar e "Permitir em respostas automáticas" só
+//   avançam depois de o Super Admin marcar ACK_LABEL para o texto atual do cartão.
 
 export const ACK_LABEL = "Confirmo que este texto não tem dados pessoais nem contradiz a resposta da equipa";
 
@@ -263,8 +266,38 @@ const EMAIL_RE = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/gu;
 // Email escrito para fugir aos filtros ("joana [at] gmail [dot] com", "joana arroba gmail ponto com", "joana (arroba)
 // gmail.com", "joana @ gmail . com").
 const OBFUSCATED_EMAIL = /[\p{L}\p{N}._%+-]+\s*(?:[[(]\s*(?:at|arroba|@)\s*[\])]|\s(?:at|arroba)\s|\s@\s|arroba)\s*[\p{L}\p{N}-]+\s*(?:[[(]\s*(?:dot|ponto|\.)\s*[\])]|\s(?:dot|ponto)\s|\s\.\s|\.|ponto)\s*\p{L}{2,6}(?!\p{L})/iu;
+// "joana arroba gmail" (sem o domínio de topo), com um serviço de email conhecido.
+const OBFUSCATED_PROVIDER = /[\p{L}\p{N}._%+-]+\s*(?:[[(]\s*(?:at|arroba|@)\s*[\])]|\s(?:at|arroba)\s|\s@\s)\s*(?:gmail|googlemail|hotmail|outlook|live|msn|sapo|yahoo|icloud|me|mail|netcabo|clix|iol|aeiou|protonmail|proton)(?!\p{L})/iu;
+// Email sem domínio de topo ("gertrudes@sapo"): também é um email (com o nome da empresa, aviso).
+const EMAIL_NO_TLD = /(?<![\p{L}\p{N}._%+@-])[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]{2,}(?![\p{L}\p{N}.@-])/gu;
 // Domínios da empresa: um email destes que não está na base de conhecimento é um aviso, não uma recusa.
 const OWN_DOMAIN = /(?:^|\.)(?:lojadoouro\.pt|goldstorepremium\.com)$/i;
+const OWN_NAME = /^(?:lojadoouro|goldstorepremium)$/i;
+// Telefone por extenso: 7 ou mais algarismos seguidos escritos em palavras ("nove um dois, três quatro cinco…").
+const DIGIT_WORD = "(?:zero|um|uma|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove)";
+const PHONE_WORDS = new RegExp(`(?<!\\p{L})${DIGIT_WORD}(?:[\\s,.;/-]+${DIGIT_WORD}){6,}(?!\\p{L})`, "iu");
+// Números por extenso (três ou mais palavras: "quatro mil quinhentos e doze"), sem unidade a seguir: aviso.
+const NUMBER_WORDS = `zero um uma dois duas três tres quatro cinco seis sete oito nove dez onze doze treze catorze quatorze quinze dezasseis dezassete
+  dezoito dezanove vinte trinta quarenta cinquenta sessenta setenta oitenta noventa cem cento duzentos duzentas trezentos trezentas quatrocentos
+  quatrocentas quinhentos quinhentas seiscentos seiscentas setecentos setecentas oitocentos oitocentas novecentos novecentas mil milhão milhao milhões
+  milhoes`.split(/\s+/).filter(Boolean);
+const NUMBER_WORD = `(?:${NUMBER_WORDS.join("|")})`;
+const NUMBER_WORDS_RUN = new RegExp(`(?<!\\p{L})${NUMBER_WORD}(?:[ \\t,]+(?:e[ \\t]+)?${NUMBER_WORD})+(?!\\p{L})`, "giu");
+// Fim de um cartão ou de uma conta ("os últimos 4 dígitos do cartão são 4242", "cartão terminado em 4242").
+const CARD_END = /(?<!\p{L})(?:[úu]ltimos|finais|final|terminad[oa]s?|termina(?:m)?|acabad[oa]s?|acaba(?:m)?)(?!\p{L})[^.!?\n]{0,40}?(?<![\p{L}\p{N}])(\d{4})(?![\p{L}\p{N}])/iu;
+const CARD_WORD = /(?<!\p{L})(?:cart[ãa]o|cart[õo]es|iban|nib|conta|visa|mastercard|multibanco|d[ée]bito|cr[ée]dito|amex)(?!\p{L})/iu;
+// Pedidos à IA dentro do texto ("ignore as instruções", "responda sempre que sim", "Nota para a IA:", "<instrucoes>").
+const INJECTION_RES = [
+  /(?<!\p{L})ignor(?:e|em|a|ar|ando|ai)(?!\p{L})(?:[ \t]+[\p{L}-]+){0,3}?[ \t]+(?:instru[çc][õo]es|instrucoes|regras|indica[çc][õo]es|ordens|mensagens|anteriores|acima|tudo|previous|instructions)(?!\p{L})/giu,
+  /(?<!\p{L})(?:responda|respondam|responde|diga|digam|diz|confirme|confirmem|confirma|aceite|aceitem|aceita|prometa|ofere[çc]a|garanta|concorde|answer|say|always)(?!\p{L})(?:[ \t]+[\p{L}-]+){0,2}?[ \t]+(?:sempre|always)[ \t]+(?:que[ \t]+(?:sim|h[áa]|pode|[ée]|existe|aceitamos|fazemos|damos|temos)|o[ \t]+que|a[ \t]+qualquer|a[ \t]+tudo|tudo|sim|yes)(?!\p{L})/giu,
+  /(?<!\p{L})(?:nota|notas|instru[çc][õo]es?|instrucoes|mensagem|aviso|ordem|ordens|regra|regras)[ \t]+(?:para|à|ao|a)[ \t]+(?:a[ \t]+|o[ \t]+)?(?:IA|intelig[êe]ncia[ \t]+artificial|assistente|modelo|bot|chatbot|claude|gpt|chatgpt|rob[ôo])(?!\p{L})/giu,
+  /(?<![\p{L}\p{N}])(?:IA|assistente|chatbot|claude|chatgpt|gpt|system|sistema|prompt)[ \t]*:/gu,
+  /<\/?[\p{L}_][\p{L}\p{N}_:-]*>/gu,
+  /(?<!\p{L})(?:system[ \t]+prompt|prompt[ \t]+do[ \t]+sistema|you[ \t]+are[ \t]+(?:an?|the)|as[ \t]+an[ \t]+ai|és[ \t]+(?:um|uma|o|a)[ \t]+(?:assistente|ia|modelo))(?!\p{L})/giu,
+  /(?<!\p{L})(?:esque[çc]a|esque[çc]am|esquece|esquecer)(?!\p{L})(?:[ \t]+[\p{L}-]+){0,3}?[ \t]+(?:tudo|instru[çc][õo]es|regras|disseram|anteriores)(?!\p{L})/giu,
+  /(?<!\p{L})(?:finge|finja|finjam|fingir)[ \t]+que[ \t]+(?:és|é|somos|sou)(?!\p{L})/giu,
+  /(?<!\p{L})(?:a[ \t]+partir[ \t]+de[ \t]+agora|daqui[ \t]+em[ \t]+diante)[ \t]*,?[ \t]+(?:responde|responda|respondam|diz|diga|digam|aceita|aceite|ofere[çc]a|oferece|confirma|confirme)(?!\p{L})/giu,
+];
 const POSTCODE_RE = /(?<!\d)\d{4}-\d{3}(?!\d)/g;
 const SCHEME_LINK = /(?:https?:\/\/|www\.)[^\s<>"'«»()[\]]+/giu;
 // Páginas de ligações, encurtadores e mapas escritos sem https:// (linksIn só conhece alguns domínios de topo).
@@ -283,7 +316,7 @@ const handleKey = (h: string) => h.toLowerCase().replace(/[._]+$/, "");
 // maiúsculas depois de "código"/"cupão" ("código BEMVINDO"), grupos de 4 ("X7K9 M2P4 Q8R1") e letras com hífen e
 // algarismos ("LDO-12345"). Medidas ("45cm", "18kt") e horas não contam. Aviso.
 const CODE_TOKEN = /(?<![\p{L}\p{N}])(?=[\p{L}\p{N}]*\p{N})(?=[\p{L}\p{N}]*\p{L})[\p{L}\p{N}]{5,24}(?![\p{L}\p{N}])/gu;
-const CODE_AFTER_WORD = /(?<!\p{L})(?:c[óo]digos?|cup(?:[ãa]o|[õo]es)|cupom|vouchers?|codes?|coupons?)(?:\s+(?:de\s+)?(?:desconto|promocional|oferta))?\s*:?\s*["'«“”]?([\p{L}\p{N}]{4,24})/giu;
+const CODE_AFTER_WORD = /(?<!\p{L})(?:c[óo]digos?|cup(?:[ãa]o|[õo]es)|cupom|vouchers?|codes?|coupons?)(?:\s+(?:de\s+)?(?:desconto|promocional|oferta|levantamento|recolha|acesso|reserva|confirma[çc][ãa]o|seguran[çc]a|cliente|vale))?(?:\s+(?:é|e))?\s*:?\s*["'«“”]?([\p{L}\p{N}]{4,24})/giu;
 const CODE_GROUPS = /(?<![\p{L}\p{N}])[A-Z0-9]{4}(?:[ -][A-Z0-9]{4}){2,}(?![\p{L}\p{N}])/gu;
 const CODE_DASH = /(?<![\p{L}\p{N}-])[A-Za-z]{2,5}-\d{3,}(?![\p{L}\p{N}])/gu;
 const NOT_A_CODE = /^\d+(?:mm|cm|m|g|gr|kg|ml|cl|kt|kl|ct|ctl|ªs?|ºs?|x|min|seg|h|hrs?)$|^\d{1,2}h\d{2}$/i;
@@ -312,8 +345,10 @@ const MONTHS_RE = MONTHS.map(ci).join("|");
 const prefixRe = (words: string[], abbr: string[], av: boolean) =>
   `(?:(?:${words.map(ci).join("|")})(?!\\p{L})(?!-)|(?:${abbr.map(ci).join("|")})\\.${av ? `|${ci("av")}\\.?(?!\\p{L})` : ""})`;
 const PREFIX_MAIN = prefixRe(["rua", "avenida", "estrada", "praça", "praca", "praceta", "alameda", "calçada", "calcada", "beco", "bairro", "urbanização",
-  "urbanizacao", "rotunda", "caminho", "azinhaga"], ["r", "estr", "pç", "pça", "pc", "al", "cç", "urb", "pct"], true);
-const PREFIX_WORDY = prefixRe(["travessa", "largo", "quinta"], ["tv", "trav", "lg", "lgo", "qta"], false);
+  "urbanizacao", "rotunda", "caminho", "azinhaga"], ["r", "estr", "est", "pç", "pça", "pc", "al", "cç", "urb", "pct"], true);
+// "lugar" e "sítio" (moradas do norte: "lugar do monte 12") e prédios com nome ("edifício atlântico, 3.º b").
+const PREFIX_WORDY = prefixRe(["travessa", "largo", "quinta", "lugar", "sítio", "sitio", "edifício", "edificio", "prédio", "predio", "condomínio",
+  "condominio", "residencial"], ["tv", "trav", "lg", "lgo", "qta"], false);
 const PREFIX_ALL = `(?:${PREFIX_MAIN}|${PREFIX_WORDY})`;
 const STREET_DAY = `\\d{1,2}(?:[ \\t]*\\.?[ \\t]*[ºo°])?[ \\t]+${ci("de")}[ \\t]+(?:${MONTHS_RE})(?!\\p{L})`;
 const streetToken = (stop: string[]) => `(?:${STREET_DAY}|(?!(?:${NOT_STREET_NAME.map(ci).join("|")})(?!\\p{L}))(?:\\p{Lu}\\p{L}{0,3}\\.|\\p{Lu}[\\p{L}'’-]*)`
@@ -330,11 +365,26 @@ const ORD = `\\d{1,2}[ \\t]*\\.?[ \\t]*[ºª°]\\.?`;
 const UNIT = `(?:${["bloco", "apartamento", "apto", "apt", "fração", "fracção", "fracao", "casa", "porta", "lote", "lt", "piso", "edifício", "edificio", "prédio",
   "predio", "torre", "entrada", "moradia", "vivenda", "apartado", "andar"].map(ci).join("|")})\\.?(?!\\p{L})`;
 const NUM_MARK = `(?:[nN]\\.?[ \\t]*[ºo°]\\.?|[nN]\\.|${ci("número")}|${ci("numero")})`;
-const UNIT_TOKEN = `(?:${ORD}(?:[ \\t]*${ci("andar")})?(?:[ \\t]*${SIDE})?|\\d{1,2}[ \\t]*${SIDE}|\\d{1,2}[ \\t]*${ci("andar")}(?!\\p{L})|${ci("r/c")}|${ci("rc")}(?!\\p{L})`
-  + `|${ci("cave")}(?!\\p{L})|${UNIT}[ \\t]*(?:${NUM_MARK}[ \\t]*)?(?:\\d{1,4}[A-Za-z]?|[A-Za-z])(?![\\p{L}\\p{N}])|[A-F](?![\\p{L}\\p{N}])`
-  + `|[a-f](?=[ \\t]*(?:[,.;:)]|$))|\\d{4}-\\d{3}(?:[ \\t]+\\p{Lu}[\\p{L}'’-]*){0,3})`;
-// O resto da morada a seguir ao número: andar, lado, letra, bloco, apartamento, código postal (na mesma oração).
-const ADDRESS_TAIL = new RegExp(`^(?:[ \\t]*(?:[,\\-–\\/][ \\t]*)?${UNIT_TOKEN})+`, "u");
+// Frações e salas a seguir ao número da porta ("100, sala 12", "100, escritório 4", "100, loja 3").
+const TAIL_UNIT = `(?:${["sala", "escritório", "escritorio", "gabinete", "loja", "armazém", "armazem", "box", "garagem", "consultório", "consultorio"].map(ci).join("|")})`
+  + `\\.?[ \\t]*(?:${NUM_MARK}[ \\t]*)?\\d{1,4}[A-Za-z]?(?![\\p{L}\\p{N}])`;
+const BASEMENT = `(?:${ci("sub")}-?${ci("cave")}|${ci("cave")}|${ci("r")}[éeÉE]${ci("s")}[ \\t-]+${ci("do")}[ \\t-]+${ci("ch")}[ãaÃA]${ci("o")}|${ci("r/c")}|${ci("r-c")}`
+  + `|${ci("rc")})(?!\\p{L})`;
+const UNIT_TOKEN = `(?:${ORD}(?:[ \\t]*${ci("andar")})?(?:[ \\t]*${SIDE}|[ \\t]*[A-Za-z](?![\\p{L}\\p{N}]))?|\\d{1,2}[ \\t]*${SIDE}|\\d{1,2}[ \\t]*${ci("andar")}(?!\\p{L})`
+  + `|${BASEMENT}|${TAIL_UNIT}|${UNIT}[ \\t]*(?:${NUM_MARK}[ \\t]*)?(?:\\d{1,4}[A-Za-z]?|[A-Za-z])(?![\\p{L}\\p{N}])|\\d{1,2}[ \\t-]?[A-Za-z](?![\\p{L}\\p{N}])`
+  + `|[A-Z](?![\\p{L}\\p{N}])|[a-f](?=[ \\t]*(?:[,.;:)]|$))|\\d{4}-\\d{3}(?:[ \\t]+\\p{Lu}[\\p{L}'’-]*){0,3})`;
+// O resto da morada a seguir ao número: outro número da porta ("100-102"), andar, lado, letra ("1D", "2-E", "G"), cave,
+// rés-do-chão, sala, escritório, bloco, apartamento, código postal (na mesma oração). Com qualquer um destes, a morada já
+// não é exatamente a da base de conhecimento.
+const ADDRESS_TAIL = new RegExp(`^(?:[ \\t]*[\\-–\\/][ \\t]*\\d{1,4}(?![\\p{L}\\p{N}])|[ \\t]*(?:[,\\-–\\/][ \\t]*)?${UNIT_TOKEN})+`, "u");
+// Andar com a letra ("3.º b", "2.º A") e andar por extenso ("terceiro esquerdo", "primeiro andar direito").
+const FLOOR_LETTER_RE = new RegExp(`(?<![\\p{L}\\p{N}])${ORD}(?:[ \\t]*${ci("andar")})?[ \\t]*,?[ \\t]*(?:[A-H]|[b-dB-Df-h])(?![\\p{L}\\p{N}])`, "gu");
+const FLOOR_WORDS_RE = new RegExp(`(?<!\\p{L})(?:${["primeiro", "segundo", "terceiro", "quarto", "quinto", "sexto", "sétimo", "setimo", "oitavo", "nono", "décimo",
+  "decimo"].map(ci).join("|")})[ \\t]+(?:${ci("andar")}[ \\t]+)?(?:${ci("esquerdo")}|${ci("direito")}|${ci("frente")}|${ci("esq")}\\.?|${ci("dto")}\\.?|${ci("dt")}\\.?)(?!\\p{L})`, "gu");
+// Rua com o número da porta por extenso ("rua augusta cento e vinte").
+const NUMBER_WORD_CI = NUMBER_WORDS.map(ci).join("|");
+const ADDRESS_WORDS_RE = new RegExp(`(?<!\\p{L})${PREFIX_ALL}(?:[ \\t]+(?:[dD][aeo]s?[ \\t]+|[dD]e[ \\t]+)?(?!(?:${NUMBER_WORD_CI})(?!\\p{L}))${streetToken(STREET_STOP)}){1,6}`
+  + `[ \\t]*,?[ \\t]*(?:${NUMBER_WORD_CI})(?:[ \\t]+(?:[eE][ \\t]+)?(?:${NUMBER_WORD_CI}))*(?!\\p{L})`, "gu");
 const NUMBER_FIRST_RE = new RegExp(`(?<!\\p{L})${NUM_MARK}[ \\t]*\\d{1,4}[A-Za-z]?[ \\t]+${ci("d")}[aeo]s?[ \\t]+${PREFIX_ALL}(?:[ \\t]+[\\p{L}'’.-]+){0,4}`, "gu");
 const FLOOR_FIRST_RE = new RegExp(`(?<![\\p{L}\\p{N}])${ORD}(?:[ \\t]*${ci("andar")})?(?:[ \\t]*${SIDE})?[ \\t]*,?[ \\t]*(?:${ci("d")}[aeo]s?|${ci("no")}|${ci("na")})[ \\t]+`
   + `(?:${NUM_MARK}[ \\t]*\\d{1,4}[A-Za-z]?[ \\t]+${ci("d")}[aeo]s?[ \\t]+)?${PREFIX_ALL}(?:[ \\t]+[\\p{L}'’.-]+){0,4}(?:[ \\t]*,?[ \\t]*\\d{1,4})?`, "gu");
@@ -370,7 +420,8 @@ function addressSpans(text: string, allow: Allowlist): Span[] {
       const tail = ADDRESS_TAIL.exec(text.slice(at + m[0].length));
       add(at, m[0] + (tail ? tail[0] : ""));
     }
-  for (const re of [NUMBER_FIRST_RE, FLOOR_FIRST_RE, FLOOR_SIDE_RE, UNIT_RE]) for (const m of text.matchAll(re)) add(m.index ?? 0, m[0]);
+  for (const re of [ADDRESS_WORDS_RE, NUMBER_FIRST_RE, FLOOR_FIRST_RE, FLOOR_SIDE_RE, FLOOR_LETTER_RE, FLOOR_WORDS_RE, UNIT_RE])
+    for (const m of text.matchAll(re)) add(m.index ?? 0, m[0]);
   return spans.sort((a, b) => a.at - b.at);
 }
 const blank = (text: string, spans: Span[]) => spans.reduce((t, s) => t.slice(0, s.at) + " ".repeat(s.end - s.at) + t.slice(s.end), text);
@@ -394,7 +445,7 @@ const FIXED_WORDS = `portugal portuguesa português lisboa porto açores madeira
   goa andorra mónaco malta chipre grécia áustria polónia suécia noruega dinamarca finlândia islândia croácia eslovénia eslováquia chéquia
   hungria roménia bulgária sérvia ucrânia rússia turquia israel emirados dubai catar qatar arábia saudita egito marrocos tunísia argélia
   áfrica américa ásia oceânia austrália japão china índia méxico argentina venezuela colômbia chile peru cuba londres paris madrid
-  barcelona genebra zurique nova iorque york braga coimbra faro leiria aveiro viseu setúbal évora funchal sintra cascais almada amadora
+  barcelona genebra zurique nova iorque york braga coimbra faro leiria aveiro viseu setúbal évora funchal sintra cascais almada amadora lima
   loures odivelas oeiras guimarães viana santarém beja bragança guarda portalegre algarve alentejo minho gaia matosinhos maia gondomar
   canárias baleares
   loja lojas ouro gold store premium private selection mb way mbway multibanco paypal klarna visa mastercard maestro american express amex
@@ -432,7 +483,9 @@ const BRAND_PHRASES = ["Daniel Wellington", "Michael Kors", "Calvin Klein", "Tom
   "Cristo Rei", "Cabo Verde", "Times New Roman", "Vila Nova de Gaia", "Vila Real", "Vila do Conde", "Vila Franca de Xira", "Póvoa de Varzim",
   "Figueira da Foz", "Castelo Branco", "Viana do Castelo", "Santa Maria da Feira", "São João da Madeira", "Torres Vedras", "Torres Novas",
   "Caldas da Rainha", "Ponta Delgada", "Costa da Caparica", "Paços de Ferreira", "Vale de Cambra", "Monte Gordo", "Reino Unido",
-  "Estados Unidos", "Nova Iorque", "Países Baixos", "Arábia Saudita", "Emirados Árabes Unidos"];
+  "Estados Unidos", "Nova Iorque", "Países Baixos", "Arábia Saudita", "Emirados Árabes Unidos", "Costa Rica", "Costa do Marfim", "Porto Rico",
+  "Ponte de Lima", "Ponte da Barca", "Ponte de Sor", "São Tomé e Príncipe", "Santo Tirso", "Vila Real de Santo António", "Marinha Grande",
+  "Batalha", "Porto de Mós", "Nova Zelândia", "África do Sul", "Coreia do Sul", "Hong Kong", "Las Vegas", "Los Angeles", "Rio de Janeiro", "São Paulo"];
 // Nomes próprios comuns (sem os que também são palavras ou lojas, como Clara, Graça, Luz ou Fátima): aviso em qualquer
 // posição e em qualquer forma ("a sua filha Beatriz", "fale com o joão").
 const FIRST_NAMES = new Set(`joão josé antónio antonio manuel francisco carlos paulo pedro luís luis jorge miguel rui tiago bruno ricardo
@@ -449,7 +502,32 @@ const FIRST_NAMES = new Set(`joão josé antónio antonio manuel francisco carlo
   fabiana filomena flávia gisela irene ivone jéssica jessica joaquina judite júlia julia juliana lara liliana lurdes mafalda manuela
   márcia marcia marina marisa marlene micaela milene natália natalia nádia nadia olga paulina regina renata rosário rute ruth sabrina
   salomé sílvia silvia tânia tania tatiana valentina valéria vanessa yara kátia katia john james michael robert william mary jennifer
-  jean pierre marie anne thomas kevin emma olivia sophie liam mohammed muhammad ahmed omar`.split(/\s+/).filter(Boolean));
+  jean pierre marie anne thomas kevin emma olivia sophie liam mohammed muhammad ahmed omar
+  zé ze tó to tozé toze quim manel chico xico nando nanda becas guida mila lena nela tina xana zezinho joãozinho mané isaura aparecida plácido placido
+  cândido candido clemente ermelinda gracinda deolinda arminda idalina laurinda olinda rosalina adozinda albertina belmira custódia custodia
+  delfina felismina hermínia herminia jacinta lucinda natércia natercia otília otilia palmira quitéria quiteria rosinda sebastiana teodora
+  umbelina virgínia virginia zulmira abílio abilio adelino aníbal anibal arnaldo belmiro casimiro custódio custodio delfim elias faustino
+  firmino gaspar horácio horacio inácio inacio leopoldo marcelino policarpo sebastião sebastiao teodoro valdemar zacarias zeferino anselmo
+  aurélio aurelio avelino baltazar celestino constantino crispim damião damiao dionísio dionisio eugénio eugenio evaristo fausto gervásio
+  gervasio honório honorio ilídio ilidio jacinto libório liborio amândio amandio fernão fernao alcides aristides deolindo ernestina etelvina
+  florbela fernandina georgina guilhermina hortense iolanda judite laura leonilde lourdes marcelina noémia noemia odete olímpia olimpia rosalia
+  rosália silvina tomásia valentim virgílio virgilio verónica veronica angélica angelica januário januario cândida candida leonilde salvador
+  teodora amador`
+  .split(/\s+/).filter(Boolean));
+// Apelidos comuns que não são palavras ("Amaral", "Ferreira", "Gonçalves"): possíveis nomes em qualquer forma, também em
+// minúsculas ("gertrudes amaral").
+const SURNAMES = new Set(`amaral ferreira pereira oliveira sousa souza rodrigues fernandes gonçalves goncalves gomes lopes marques alves almeida
+  teixeira moreira mendes nunes soares monteiro cardoso pires simões simoes antunes fonseca araújo araujo barbosa tavares lourenço lourenco
+  castro figueiredo azevedo freitas henriques magalhães magalhaes baptista batista miranda faria morais moraes nogueira martins cabral sequeira
+  vaz melo meireles queirós queiroz sampaio peixoto cerqueira dantas esteves garcia lobato loureiro macedo marinho medeiros mesquita noronha
+  pacheco paiva rebelo seixas vasconcelos vilela delgado morgado furtado amado conrado barroso evangelista guimarães guimaraes saraiva
+  cabrita bettencourt brandão brandao cortez couceiro damásio damasio gouveia lacerda lemos marçal marcal mascarenhas matias menezes neiva
+  novais rebocho sarmento silveira sobral valadares varela veloso vidal`.split(/\s+/).filter(Boolean));
+// Palavras que também são nomes de pessoas ("Rosa", "Luz", "São", "Graça", "Conceição"): com maiúscula, num contexto de
+// pessoa ("A Rosa levanta amanhã", "Fale com a Graça", "Olá Conceição"), são possíveis nomes.
+const NAME_WORDS = new Set(`rosa luz fátima fatima são glória gloria vitória vitoria clara graça graca celeste flor estrela dores conceição conceicao
+  assunção assuncao natividade piedade fé esperança alegria aurora pérola perola rosário rosario lua mar sol amparo socorro anjos remédios
+  purificação encarnação ascensão anunciação branca paz neves reis santos costa vale dias domingos`.split(/\s+/).filter(Boolean));
 // Apelidos que também são palavras ("Costa", "Rocha", "Flores"): com maiúscula, possíveis nomes; em minúsculas, palavras.
 const SURNAME_WORDS = new Set(`costa rocha pinto santos lima cruz ramos campos flores leite mota neves coelho cordeiro fontes serra matos
   correia paz guerra valente lobo machado pinheiro reis ribeiro salgado torres franco neto paixão prado rios fonte monte montes bispo frade
@@ -480,7 +558,7 @@ const phoneKey = (digits: string) => {
 };
 // Algarismos em grupos separados por espaços (até 3), pontos, hífens ou barras, com ou sem + ("912 345 678",
 // "912  345  678", "912 / 345 / 678", "+351 912 345 678", "0044 20 7946 0958"). Os parênteses contam como espaços.
-const DIGIT_RUN = /(?<![\p{L}\p{N}])\+?\d+(?:(?:[ \t]{1,3}|[ \t]?[.\-–/][ \t]?)\d+)*(?![\p{L}\p{N}])/gu;
+const DIGIT_RUN = /(?<![\p{L}\p{N}]|[\p{L}\p{N}][.\-–/])\+?\d+(?:(?:[ \t]{1,3}|[ \t]?[.\-–/][ \t]?)\d+)*(?![\p{L}\p{N}])/gu;
 type DigitRun = { raw: string; digits: string; groups: number[]; intl: boolean };
 function digitRuns(text: string): DigitRun[] {
   return [...text.matchAll(DIGIT_RUN)].map((m) => ({
@@ -530,7 +608,7 @@ const wordIn = (word: string, text: string) => wordRe(word, "iu").test(text);
 function codesIn(text: string) {
   const out = new Set<string>();
   for (const c of text.match(CODE_TOKEN) || []) if (!NOT_A_CODE.test(c)) out.add(c.toUpperCase());
-  for (const m of text.matchAll(CODE_AFTER_WORD)) if (/^(?=.*\p{Lu})[\p{Lu}\p{N}]+$/u.test(m[1])) out.add(m[1].toUpperCase());
+  for (const m of text.matchAll(CODE_AFTER_WORD)) if (/^(?=.*\p{Lu})[\p{Lu}\p{N}]+$/u.test(m[1]) || /^\d{4,}$/.test(m[1])) out.add(m[1].toUpperCase());
   for (const g of text.match(CODE_GROUPS) || []) if (/\d/.test(g) && /[A-Z]/.test(g)) out.add(g.replace(/[ -]/g, ""));
   for (const c of text.match(CODE_DASH) || []) out.add(c.toUpperCase());
   return out;
@@ -607,35 +685,55 @@ function linkProblem(u: string, allow: Allowlist): PiiProblem | null {
   return /[?#]/.test(u) || ACCOUNT_PATH.test(u) || tokenInPath(u) || /\d(?:[.\-_]?\d){6,}/.test(n) ? "ligacao" : null;
 }
 
-// Números de encomenda ou de referência: depois de "encomenda", "pedido", "order", "fatura", "compra", "reparação",
-// "guia", "reserva", "talão", "recibo", "referência" ou "(número/cartão de) cliente", com "nº", "#" ou letras ("n.º 4512",
-// "#4512", "LDO12345", "é 45123"), logo a seguir (3+ algarismos), ou um número de 4+ algarismos na mesma frase ("a
-// encomenda de 12 de outubro, a 4512"). Anos, valores, medidas e horas não contam ("compras acima de 1500 €",
-// "reservas para 2026"); "#1234" e "#LDO1234" sozinhos também são.
-const REF_KEY_RE = /(?<!\p{L})(?:encomendas?|pedidos?|orders?|faturas?|facturas?|compras?|repara[çc](?:[ãa]o|[õo]es)|guias?|reservas?|tal[ãa]o|tal[õo]es|recibos?|refer[êe]ncias?|ref\.|clientes?)(?!\p{L})/giu;
+// Números de encomenda ou de referência (recusa): depois de "encomenda", "pedido", "order", "fatura" (também
+// "fatura-recibo"), "compra", "reparação", "guia", "reserva", "talão", "recibo", "referência" ("ref.", "ref.ª"),
+// "(número/cartão de) cliente", "processo", "caso", "ticket", "sócio", "orçamento", "vale" ("vale de oferta"),
+// "cartão-oferta" ("cartão de oferta", "cartão-presente") ou "senha", com "nº", "#" ou letras ("n.º 4512", "#4512",
+// "LDO12345", "é 45123"), logo a seguir (3+ algarismos), na série de uma fatura ("FT 2026/145", "FR A/145", "2026/145"),
+// depois de "de X" ("guia de transporte 123") ou um número de 4+ algarismos na mesma frase ("a encomenda de 12 de
+// outubro, a 4512"). Não contam anos, valores, medidas, horas, pontos, limites ("compras superiores a 1000",
+// "clientes com mais de 1000 pontos"), os contrastes do ouro ("referência 750") nem a referência de um modelo ("a
+// referência do modelo é T137.410…", que é um aviso de código). "#1234", "#LDO1234" e "FT 2026/145" sozinhos também são.
+const REF_KEY_RE = /(?<!\p{L})(?:encomendas?|pedidos?|orders?|fatura(?:s)?(?:-recibo)?|factura(?:s)?(?:-recibo)?|compras?|repara[çc](?:[ãa]o|[õo]es)|guias?|reservas?|tal[ãa]o|tal[õo]es|recibos?|refer[êe]ncias?|ref\.?ª|refª|ref\.|clientes?|processos?|casos?|tickets?|s[óo]cios?|or[çc]amentos?|vales?(?:-(?:oferta|presente|prenda|compras?))?|cart[ãa]o(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda)|cart[õo]es-(?:oferta|presente|prenda)|senhas?)(?!\p{L})/giu;
 const REF_MARK = "(?:n\\.?[ \\t]*[ºo°]\\.?|nº|n\\.|n[úu]mero|nr\\.?|no\\.(?=[ \\t]*\\d))";
 const REF_DIRECT = new RegExp(`^[ \\t]*(?:(${REF_MARK})[ \\t]*)?(?:(?:é|:|=)[ \\t]*)?(#)?[ \\t]*([A-Za-z]{1,4}-?)?(\\d{3,})(?!\\d)`, "iu");
 const REF_GAP = new RegExp(`(?:${REF_MARK}|#)[ \\t]*:?[ \\t]*#?[ \\t]*[A-Za-z]{0,4}-?(\\d{3,})`, "iu");
-const NUM_UNIT_AFTER = /^(?:[.,]\d+)?[ \t]*(?:€|\$|£|eur(?:os?)?|%|por[ \t]+cento|h(?:oras?)?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?)(?!\p{L})/iu;
+// Série de uma fatura a seguir à palavra ("FT 2026/145", "FR A/145", "n.º FT 2026/145", "2026/145") e sozinha.
+const INVOICE_AFTER = /^[ \t]*(?:(?:[nN]\.?[ \t]*[ºo°]\.?|[nN]º|[nN]\.|[nN][úu]mero)[ \t]*)?:?[ \t]*(?:[A-Z]{1,4}[ \t]?-?[ \t]?)?(?:[A-Z]{1,4}|\d{4})[ \t]*\/[ \t]*\d+/u;
+const INVOICE_ANY = /(?<![\p{L}\p{N}])[A-Z]{2,3}[ \t]+(?:[A-Z]{1,4}[ \t]*)?\d{4}[ \t]*\/[ \t]*\d+(?![\d/])/u;
+const PRODUCT_REF = /^[ \t]+(?:d[oa]s?|de)[ \t]+(?:modelo|artigo|produto|rel[óo]gio|pe[çc]a|cole[çc][ãa]o|anel|fio|colar|pulseira|brinco|pendente|fabricante|marca|tamanho|cor)(?!\p{L})/iu;
+const NUM_UNIT_AFTER = /^(?:[.,]\d+)?[ \t]*(?:€|\$|£|eur(?:os?)?|%|por[ \t]+cento|h(?:oras?)?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?|pts|lojas?|clientes?|pessoas?|artigos?)(?!\p{L})/iu;
+const THRESHOLD_BEFORE = /(?<!\p{L})(?:mais|menos|acima|abaixo|partir|superior(?:es)?|inferior(?:es)?|at[ée]|m[íi]nimo|m[áa]ximo|entre|desde|cerca|valor(?:es)?|montante)(?:[ \t]+(?:de|a|d[oa]s?|à|ao))?[ \t]*$/iu;
+const HALLMARKS = new Set(["375", "416", "500", "585", "750", "800", "830", "833", "835", "850", "875", "900", "916", "925", "950", "958", "999", "1000"]);
 const isYear = (d: string) => /^(?:19|20)\d\d$/.test(d);
 function orderRefs(text: string, allow: Allowlist) {
+  // Um número da base de conhecimento passa (uma entidade ou referência Multibanco da empresa), com 4 ou mais algarismos.
+  const kbNumber = (n: string) => n.length >= 4 && allow.numbers.has(n);
   for (const m of text.matchAll(REF_KEY_RE)) {
+    const key = m[0].toLowerCase();
     const from = (m.index ?? 0) + m[0].length;
     const tail = text.slice(from, from + 80).split(/[!?;\n]|\.(?=[ \t]+\p{Lu})|\.$/u)[0];
+    if (/^ref/.test(key) && PRODUCT_REF.test(tail)) continue;
+    if (INVOICE_AFTER.test(tail)) return true;
     const d = REF_DIRECT.exec(tail);
-    if (d && !allow.numbers.has(d[4])) {
+    if (d && !kbNumber(d[4])) {
       const after = tail.slice(d.index + d[0].length);
-      if (d[1] || d[2] || d[3] || (!isYear(d[4]) && !NUM_UNIT_AFTER.test(after) && !/^[.,:]\d/.test(after))) return true;
+      if (d[1] || d[2] || d[3] || (!isYear(d[4]) && !HALLMARKS.has(d[4]) && !NUM_UNIT_AFTER.test(after) && !/^[.,:]\d/.test(after))) return true;
     }
     const near = tail.slice(0, 40);
     const g = REF_GAP.exec(near);
-    if (g && !allow.numbers.has(g[1])) return true;
-    for (const n of near.matchAll(/(?<![\p{L}\p{N}.,:])\d{4,}(?![\p{L}\p{N}])/gu)) {
-      const after = near.slice((n.index ?? 0) + n[0].length);
-      if (!isYear(n[0]) && !NUM_UNIT_AFTER.test(after) && !/^[.,:]\d/.test(after) && !allow.numbers.has(n[0])) return true;
+    if (g && !kbNumber(g[1])) return true;
+    for (const n of near.matchAll(/(?<![\p{L}\p{N}.,:/])\d{3,}(?![\p{L}\p{N}/])/gu)) {
+      const at = n.index ?? 0;
+      const before = near.slice(0, at), after = near.slice(at + n[0].length);
+      // Três algarismos só depois de "de X" ("guia de transporte 123", "processo de garantia 451").
+      if (n[0].length < 4 && !/^[ \t]*(?:d[aeo]s?|de)[ \t]+\p{L}+[ \t]*$/iu.test(before)) continue;
+      if (isYear(n[0]) || HALLMARKS.has(n[0]) || NUM_UNIT_AFTER.test(after) || /^[.,:]\d/.test(after) || THRESHOLD_BEFORE.test(before)
+        || kbNumber(n[0])) continue;
+      return true;
     }
   }
-  return /#\s?\d{4,}|#[A-Za-z]{2,4}-?\d{3,}/u.test(text);
+  return /#\s?\d{4,}|#[A-Za-z]{2,4}-?\d{3,}/u.test(text) || INVOICE_ANY.test(text);
 }
 
 // Palavras comuns do português que podem começar uma frase, um item ou vir depois de uma saudação, de um parentesco ou
@@ -670,7 +768,9 @@ const COMMON_WORDS = new Set(`a o as os um uma uns umas à às ao aos este esta 
   disponibilidade levantamento online internet claro certo perfeito ótimo excelente possível possíveis disponível disponíveis grátis
   gratuito gratuita gratuitos gratuitas novo nova novos novas importante habitual normal próximo próxima último última primeiro primeira
   desculpe desculpa felizmente infelizmente entretanto aproveitamos prezado prezada prezados prezadas estimados estimadas bons fique
-  fiquem dirija dirijam desloque desloquem sabia sim não`.split(/\s+/).filter(Boolean));
+  fiquem dirija dirijam desloque desloquem sabia sim não vier vierem tiver tiverem puder puderem quiser quiserem estiver estiverem fizer
+  fizerem houver for forem sair sai saem saiu causa causam causar causou aplica aplicam continua continuam continuar cujo cuja cujos cujas`
+  .split(/\s+/).filter(Boolean));
 // Mais palavras das perguntas e respostas de uma joalharia (peças, materiais, ocasiões, pessoas, adjetivos): não são nomes.
 const VOCAB = new Set(`moeda corrente correia mostrador pilha bateria fecho mola elo malha pregadeira broche botão punho gemelos tiara diadema
   coroa medalhão relicário escrava fivela chaveiro saldo unidade pedra gema grama liga banho banhado banhada dourado dourada prateado
@@ -696,7 +796,33 @@ const VOCAB = new Set(`moeda corrente correia mostrador pilha bateria fecho mola
   querido querida queridos queridas rua avenida estrada praça praceta travessa largo quinta bairro urbanização rotunda beco calçada alameda
   código códigos cupão cupões vale-oferta cartão-oferta iban nif contribuinte atendimento connosco comigo convosco nós equipa
   gerente colaborador colaboradora funcionário funcionária vendedor vendedora responsável consultor consultora ourives relojoeiro
-  joalheiro técnico técnica colegas`.split(/\s+/).filter(Boolean));
+  joalheiro técnico técnica colegas ref fiel fiéis decreto lei leis graça graças portaria diretiva regulamento lda etc estafeta estafetas
+  motorista transportador fornecedor fornecedores fabricante fabricantes armazém site loja-online
+  visita visitas preferência confiança estudante estudantes reformado reformados sénior seniores jovens etiqueta selo lacre original originais
+  intacto intacta alfândega taxa cargo encargo físico física físicos físicas presencial presenciais cá lá vigor obras obra temporariamente
+  definitivamente permanente permanentes alergia alergias níquel tempo uso desgaste brilho água perfume perfumes creme cremes segurança prova
+  estojo saco saquinho laço papel fita estado pronto pronta prontos prontas aberto aberta abertos abertas fechado fechada fechados fechadas
+  encerrado encerrada novidade novidades lançamento lançamentos edição limitada limitado exclusivo exclusiva cheque cheques prestação juros parcela
+  pontos ponto membro membros sócio sócios clube aniversário inscrição registo conta contas perfil página checkout carrinho portes
+  transportadora correio seguimento rastreio expedição semana semanas mês meses ano anos feriados fim manhãs tardes horas minutos segundos
+  azul azuis vermelho vermelha vermelhos verde verdes preto preta pretos pretas cinzento cinzenta castanho castanha bege clara claras claros
+  escuro escura escuros escuras roxo roxa lilás laranja dourados douradas prateados prateadas branco brancos brancas amarelos amarelas
+  tornozeleira tornozeleiras mosquetão tarraxa tarraxas trinco garra garras engaste brilhantes zircónias ponteiro ponteiros movimento mecanismo
+  corda vidros caixas estojos amor eterno eterna sempre juntos príncipe princesa rainha rei menina menino bebés crianças pessoas senhores
+  país países cidade cidades região zona morada continente ilhas estrangeiro estrangeiros internacional internacionais nacional nacionais
+  particular particulares empresa empresas oficial oficiais marca marcas portefólio catálogo catálogos
+  stock stocks unidade unidades prendas lembranças surpresa surpresas festa festas casamentos aniversários batizados ocasião
+  ocasiões dinheiro reembolsado reembolsada reembolsados trocado trocada trocados devolvido devolvida devolvidos danificado danificada
+  partido partida avariado avariada parado parada atrasado atrasada perdido perdida extraviado extraviada certo errado errada certa
+  certos certas ajuste ajustes conserto consertos arranjo arranjos soldadura banhos rodinagem rodinar polimentos
+  orçamentos avaliações pagamentos reembolsos trocas entregas encomendas garantias reparações gravações descontos ofertas campanhas promoções
+  saldos outlet black cyber sale opção opções alternativa alternativas solução soluções forma formas maneira maneiras motivo motivos razão
+  razões problema problemas situação situações caso casos especial especiais urgente urgentes rápido rápida rápidos rápidas
+  lento lenta demora demoras atraso atrasos disponibilidade indisponível indisponíveis esgotados esgotadas reposição reposto reposta repostos
+  brevemente entretanto
+  indicado indicada indicados indicadas referido referida mencionado mencionada pretendido pretendida desejado desejada
+  escolhido escolhida selecionado selecionada consumidor consumidores comprador compradores compradora
+  destinatário destinatária titular titulares dono dona donos donas proprietário proprietária utente utentes`.split(/\s+/).filter(Boolean));
 // Verbos regulares das perguntas e respostas de uma joalharia, em várias formas ("Ajustam?", "Enviámos", "Gravar").
 const VERB_FORMS = new Set((() => {
   const forms = (stems: string, ends: string[]) => stems.split(/\s+/).filter(Boolean).flatMap((s) => ends.map((e) => s + e));
@@ -705,7 +831,7 @@ const VERB_FORMS = new Set((() => {
       costum crav demor desej deix dour efetu embal encaminh encomend encurt engast entreg envi esper explic fech fur gost grav guard indic
       inform lev levant limp mand mud necessit observ pag pass pes personaliz precis procur prolong recomend reembols repar reserv restaur
       rodi sold solicit test tir trabalh trat troc us utiliz verific visit funcion fic lembr relembr bast aument pens pergunt gast mostr acompanh cham desloc aproveit
-      oferec`,
+      oferec combin cancel reclam continu aplic termin alter regist convid falt dur cuid apresent agend marc control acab chegu entr`,
     ["ar", "a", "am", "amos", "ámos", "e", "em", "o", "ei", "ou", "ado", "ada", "ados", "adas", "ava", "avam", "aria", "aríamos"]),
     ...forms("atend devolv entend escolh promet pretend receb respond vend oferec conhec merec perd", ["er", "e", "em", "emos", "i", "eu", "ido", "ida", "idos", "idas", "ia", "iam", "eria", "o"]),
     ...forms("abr assist decid exist garant permit diminu adquir prefer sub", ["ir", "e", "em", "imos", "i", "iu", "ido", "ida", "idos", "idas", "ia", "iam", "iria", "o"]),
@@ -726,13 +852,28 @@ const singulars = (w: string) => [...new Set([w, w.replace(/s$/u, ""), w.replace
 // Uma palavra que não é um nome: das listas acima (também no plural), da base de conhecimento, um advérbio em "-mente",
 // um verbo na 1.ª pessoa do plural ("Recebemos", "Verificámos") ou com um pronome ("Contacte-nos"); nunca um nome próprio
 // comum nem um apelido.
+// Terminações de nomes comuns, adjetivos e particípios ("personalização", "disponibilidade", "alfandegárias",
+// "hipoalergénicas", "registados"): palavras, não nomes (os nomes e apelidos das listas são vistos antes).
+const WORD_ENDING = /\p{L}{3}(?:ções|ção|sões|são|dades?|mentos?|agens?|[áí]ve(?:l|is)|osos?|osas?|[êâ]ncias?|ismos?|istas?|uras?|ezas?|ivos?|ivas?|ados?|adas?|idos?|idas?|[áó]ri(?:os?|as?)|eir(?:os?|as?)|ês|eses?|esas?|[íi]c(?:os?|as?)|antes?|entes?|ários?|ensos?|ensas?|[áé]ticos?|[áé]ticas?|ológicos?|ológicas?|al(?:mente)?|ais|dor(?:es|as?)?)$/u;
 function ordinaryWord(low: string, allow: Allowlist): boolean {
   if (/^\p{L}{2,}-(?:nos|vos|se|me|te|lhe|lhes|o|a|os|as|lo|la|los|las)$/u.test(low)) return true;
   if (low.includes("-")) return low.split("-").every((p) => p.length < 2 || ordinaryWord(p, allow));
-  if (FIRST_NAMES.has(low) || SURNAME_WORDS.has(low) || VERB_LIKE_NAMES.has(low)) return false;
+  if (FIRST_NAMES.has(low) || SURNAME_WORDS.has(low) || SURNAMES.has(low) || VERB_LIKE_NAMES.has(low)) return false;
   for (const w of singulars(low))
     if (SAFE_WORDS.has(w) || COMMON_WORDS.has(w) || VOCAB.has(w) || VERB_FORMS.has(w) || allow.places.has(w)) return true;
-  return /(?<!cle)mente$/u.test(low) || /\p{L}{2}[aeiáéí]mos$/u.test(low);
+  return /(?<!cle)mente$/u.test(low) || /\p{L}{2}[aeiáéí]mos$/u.test(low) || WORD_ENDING.test(low);
+}
+// Palavras que podem ser nomes num contexto de pessoa: as desconhecidas e, com maiúscula, as que também são nomes de
+// pessoas ("Rosa", "Graça", "Dias").
+function personWord(w: string, allow: Allowlist, nameWords: Set<string> = NAME_WORDS) {
+  const low = w.toLowerCase();
+  if (low.length < 2 || TITLE_WORDS.has(low)) return false;
+  if (w.length > 1 && w === w.toUpperCase() && (low.length < 3 || ACRONYMS.has(low))) return false;
+  if (/^\p{Lu}/u.test(w) && nameWords.has(low)) return true;
+  if (SAFE_WORDS.has(low) || allow.places.has(low)) return false;
+  // Em minúsculas, um infinitivo ("o cliente pedir") não é um nome.
+  if (w === low && low.length >= 5 && /(?:ar|er|ir|armos|ermos|irmos|arem|erem|irem)$/u.test(low)) return false;
+  return !ordinaryWord(low, allow);
 }
 
 // Palavras com maiúscula ou EM MAIÚSCULAS que podem ser nomes, em qualquer posição ("Gertrudes atende", "Fale com a
@@ -751,32 +892,65 @@ function capitalisedNames(text: string, allow: Allowlist) {
   return out;
 }
 
-// Depois de uma saudação, de um tratamento, de uma despedida, de um parentesco ou de uma função: a palavra seguinte, em
-// qualquer forma ("Olá gertrudes", "a sra. GERTRUDES", "a senhora gertrudes", "a menina gertrudes", "Cumprimentos,
-// Gertrudes", "a sua filha GERTRUDES", "a consultora gertrudes", "a responsável da loja, Gertrudes").
-const GREETING_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|obrigad[oa]s?|atenciosamente|cumprimentos|sauda[çc][õo]es|beijinhos|beijos|abra[çc]os?|at[ée]\s+breve|com\s+estima)(?!\p{L})[ \t]*[,.!]?\s*(?=(\p{L}[\p{L}'’-]*))/giu;
+// Contextos de pessoa: a palavra seguinte, em qualquer forma, é um possível nome se não for uma palavra comum (ou, com
+// maiúscula, se também for um nome de pessoa: "Rosa", "Graça").
+// - Saudações e despedidas, na mesma frase ou na linha seguinte ("Olá gertrudes", "Cumprimentos,\nGertrudes").
+// - Tratamentos ("a sra. GERTRUDES", "a senhora gertrudes", "a menina gertrudes").
+// - Parentescos e funções, também "cliente", "dona" e "titular" ("a sua filha GERTRUDES", "A cliente gertrudes", "a
+//   responsável da loja, Gertrudes", "a dona da peça, a gertrudes").
+// - Verbos que se usam com pessoas, também no passado ("fale com a gertrudes", "Entregámos à gertrudes", "Ligámos ao
+//   anacleto", "Combinámos com a gertrudes").
+// - Sujeito de um verbo de pessoa ("A gertrudes já tem a peça", "A Rosa levanta amanhã", "Domingos levanta amanhã") e
+//   "foi o anacleto".
+// - Vocativos no início ou no fim da frase ("gertrudes, a sua peça está pronta", "Obrigado pela visita, gertrudes!").
+// - Texto entre aspas e depois de "gravação:" (gravações: «gertrudes e anacleto», "gravação: wenceslau 1987").
+const GREETING_RE = /(?<!\p{L})(?:ol[áa]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|obrigad[oa]s?|atenciosamente|cumprimentos|sauda[çc][õo]es|beijinhos|beijos|abra[çc]os?|at[ée]\s+breve|com\s+estima)(?!\p{L})[ \t]*,?[ \t]*(?:\n[ \t]*)?(?=(\p{L}[\p{L}'’-]*))/giu;
 const DEAR_RE = /(?:^|[.!?…\n])[ \t]*(?:car[oa]s?|estimad[oa]s?|prezad[oa]s?|querid[oa]s?|exm[oa]s?\.?)[ \t]+(?=(\p{L}[\p{L}'’-]*))/giu;
-const TITLE_RE = /(?<!\p{L})(?:(?:sr|sra|srª|snr|snra|srs|dr|dra|drª|drs|eng|engª|prof|profª|profa)(?:\.|(?=[ \t]))|dª|d\.|dona|senhor(?:a|es|as)?|menina|madame|doutor(?:a)?)(?!\p{L})[ \t]*(?=(\p{L}[\p{L}'’.-]*))/giu;
-const RELATION_RE = /(?<!\p{L})(?:filh[oa]s?|marid[oa]s?|mulher(?:es)?|espos[oa]s?|m[ãa]es?|pais?|irm[ãa]os?|irm[ãa]s?|namorad[oa]s?|noiv[oa]s?|av[óôo]s?|net[oa]s?|sobrinh[oa]s?|prim[oa]s?|tias?|tios?|sogr[oa]s?|cunhad[oa]s?|afilhad[oa]s?|madrinhas?|padrinhos?|amig[oa]s?|colegas?|colaborador(?:a|es|as)?|funcion[áa]ri[oa]s?|gerentes?|vendedor(?:a|es|as)?|respons[áa]ve(?:l|is)|consultor(?:a|es|as)?|ourives)(?!\p{L})/giu;
-// A palavra a seguir a um parentesco ou a uma função (depois de "de", "da", "do") e a primeira depois de uma vírgula, na
-// mesma frase ("a filha da Beatriz", "a responsável da loja, Gertrudes").
+const TITLE_RE = /(?<!\p{L})(?:(?:sr|dr|eng|prof)\.?ª\.?|(?:sr|sra|srª|snr|snra|srs|dr|dra|drª|drs|eng|engª|prof|profª|profa)(?:\.|(?=[ \t]))|dª|d\.|dona|senhor(?:a|es|as)?|menina|madame|doutor(?:a)?)(?!\p{L})[ \t]*(?=(\p{L}[\p{L}'’.-]*))/giu;
+const RELATION_RE = /(?<!\p{L})(?:filh[oa]s?|marid[oa]s?|mulher(?:es)?|espos[oa]s?|m[ãa]es?|pais?|irm[ãa]os?|irm[ãa]s?|namorad[oa]s?|noiv[oa]s?|av[óôo]s?|net[oa]s?|sobrinh[oa]s?|prim[oa]s?|tias?|tios?|sogr[oa]s?|cunhad[oa]s?|afilhad[oa]s?|madrinhas?|padrinhos?|amig[oa]s?|colegas?|colaborador(?:a|es|as)?|funcion[áa]ri[oa]s?|gerentes?|vendedor(?:a|es|as)?|respons[áa]ve(?:l|is)|consultor(?:a|es|as)?|ourives|clientes?|don[oa]s?|propriet[áa]ri[oa]s?|titular(?:es)?|destinat[áa]ri[oa]s?|comprador(?:a|es|as)?|utentes?)(?!\p{L})/giu;
+// A palavra a seguir a um parentesco ou a uma função (depois de "de", "da", "do") e a primeira depois de uma vírgula (sem
+// o artigo), na mesma frase.
 function relationCandidates(text: string) {
   const out: string[] = [];
   for (const m of text.matchAll(RELATION_RE)) {
-    const toks = text.slice((m.index ?? 0) + m[0].length).split(/[.!?;\n]/)[0].match(/[\p{L}'’-]+|,/gu)?.slice(0, 6) || [];
+    const toks = text.slice((m.index ?? 0) + m[0].length).split(/[.!?;\n]/)[0].match(/[\p{L}'’-]+|,/gu)?.slice(0, 8) || [];
     const first = toks[0] && toks[0] !== "," ? (/^d[aeo]s?$|^de$/i.test(toks[0]) ? toks[1] : toks[0]) : undefined;
     const comma = toks.indexOf(",");
-    const afterComma = comma >= 0 && comma < 5 ? toks[comma + 1] : undefined;
+    let at = comma >= 0 && comma < 5 ? comma + 1 : -1;
+    if (at > 0 && /^(?:a|o)$/i.test(toks[at] || "")) at++;
+    const afterComma = at > 0 ? toks[at] : undefined;
     for (const w of [first, afterComma]) if (w && w !== ",") out.push(w);
   }
   return out;
 }
-// Depois de um verbo que se usa com pessoas ("fale com a gertrudes", "pergunte pela gertrudes", "peça à anacleta",
-// "contacte o anacleto"): a palavra seguinte, em qualquer forma.
-const PERSON_VERB_RE = /(?<!\p{L})(?:fal(?:e|em|ar)|pergunt(?:e|em|ar)|procur(?:e|em|ar)|contact(?:e|em|ar)|pe[çc]a|pe[çc]am|pedir|dirija-se|dirijam-se|entreg(?:ar|ue|uem)|lig(?:ue|uem|ar)|cham(?:e|em|ar))(?!\p{L})[ \t]+(?:(?:com|por|pel[oa]|a|ao|à|o|para)[ \t]+)?(?:(?:o|a)[ \t]+)?(?=(\p{L}[\p{L}'’-]*))/giu;
+const PERSON_VERB_RE = /(?<!\p{L})(?:fal(?:e|em|ar|ámos|amos|ou|aram|ei)|pergunt(?:e|em|ar|ámos|amos|ou|aram|ei)|procur(?:e|em|ar|ámos|ou)|contact(?:e|em|ar|ámos|amos|ou|aram|ei)|(?<!(?:a|da|na|uma|sua|seu|esta|essa|cada|nossa|à|pela|tua|minha|desta|dessa|nesta|nessa|qualquer|outra|mesma|de|em|à)[ \t])pe[çc]am?|pedir|pedimos|pediu|dirija-se|dirijam-se|entreg(?:ar|ue|uem|ámos|amos|ou|aram|uei)|lig(?:ue|uem|ar|ámos|amos|ou|aram|uei)|cham(?:e|em|ar|ámos|ou)|combin(?:e|ar|ámos|amos|ou|aram|ei)|avis(?:e|ar|ámos|amos|ou|aram|ei)|telefon(?:e|ar|ámos|amos|ou|aram|ei)|explic(?:ar|ámos|ou)|inform(?:ar|ámos|ou)|ajud(?:ar|ámos|ou)|respond(?:er|emos|eu)|atend(?:er|eu)|mand(?:ar|ámos|ou)|envi(?:ar|ámos|ou)|ofere(?:cer|cemos|ceu)|escrev(?:er|emos|eu))(?!\p{L})[ \t]+(?:(?:com|por|pel[oa]|a|ao|à|o|para)[ \t]+)?(?:(?:o|a)[ \t]+)?(?=(\p{L}[\p{L}'’-]*))/giu;
+// Verbos de que uma pessoa é o sujeito ("levanta", "pode", "já tem", "confirmou").
+const PERSON_PRED = `(?:(?:j[áa]|n[ãa]o|tamb[ée]m|ainda|s[óo])[ \\t]+)?(?:levanta|levantou|levantar[áa]|pode|podia|poder[áa]|vai|foi|vem|veio|vir[áa]|est[áa]|esteve|fica|ficou|tem|teve|atende|atendeu|confirma|confirmou|liga|ligou|telefona|telefonou|trata|tratou|passa|passou|chega|chegou|quer|queria|pediu|pede|disse|diz|falou|fala|escreveu|escreve|comprou|deixou|deixa|recebeu|recebe|entregou|pagou|mandou|enviou|precisa|precisou|sabe|soube|voltou|volta|espera|esperou|aguarda|aguardou|prefere|preferiu|gostou|gosta|mora|morou|trabalha|trabalhou|levou|leva|trouxe|traz|encomendou|reservou|marcou|escolheu|perdeu|ofereceu|agradece|agradeceu|reclamou|devolveu|trocou|perguntou|respondeu|contactou|levantaram|podem|vão|foram|vieram|estão|ficaram|têm|tiveram|pediram|disseram|compraram|receberam|pagaram|escolheram|trouxeram|querem|preferem)(?!\\p{L})`;
+// O sujeito, também com outro a seguir ("A gertrudes e o anacleto já levantaram").
+const SUBJECT_ARTICLE_RE = new RegExp(`(?:^|[.!?…\\n;:,][ \\t]*|(?<!\\p{L})(?:e|mas|que|quando|porque|se)[ \\t]+)(?:a|o)[ \\t]+(?=(\\p{L}[\\p{L}'’-]*)(?:[ \\t]+e[ \\t]+(?:a|o)[ \\t]+\\p{L}[\\p{L}'’-]*)?[ \\t]+${PERSON_PRED})`, "giu");
+// O nome de alguém dito por extenso ("O nome gravado é gertrudes", "chama-se gertrudes") e o dono de uma peça ou de uma
+// encomenda ("A encomenda da gertrudes", "o anel do anacleto").
+const NAME_IS_RE = /(?<!\p{L})(?:nome(?:[ \t]+\p{L}+)?[ \t]+(?:é|era|será|fica)|chama-se|chamava-se|chamad[oa])[ \t]*:?[ \t]+(?:(?:o|a)[ \t]+)?(?=(\p{L}[\p{L}'’-]*))/giu;
+const POSSESSION_RE = /(?<!\p{L})(?:encomendas?|peças?|anel|anéis|fio|colar|pulseira|brincos?|relógio|pedido|alianças?|reparação|compra|morada|conta|cartão|telefone|telemóvel|email|perfil|casa|caixa|talão|fatura|orçamento|gravação|reserva|medalha|corrente)[ \t]+d[oa][ \t]+(?=(\p{L}[\p{L}'’-]*))/giu;
+const SUBJECT_START_RE = new RegExp(`(?:^|[.!?…\\n][ \\t]*)(?=(\\p{Lu}[\\p{L}'’-]*)[ \\t]+${PERSON_PRED})`, "gu");
+const PRED_AFTER = new RegExp(`^[ \\t]+${PERSON_PRED}`, "iu");
+const COPULA_RE = /(?<!\p{L})(?:foi|é|era|ser[áa])[ \t]+(?:o|a)[ \t]+(?=(\p{L}[\p{L}'’-]*)(?:[ \t]*(?:[.!?,;:…\n]|$)|[ \t]+(?:que|quem)(?!\p{L})))/giu;
+const VOCATIVE_START = /(?:^|[.!?…\n][ \t]*)(?=(\p{L}[\p{L}'’-]*)[ \t]*,)/gu;
+const VOCATIVE_END = /,[ \t]*(?=(\p{L}[\p{L}'’-]*)[ \t]*(?:[.!?…\n]|$))/gu;
+// Nomes de pessoa que também são palavras e que, como vocativo, ainda são nomes ("Rosa, a sua peça…"; não "Domingos, …").
+const VOCATIVE_NAME_WORDS = new Set([...NAME_WORDS].filter((w) => !["dias", "domingos", "santos", "reis", "costa", "vale", "neves", "paz", "mar", "sol", "lua"].includes(w)));
+const QUOTED_RE = /[«“"]([^»”"\n]{1,80})[»”"]/gu;
+const ENGRAVE_RE = /(?<!\p{L})(?:grava[çc][ãa]o|grava[çc][õo]es|gravar|gravamos|gravámos|gravado|gravada|gravei|gravou|inscri[çc][ãa]o|dizeres)(?!\p{L})[ \t]*:[ \t]*([^.!?\n]{1,60})/giu;
+const ENGRAVE_CONTEXT = /(?<!\p{L})(?:grav\p{L}*|inicia(?:l|is)|nascimento|nasceu|casamento|casaram|aniversário|batizado|batismo|comunhão|dizeres|inscri[çc][ãa]o|data)(?!\p{L})/iu;
+const DATE_RE = /(?<![\p{L}\p{N}])(?:\d{1,2}[./-]\d{1,2}[./-](?:\d{4}|\d{2})|(?:19|20)\d\d)(?![\p{L}\p{N}])/gu;
+// Iniciais ("G.A.", "iniciais GA"), menos as siglas comuns ("S.A.", "U.E.").
+const INITIALS_RE = /(?<![\p{L}\p{N}.])\p{Lu}\.[ \t]?\p{Lu}\.(?:[ \t]?\p{Lu}\.)*(?![\p{L}\p{N}])/gu;
+const INITIALS_AFTER = /(?<!\p{L})iniciais[ \t]*:?[ \t]*(\p{Lu}{1,4}(?:[ \t]*(?:&|e)[ \t]*\p{Lu}{1,4})?)(?![\p{L}\p{N}.])/gu;
+const NOT_INITIALS = new Set(["S.A.", "N.B.", "P.S.", "U.E.", "E.U.", "E.U.A.", "N.I.F.", "I.V.A.", "C.P.", "S.F.F.", "P.F.", "A.C.", "D.C."]);
 function contextNames(text: string, allow: Allowlist) {
   const words: string[] = [];
-  for (const re of [GREETING_RE, DEAR_RE, PERSON_VERB_RE]) for (const m of text.matchAll(re)) words.push(m[1]);
+  for (const re of [GREETING_RE, DEAR_RE, PERSON_VERB_RE, SUBJECT_ARTICLE_RE, SUBJECT_START_RE, COPULA_RE, NAME_IS_RE, POSSESSION_RE])
+    for (const m of text.matchAll(re)) words.push(m[1]);
   for (const m of text.matchAll(TITLE_RE)) {
     // "Sra. Dona Maria", "Senhora D. Gertrudes": o nome vem depois do segundo tratamento.
     const w = m[1].replace(/\.$/, "");
@@ -787,46 +961,56 @@ function contextNames(text: string, allow: Allowlist) {
     }
   }
   words.push(...relationCandidates(text));
-  return words.map((w) => w.replace(/[.'’-]+$/, "")).filter((w) => {
-    const low = w.toLowerCase();
-    if (low.length < 2 || TITLE_WORDS.has(low) || SAFE_WORDS.has(low) || allow.places.has(low)) return false;
-    if (w === w.toUpperCase() && ACRONYMS.has(low)) return false;
-    return !ordinaryWord(low, allow);
-  });
+  // Texto entre aspas e depois de "gravação:": cada palavra.
+  for (const m of [...text.matchAll(QUOTED_RE), ...text.matchAll(ENGRAVE_RE)]) words.push(...(m[1].match(/\p{L}[\p{L}'’-]*/gu) || []));
+  const out = words.map((w) => w.replace(/[.'’-]+$/, "")).filter((w) => personWord(w, allow));
+  for (const re of [VOCATIVE_START, VOCATIVE_END])
+    for (const m of text.matchAll(re)) if (personWord(m[1], allow, VOCATIVE_NAME_WORDS)) out.push(m[1]);
+  return out;
 }
-// Nomes próprios comuns em qualquer posição, também no início da frase ("Beatriz pode levantar a encomenda?") e em
-// minúsculas ("fale com o joão"), menos os que em minúsculas também são palavras ("margarida").
+// Nomes próprios e apelidos comuns em qualquer posição, também no início da frase ("Beatriz pode levantar a encomenda?")
+// e em minúsculas ("fale com o joão", "gertrudes amaral"), menos os que em minúsculas também são palavras ("margarida").
 function firstNames(text: string) {
   const out: string[] = [];
   for (const m of text.matchAll(/(?<![\p{L}\p{N}])\p{L}[\p{L}'’-]*/gu))
     for (const w of m[0].split(/['’-]/)) {
       const low = w.toLowerCase();
-      if (!FIRST_NAMES.has(low)) continue;
+      if (!FIRST_NAMES.has(low) && !SURNAMES.has(low)) continue;
       if (/^\p{Lu}\p{Ll}/u.test(w) || (w.length > 1 && w === w.toUpperCase()) || (w === low && !FIRST_NAME_WORDS.has(low))) out.push(w);
     }
   return out;
 }
-// Com maiúscula mas sem ser uma pessoa: santos (medalhas de "São Jorge", "Santo António", "São Miguel Arcanjo") e o
-// rosário como peça ("um rosário", "Rosário em ouro", "rosário de pérolas"). "Maria do Rosário" e "a Rosário" continuam
-// a ser nomes.
-const SAINT_RE = /(?<!\p{L})(?:S[ãa]o|Santo|Santa|Sto\.|Sta\.)[ \t]+\p{Lu}[\p{L}'’-]*/gu;
+// Com maiúscula mas sem ser uma pessoa: santos ("São Jorge", "Santo António", "São Francisco de Assis"), invocações
+// ("Nossa Senhora da Paz", "Nossa Senhora das Neves"), festas e devoções ("Dia de Reis", "Todos os Santos", "Santos
+// Populares", "Imaculada Conceição", "Ave Maria", "Reis Magos") e o rosário como peça ("um rosário", "Rosário em ouro",
+// "rosário de pérolas"). "Maria do Rosário" e "a Rosário" continuam a ser nomes.
+const SAINT_RE = /(?<!\p{L})(?:S[ãa]o|Santo|Santa|Sto\.|Sta\.|S\.)[ \t]+\p{Lu}[\p{L}'’-]*(?:[ \t]+(?:de|da|do|das|dos)[ \t]+\p{Lu}[\p{L}'’-]*)?/gu;
+const DEVOTION_RE = /(?<!\p{L})(?:[Nn]ossa[ \t]+[Ss]enhora|N\.[ \t]*[Ss]ra\.?|[Vv]irgem)[ \t]+(?:(?:de|da|do|das|dos)[ \t]+)?\p{Lu}[\p{L}'’-]*(?:[ \t]+(?:de|da|do|das|dos)[ \t]+\p{Lu}[\p{L}'’-]*)?/gu;
+const FEAST_RE = /(?<!\p{L})(?:[Dd]ia[ \t]+(?:de|da|do|dos)[ \t]+(?:[Tt]odos[ \t]+os[ \t]+[Ss]antos|[Rr]eis|[Nn]atal|[Pp]ortugal|[Cc]am[õo]es|[Ii]maculada[ \t]+[Cc]oncei[çc][ãa]o|[Aa]ssun[çc][ãa]o|[Cc]orpo[ \t]+de[ \t]+[Dd]eus|[Nn]amorados)|[Tt]odos[ \t]+os[ \t]+[Ss]antos|[Ss]antos[ \t]+[Pp]opulares|[Ii]maculada[ \t]+[Cc]oncei[çc][ãa]o|[Aa]v[ée](?:-|[ \t]+)[Mm]aria|[Rr]eis[ \t]+[Mm]agos|[Ss]agrad[ao][ \t]+[Ff]am[íi]lia|[Ss]enhor[ \t]+dos[ \t]+[Pp]assos|[Ss]enhor[ \t]+[Ss]anto[ \t]+[Cc]risto|[Ss]enhor[ \t]+[Jj]esus|[Mm]enino[ \t]+[Jj]esus|[Ee]sp[íi]rito[ \t]+[Ss]anto|[Ss]ant[íi]ssima[ \t]+[Tt]rindade|[Cc]orpo[ \t]+de[ \t]+[Dd]eus)(?!\p{L})/gu;
 const ROSARY_RE = /(?<!\p{L})(?:(?:um|uns|o|os|ao|aos|pelo|pelos|este|estes|esse|esses|deste|desse|nosso|nossos|seu|seus)[ \t]+ros[áa]rios?|ros[áa]rios?(?=[ \t]+(?:em|com)[ \t]|[ \t]+de[ \t]+(?:ouro|prata|p[ée]rolas?|contas|madeira|cristal|n[áa]car|a[çc]o|\d)))(?!\p{L})/giu;
-const withoutItems = (t: string) => t.replace(SAINT_RE, " ").replace(ROSARY_RE, " ");
+const blankAll = (re: RegExp) => (t: string) => t.replace(re, (m) => " ".repeat(m.length));
+const withoutItems = (t: string) => [FEAST_RE, DEVOTION_RE, SAINT_RE, ROSARY_RE].map(blankAll).reduce((acc, f) => f(acc), t);
 
-// Perfis escritos sem @ ("Siga gertrudes.joias no Instagram", "Procure por joiasdagertrudes no Instagram", "Siga-nos:
-// instagram gertrudes_joias"): numa frase sobre uma rede social, uma palavra com ponto ou sublinhado, ou a palavra depois
-// de "siga", "procure" ou "pesquise" que não é comum.
-const SOCIAL_WORD = /(?<!\p{L})(?:instagram|insta|facebook|fb|tiktok|tik[ \t]+tok|twitter|whatsapp|telegram|pinterest|youtube|threads|snapchat|perfil|p[áa]gina|conta)(?!\p{L})/iu;
+// Perfis escritos sem @: numa frase sobre uma rede social ("O perfil dela no instagram é gertrudesjoias", "snap:
+// gertrudes_amaral", "Mande DM para gertrudesjoias no instagram"), cada palavra que não é comum; numa frase sobre uma
+// página ou conta, uma palavra com ponto ou sublinhado ou a palavra depois de "siga", "procure" ou "pesquise"; e uma
+// palavra com sublinhado em qualquer frase.
+const SOCIAL_NET = /(?<!\p{L})(?:instagram|insta|ig|facebook|fb|tiktok|tik[ \t]+tok|twitter|whatsapp|wpp|telegram|signal|pinterest|youtube|threads|snapchat|snap|kwai|discord|dm|username|user)(?!\p{L})/iu;
+const SOCIAL_WORD = /(?<!\p{L})(?:instagram|insta|ig|facebook|fb|tiktok|tik[ \t]+tok|twitter|whatsapp|wpp|telegram|signal|pinterest|youtube|threads|snapchat|snap|kwai|discord|dm|username|user|perfil|p[áa]gina|conta)(?!\p{L})/iu;
 const HANDLE_LIKE = /(?<![\p{L}\p{N}@./])[\p{L}\p{N}]+(?:[._][\p{L}\p{N}]+)+(?![\p{L}\p{N}])/gu;
+const UNDERSCORE_WORD = /(?<![\p{L}\p{N}@./])[\p{L}\p{N}]+(?:_[\p{L}\p{N}]+)+(?![\p{L}\p{N}])/gu;
 const FOLLOW_RE = /(?<!\p{L})(?:siga|sigam|segue|seguir|procure|procurem|procurar|pesquise|pesquisem|pesquisar|encontre|encontrem)(?:-nos)?(?!\p{L})[ \t]*:?[ \t]*(?:(?:por|o|a|os|as|em|no|na|nosso|nossa|perfil|página|pagina|conta|de|do|da)[ \t]+)*@?([\p{L}\p{N}._]+)/giu;
 function handleWarnings(text: string, allow: Allowlist) {
-  const out: string[] = [];
+  const out: string[] = [...(text.match(UNDERSCORE_WORD) || [])];
   for (const s of text.split(/(?<=[!?…])\s+|\.(?=\s|$)|\n+/u)) {
     if (!SOCIAL_WORD.test(s)) continue;
-    const words = [...[...s.matchAll(HANDLE_LIKE)].map((m) => m[0]).filter((h) => /\p{L}/u.test(h)), ...[...s.matchAll(FOLLOW_RE)].map((m) => m[1])];
+    const net = SOCIAL_NET.test(s);
+    const words = [...[...s.matchAll(HANDLE_LIKE)].map((m) => m[0]).filter((h) => /\p{L}/u.test(h)), ...[...s.matchAll(FOLLOW_RE)].map((m) => m[1]),
+      ...(net ? s.match(/(?<![\p{L}\p{N}@._])[\p{L}\p{N}]{3,}(?![\p{L}\p{N}@._])/gu) || [] : [])];
     for (const raw of words) {
       const w = raw.replace(/[._]+$/, ""), low = w.toLowerCase();
-      if (!w || SOCIAL_WORD.test(w) || allow.handles.has(`@${low}`) || allow.places.has(low) || SAFE_WORDS.has(low)) continue;
+      if (!w || SOCIAL_WORD.test(w) || allow.handles.has(`@${low}`) || allow.places.has(low) || SAFE_WORDS.has(low) || !/\p{L}/u.test(w)) continue;
+      if (w.length > 1 && w === w.toUpperCase() && ACRONYMS.has(low)) continue;
       if (!/[._]/.test(w) && ordinaryWord(low, allow)) continue;
       out.push(w);
     }
@@ -834,18 +1018,40 @@ function handleWarnings(text: string, allow: Allowlist) {
   return out;
 }
 
-// Nome do cliente ou da equipa no texto. Um nome escrito com maiúscula (ou um nome comum) apanha-se em qualquer forma
-// ("JOANA", "joana", "McDonald"); um apelido ou nome que também é palavra ("Dias", "Clara") ou uma palavra de um perfil
-// ("joias") só com maiúscula ou em maiúsculas.
-function nameIn(text: string, token: string) {
+// Nome do cliente ou da equipa no texto (sem acentos: "leocadia" é "Leocádia"; sem os santos, as invocações, as festas
+// e o rosário). Um nome que não é palavra apanha-se em qualquer forma ("JOANA", "joana", "McDonald"): recusa. Um nome que
+// também é palavra, lugar ou marca ("Vale", "Graça", "Lima", "Santos", "Dias") só conta com maiúscula a meio da frase,
+// em maiúsculas ou como sujeito de um verbo de pessoa ("Vale levanta amanhã"): em minúsculas e no início da frase é a
+// palavra ("vale a pena", "de graça", "Vale de oferta:"). Do cliente (strict) é recusa; da equipa é aviso, menos como
+// sujeito de um verbo de pessoa.
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "");
+const atSentenceStart = (t: string, i: number) => /(?:^|[.!?…:;\n•])[\s"'«“(\-–*]*$/u.test(t.slice(0, i));
+const ambiguousName = (low: string) => SAFE_WORDS.has(low) || COMMON_LOWER.has(low) || COMMON_WORDS.has(low) || VOCAB.has(low)
+  || FIRST_NAME_WORDS.has(low) || NAME_WORDS.has(low) || VERB_FORMS.has(low);
+function nameHit(text: string, token: string, strict: boolean): { kind: "block" | "warn"; word: string } | null {
   const low = token.toLowerCase();
-  if (low.length < 3 || SAFE_WORDS.has(low)) return false;
-  if (FIRST_NAMES.has(low) || (/^\p{Lu}/u.test(token) && !COMMON_LOWER.has(low) && !COMMON_WORDS.has(low) && !VOCAB.has(low))) return wordRe(low, "iu").test(text);
-  return [low[0].toUpperCase() + low.slice(1), low.toUpperCase(), ...(token !== low ? [token] : [])].some((f) => wordRe(f).test(text));
+  if (low.length < 3) return null;
+  const folded = fold(text);
+  const src = folded.length === text.length ? text : folded;
+  const ambiguous = ambiguousName(low) || ambiguousName(fold(low));
+  let hit: { kind: "block" | "warn"; word: string } | null = null;
+  for (const m of folded.matchAll(wordRe(fold(low), "giu"))) {
+    const at = m.index ?? 0;
+    const word = src.slice(at, at + m[0].length);
+    if (!ambiguous) return { kind: "block", word };
+    if (!/^\p{Lu}/u.test(word)) continue;
+    const caps = word.length > 1 && word === word.toUpperCase();
+    const pred = PRED_AFTER.test(folded.slice(at + m[0].length)) || PRED_AFTER.test(src.slice(at + m[0].length));
+    if (atSentenceStart(src, at) && !caps && !pred) continue;
+    if (strict || pred) return { kind: "block", word };
+    hit = { kind: "warn", word };
+  }
+  return hit;
 }
 const nameTokens = (name: string | null | undefined) => (name || "").split(/[^\p{L}]+/u).filter(Boolean);
 
 export type TextReview = { blocks: PiiProblem[]; warnings: string[] };
+type Names = (string | null | undefined)[];
 const quote = (s: string) => `«${s.replace(/\s+/g, " ").trim()}»`;
 export const WARNING = {
   nome: (w: string) => `Possível nome: ${quote(w)}`,
@@ -854,16 +1060,23 @@ export const WARNING = {
   codigo: (w: string) => `Possível código ou referência: ${quote(w)}`,
   email: (w: string) => `Email que não está na base de conhecimento: ${quote(w)}`,
   ligacao: (w: string) => `Ligação que não está na base de conhecimento: ${quote(clip(w, 80))}`,
+  data: (w: string) => `Possível data pessoal: ${quote(w)}`,
+  extenso: (w: string) => `Possível número por extenso: ${quote(clip(w, 80))}`,
+  instrucao: (w: string) => `Possível instrução para a IA: ${quote(clip(w, 80))}`,
 };
+// Números depois de "n.º" ou "número" (3 ou mais algarismos) fora de uma morada: um número de encomenda, de cliente ou de
+// processo. Não contam os da base de conhecimento, os contrastes do ouro ("n.º 750") nem leis ("Decreto-Lei n.º 84/2021").
+const NUMBER_MARK_RE = /(?<!\p{L})(?:n\.?[ \t]*[ºo°]\.?|nº|n[úu]mero|nr\.?)[ \t]*:?[ \t]*(\d{3,})(?![\d\/])/giu;
+const LAW_BEFORE = /(?:lei|decreto|dl|portaria|regulamento|diretiva|artigo|art\.)[ \t-]*$/iu;
 
-function scan(text: string, allow: Allowlist, names: (string | null | undefined)[]): TextReview {
+function scan(text: string, allow: Allowlist, names: Names, contact: Names = []): TextReview {
   const found = new Set<PiiProblem>();
   const warnings: string[] = [];
   const warn = (s: string) => {
     if (!warnings.includes(s)) warnings.push(s);
   };
   const t = text || "";
-  const people = names.flatMap(nameTokens);
+  const staff = names.flatMap(nameTokens), strict = contact.flatMap(nameTokens);
   let rest = t;
   // Emails: fora dos domínios da empresa, recusa; da empresa sem estar na base, aviso; com o nome de alguém, recusa.
   for (const e of t.match(EMAIL_RE) || []) {
@@ -872,10 +1085,17 @@ function scan(text: string, allow: Allowlist, names: (string | null | undefined)
       if (OWN_DOMAIN.test(low.slice(low.lastIndexOf("@") + 1))) warn(WARNING.email(e));
       else found.add("email");
     }
-    if (people.some((p) => nameIn(e.slice(0, e.lastIndexOf("@")).replace(/[._+-]+/g, " "), p))) found.add("nome");
+    const local = e.slice(0, e.lastIndexOf("@")).replace(/[._+-]+/g, " ");
+    if ([...strict, ...staff].some((p) => nameHit(local, p, true))) found.add("nome");
     rest = rest.split(e).join(" ");
   }
-  if (OBFUSCATED_EMAIL.test(rest)) found.add("email");
+  // Sem domínio de topo ("gertrudes@sapo"): recusa (com o nome da empresa, aviso).
+  for (const e of rest.match(EMAIL_NO_TLD) || []) {
+    if (OWN_NAME.test(e.slice(e.lastIndexOf("@") + 1))) warn(WARNING.email(e));
+    else found.add("email");
+    rest = rest.split(e).join(" ");
+  }
+  if (OBFUSCATED_EMAIL.test(rest) || OBFUSCATED_PROVIDER.test(rest)) found.add("email");
   for (const u of linkList(rest)) {
     const p = linkProblem(u, allow);
     if (p) found.add(p);
@@ -884,14 +1104,22 @@ function scan(text: string, allow: Allowlist, names: (string | null | undefined)
   }
   for (const h of rest.match(HANDLE_RE) || []) if (!allow.handles.has(handleKey(h))) found.add("perfil");
   rest = rest.replace(HANDLE_RE, " ").replace(/[()]/g, " ");
-  // Telefones, cartões e números longos (os da empresa passam).
+  // Telefones, cartões e números longos (os da empresa passam), também com letras no lugar de algarismos ("9l2 345 678")
+  // e por extenso ("nove um dois, três quatro cinco…").
+  rest = rest.replace(/(?<=\d[ \t]?)[lI|](?=[ \t]?\d)/g, "1").replace(/(?<=\d)[oO](?=\d)/g, "0");
   for (const r of digitRuns(rest)) {
     const kind = runKind(r);
     if (!kind) continue;
     if (allow.phones.has(phoneKey(r.digits)) || allow.numbers.has(r.digits)) rest = rest.split(r.raw).join(" ");
     else found.add(kind);
   }
+  if (PHONE_WORDS.test(rest)) found.add("telefone");
   if (IBAN_RE.test(rest) || NIF_RE.test(rest)) found.add("pagamento");
+  // O fim de um cartão ou de uma conta ("os últimos 4 dígitos do cartão são 4242").
+  for (const s of sentencesOf(rest)) {
+    const end = CARD_WORD.test(s) ? CARD_END.exec(s) : null;
+    if (end && !isYear(end[1]) && !allow.numbers.has(end[1])) found.add("pagamento");
+  }
   if (SHIPPING_RE.test(rest)) found.add("envio");
   if (orderRefs(rest, allow)) found.add("encomenda");
   for (const d of rest.match(/\d{6,}/g) || []) if (!allow.numbers.has(d)) found.add("numero");
@@ -903,13 +1131,31 @@ function scan(text: string, allow: Allowlist, names: (string | null | undefined)
     const at = m.index ?? 0;
     if (!allow.postcodes.has(m[0]) && !spans.some((s) => at >= s.at && at < s.end)) warn(WARNING.morada(m[0]));
   }
-  // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria) nem as
-  // moradas da base de conhecimento. O nome do cliente ou da equipa é uma recusa.
+  // "n.º 4512" fora de uma morada: recusa.
+  const unaddressed = blank(rest, spans);
+  for (const m of unaddressed.matchAll(NUMBER_MARK_RE)) {
+    if (allow.numbers.has(m[1]) || HALLMARKS.has(m[1]) || LAW_BEFORE.test(unaddressed.slice(0, m.index ?? 0))) continue;
+    found.add("encomenda");
+  }
+  // Números por extenso ("quatro mil quinhentos e doze"), sem unidade: aviso.
+  for (const m of unaddressed.matchAll(NUMBER_WORDS_RUN)) {
+    const count = m[0].split(/[ \t,]+/).filter((w) => !/^e$/i.test(w)).length;
+    if (count >= 3 && !NUM_UNIT_AFTER.test(unaddressed.slice((m.index ?? 0) + m[0].length))) warn(WARNING.extenso(m[0]));
+  }
+  // Pedidos à IA dentro do texto.
+  for (const re of INJECTION_RES) for (const m of t.matchAll(re)) warn(WARNING.instrucao(m[0]));
+  // Nomes: sem as frases da base de conhecimento, das lojas e das marcas ("Rua Maria Pia" não é a cliente Maria), as
+  // moradas da base de conhecimento, os santos, as festas e o rosário. O nome do cliente é uma recusa; o da equipa também,
+  // menos o que também é palavra (aviso).
   const withoutPhrases = (s: string) => (allow.phrases ? s.replace(allow.phrases, (p) => " ".repeat(p.length)) : s);
-  const named = withoutPhrases(blank(rest, spans.filter((s) => s.ok)));
-  if (people.some((p) => nameIn(named, p))) found.add("nome");
+  const named = withoutPhrases(withoutItems(blank(rest, spans.filter((s) => s.ok))));
+  for (const [p, isStrict] of [...strict.map((x) => [x, true] as const), ...staff.map((x) => [x, false] as const)]) {
+    const h = nameHit(named, p, isStrict);
+    if (h?.kind === "block") found.add("nome");
+    else if (h) warn(WARNING.nome(h.word));
+  }
   // Possíveis nomes (aviso, um por palavra; "Jean-Pierre" já está em "Jean" e "Pierre"), sem as moradas assinaladas.
-  const generic = withoutItems(withoutPhrases(blank(rest, spans)));
+  const generic = withoutPhrases(withoutItems(unaddressed));
   const common = firstNames(generic);
   const seen = new Set(common.map((c) => c.toLowerCase()));
   const others = [...capitalisedNames(generic, allow), ...contextNames(generic, allow)]
@@ -920,31 +1166,53 @@ function scan(text: string, allow: Allowlist, names: (string | null | undefined)
     listed.add(w.toLowerCase());
     warn(WARNING.nome(w));
   }
+  // Iniciais e datas de uma gravação ("as iniciais G.A. e a data 12/05/2019").
+  for (const m of generic.matchAll(INITIALS_RE)) if (!NOT_INITIALS.has(m[0].replace(/[ \t]/g, ""))) warn(WARNING.nome(m[0]));
+  for (const m of generic.matchAll(INITIALS_AFTER)) warn(WARNING.nome(m[1]));
+  for (const s of sentencesOf(unaddressed)) if (ENGRAVE_CONTEXT.test(s)) for (const m of s.matchAll(DATE_RE)) warn(WARNING.data(m[0]));
   for (const h of handleWarnings(rest, allow)) warn(WARNING.perfil(h));
   return { blocks: PII_PROBLEMS.filter((p) => found.has(p)), warnings };
 }
 
-// Recusas e avisos de um texto (pergunta, variante ou resposta). names: nomes do cliente da conversa e da equipa.
-export function reviewText(text: string, allow: Allowlist, names: (string | null | undefined)[] = []): TextReview {
-  return scan(text, allow, names);
+// O painel vê o mesmo texto várias vezes (recusas, avisos e respostas automáticas de até 300 cartões): resultados
+// guardados em memória por lista de dados da empresa (a mesma lista, os mesmos nomes e o mesmo texto dão o mesmo
+// resultado).
+const scanCache = new WeakMap<Allowlist, Map<string, TextReview>>();
+function cachedScan(text: string, allow: Allowlist, names: Names, contact: Names): TextReview {
+  let cache = scanCache.get(allow);
+  if (!cache) scanCache.set(allow, (cache = new Map()));
+  const key = `${names.map((n) => n || "").join("\u0001")}\u0000${contact.map((n) => n || "").join("\u0001")}\u0000${text || ""}`;
+  let r = cache.get(key);
+  if (!r) {
+    if (cache.size > 5000) cache.clear();
+    r = scan(text, allow, names, contact);
+    cache.set(key, r);
+  }
+  return { blocks: [...r.blocks], warnings: [...r.warnings] };
+}
+
+// Recusas e avisos de um texto (pergunta, variante ou resposta). names: nomes da equipa; contact: o nome e o perfil do
+// cliente da conversa (sempre recusa, também quando o nome é uma palavra).
+export function reviewText(text: string, allow: Allowlist, names: Names = [], contact: Names = []): TextReview {
+  return cachedScan(text, allow, names, contact);
 }
 // Só as recusas de um texto (lista vazia = sem dados pessoais claros).
-export function scrubPii(text: string, allow: Allowlist, opts: { names?: (string | null | undefined)[] } = {}): PiiProblem[] {
-  return scan(text, allow, opts.names || []).blocks;
+export function scrubPii(text: string, allow: Allowlist, opts: { names?: Names; contact?: Names } = {}): PiiProblem[] {
+  return cachedScan(text, allow, opts.names || [], opts.contact || []).blocks;
 }
 // Um cartão inteiro: a pergunta, as variantes e a resposta.
 export function reviewCard(card: { pergunta: string; variantes: string[] | null; resposta: string }, allow: Allowlist,
-  names: (string | null | undefined)[] = []): TextReview {
-  const parts = [card.pergunta, ...(card.variantes || []), card.resposta].map((t) => scan(t, allow, names));
+  names: Names = [], contact: Names = []): TextReview {
+  const parts = [card.pergunta, ...(card.variantes || []), card.resposta].map((t) => cachedScan(t, allow, names, contact));
   return { blocks: PII_PROBLEMS.filter((p) => parts.some((r) => r.blocks.includes(p))), warnings: [...new Set(parts.flatMap((r) => r.warnings))] };
 }
-export function cardPii(card: { pergunta: string; variantes: string[] | null; resposta: string }, allow: Allowlist, names: (string | null | undefined)[] = []) {
-  return reviewCard(card, allow, names).blocks;
+export function cardPii(card: { pergunta: string; variantes: string[] | null; resposta: string }, allow: Allowlist, names: Names = [], contact: Names = []) {
+  return reviewCard(card, allow, names, contact).blocks;
 }
 // Todos os avisos de um cartão: os do texto atual e os que ficaram da proposta da IA (avisos: contradições e condições
 // em relação à resposta da equipa, que só se podem ver no momento da proposta).
 export function cardAlerts(card: { pergunta: string; variantes: string[] | null; resposta: string; avisos?: string[] | null }, allow: Allowlist,
-  names: (string | null | undefined)[] = []) {
+  names: Names = []) {
   return [...new Set([...reviewCard(card, allow, names).warnings, ...(card.avisos || [])])];
 }
 // Avisos que o Super Admin ainda não confirmou para o texto atual (acked: os confirmados, que a BD apaga quando o texto
@@ -1043,9 +1311,10 @@ export function poisonReason(o: { text: string; staff: string; knowledge: string
 // Calculados quando a IA propõe o cartão (só aí há a resposta da equipa) e guardados no cartão: o Super Admin tem de os
 // confirmar (ACK_LABEL) antes de aprovar. Falham pelo lado seguro: na dúvida, há aviso.
 
-// Recusas e negações. Sem as fórmulas que não recusam nada ("não hesite", "não se esqueça", "sem custos", "sem dúvida",
-// "de nada", "acabou de chegar").
-const REFUSAL_RE = /(?<!\p{L})(?:n[ãa]o|nem|nunca|jamais|sem|nenhum|nenhuma|nenhuns|nenhumas|nada|infelizmente|lamentamos|lamento|lamentavelmente|imposs[íi]ve(?:l|is)|invi[áa]ve(?:l|is)|indispon[íi]ve(?:l|is)|deix[áa]mos[ \t]+de|deixou[ \t]+de|deixaram[ \t]+de|exclu(?:i|em|ir|[íi]d[oa]s?|s[ãa]o)|recus(?:a|am|amos|ou|ado|ada|ados|adas)|acab(?:ou|aram|ado|ada|ados|adas)|termin(?:ou|aram)|expir(?:ou|aram|ado|ada|ados|adas)|esgotad[oa]s?|caduc(?:ou|aram|ado|ada)|j[áa][ \t]+passou|fora[ \t]+de[ \t]+quest[ãa]o|unfortunately|sorry|not|never|cannot|can't|won't|don't|doesn't|isn't|aren't)(?!\p{L})/giu;
+// Recusas e negações, também nos verbos ("fechou", "esgotou", "terminou", "suspendemos", "suspensos", "cancelámos",
+// "descontinuámos", "encerrámos", "interrompemos", "parámos de"). Sem as fórmulas que não recusam nada ("não hesite",
+// "não se esqueça", "sem custos", "sem dúvida", "de nada", "acabou de chegar").
+const REFUSAL_RE = /(?<!\p{L})(?:n[ãa]o|nem|nunca|jamais|sem|nenhum|nenhuma|nenhuns|nenhumas|nada|infelizmente|lamentamos|lamento|lamentavelmente|imposs[íi]ve(?:l|is)|invi[áa]ve(?:l|is)|indispon[íi]ve(?:l|is)|deix[áa]mos[ \t]+de|deixou[ \t]+de|deixaram[ \t]+de|exclu(?:i|em|ir|[íi]d[oa]s?|s[ãa]o)|recus(?:a|am|amos|ou|ado|ada|ados|adas)|acab(?:ou|aram|ado|ada|ados|adas)|termin(?:ou|aram|ad[oa]s?)|expir(?:ou|aram|ado|ada|ados|adas)|esgot(?:ou|aram|ad[oa]s?)|caduc(?:ou|aram|ado|ada)|suspend\p{L}*|suspens[oa]s?|cancel\p{L}*|descontinu\p{L}*|encerr\p{L}*|interromp\p{L}*|interrup[çc][ãa]o|par(?:[áa]mos|ou|aram)[ \t]+de|fech(?:ou|aram|ad[oa]s?)|j[áa][ \t]+passou|fora[ \t]+de[ \t]+quest[ãa]o|unfortunately|sorry|not|never|cannot|can't|won't|don't|doesn't|isn't|aren't)(?!\p{L})/giu;
 const REFUSAL_IDIOMS = /(?<!\p{L})(?:n[ãa]o[ \t]+hesite\p{L}*|n[ãa]o[ \t]+se[ \t]+esque[çc]a\p{L}*|sem[ \t]+(?:qualquer[ \t]+|nenhum[ \t]+)?(?:custos?|encargos?|despesas?|juros|compromisso|d[úu]vidas?|problemas?)|de[ \t]+nada|n[ãa]o[ \t]+h[áa][ \t]+de[ \t]+qu[êe]|acab(?:ou|aram)[ \t]+de)(?!\p{L})/giu;
 type Refusal = { marker: string; phrase: string };
 // Sem dados da empresa: para saber se uma palavra é comum.
@@ -1072,7 +1341,7 @@ const POLICY_RE = /(?<!\p{L})(?:\p{L}{2,}(?:amos|emos|imos|ámos|êmos)|pode|pod
 const statesPolicy = (text: string) => commitmentHits(text).length > 0 || POLICY_RE.test(text);
 // Condições e limites que o cartão tem de manter ("só", "apenas", "acima de", "a partir de", "mediante", "desde que",
 // "exceto", "com talão", "no prazo de", "quando"…). "se" não conta como pronome ("não se aceitam", "trata-se").
-const CONDITION_RE = /(?<![\p{L}-])(?:s[óo]|apenas|somente|unicamente|exclusivamente|exclusiv[oa]s?|exceto|excepto|salvo|exce[çc][ãa]o|exce[çc][õo]es|acima[ \t]+de|a[ \t]+partir[ \t]+d[eoa]s?|superior(?:es)?[ \t]+a|mais[ \t]+de|m[íi]nimo|m[áa]ximo|at[ée](?![ \t]+(?:breve|j[áa]|logo|amanh[ãa]|[àa][ \t]+pr[óo]xima))|no[ \t]+prazo[ \t]+de|prazo[ \t]+de|dentro[ \t]+de|mediante|desde[ \t]+que|(?<!(?:n[ãa]o|que|j[áa]|tamb[ée]m|nunca|ainda|onde|como|quando|lhe|nos|vos|me|te)[ \t])se|caso|quando|com[ \t]+(?:o[ \t]+|a[ \t]+|os[ \t]+|as[ \t]+)?(?:tal[ãa]o|tal[õo]es|fatura|factura|recibo|comprovativo)|apresenta[çc][ãa]o|sujeit[oa]s?[ \t]+a|para[ \t]+(?:membros|s[óo]cios)|na[ \t]+compra[ \t]+de|em[ \t]+compras?[ \t]+de|por[ \t]+cada|limitad[oa]s?|enquanto|v[áa]lid[oa]s?[ \t]+at[ée]|condi[çc](?:[ãa]o|[õo]es))(?!\p{L})/giu;
+const CONDITION_RE = /(?<![\p{L}-])(?:s[óo]|apenas|somente|unicamente|exclusivamente|exclusiv[oa]s?|exceto|excepto|salvo|exce[çc][ãa]o|exce[çc][õo]es|acima[ \t]+de|a[ \t]+partir[ \t]+d[eoa]s?|superior(?:es)?[ \t]+a|mais[ \t]+de|m[íi]nimo|m[áa]ximo|at[ée](?![ \t]+(?:breve|j[áa]|logo|amanh[ãa]|[àa][ \t]+pr[óo]xima))|no[ \t]+prazo[ \t]+de|prazo[ \t]+de|dentro[ \t]+de|mediante|desde[ \t]+que|(?<!(?:n[ãa]o|que|j[áa]|tamb[ée]m|nunca|ainda|onde|como|quando|lhe|nos|vos|me|te)[ \t])se|caso|quando|com[ \t]+(?:o[ \t]+|a[ \t]+|os[ \t]+|as[ \t]+)?(?:tal[ãa]o|tal[õo]es|fatura|factura|recibo|comprovativo)|apresenta[çc][ãa]o|sujeit[oa]s?[ \t]+a|para[ \t]+(?:membros|s[óo]cios)|na[ \t]+compra[ \t]+de|em[ \t]+compras?[ \t]+de|por[ \t]+cada|limitad[oa]s?|enquanto|v[áa]lid[oa]s?[ \t]+at[ée]|exig(?:e|em)|requer(?:em)?|obrigat[óo]ri[oa]s?|(?:pagamento|custo|taxa|valor)[ \t]+(?:extra|adicional)|acr[ée]scimo|suplemento|sobretaxa|condi[çc](?:[ãa]o|[õo]es))(?!\p{L})/giu;
 // Palavras sem conteúdo próprio (para ligar uma frase da equipa ao cartão e para as palavras novas).
 const PLAIN_WORDS = new Set(`para pela pelo pelas pelos como mais menos onde este esta estes estas esse essa esses essas isto isso aquele aquela
   todo toda todos todas tudo cada qualquer quaisquer outro outra outros outras algum alguma alguns algumas muito muita muitos muitas mesmo
@@ -1086,30 +1355,91 @@ const PLAIN_WORDS = new Set(`para pela pelo pelas pelos como mais menos onde est
   sentido certo certa claro claramente melhor maior menor primeiro primeira seguinte seguintes respetivo respetiva conforme segundo
   sendo havia haver existe existem tenho tinha quer querem pretende pretender deseja desejar precisa precisar necessita`.split(/\s+/).filter(Boolean));
 const REFUSAL_WORDS = new Set(["não", "nao", "nunca", "jamais", "nenhum", "nenhuma", "nada", "infelizmente", "lamentamos", "lamento"]);
-const stemOf = (w: string) => w.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").slice(0, 5);
+const stemOf = (w: string) => fold(w.toLowerCase()).slice(0, 5);
+// Formas de uma palavra para saber se o cartão a tem (singular, sem acentos, 5 letras: "cartões" é "cartão", "Portugal"
+// não é "portes").
+const wordKeys = (w: string) => singulars(w.toLowerCase()).map((x) => fold(x).slice(0, 5));
 const contentWords = (text: string) => (text.match(/\p{L}[\p{L}'’-]*/gu) || []).map((w) => w.toLowerCase())
   .filter((w) => w.length >= 4 && !PLAIN_WORDS.has(w) && !REFUSAL_WORDS.has(w));
 const stemsOf = (text: string) => new Set(contentWords(text).map(stemOf));
 const keysOf = (text: string) => new Set(commitmentHits(text).map((h) => h.key));
 const quoteList = (items: string[]) => [...new Set(items)].slice(0, 3).map(quote).join(", ");
+const normText = (s: string) => ` ${fold(s.toLowerCase()).replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
+// Quantificadores que alargam o âmbito ("qualquer", "todas", "sempre", "sem exceção").
+const QUANT_RE = /(?<!\p{L})(?:qualquer|quaisquer|tod[oa]s?|tudo|sempre|cada|ilimitad[oa]s?|totalmente|total|integral|incondicional\p{L}*|sem[ \t]+exce[çc](?:[ãa]o|[õo]es)|sem[ \t]+limites?)(?!\p{L})/giu;
+const quantKey = (q: string) => fold(q.toLowerCase()).replace(/\s+/g, " ").replace(/^tod[oa]s?$/, "tod").replace(/^quaisquer$/, "qualquer");
+function broadened(text: string, sources: string) {
+  const known = new Set([...sources.matchAll(QUANT_RE)].map((m) => quantKey(m[0])));
+  return [...text.matchAll(QUANT_RE)].map((m) => m[0].toLowerCase()).filter((q) => !known.has(quantKey(q)));
+}
+// Os avisos ficam guardados no cartão: da resposta da equipa só se citam palavras comuns (ou da base de conhecimento) e
+// números com a unidade ("50 €", "14 dias", "10%", "10h00"), nunca nomes, números de encomenda ou contactos.
+const UNIT_WORD = /^(?:€|\$|£|eur(?:os?)?|%|h(?:oras?)?|min(?:utos?)?|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?)$/iu;
+const NUMBER_UNKNOWN = "«…» (um número da resposta da equipa que não se cita: veja a conversa de origem)";
+function citeNumber(raw: string, next: string | undefined) {
+  if (/^\d{1,2}[hH:]\d{2}$|^\d{1,3}(?:[.,]\d+)?[%€]$/.test(raw)) return quote(raw);
+  if (/^\d{1,3}(?:[.,]\d+)?$/.test(raw) && next && UNIT_WORD.test(next)) return quote(`${raw} ${next}`);
+  return NUMBER_UNKNOWN;
+}
+function citePhrase(marker: string, after: string[], allow: Allowlist) {
+  const words = [marker];
+  let cut = false;
+  for (let i = 0; i < Math.min(after.length, 3); i++) {
+    const w = after[i];
+    if (/\d/.test(w)) {
+      const c = citeNumber(w, after[i + 1]);
+      if (c === NUMBER_UNKNOWN) {
+        cut = true;
+        break;
+      }
+      words.push(c.slice(1, -1));
+      if (c.includes(" ")) i++;
+      continue;
+    }
+    if (!ordinaryWord(w.toLowerCase(), allow)) {
+      cut = true;
+      break;
+    }
+    words.push(w);
+  }
+  return quote(`${words.join(" ")}${cut ? " …" : ""}`);
+}
+// Qualificadores de uma frase da equipa ("a estudantes", "na segunda unidade", "de quartzo", "nas lojas físicas", "com a
+// etiqueta", "com taxas alfandegárias"): a palavra a seguir à preposição (e a seguinte).
+const QUALIFIER_RE = /(?<!\p{L})(?:a|à|ao|aos|às|para|na|nas|no|nos|em|de|da|do|das|dos|com|sem|exceto|salvo)[ \t]+(?:(?:o|a|os|as|um|uma)[ \t]+)?(\p{L}[\p{L}'’-]*)(?=(?:[ \t]+(\p{L}[\p{L}'’-]*))?)/giu;
+const isVerbForm = (w: string) => VERB_FORMS.has(w) || (/(?:ar|er|ir)$/u.test(w) && !SAFE_WORDS.has(w) && !VOCAB.has(w));
 
-// Avisos de uma proposta da IA em relação à resposta da equipa (e à base de conhecimento):
-// - "Possível contradição": a resposta da equipa tem uma recusa ou negação em qualquer ponto (também numa pergunta) e o
-//   cartão diz o que a empresa faz; o cartão tem uma recusa que a equipa (ou a base de conhecimento, sobre o mesmo
-//   compromisso) não tem; ou a base de conhecimento recusa o mesmo compromisso com as mesmas palavras.
-// - "Condição em falta": uma condição ou um limite de uma afirmação da equipa sobre o mesmo assunto (com um compromisso
-//   ou uma palavra em comum) que o cartão não tem (com o número, se o limite tiver um), ou um número dessa afirmação que
-//   o cartão deixou cair (um prazo, um valor).
+// Avisos de uma proposta da IA em relação à resposta da equipa (e à base de conhecimento). Falham pelo lado seguro:
+// - "Possível contradição": a resposta da equipa tem uma recusa ou negação em qualquer ponto (também numa pergunta ou
+//   num verbo: "fechou", "esgotou", "suspendemos") e o cartão diz o que a empresa faz ou tem uma frase sem negação (menos
+//   uma afirmação da equipa copiada tal como está, quando nenhuma recusa da equipa é sobre o mesmo compromisso); o cartão
+//   tem uma recusa que a equipa (ou a base de conhecimento, sobre o mesmo compromisso) não tem; ou a base de
+//   conhecimento recusa o mesmo compromisso com as mesmas palavras.
+// - "Condição em falta": uma condição ou um limite de uma afirmação da equipa no mesmo parágrafo de uma frase sobre o
+//   mesmo assunto ("Os portes são grátis. Isto aplica-se só a encomendas acima de 50 €.") que o cartão não tem, ou um
+//   número da frase sobre o mesmo assunto que o cartão deixou cair (um prazo, um valor).
+// - "Palavras da resposta da equipa que o cartão deixou cair": qualificadores da frase da equipa mais parecida ("a
+//   estudantes", "de quartzo", "nas lojas físicas").
+// - "Âmbito alargado": "qualquer", "todas", "sempre"… que a resposta da equipa não tem.
 // - "Compromisso que a resposta da equipa não tem": um compromisso que só a base de conhecimento tem.
 // - "Palavras que não estão na resposta da equipa": palavras do cartão que não estão nas respostas da equipa nem na base
-//   de conhecimento (o âmbito mudou: "quedas e riscos" onde a equipa escreveu "defeitos de fabrico").
-export function sourceWarnings(o: { text: string; staff: string; knowledge?: string }): string[] {
+//   de conhecimento ("permanente" onde a equipa escreveu "sai com o tempo").
+export function sourceWarnings(o: { text: string; staff: string; knowledge?: string; allow?: Allowlist }): string[] {
   const out: string[] = [];
   const text = noLinks(o.text), staff = noLinks(o.staff), kb = noLinks(withoutTitles(o.knowledge || ""));
-  const policy = statesPolicy(text);
+  const allow = o.allow ?? companyAllowlist({ knowledge: o.knowledge || "", stores: [] });
+  const staffStatements = statements(staff);
   const staffRefusals = refusalsIn(staff);
-  if (staffRefusals.length && policy)
-    out.push(`Possível contradição: a resposta da equipa tem uma recusa (${quoteList(staffRefusals.map((r) => r.phrase))})`);
+  if (staffRefusals.length) {
+    const copied = new Map(staffStatements.map((s) => [normText(s), s]));
+    const refusing = staffStatements.filter((s) => refusalsIn(s).length);
+    const exposed = sentencesOf(text).filter((s) => {
+      const own = copied.get(normText(s));
+      if (own && !refusing.some((r) => r !== own && [...keysOf(r)].some((k) => keysOf(own).has(k)))) return false;
+      return !refusalsIn(s).length || statesPolicy(s);
+    });
+    if (exposed.length) out.push(`Possível contradição: a resposta da equipa tem uma recusa (${quoteList(staffRefusals.map((r) => r.phrase))})`);
+  }
   const cardKeys = keysOf(text);
   const kbSentences = statements(kb);
   const kbRefusals = kbSentences.filter((s) => [...keysOf(s)].some((k) => cardKeys.has(k))).flatMap(refusalsIn);
@@ -1127,49 +1457,105 @@ export function sourceWarnings(o: { text: string; staff: string; knowledge?: str
         out.push(`Possível contradição: a base de conhecimento tem uma recusa (${quoteList(refusals.map((r) => r.phrase))})`);
     }
   }
-  // Condições em falta.
+  // Condições em falta: as frases da equipa sobre o mesmo assunto (com um compromisso ou uma palavra em comum) e as
+  // outras do mesmo parágrafo.
   const cardStems = stemsOf(text);
-  const norm = (s: string) => ` ${s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
-  const cardNorm = norm(text);
-  for (const s of statements(staff)) {
-    const related = [...keysOf(s)].some((k) => cardKeys.has(k)) || [...stemsOf(s)].some((w) => cardStems.has(w));
-    if (!related) continue;
-    const reported = new Set<string>();
-    for (const m of s.matchAll(CONDITION_RE)) {
-      const after = s.slice((m.index ?? 0) + m[0].length).split(/[,;:.!?()\n]/)[0].match(/[\p{L}\p{N}%€$'’-]+/gu) || [];
-      const phrase = [m[0], ...after.slice(0, 3)].join(" ").replace(/\s+/g, " ");
-      if (/d[úu]vida|quest[ãa]o|quest[õo]es|ajuda|esclarec|informa[çc]/iu.test(phrase)) continue;
-      const number = after.slice(0, 3).find((w) => /^\d/.test(w))?.match(/\d+(?:[.,]\d+)?/)?.[0];
-      // "se", "caso", "quando" e "até" são palavras curtas e comuns: contam com a palavra seguinte ("se a peça…").
-      const short = /^(?:se|caso|quando|at[ée])$/iu.test(m[0]);
-      const hasMarker = cardNorm.includes(norm(short && after[0] ? `${m[0]} ${after[0]}` : m[0]));
-      const hasNumber = !number || cardNorm.includes(` ${number.replace(/[.,]/, " ")} `) || wordIn(number, text);
-      if (!hasMarker || !hasNumber) {
-        out.push(`Condição em falta: ${quote(phrase)}`);
-        if (number) reported.add(number);
+  const cardNorm = normText(text);
+  const relatedTo = (s: string) => [...keysOf(s)].some((k) => cardKeys.has(k)) || [...stemsOf(s)].some((w) => cardStems.has(w));
+  const cardNumbers = new Set(numberHits(text).map((h) => h.n));
+  const conditionWords = new Set<string>();
+  for (const unit of units(staff)) {
+    const own = statements(unit);
+    if (!own.some(relatedTo)) continue;
+    for (const s of own) {
+      const reported = new Set<string>();
+      for (const m of s.matchAll(CONDITION_RE)) {
+        const after = s.slice((m.index ?? 0) + m[0].length).split(/[,;:.!?()\n]/)[0].match(/[\p{L}\p{N}%€$'’-]+/gu) || [];
+        if (/d[úu]vida|quest[ãa]o|quest[õo]es|ajuda|esclarec|informa[çc]/iu.test(after.slice(0, 3).join(" "))) continue;
+        const number = after.slice(0, 3).find((w) => /^\d/.test(w))?.match(/\d+(?:[.,]\d+)?/)?.[0];
+        // "se", "caso", "quando" e "até" são palavras curtas e comuns: contam com a palavra seguinte ("se a peça…").
+        const short = /^(?:se|caso|quando|at[ée])$/iu.test(m[0]);
+        const hasMarker = cardNorm.includes(normText(short && after[0] ? `${m[0]} ${after[0]}` : m[0]));
+        const hasNumber = !number || cardNorm.includes(` ${number.replace(/[.,]/, " ")} `) || wordIn(number, text);
+        if (!hasMarker || !hasNumber) {
+          out.push(`Condição em falta: ${citePhrase(m[0].replace(/\s+/g, " "), after, allow)}`);
+          if (number) reported.add(number);
+          for (const w of [...m[0].split(/\s+/), ...after.slice(0, 3)]) conditionWords.add(w.toLowerCase());
+        }
+      }
+      // Um número da frase da equipa sobre o mesmo assunto (um prazo, um valor, um limite) que o cartão deixou cair ("Pode
+      // devolver em 14 dias" → "Pode devolver a peça").
+      if (!relatedTo(s)) continue;
+      for (const h of numberHits(s)) {
+        if (cardNumbers.has(h.n) || reported.has(h.raw)) continue;
+        out.push(`Condição em falta: ${citeNumber(h.raw, /^[ \t]*([\p{L}%€$£]+)/u.exec(s.slice(h.at + h.raw.length))?.[1])}`);
       }
     }
-    // Um número da mesma frase da equipa (um prazo, um valor, um limite) que o cartão deixou cair ("Pode devolver em 14
-    // dias" → "Pode devolver a peça").
-    const cardNumbers = new Set(numberHits(text).map((h) => h.n));
-    for (const h of numberHits(s)) {
-      if (cardNumbers.has(h.n) || reported.has(h.raw)) continue;
-      const before = s.slice(0, h.at).match(/[\p{L}€$£]+[ \t]*$/u)?.[0].trim();
-      const after = /^[ \t]*([\p{L}%€$£]+)/u.exec(s.slice(h.at + h.raw.length))?.[1];
-      out.push(`Condição em falta: ${quote([before, h.raw, after].filter(Boolean).join(" "))}`);
+  }
+  // Qualificadores da frase da equipa mais parecida com cada frase do cartão que o cartão deixou cair.
+  const cardWords = new Set((text.match(/\p{L}[\p{L}'’-]*/gu) || []).flatMap(wordKeys));
+  const dropped: string[] = [];
+  let hidden = 0;
+  for (const cs of sentencesOf(text)) {
+    const cst = stemsOf(cs), ck = keysOf(cs);
+    let best = "", score = 0;
+    for (const s of staffStatements) {
+      const sc = [...stemsOf(s)].filter((w) => cst.has(w)).length + ([...keysOf(s)].some((k) => ck.has(k)) ? 2 : 0);
+      if (sc > score) [best, score] = [s, sc];
+    }
+    if (!best) continue;
+    for (const m of best.matchAll(QUALIFIER_RE)) {
+      // A palavra a seguir à preposição (um nome desconhecido não se cita) e a seguinte, só se for comum ("lojas físicas").
+      for (const [i, w] of [m[1], m[2]].entries()) {
+        const low = w?.toLowerCase();
+        if (!low || low.length < 4 || PLAIN_WORDS.has(low) || REFUSAL_WORDS.has(low) || isVerbForm(low) || conditionWords.has(low)
+          || wordKeys(low).some((x) => cardWords.has(x))) continue;
+        if (ordinaryWord(low, allow)) dropped.push(low);
+        else if (i === 0) hidden++;
+      }
     }
   }
+  if (dropped.length || hidden)
+    out.push(`Palavras da resposta da equipa que o cartão deixou cair: ${[dropped.length ? quoteList(dropped) : "", hidden
+      ? `«…» (${hidden === 1 ? "1 palavra que não se cita" : `${hidden} palavras que não se citam`}: veja a conversa de origem)` : ""].filter(Boolean).join(", ")}`);
+  const broad = broadened(text, `${staff}\n${kb}`);
+  if (broad.length) out.push(`Âmbito alargado: ${quoteList(broad)} (a resposta da equipa não tem)`);
   // Compromissos que a equipa não escreveu (só na base de conhecimento): o cartão deve vir da resposta da equipa.
   // (Um compromisso que nem a base tem retira a proposta: poisonReason.)
-  const staffKeys = new Set(statements(staff).flatMap((s) => [...keysOf(s)]));
+  const staffKeys = new Set(staffStatements.flatMap((s) => [...keysOf(s)]));
   const kbKeys = new Set(kbSentences.flatMap((s) => [...keysOf(s)]));
   const kbOnly = [...cardKeys].filter((key) => !staffKeys.has(key) && kbKeys.has(key));
   if (kbOnly.length) out.push(`Compromisso que a resposta da equipa não tem (só na base de conhecimento): ${quoteList(kbOnly)}`);
-  // Palavras que não estão na resposta da equipa nem na base de conhecimento.
+  // Palavras do cartão que não estão na resposta da equipa nem na base de conhecimento (em todas as frases).
   const known = new Set([...stemsOf(staff), ...stemsOf(kb)]);
-  const fresh = [...new Set(sentencesOf(text).filter(statesPolicy).flatMap((s) => contentWords(s)).filter((w) => !known.has(stemOf(w))))];
+  const fresh = [...new Set(contentWords(text).filter((w) => !known.has(stemOf(w))))];
   if (fresh.length) out.push(`Palavras que não estão na resposta da equipa: ${fresh.slice(0, 6).map(quote).join(", ")}`);
   return [...new Set(out)].slice(0, 20);
+}
+
+// Compromissos que uma pergunta pode prometer (não os dias e as horas: "A que horas fecham ao domingo?").
+const POLICY_KEYS = new Set(["reembolso", "devolução", "desconto", "oferta", "grátis", "garantia", "prazo", "troca", "vale", "sem custos", "compensação"]);
+// Avisos da pergunta e das variantes de uma proposta da IA: um compromisso que a resposta da equipa e a base de
+// conhecimento não afirmam ("Fazem sempre reembolso total sem talão, certo?") e quantificadores que a equipa não usou.
+export function questionWarnings(o: { text: string; staff: string; knowledge?: string }): string[] {
+  const out: string[] = [];
+  const text = noLinks(o.text), staff = noLinks(o.staff), kb = noLinks(withoutTitles(o.knowledge || ""));
+  const supported = new Set([...statements(staff), ...statements(kb)].flatMap((s) => [...keysOf(s)]));
+  const extra = [...keysOf(text)].filter((k) => POLICY_KEYS.has(k) && !supported.has(k));
+  if (extra.length) out.push(`Pergunta com um compromisso que a resposta da equipa não tem: ${quoteList(extra)}`);
+  const broad = broadened(text, `${staff}\n${kb}`);
+  if (broad.length) out.push(`Âmbito alargado na pergunta: ${quoteList(broad)} (a resposta da equipa não tem)`);
+  return out;
+}
+
+// Antes de guardar os avisos de uma proposta: uma citação («…») com dados pessoais (uma recusa ou um aviso de nome,
+// morada, perfil, código, email ou ligação), 4 ou mais algarismos ou um @ passa a «…». Os avisos ficam no cartão e, se o
+// Super Admin os confirmar, no registo de auditoria.
+export function safeAvisos(avisos: string[], allow: Allowlist, names: Names = [], contact: Names = []) {
+  return [...new Set(avisos.map((a) => a.replace(/«([^»]*)»/g, (q, inner: string) => {
+    const r = scan(inner, allow, names, contact);
+    return r.blocks.length || r.warnings.length || /\d{4,}|@/.test(inner) ? "«…»" : q;
+  })))].slice(0, 20);
 }
 
 // O cartão repete 12 ou mais palavras seguidas de uma mensagem do cliente (as mensagens nunca são copiadas).
