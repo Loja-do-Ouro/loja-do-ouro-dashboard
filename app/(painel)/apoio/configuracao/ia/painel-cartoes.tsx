@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { timestamp } from "@/components/dashboard/format";
 import { Panel } from "@/components/dashboard/ui";
 import { Flash } from "@/components/shell";
@@ -6,7 +7,7 @@ import { aiConfigured } from "@/lib/support/ai";
 import { sessionRpc } from "@/lib/support/db";
 import {
   ACK_LABEL, autoOkBlockers, CARD_BRAND_LABEL, CARD_BRANDS, CARD_ESTADOS, CARD_LIMITS, cardAlerts, cardWarnings, companyAllowlist, INTENT_LABEL, isIntent,
-  KNOWLEDGE_INTENTS, lisbonToday, PII_LABEL, reviewCard, storeKeywords, unackedWarnings, type AutoCard, type CardEstado,
+  KNOWLEDGE_INTENTS, lisbonToday, needsConfirmation, PII_LABEL, reviewCard, storeKeywords, unackedWarnings, type AutoCard, type CardEstado,
 } from "@/lib/support/knowledge-rules";
 import type { Viewer } from "@/lib/viewer";
 import { archiveCard, mergeCard, publishCards, saveAndApprove, saveCard, saveKnowledgeSettings, setCardAuto } from "./cartoes-actions";
@@ -21,8 +22,9 @@ type Settings = {
 type Card = AutoCard & {
   loja: string | null; pergunta: string; variantes: string[]; fontes: number; ultima_vez: string; amostras: string[]; valido_ate: string | null;
   criada_por: "ia" | "pessoa"; aprovada_por: string | null; auto_ok_em: string | null; publicada_em: string | null;
-  // Avisos da proposta da IA (em relação à resposta da equipa) e os avisos confirmados pelo Super Admin para o texto atual.
-  avisos?: string[]; avisos_ok?: string[];
+  // Avisos da proposta da IA (em relação à resposta da equipa), os avisos mostrados na confirmação do texto atual, se o
+  // texto atual foi confirmado, por quem e quando.
+  avisos?: string[]; avisos_ok?: string[]; confirmado?: boolean; avisos_ok_em?: string | null; avisos_ok_por?: string | null;
 };
 type Store = { id: string; code: string; name: string; city: string | null };
 type Target = Pick<AutoCard, "id" | "estado" | "intent" | "brand" | "loja_id" | "auto_ok"> & { pergunta: string };
@@ -42,6 +44,25 @@ const plusDays = (d: string, n: number) => {
   return x.toISOString().slice(0, 10);
 };
 const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// O texto do cartão com as palavras e frases que os avisos citam assinaladas (uma ajuda à leitura: as regras não apanham
+// tudo, o Super Admin lê o texto inteiro).
+function Marked({ text, words }: { text: string; words: string[] }) {
+  const list = [...new Set(words.map((w) => w.trim()).filter((w) => w.length >= 2 && !w.includes("…")))].sort((a, b) => b.length - a.length).slice(0, 60);
+  if (!list.length) return <>{text}</>;
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${list.map(escapeRe).join("|")})(?![\\p{L}\\p{N}])`, "giu");
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(text.slice(last, at));
+    out.push(<mark key={at}>{m[0]}</mark>);
+    last = at + m[0].length;
+  }
+  out.push(text.slice(last));
+  return <>{out}</>;
+}
 
 // Campos de um cartão (corrigir um existente ou escrever um novo).
 function CardFields({ card, stores }: { card?: Card; stores: Store[] }) {
@@ -82,6 +103,8 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
   const one = (k: string) => (typeof q[k] === "string" ? (q[k] as string) : "");
   const estado: CardEstado = CARD_ESTADOS.includes(one("cartoes") as CardEstado) ? (one("cartoes") as CardEstado) : "proposta";
   const search = one("cartoes_q").trim().slice(0, 200);
+  // O cartão de que fala a última mensagem (só o id): fica aberto e assinalado, com os avisos à vista.
+  const focus = /^[0-9a-f-]{36}$/i.test(one("cartoes_card")) ? one("cartoes_card").toLowerCase() : "";
   const [settings, list] = await Promise.all([
     sessionRpc<Settings>(viewer.session, "ldo_support_knowledge_settings").catch(() => null),
     sessionRpc<CardList>(viewer.session, "ldo_support_knowledge_cards", { p_estado: estado, p_q: search || null }).catch(() => null),
@@ -96,7 +119,7 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
   return (
     <Panel title="Base de conhecimento aprendida" eyebrow="RESPOSTAS APROVADAS" id="cartoes">
       <Flash ok={ok} error={error} />
-      <p className="panel-note">Propostas da IA a partir das respostas da equipa. O servidor retira as propostas com emails, telefones, IBAN, NIF, números de cartão, de encomenda, de fatura ou de cliente, ligações de perfis, o nome do cliente e os nomes da equipa (os que também são palavras, como Vale ou Graça, ficam assinalados). O resto fica assinalado no cartão, com a palavra (possíveis nomes, moradas, códigos, instruções para a IA, contradições e condições em falta em relação à resposta da equipa), e só pode aprovar depois de confirmar que o texto não tem dados pessoais nem contradiz a resposta da equipa. As regras não apanham tudo: leia cada proposta antes de a aprovar. Só são usadas depois de aprovadas e publicadas.</p>
+      <p className="panel-note">Propostas da IA a partir das respostas da equipa. O Super Admin lê e confirma cada cartão antes de o aprovar («{ACK_LABEL}»), com ou sem avisos. O servidor retira as propostas com dados pessoais claros: emails, telefones, IBAN, NIF, números de cartão, de encomenda, de fatura ou de cliente, ligações de perfis, o nome do cliente e os nomes da equipa que não são palavras. O resto (possíveis nomes, moradas, códigos, instruções para a IA, contradições e condições em falta em relação à resposta da equipa) fica assinalado no cartão, com a palavra: é uma ajuda à leitura e as regras não apanham tudo. Só são usadas depois de aprovadas e publicadas.</p>
       {!settings || !list || !allow ? (
         <p className="error-text">Indisponível (falta a atualização na base de dados?).</p>
       ) : (
@@ -129,7 +152,7 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
                 <Back estado={estado} search={search} />
                 <button type="submit" className="secondary-button" disabled={!settings.counts.por_publicar}>Publicar alterações ({settings.counts.por_publicar})</button>
               </form>
-              <p className="panel-note">As propostas de resposta da IA só passam a usar as respostas aprovadas depois de publicar (no máximo {CARD_LIMITS.published} respostas e {CARD_LIMITS.publishedChars.toLocaleString("pt-PT")} caracteres). Arquivar retira uma resposta de imediato.</p>
+              <p className="panel-note">As propostas de resposta da IA só passam a usar as respostas aprovadas depois de publicar (no máximo {CARD_LIMITS.published} respostas e {CARD_LIMITS.publishedChars.toLocaleString("pt-PT")} caracteres), e só com o texto de cada uma confirmado. Arquivar retira uma resposta de imediato.</p>
             </div>
           </div>
           {!aiConfigured() && <p className="error-text">Falta a chave da Anthropic (ANTHROPIC_API_KEY): sem ela não há propostas.</p>}
@@ -152,11 +175,12 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
             {list.cards.map((c) => {
               const warnings = cardWarnings(c);
               const pii = reviewCard(c, allow, list.staff_names || []).blocks;
-              // Avisos (do texto e da proposta): por confirmar (bloqueiam aprovar, publicar e as respostas automáticas) e já
-              // confirmados para este texto.
+              // Avisos (do texto e da proposta): uma ajuda à leitura, por cima da confirmação. A confirmação é pedida em
+              // todos os cartões (com ou sem avisos) e volta a ser pedida quando o texto muda ou aparece um aviso novo.
               const alerts = cardAlerts(c, allow, list.staff_names || []);
               const pending = unackedWarnings(alerts, c.avisos_ok);
-              const acked = alerts.length - pending.length;
+              const toConfirm = needsConfirmation(c, allow, list.staff_names || []);
+              const quoted = alerts.flatMap((a) => [...a.matchAll(/«([^»]+)»/g)].map((m) => m[1]));
               const store = list.stores.find((s) => s.id === c.loja_id);
               const blockers = c.estado === "aprovada" && !c.auto_ok
                 ? autoOkBlockers(c, {
@@ -167,7 +191,7 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
               const targets = list.targets.filter((t) => t.id !== c.id && t.intent === c.intent).slice(0, MERGE_TARGETS);
               const reviewBy = c.revisto_em ? plusDays(c.revisto_em, 90) : null;
               return (
-                <details key={c.id} className="knowledge-item">
+                <details key={c.id} id={`cartao-${c.id}`} className={`knowledge-item${focus === c.id ? " focus" : ""}`} open={focus === c.id || undefined}>
                   <summary>
                     {c.pergunta}
                     <small>
@@ -186,8 +210,9 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
                         : <span className="tag">Rever até {day(reviewBy)}</span>)}
                       {c.por_publicar && <span className="pill warn">Por publicar</span>}
                       {pii.length > 0 && <span className="pill warn">Dados pessoais: {pii.map((p) => PII_LABEL[p]).join(", ")}</span>}
-                      {pending.map((a) => <span key={a} className="pill warn">{a}</span>)}
-                      {acked > 0 && <span className="tag">{acked === 1 ? "1 aviso confirmado" : `${acked} avisos confirmados`}</span>}
+                      {toConfirm ? <span className="pill warn">Texto por confirmar</span> : <span className="tag green">Texto confirmado</span>}
+                      {c.confirmado && pending.length > 0 && <span className="pill warn">{pending.length === 1 ? "1 aviso novo" : `${pending.length} avisos novos`}</span>}
+                      {alerts.length > 0 && <span className="tag">{alerts.length === 1 ? "1 aviso" : `${alerts.length} avisos`}</span>}
                       {warnings.map((w) => <span key={w} className="pill warn">{w}</span>)}
                     </small>
                   </summary>
@@ -202,26 +227,42 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
                       {c.amostras.map((id, i) => <span key={id}>{i ? " · " : ""}<Link href={`/apoio?conversa=${id}`}>conversa {i + 1}</Link></span>)}
                     </small>
                   )}
-                  {/* Corrigir e aprovar no mesmo formulário: "Aprovar" guarda primeiro as correções que estiverem nos campos. */}
+                  {quoted.length > 0 && (
+                    <div className="knowledge-preview" aria-label="Texto do cartão com as palavras assinaladas pelos avisos">
+                      <Marked text={[c.pergunta, ...c.variantes, c.resposta].join("\n")} words={quoted} />
+                    </div>
+                  )}
+                  {/* Corrigir e aprovar no mesmo formulário: "Guardar e aprovar" guarda primeiro as correções que estiverem nos campos. */}
                   <form action={saveCard}>
                     <input type="hidden" name="id" value={c.id} />
                     <Back estado={estado} search={search} />
                     <CardFields card={c} stores={list.stores} />
-                    {/* Avisos: o Super Admin confirma, para este texto, que não tem dados pessoais nem contradiz a resposta da
-                        equipa (fica registado com a lista dos avisos; volta a ser pedido se o texto mudar). */}
-                    {pending.length > 0 && (
-                      <>
-                        <label className="checkbox-label">
-                          <input type="checkbox" name="avisos_ok" value="1" /> {ACK_LABEL}
-                        </label>
-                        <input type="hidden" name="avisos_vistos" value={JSON.stringify(alerts)} />
-                      </>
-                    )}
+                    {/* A confirmação, em todos os cartões: os avisos (se houver) por cima da caixa. Fica registada com a lista dos
+                        avisos mostrados (avisos_vistos) e volta a ser pedida quando o texto muda. */}
+                    <div className="knowledge-ack">
+                      {alerts.length > 0 ? (
+                        <>
+                          <strong>Avisos (ajudam a ler; as regras não apanham tudo):</strong>
+                          <ul>{alerts.map((a) => <li key={a}>{a}{c.confirmado && !pending.includes(a) ? " (já estava na confirmação)" : ""}</li>)}</ul>
+                        </>
+                      ) : (
+                        <span className="muted">Sem avisos. As regras não apanham tudo: leia o texto inteiro.</span>
+                      )}
+                      {!toConfirm && (
+                        <small className="muted">
+                          Texto confirmado{c.avisos_ok_por ? ` por ${c.avisos_ok_por}` : ""}{c.avisos_ok_em ? ` a ${timestamp(c.avisos_ok_em)}` : ""}. Uma correção do texto volta a pedir a confirmação.
+                        </small>
+                      )}
+                      <label className="checkbox-label">
+                        <input type="checkbox" name="avisos_ok" value="1" /> {ACK_LABEL}
+                      </label>
+                      <input type="hidden" name="avisos_vistos" value={JSON.stringify(alerts)} />
+                    </div>
                     <div className="knowledge-row">
                       <button type="submit" className="secondary-button">Guardar correções</button>
                       <button type="submit" formAction={saveAndApprove} className="secondary-button"
                         title={c.estado === "aprovada" ? "Guarda as correções e regista que a resposta foi revista e continua certa." : "Guarda as correções e aprova a resposta."}>
-                        {c.estado === "proposta" ? "Aprovar" : c.estado === "arquivada" ? "Aprovar de novo" : "Confirmar que continua certa"}
+                        {c.estado === "proposta" ? "Guardar e aprovar" : c.estado === "arquivada" ? "Guardar e aprovar de novo" : "Guardar e confirmar que continua certa"}
                       </button>
                     </div>
                   </form>
@@ -274,7 +315,7 @@ export async function PainelCartoes({ viewer, q }: { viewer: Viewer; q: Record<s
             <div className="knowledge-row"><button type="submit" className="secondary-button">Criar proposta</button></div>
           </form>
           <p className="panel-note">
-            Privacidade. Nenhum modelo é treinado com as conversas: a IA lê a conversa e propõe uma pergunta genérica com a resposta da equipa. Fica guardado: em cada cartão, o texto, o tema, a loja, quem aprovou e quando, os avisos (da resposta da equipa só citam palavras comuns e números com a unidade; o resto fica «…»), a confirmação &quot;sem dados pessoais&quot; (quem, quando e que avisos confirmou, também no registo de auditoria até o cartão ser apagado) e em quantas conversas foi confirmado; só enquanto é proposta, até 3 conversas de origem. Não ficam guardados mensagens nem contactos de clientes. Para não ler nem contar a mesma conversa duas vezes ficam as conversas lidas (180 dias depois da última vez) e as respostas guardadas com o botão (365 dias), sem o cartão. O registo de pedidos (365 dias) tem a hora, a origem, quem carregou no botão, o cartão, o modelo, o custo, a duração e o resultado, e a conversa (e, nos do botão, a mensagem) só nos pedidos que não deram cartão (180 dias); o registo de auditoria do apoio guarda quem pediu cada proposta, quando e o cartão. As regras não apanham tudo: leia cada proposta antes de a aprovar. &quot;Permitir em respostas automáticas&quot; só marca a resposta (nada é enviado): 7 dias depois de aprovar ou corrigir, revista nos últimos 90 dias, sem avisos por confirmar e, nos horários, moradas e contactos, com a loja.
+            Privacidade. Nenhum modelo é treinado com as conversas. O Super Admin lê e confirma cada cartão; as regras não apanham tudo. Fica guardado: o texto do cartão, também o que as regras só assinalaram (nas propostas até 180 dias sem novas fontes, nos arquivados 365 dias); o tema, a loja, quem aprovou, quem confirmou e quando, em quantas conversas foi confirmado e, só enquanto é proposta, até 3 conversas de origem; os avisos (da resposta da equipa só citam palavras de uma lista fechada e números com a unidade; o resto fica «…»); e a confirmação, com os avisos mostrados, também no registo de auditoria até o cartão ser apagado. Não ficam guardados mensagens nem contactos de clientes. Quem tem acesso direto à base de dados ainda consegue deduzir de que conversa veio um cartão, pelo registo de pedidos e pelas conversas lidas e respostas guardadas, enquanto existirem (até 365 dias). &quot;Permitir em respostas automáticas&quot; só marca a resposta (nada é enviado): 7 dias depois de aprovar ou corrigir, revista nos últimos 90 dias, com o texto confirmado e, nos horários, moradas e contactos, com a loja.
           </p>
         </>
       )}
