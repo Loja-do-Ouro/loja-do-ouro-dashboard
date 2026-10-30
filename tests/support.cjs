@@ -478,3 +478,38 @@ test("The history settings functions are Super Admin only and reachable only thr
   // O número de ocultas na configuração segue a regra da lista (só resolvidas).
   assert.ok(sql.includes("where coalesce(c.last_message_at, c.created_at) < v_from and c.status = 'resolvido'));"));
 });
+
+// Regra das migrações seguintes (alterações no lugar em produção): a definição mais recente de cada função — uma cópia
+// completa ou uma substituição ancorada (pg_get_functiondef) — mantém as condições das versões anteriores.
+function latestDefinition(name) {
+  const dir = path.join(__dirname, "../supabase/migrations");
+  let last = null;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) {
+    const sql = fs.readFileSync(path.join(dir, f), "utf8").replace(/\r\n/g, "\n");
+    for (const head of [`function public.${name}(`, `pg_get_functiondef('public.${name}(`]) {
+      for (let i = sql.indexOf(head); i >= 0; i = sql.indexOf(head, i + 1)) {
+        const end = head.startsWith("pg_") ? sql.indexOf("\nend;\n$$;", i) : sql.indexOf("$$;", i);
+        if (end > i && (!last || f >= last.file)) last = { file: f, at: i, text: sql.slice(i, end) };
+      }
+    }
+  }
+  assert.ok(last, name);
+  return last;
+}
+
+test("Later migrations keep the earlier predicates: history_from, origin, the rating anchor and the notify origin filter", () => {
+  const conv = latestDefinition("ldo_support_conversation").text;
+  assert.ok(conv.includes("'history_from', v_from"), "history_from na conversa");
+  assert.ok(conv.includes("(coalesce(c2.last_message_at, c2.created_at) >= v_from or c2.status <> 'resolvido')"), "sugestões só do histórico visível");
+  assert.ok(conv.includes("'origin', m.origin"), "origem de cada mensagem");
+  const ingest = latestDefinition("ldo_support_ingest").text;
+  assert.ok(ingest.includes("ldo_private.support_take_rating(v_conv.id, v_mid,"), "âncora da nota na sincronização");
+  assert.ok(ingest.includes("order by (x.value ->> ''created_at'') collate \"C\", x.n loop"), "mensagens pela ordem em que foram escritas");
+  assert.ok(ingest.includes("perform ldo_private.support_rating_read(v_conv.id);"), "lida só no fim da conversa");
+  assert.ok(latestDefinition("ldo_support_site_send").text.includes("v_rating := ldo_private.support_take_rating("), "âncora da nota no chat do site");
+  assert.ok(latestDefinition("ldo_support_list").text.includes("m.conversation_id = c.id and m.origin is null and m.delivery in"), "mensagens automáticas sem atenção na lista");
+  const notify = latestDefinition("ldo_support_site_notify_claim").text;
+  assert.ok(notify.includes("and (m.origin is null or x.verified)") && notify.includes("and (m.origin is null or v.verified)"), "mensagens automáticas nunca por email a quem não confirmou o email");
+  assert.ok(latestDefinition("ldo_support_social_autoreply_claim").text.includes("s.rating_message_id = m.id"), "nunca resposta automática a uma nota");
+  assert.ok(latestDefinition("ldo_support_ai_replies").text.includes("m.origin is null"), "exemplos da IA só de pessoas");
+});

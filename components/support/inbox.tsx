@@ -39,6 +39,7 @@ import {
   changedShare, DISCARD_TEXT, draftStillUsed, localReviewProblems, mergeProblems, numbersChanged, REVIEW_CLIENT_TIMEOUT_MS, REVIEW_DIFF_MAX,
   REVIEW_MAX_CHANGE, shouldReview, wordDiff, type DiffOp, type DiscardReason, type ReviewProblem, type ReviewTag,
 } from "@/lib/support/review-rules";
+import { isSurveyChannel, skipText, SURVEY_EVENTS, surveyEventText, surveyStateText } from "@/lib/support/survey-rules";
 
 type Source = { id: string; platform: string; channel: Channel; label: string; status: string; status_detail: string | null; last_success_at: string | null; last_attempt_at: string | null; last_error: string | null };
 type Item = {
@@ -57,7 +58,23 @@ type Message = {
   id: string; kind: Kind; author_name: string | null; author_user_id: string | null; body: string;
   attachments: { name: string; type: string | null; size: number | null; ref: string; inline?: boolean }[];
   created_at: string; inserted_at: string; deleted: boolean; delivery: Delivery | null; delivery_detail: string | null; external: boolean;
+  // Mensagem automática ('survey': pedido de avaliação ou agradecimento). rating: resposta do cliente a um pedido de
+  // avaliação (só com a nota, o texto vem vazio para quem não a pode ver).
+  origin?: string | null; rating?: boolean;
 };
+// Pedido de avaliação desta conversa (score e comment só para o Super Admin e para quem foi avaliado).
+type Survey = {
+  id: string; status: string; skip_reason: string | null; channel: string; agent_id: string; agent_name: string | null; created_at: string;
+  send_after: string; sent_at: string | null; expires_at: string | null; rated_at: string | null; follow_up: boolean; score: number | null; comment: string | null;
+  message_id?: string | null; thanks_message_id?: string | null;
+};
+// Etiqueta de uma mensagem automática do pedido de avaliação: o pedido ou o agradecimento (pelo id), senão neutra.
+function surveyMessageLabel(id: string, surveys: Survey[] | undefined) {
+  if (surveys?.some((x) => x.thanks_message_id === id)) return "agradecimento pela avaliação (automático)";
+  if (surveys?.some((x) => x.message_id === id)) return "pedido de avaliação (automático)";
+  return "mensagem automática (avaliação)";
+}
+type SurveyPreview = { mode: string; eligible: boolean; reason: string | null; agent_first: string | null; agent_name: string | null };
 type User = { id: string; name: string; me: boolean; zendesk: boolean; zendesk_name: string | null; zendesk_status: string | null };
 // Publicação comentada (só nos comentários): as imagens chegam pelo proxy do dashboard, pela posição.
 type Post = {
@@ -73,7 +90,10 @@ type Detail = {
     // Comentários: respostas públicas ligadas nesta conversa (a BD confirma de novo ao publicar).
     public_replies?: boolean | null;
   };
-  contact: { id: string; name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; linked_by_name: string | null; linked_at: string | null; claimed_email?: string | null } | null;
+  contact: {
+    id: string; name: string | null; email: string | null; phone: string | null; handle: string | null; linked_email: string | null; linked_by_name: string | null;
+    linked_at: string | null; claimed_email?: string | null; no_surveys?: boolean;
+  } | null;
   related: { contact_id: string; channel: Channel; name: string | null; email: string | null; phone: string | null; conversation_id: string | null }[];
   post?: Post | null;
   messages: Message[];
@@ -84,6 +104,9 @@ type Detail = {
   super: boolean;
   // Mensagens anteriores a esta data ficam recolhidas (conversa antiga em que o cliente voltou a escrever).
   history_from?: string | null;
+  // Pedido de avaliação: o modo em vigor e os últimos pedidos desta conversa (ausentes antes da migração).
+  survey_mode?: string | null;
+  surveys?: Survey[];
 };
 type AuditEntry = Detail["audit"][number];
 type ShopOrder = {
@@ -170,12 +193,13 @@ const AUDIT: Record<string, string> = {
   "social.settings": "alterou as respostas automáticas das redes sociais",
 };
 
-// Acontecimentos mostrados na própria conversa: mudanças de responsável, o fim da conversa pelo cliente e a
-// resposta automática do email.
-const THREAD_EVENTS = new Set(["assign", "visitor_end", "email.autoreply", "social.autoreply"]);
+// Acontecimentos mostrados na própria conversa: mudanças de responsável, o fim da conversa pelo cliente, a
+// resposta automática do email e o pedido de avaliação.
+const THREAD_EVENTS = new Set(["assign", "visitor_end", "email.autoreply", "social.autoreply", ...SURVEY_EVENTS]);
 
 // Acontecimento por extenso (na conversa e no registo).
 function assignText(a: AuditEntry) {
+  if (SURVEY_EVENTS.has(a.action)) return surveyEventText(a) || a.action;
   if (a.action === "visitor_end")
     return `O cliente terminou a conversa no site${a.details.transcript ? " e pediu uma cópia por email" : ""}`;
   if (a.action === "social.autoreply") {
@@ -1328,13 +1352,16 @@ export function SupportInbox({
                   return (
                   <article key={m.id} className={`msg ${m.kind}`}>
                     <header>
-                      <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.author_name || (m.kind === "inbound" ? "Cliente" : brand)}</strong>
+                      <strong>{m.kind === "note" ? `Nota interna · ${m.author_name || "Equipa"}` : m.origin === "survey" ? `${brand} · ${surveyMessageLabel(m.id, c.surveys)}` : m.author_name || (m.kind === "inbound" ? "Cliente" : brand)}</strong>
+                      {m.rating && <small className="public-flag">resposta ao pedido de avaliação</small>}
                       {isComment && m.kind === "outbound" && (
                         <small className={`public-flag${m.delivery === "failed" ? " failed" : ""}`}>{m.delivery === "failed" ? "não publicada" : "resposta pública"}</small>
                       )}
                       <time dateTime={m.created_at}>{time(m.created_at)}</time>
                     </header>
-                    {m.deleted ? <p className="msg-deleted">{isComment ? "Comentário apagado." : "Mensagem apagada pelo cliente."}</p> : m.body && <p>{m.body}</p>}
+                    {m.deleted ? <p className="msg-deleted">{isComment ? "Comentário apagado." : "Mensagem apagada pelo cliente."}</p>
+                      : m.rating && !m.body ? <p className="msg-deleted">O cliente respondeu ao pedido de avaliação (a nota só é visível para quem foi avaliado e para o Super Admin).</p>
+                      : m.body && <p>{m.body}</p>}
                     {m.attachments.length > 0 && (
                       <div className="msg-attachments">
                         {m.attachments.map((a, i) => {
@@ -1380,7 +1407,8 @@ export function SupportInbox({
                             ) : (
                               <button type="button" onClick={() => act({ action: "verify", messageId: m.id })}>Verificar</button>
                             )}
-                            <button
+                            {/* Mensagem automática: nunca volta ao rascunho de ninguém (não foi escrita por uma pessoa). */}
+                            {!m.origin && <button
                               type="button"
                               onClick={() => {
                                 // O texto volta ao rascunho da resposta: não durante a revisão da IA (ficava escondido).
@@ -1396,7 +1424,7 @@ export function SupportInbox({
                               }}
                             >
                               Não foi enviada
-                            </button>
+                            </button>}
                           </>
                         )}
                         {m.delivery === "failed" && m.author_user_id === c.me && (
@@ -1865,6 +1893,38 @@ function CustomerPanel({
     ? `${conv.assignee_name || "—"}${conv.assignee_id === d.me ? " (eu)" : ""}`
     : conv.external_assignee_name ? `${conv.external_assignee_name} ${zendeskOff ? "(no Zendesk)" : "(Zendesk, conta por ligar)"}` : "Sem responsável";
   const targetName = transferTo.find((u) => u.id === target)?.name || "";
+  // Resolver no modo "perguntar": primeiro a pergunta, com a caixa do pedido de avaliação (e o motivo quando não pode
+  // haver pedido). Nos outros modos resolve logo (no automático a BD cria o pedido e o aviso aparece na conversa).
+  const [resolving, setResolving] = useState<{ preview: SurveyPreview | null; error: string; ask: boolean } | null>(null);
+  const resolveButton = useRef<HTMLButtonElement>(null);
+  const statusSelect = useRef<HTMLSelectElement>(null);
+  const wasResolving = useRef(false);
+  const ready = Boolean(resolving && (resolving.preview || resolving.error));
+  useEffect(() => {
+    if (ready) resolveButton.current?.focus();
+  }, [ready]);
+  // Ao fechar o diálogo (Resolver, Cancelar ou Escape), o foco volta à escolha do estado (não se perde na página).
+  const open = Boolean(resolving);
+  useEffect(() => {
+    if (open) wasResolving.current = true;
+    else if (wasResolving.current) {
+      wasResolving.current = false;
+      statusSelect.current?.focus();
+    }
+  }, [open]);
+  async function changeStatus(value: string) {
+    if (value === "resolvido" && conv.status !== "resolvido" && d.survey_mode === "perguntar") {
+      setResolving({ preview: null, error: "", ask: false });
+      try {
+        const p = await api<SurveyPreview>(`/api/support/conversations/${conv.id}`, { method: "POST", body: { action: "survey_preview" } });
+        setResolving({ preview: p, error: "", ask: p.eligible });
+      } catch (e) {
+        setResolving({ preview: null, error: e instanceof Error ? e.message : "Indisponível.", ask: false });
+      }
+      return;
+    }
+    await onAct({ action: "update", status: value });
+  }
   return (
     <div className="customer-panel">
       <button type="button" className="support-back" onClick={onBack}>← Conversa</button>
@@ -1872,11 +1932,42 @@ function CustomerPanel({
         <span className="eyebrow">Atendimento</span>
         <label>
           Estado
-          <select value={conv.status} disabled={!canChangeStatus(own)} title={canChangeStatus(own) ? "" : "Só o responsável (ou o Super Admin) muda o estado."}
-            onChange={(e) => onAct({ action: "update", status: e.target.value })}>
+          <select ref={statusSelect} value={conv.status} disabled={!canChangeStatus(own) || Boolean(resolving)} title={canChangeStatus(own) ? "" : "Só o responsável (ou o Super Admin) muda o estado."}
+            onChange={(e) => changeStatus(e.target.value)}>
             {STATUSES.map((s) => <option key={s} value={s} disabled={isZendesk && s === "novo" && conv.status !== "novo"}>{STATUS_LABEL[s]}</option>)}
           </select>
         </label>
+        {resolving && (
+          <div className="survey-confirm" role="dialog" aria-modal="false" aria-labelledby="survey-confirm-title"
+            onKeyDown={(e) => { if (e.key === "Escape") setResolving(null); }}>
+            <strong id="survey-confirm-title">Marcar como resolvida?</strong>
+            {!ready && <small className="muted" role="status">A verificar o pedido de avaliação…</small>}
+            {resolving.error && <small className="muted" role="alert">Pedido de avaliação indisponível ({resolving.error}); a conversa pode ser resolvida na mesma.</small>}
+            {resolving.preview && (
+              <label className="checkbox-label">
+                <input type="checkbox" checked={resolving.ask} disabled={!resolving.preview.eligible}
+                  onChange={(e) => setResolving({ ...resolving, ask: e.target.checked })} />
+                Pedir ao cliente uma avaliação do atendimento (1 a 5)
+              </label>
+            )}
+            {resolving.preview?.eligible && resolving.preview.agent_name && (
+              <small className="muted">A nota conta para {resolving.preview.agent_name} (quem mais respondeu nesta conversa).</small>
+            )}
+            {resolving.preview && !resolving.preview.eligible && <small className="muted">{skipText(resolving.preview.reason)}.</small>}
+            <div className="customer-actions">
+              <button type="button" className="secondary-button" ref={resolveButton} disabled={busy || !ready}
+                onClick={() => {
+                  // Sem a pré-visualização a pessoa não chegou a escolher: não fica registado que optou por não pedir.
+                  const ask = resolving.preview ? { survey: Boolean(resolving.preview.eligible && resolving.ask) } : {};
+                  setResolving(null);
+                  run({ action: "update", status: "resolvido", ...ask });
+                }}>
+                Resolver
+              </button>
+              <button type="button" className="outline-button" onClick={() => setResolving(null)}>Cancelar</button>
+            </div>
+          </div>
+        )}
         <div className="owner-row">
           <span>Responsável</span>
           <strong>{owner}</strong>
@@ -1930,6 +2021,8 @@ function CustomerPanel({
         </div>
         {actionError && <p className="support-error" role="alert">{actionError}</p>}
       </section>
+
+      <SurveyPanel d={d} onAct={onAct} onReload={onReload} />
 
       {conv.channel === "site" && <SiteVisitor state={visitor} />}
 
@@ -2036,6 +2129,77 @@ function CustomerPanel({
         </ul>
       </section>
     </div>
+  );
+}
+
+// Avaliação do atendimento no painel do cliente: o último pedido desta conversa (a nota e o comentário só chegam ao Super
+// Admin e a quem foi avaliado), o cancelamento pelo Super Admin (com o motivo, que fica na conversa) e a escolha do
+// cliente de não receber pedidos (qualquer pessoa da equipa marca, a pedido do cliente; voltar a aceitar só o Super
+// Admin). As mudanças ficam na conversa com o nome de quem as fez.
+function SurveyPanel({ d, onAct, onReload }: {
+  d: Detail;
+  onAct: (body: Record<string, unknown>, after?: () => void) => Promise<void>;
+  onReload: () => Promise<void>;
+}) {
+  const s = d.surveys?.[0] || null;
+  const contact = d.contact;
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  // Só nos canais com pedidos (Messenger, Instagram, email e chat do site), ou quando já houve um pedido.
+  if (!d.surveys || (!s && (!isSurveyChannel(d.conversation.channel) || (d.survey_mode === "desligado" && !contact?.no_surveys)))) return null;
+  const cancel = async () => {
+    if (!s) return;
+    const reason = prompt("Motivo para cancelar o pedido de avaliação (fica registado na conversa):");
+    if (reason === null) return;
+    if (reason.trim().length < 3) {
+      setError("Indique o motivo (pelo menos 3 caracteres).");
+      return;
+    }
+    setError("");
+    await onAct({ action: "survey_cancel", surveyId: s.id, reason: reason.trim() });
+  };
+  const toggle = async (noSurveys: boolean) => {
+    if (!contact) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/support/contacts/${contact.id}`, { method: "POST", body: { noSurveys, conversation: d.conversation.id } });
+      await onReload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível gravar.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section>
+      <span className="eyebrow">Avaliação do atendimento</span>
+      {s ? (
+        <p className="survey-state">
+          <strong>{surveyStateText(s)}</strong>
+          <small className="muted block">
+            Atendimento de {s.agent_name || "—"} · {s.sent_at ? `pedido ${time(s.sent_at)}` : s.channel === "site" || s.status !== "pending" ? `resolvida ${time(s.created_at)}` : `agendado para ${time(s.send_after)}`}
+          </small>
+          {s.score !== null && <small className="block">Nota: {s.score}/5{s.comment ? ` — “${s.comment}”` : ""}{s.follow_up ? " · a acompanhar" : ""}</small>}
+        </p>
+      ) : (
+        <small className="muted block">Sem pedidos de avaliação nesta conversa.</small>
+      )}
+      {d.super && s && (s.status === "pending" || s.status === "sent") && (
+        <button type="button" className="secondary-button" onClick={cancel}>Cancelar pedido de avaliação</button>
+      )}
+      {contact && (
+        <>
+          <label className="checkbox-label">
+            <input type="checkbox" checked={Boolean(contact.no_surveys)} disabled={busy || (Boolean(contact.no_surveys) && !d.super)}
+              aria-describedby={contact.no_surveys && !d.super ? "survey-optout-help" : undefined} onChange={(e) => toggle(e.target.checked)} />
+            O cliente não quer receber pedidos de avaliação
+          </label>
+          {contact.no_surveys && !d.super && <small id="survey-optout-help" className="muted block">Só o Super Admin pode voltar a ativar.</small>}
+        </>
+      )}
+      {error && <p className="support-error" role="alert">{error}</p>}
+    </section>
   );
 }
 

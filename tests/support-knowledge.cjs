@@ -1792,8 +1792,10 @@ test("ai.ts appends the published cards to the cached knowledge block, and the b
   const cron = read("app/api/cron/support-sync/route.ts");
   assert.match(cron, /distillPending\(started\)/);
   assert.match(cron, /ldo_support_knowledge_purge/);
-  // As limpezas seguem a sincronização (em paralelo), sem esperar pela base de conhecimento aprendida.
-  assert.match(cron, /runSync\(\{ force: true, budgetMs: 60_000 \}\)\.then\(async \(results\) => \{\n\s+const \[purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged\] = await Promise\.all\(\[/);
+  // As limpezas seguem a sincronização (em paralelo), sem esperar pela base de conhecimento aprendida; a das avaliações
+  // (comentários ao fim de 12 meses) também.
+  assert.match(cron, /runSync\(\{ force: true, budgetMs: 60_000 \}\)\.then\(async \(results\) => \{\n\s+const \[purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged, surveysPurged\] = await Promise\.all\(\[/);
+  assert.match(cron, /serverRpc<number>\("ldo_support_survey_purge"\)\.catch\(\(\) => null\),\n\s+\]\);\n\s+return \{ results, purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged, surveysPurged \};/);
   const inbox = read("components/support/inbox.tsx");
   assert.match(inbox, /m\.author_user_id && \(m\.author_user_id === c\.me \|\| c\.super\)/);
   assert.match(inbox, /!\(c\.history_from && Date\.parse\(m\.created_at\) < Date\.parse\(c\.history_from\)\)/);

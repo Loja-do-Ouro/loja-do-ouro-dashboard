@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   // logo a seguir à sincronização, em paralelo, sem esperar pela base de conhecimento aprendida, que corre ao mesmo tempo
   // (só com as propostas automáticas ligadas): até 12 conversas, 15 s cada, sem começar chamadas novas depois dos 90 s.
   const sync = runSync({ force: true, budgetMs: 60_000 }).then(async (results) => {
-    const [purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged] = await Promise.all([
+    const [purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged, surveysPurged] = await Promise.all([
       // Anexos enviados: os bytes apagam-se ao fim de 30 dias (e os nunca enviados ao fim de 1 dia).
       serverRpc<number>("ldo_support_uploads_purge").catch(() => null),
       // Pedidos à IA: o registo apaga-se ao fim de 180 dias.
@@ -30,8 +30,10 @@ export async function GET(request: Request) {
       serverRpc<number>("ldo_support_knowledge_purge").catch(() => null),
       // Chat do site: tokens de visitantes sem atividade há 180 dias deixam de funcionar.
       serverRpc<number>("ldo_support_site_purge").catch(() => null),
+      // Avaliações do atendimento: o comentário apaga-se ao fim de 12 meses (a nota fica).
+      serverRpc<number>("ldo_support_survey_purge").catch(() => null),
     ]);
-    return { results, purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged };
+    return { results, purged, aiPurged, reviewsPurged, knowledgePurged, sitePurged, surveysPurged };
   });
   const [s, knowledge] = await Promise.all([
     sync,

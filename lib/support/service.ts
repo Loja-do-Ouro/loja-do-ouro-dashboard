@@ -15,6 +15,7 @@ import { contactAddress } from "./gmail-rules";
 import { firstName } from "./rules";
 import { recordReplyLinks } from "./review";
 import type { ReviewTag } from "./review-rules";
+import { surveyCreateNote, type SurveyCreate } from "./survey-rules";
 import type { Viewer } from "@/lib/viewer";
 
 type Begin = {
@@ -29,9 +30,9 @@ type Begin = {
     assignee_id?: string | null; external_assignee_id?: string | null;
   };
 };
-type Result = { outcome: "accepted" | "failed" | "uncertain"; externalId: string | null; detail: string | null };
+export type Result = { outcome: "accepted" | "failed" | "uncertain"; externalId: string | null; detail: string | null };
 
-const PROVIDER: Record<string, string> = { "metricool-facebook": "FACEBOOK", "metricool-instagram": "INSTAGRAM" };
+export const PROVIDER: Record<string, string> = { "metricool-facebook": "FACEBOOK", "metricool-instagram": "INSTAGRAM" };
 // Comentários das publicações: resposta PÚBLICA no tópico (nunca por mensagem privada).
 const COMMENT_PROVIDER: Record<string, string> = { "metricool-facebook-comments": "FACEBOOK", "metricool-instagram-comments": "INSTAGRAM" };
 
@@ -163,11 +164,16 @@ async function sendGmail(viewer: Viewer, threadId: string, to: string | null, me
     });
     return { outcome: "accepted", externalId: sent.id, detail: null };
   } catch (e) {
-    if (e instanceof GmailError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429)
-      return { outcome: "failed", externalId: null, detail: e.message };
-    if (e instanceof GmailError && e.reconnect) return { outcome: "failed", externalId: null, detail: e.message };
-    return { outcome: "uncertain", externalId: null, detail: e instanceof Error ? e.message : "Sem resposta do Gmail." };
+    return gmailFailure(e);
   }
+}
+
+// Erro de um envio pelo Gmail: uma recusa antes de enviar (4xx) ou a caixa por voltar a ligar é "Falhou"; o resto é incerto.
+export function gmailFailure(e: unknown): Result {
+  if (e instanceof GmailError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429)
+    return { outcome: "failed", externalId: null, detail: e.message };
+  if (e instanceof GmailError && e.reconnect) return { outcome: "failed", externalId: null, detail: e.message };
+  return { outcome: "uncertain", externalId: null, detail: e instanceof Error ? e.message : "Sem resposta do Gmail." };
 }
 
 type Conversation = {
@@ -180,8 +186,11 @@ export type Handover = { conversationId: string; target: string; actor: string; 
 // Estado e responsável, com as regras do responsável (rules.ts; a BD repete-as nos outros canais).
 // Zendesk: escrito no Zendesk com a conta de quem altera, e guardado o que o Zendesk devolve. Restantes
 // canais: o dashboard é a fonte de verdade. Devolve a passagem da conversa a outra pessoa (para o aviso
-// por email), quando houve.
-export async function updateConversation(viewer: Viewer, id: string, change: { status?: unknown; assigneeId?: unknown }): Promise<Handover | null> {
+// por email), quando houve, e o aviso do pedido de avaliação.
+// survey: no modo "perguntar", a caixa "Pedir ao cliente uma avaliação" (no automático a BD ignora-a).
+export async function updateConversation(viewer: Viewer, id: string, change: { status?: unknown; assigneeId?: unknown; survey?: unknown }): Promise<{
+  handover: Handover | null; note: string | null;
+}> {
   const status = change.status === undefined ? undefined : isStatus(change.status) ? change.status : null;
   if (status === null) throw new HttpError(400, "Estado inválido.");
   const assignee = change.assigneeId === undefined ? undefined : typeof change.assigneeId === "string" && change.assigneeId ? change.assigneeId : null;
@@ -202,7 +211,16 @@ export async function updateConversation(viewer: Viewer, id: string, change: { s
     await sessionRpc(viewer.session, "ldo_support_set_local", {
       p_id: id, p_set_status: status !== undefined, p_status: status ?? null, p_set_assignee: assignee !== undefined, p_assignee: assignee ?? null,
     });
-    return handover;
+    // Pedido de avaliação: só quando esta pessoa acabou de resolver (a BD confirma as regras e quem é avaliado). Uma falha
+    // aqui nunca desfaz o "Resolvido".
+    let note: string | null = null;
+    if (status === "resolvido" && c.status !== "resolvido") {
+      const r = await sessionRpc<SurveyCreate>(viewer.session, "ldo_support_survey_create", {
+        p_conv: id, p_request: typeof change.survey === "boolean" ? change.survey : null,
+      }).catch(() => null);
+      note = surveyCreateNote(r);
+    }
+    return { handover, note };
   }
   let zendeskAssignee: string | null | undefined;
   let target: SupportUser | undefined;
@@ -216,7 +234,7 @@ export async function updateConversation(viewer: Viewer, id: string, change: { s
       zendeskAssignee = target.zendesk_user_id;
     }
   }
-  if (status === undefined && zendeskAssignee === undefined) return null;
+  if (status === undefined && zendeskAssignee === undefined) return { handover: null, note: null };
   try {
     const fresh = await zendeskUpdate(viewer.id, c.external_id, { status, assigneeZendeskId: zendeskAssignee });
     await ingest("zendesk", [fresh]);
@@ -233,7 +251,8 @@ export async function updateConversation(viewer: Viewer, id: string, change: { s
       p_details: { kind: change_.kind, from: c.assignee_id, from_name: c.assignee_name, to: assignee, to_name: target?.name ?? null, notice: false, platform: "zendesk" },
     });
   }
-  return handover;
+  // Zendesk: não é um canal com pedidos de avaliação.
+  return { handover, note: null };
 }
 
 type ServerMessage = { message: { id: string; delivery: string | null; created_at: string }; conversation: { id: string; source_id: string; external_id: string } };

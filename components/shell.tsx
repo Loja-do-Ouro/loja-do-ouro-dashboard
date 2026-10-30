@@ -60,6 +60,8 @@ export async function AppShell({
       label: "APOIO AO CLIENTE",
       items: [
         { key: "apoio", label: "Conversas", href: "/apoio", icon: "chat" },
+        // Cada pessoa vê os seus resultados; o Super Admin, os de toda a equipa.
+        { key: "apoio-desempenho", label: "Satisfação e desempenho", href: "/apoio/desempenho", icon: "star" },
         ...(viewer.isSuper ? [{ key: "apoio-config", label: "Configuração do apoio", href: "/apoio/configuracao", icon: "plug" }] : []),
       ],
     });

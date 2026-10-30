@@ -3,6 +3,7 @@ import { metricoolAccount, metricoolConfigured, metricoolRequest } from "@/lib/b
 import { ingest, serverConfigured, serverRpc, type IngestConversation, type IngestMessage } from "./db";
 import { metaSendRefusal, metricoolBrandFindings, metricoolCursor, metricoolFault, metricoolNetwork, safeMetricoolBrand, sendOutcome, type InboxProbe, type SafeBrand } from "./rules";
 import { hiddenReaction, socialAutoReply, type SocialSettings } from "./social-rules";
+import { isRatingReply } from "./survey-rules";
 import { commentAccess, commentBrand, commentCursorAfter, commentReadPlan, threadToConversation, walkPages, type CommentThread, type PostElement } from "./comment-rules";
 
 // Metricool Inbox (API v2, https://app.metricool.com/api/swagger.json), mensagens privadas do
@@ -198,6 +199,9 @@ async function sendAutoReplies(provider: string, sourceId: string, pairs: { raw:
     if (halt.stop) continue;
     const decision = socialAutoReply(messages, settings, now, name);
     if (!decision) continue;
+    // Só uma nota ("5", "⭐⭐⭐⭐") ou «não»: é a resposta a um pedido de avaliação, nunca leva resposta automática (a BD
+    // confirma pelo pedido).
+    if (isRatingReply(conv.messages.find((m) => m.external_id === decision.anchor)?.body)) continue;
     const claim = { p_source: sourceId, p_conversation: conv.external_id, p_anchor: decision.anchor };
     if (!(await serverRpc<boolean>("ldo_support_social_autoreply_claim", { ...claim, p_contact: recipient, p_kind: decision.kind, p_since: decision.since }).catch(() => false))) continue;
     const r = await metricoolSend(provider, conv.external_id, recipient, decision.text, null, 10_000).catch(() => ({ outcome: "uncertain" as const, fault: null }));
