@@ -300,8 +300,11 @@ const NUMBER_WORDS = `zero um uma dois duas três tres quatro cinco seis sete oi
   milhoes`.split(/\s+/).filter(Boolean);
 const NUMBER_WORD = `(?:${NUMBER_WORDS.join("|")})`;
 const NUMBER_WORDS_RUN = new RegExp(`(?<!\\p{L})${NUMBER_WORD}(?:[ \\t,]+(?:e[ \\t]+)?${NUMBER_WORD})+(?!\\p{L})`, "giu");
-// Fim de um cartão ou de uma conta ("os últimos 4 dígitos do cartão são 4242", "cartão terminado em 4242").
-const CARD_END = /(?<!\p{L})(?:[úu]ltimos|finais|final|terminad[oa]s?|termina(?:m)?|acabad[oa]s?|acaba(?:m)?)(?!\p{L})[^.!?\n]{0,40}?(?<![\p{L}\p{N}])(\d{4})(?![\p{L}\p{N}])/iu;
+// Fim de um cartão ou de uma conta ("os últimos 4 dígitos do cartão são 4242", "cartão terminado em 4242", também em
+// grupos: "o cartão acaba em 42 42", "Visa terminado em 42-42"); "os últimos 4 dígitos são 4242" também sem a palavra
+// cartão.
+const CARD_END = /(?<!\p{L})(?:[úu]ltimos|finais|final|terminad[oa]s?|termina(?:m)?|acabad[oa]s?|acaba(?:m)?)(?!\p{L})[^.!?\n]{0,40}?(?<![\p{L}\p{N}])(\d(?:[ .-]?\d){3})(?![ .-]?\d)(?![\p{L}\p{N}])/iu;
+const LAST_DIGITS = /(?<!\p{L})(?:[úu]ltimos|finais)[ \t]+(?:4|quatro)[ \t]+(?:d[íi]gitos|algarismos|n[úu]meros)(?!\p{L})[^.!?\n]{0,40}?(?<![\p{L}\p{N}])(\d(?:[ .-]?\d){3})(?![ .-]?\d)(?![\p{L}\p{N}])/iu;
 const CARD_WORD = /(?<!\p{L})(?:cart[ãa]o|cart[õo]es|iban|nib|conta|visa|mastercard|multibanco|d[ée]bito|cr[ée]dito|amex)(?!\p{L})/iu;
 // Pedidos à IA dentro do texto ("ignore as instruções", "responda sempre que sim", "Nota para a IA:", "<instrucoes>").
 const INJECTION_RES = [
@@ -330,7 +333,9 @@ const looseIban = (text: string) => [...text.matchAll(IBAN_LOOSE)].some((m) => (
 // Cartão mascarado com os últimos 4 algarismos ("**** **** **** 4242", "Visa ****4242", "cartão •••• 4242", "xxxx xxxx
 // xxxx 4242", "XXXX-XXXX-XXXX-4242").
 const MASKED_CARD = /(?<![\p{L}\p{N}*•●·∙])(?:(?:[*•●·∙]{2,}|[xX]{4})[ \t.-]?){1,4}\d{4}(?![\p{L}\p{N}])/u;
-const NIF_RE = /(?<!\p{L})(nif|nipc|contribuinte)(?!\p{L})\D{0,20}\d{9}/iu;
+// O NIF genérico do consumidor final (999999990) não é de ninguém: passa como um dado da empresa.
+const PUBLIC_NUMBERS = ["999999990"];
+const NIF_RE = /(?<!\p{L})(nif|nipc|contribuinte)(?!\p{L})\D{0,20}(?!999999990(?!\d))\d{9}/iu;
 // Código de envio (CTT e transportadoras internacionais: duas letras, nove algarismos, duas letras).
 const SHIPPING_RE = /(?<![\p{L}\p{N}])[A-Za-z]{2}\d{9}[A-Za-z]{2}(?![\p{L}\p{N}])/u;
 // Perfil de uma rede social ("@joana.joias").
@@ -518,7 +523,7 @@ const BRAND_PHRASES = ["Daniel Wellington", "Michael Kors", "Calvin Klein", "Tom
   "Caldas da Rainha", "Ponta Delgada", "Costa da Caparica", "Paços de Ferreira", "Vale de Cambra", "Monte Gordo", "Reino Unido",
   "Estados Unidos", "Nova Iorque", "Países Baixos", "Arábia Saudita", "Emirados Árabes Unidos", "Costa Rica", "Costa do Marfim", "Porto Rico",
   "Sagrado Coração de Jesus", "Imaculado Coração de Maria", "Hamilton Ventura", "Hamilton Khaki", "Khaki Field", "Cocktail Time", "Royal Oak",
-  "Cartier Santos", "Pulseira da Amizade", "Marinha Grande", "Marco de Canaveses", "Castro Marim", "Ponte de Lima", "Ponte da Barca", "Ponte de Sor", "São Tomé e Príncipe", "Santo Tirso", "Vila Real de Santo António", "Marinha Grande",
+  "Cartier Santos", "Pulseira da Amizade", "Rosa dos Ventos", "Marinha Grande", "Marco de Canaveses", "Castro Marim", "Ponte de Lima", "Ponte da Barca", "Ponte de Sor", "São Tomé e Príncipe", "Santo Tirso", "Vila Real de Santo António", "Marinha Grande",
   "Batalha", "Porto de Mós", "Nova Zelândia", "África do Sul", "Coreia do Sul", "Hong Kong", "Las Vegas", "Los Angeles", "Rio de Janeiro", "São Paulo"];
 // Nomes próprios comuns (sem os que também são palavras ou lojas, como Clara, Graça, Luz ou Fátima): aviso em qualquer
 // posição e em qualquer forma ("a sua filha Beatriz", "fale com o joão").
@@ -737,8 +742,8 @@ export function companyAllowlist(o: { knowledge: string; stores: { name: string;
   const runs = digitRuns(text.replace(/[()]/g, " "));
   return {
     emails: new Set((text.match(EMAIL_RE) || []).map((e) => e.toLowerCase())),
-    phones: new Set(runs.map((r) => phoneKey(r.digits))),
-    numbers: new Set([...(text.match(/\d+/g) || []), ...runs.map((r) => r.digits)]),
+    phones: new Set([...runs.map((r) => phoneKey(r.digits)), ...PUBLIC_NUMBERS]),
+    numbers: new Set([...(text.match(/\d+/g) || []), ...runs.map((r) => r.digits), ...PUBLIC_NUMBERS]),
     postcodes: new Set(text.match(POSTCODE_RE) || []),
     handles: new Set((text.match(HANDLE_RE) || []).map(handleKey)),
     codes: codesIn(text),
@@ -809,7 +814,9 @@ const ORDER_WORDS = new RegExp(ORDER_CONTEXT.source.replace("|sua|seu|suas|seus"
 const REF_MARK = "(?:n\\.?[ \\t]*[º°]\\.?|n\\.[ \\t]*o\\.?|nº|n\\.|n[úu]mero|nr\\.?|no\\.(?=[ \\t]*\\d))";
 // Algarismos, também em grupos de espaços, pontos ou hífens ("4 471", "44-71-23", "4.471").
 const DIGIT_GROUP = "\\d+(?:[ .\\-]\\d+)*";
-const REF_DIRECT = new RegExp(`^[ \\t]*(?:(${REF_MARK})[ \\t]*)?(?:(?:é|:|=)[ \\t]*(?:(?:o|a)[ \\t]+)?)?(#)?[ \\t]*([A-Za-z]{1,4}-?)?(${DIGIT_GROUP})(?!\\d)`, "iu");
+// Também depois de um aposto ou de um traço ("A sua encomenda, a 4 471, já seguiu.", "O seu número de cliente, 4 471, …",
+// "encomenda - 4 471").
+const REF_DIRECT = new RegExp(`^[ \\t]*(?:,[ \\t]*(?:(?:o|a)[ \\t]+)?|-[ \\t]*)?(?:(${REF_MARK})[ \\t]*)?(?:(?:é|:|=)[ \\t]*(?:(?:o|a)[ \\t]+)?)?(#)?[ \\t]*([A-Za-z]{1,4}-?)?(${DIGIT_GROUP})(?!\\d)`, "iu");
 const REF_GAP = new RegExp(`(?:${REF_MARK}|#)[ \\t]*:?[ \\t]*#?[ \\t]*[A-Za-z]{0,4}-?(${DIGIT_GROUP})(?!\\d)`, "iu");
 // Entre "referência" e o número, só palavras de um pagamento ou de uma encomenda ("A ref. do seu pagamento é 4471", "A
 // referência MB é 4471 2210", "Referência Multibanco: 4471 2210", "ref. pagamento 4471").
@@ -817,9 +824,11 @@ const REF_WORDS_NUMBER = new RegExp(`^(?:[ \\t]*(?:(?:d[aeo]s?|de|para|por|pel[o
 // Fatura com o código do documento (SAF-T) e a série, em qualquer ponto ("FT 1/2345", "FT A/2026/145", "FT1/2345", "FS
 // 1/234"), e outros códigos de 2 ou 3 letras com uma série de 4 algarismos ("FAC 2026/145").
 const DOC_CODE = "(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)";
-const INVOICE_ANY = new RegExp(`(?<![\\p{L}\\p{N}])${DOC_CODE}[ \\t.\\-]*[A-Z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d+(?![\\p{L}\\p{N}\\/])`, "u");
+// Uma série seguida de dias, semanas ou horas é um prazo ("FR 3/5 dias", "GR 5/7 dias úteis": França e Grécia).
+const NOT_INVOICE_AFTER = "(?![ \\t]*(?:dias?|semanas?|horas?|meses|m[êe]s|anos?|úteis|uteis)(?!\\p{L}))";
+const INVOICE_ANY = new RegExp(`(?<![\\p{L}\\p{N}])${DOC_CODE}[ \\t.\\-]*[A-Z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d+(?![\\p{L}\\p{N}\\/])${NOT_INVOICE_AFTER}`, "u");
 // O mesmo código em minúsculas ("a sua fatura ft 1/2345", "fs 1/234", "ft 2026/1450"), com 3 ou mais algarismos no fim.
-const INVOICE_ANY_LOWER = new RegExp(`(?<![\\p{L}\\p{N}])(?:${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*[A-Za-z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Za-z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d{3,}(?![\\p{L}\\p{N}\\/])(?![.,]\\d|[ \\t]*(?:%|€))`, "u");
+const INVOICE_ANY_LOWER = new RegExp(`(?<![\\p{L}\\p{N}])(?:${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*[A-Za-z0-9]{1,10}(?:[ \\t]*\\/[ \\t]*[A-Za-z0-9]{1,10})*[ \\t]*\\/[ \\t]*\\d{3,}(?![\\p{L}\\p{N}\\/])(?![.,]\\d|[ \\t]*(?:%|€))${NOT_INVOICE_AFTER}`, "u");
 const INVOICE_CODE = /(?<![\p{L}\p{N}])[A-Z]{2,3}[ \t]+(?:[A-Z]{1,4}[ \t]*)?(\d{4})[ \t]*\/[ \t]*(\d+)(?![\p{L}\p{N}/])/u;
 // A série a seguir a "fatura" ou "recibo" (com "n.º", ":" ou "é a"): com o código ("FT 1/2345", "ft 1/2345") ou letras
 // ("A/145"), recusa; só com algarismos, recusa quando é uma série de 4 algarismos ("2026/145") ou o número tem 3 ou mais
@@ -827,7 +836,11 @@ const INVOICE_CODE = /(?<![\p{L}\p{N}])[A-Z]{2,3}[ \t]+(?:[A-Z]{1,4}[ \t]*)?(\d{
 // "n/" e "v/" ("fatura c/ 23% de IVA", "recibo c/ 2 vias").
 const MARK_CS = "(?:[nN]\\.?[ \\t]*[º°]\\.?|[nN]\\.[ \\t]*[oO]\\.?|[nN]º|[nN]\\.|[nN][úuÚU][mM][eE][rR][oO]|[nN][rR]\\.?)";
 const INVOICE_AFTER = new RegExp(`^[ \\t]*(?:${MARK_CS}[ \\t]*)?(?::[ \\t]*|(?:é|e)[ \\t]+(?:a[ \\t]+|o[ \\t]+)?)?(?:([A-Z]{1,4}|${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*)?([A-Za-z]{1,4}|\\d{1,4})((?:[ \\t]*\\/[ \\t]*[A-Za-z0-9]{1,10})*)[ \\t]*\\/[ \\t]*(\\d+)(?![\\p{L}\\p{N}\\/])`, "u");
+// Com o código do documento, a série também com um hífen, um ponto ou um espaço ("Fatura FT 1-2345", "Fatura FT 01-2345",
+// "Fatura FT 1 2345", "fatura FT 1.2345").
+const INVOICE_AFTER_SEP = new RegExp(`^[ \\t]*(?:${MARK_CS}[ \\t]*)?(?::[ \\t]*|(?:é|e)[ \\t]+(?:a[ \\t]+|o[ \\t]+)?)?(?:${ci("ft|fs|fr|nc|nd|vd|gr|gt|rc|rg")})[ \\t.\\-]*(?:\\d{1,4}|[A-Za-z]{1,4})(?:[ \\t]*[.\\-][ \\t]*|[ \\t]+)\\d{3,}(?![\\p{L}\\p{N}\\/]|[.,]\\d|[ \\t]*(?:%|€|eur))${NOT_INVOICE_AFTER}`, "u");
 function invoiceAfter(tail: string) {
+  if (INVOICE_AFTER_SEP.test(tail)) return true;
   const m = INVOICE_AFTER.exec(tail);
   if (!m) return false;
   const [, code, series, more, last] = m;
@@ -838,6 +851,41 @@ function invoiceAfter(tail: string) {
 }
 const PRODUCT_REF = /^[ \t]+(?:d[oa]s?|de)[ \t]+(?:modelo|artigo|produto|rel[óo]gio|pe[çc]a|cole[çc][ãa]o|anel|fio|colar|pulseira|brinco|pendente|fabricante|marca|tamanho|cor)(?!\p{L})/iu;
 const NUM_UNIT_AFTER = /^(?:[.,]\d+)?[ \t]*(?:€|\$|£|eur(?:os?)?|%|por[ \t]+cento|h(?:oras?)?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?|pts|lojas?|clientes?|pessoas?|artigos?)(?!\p{L})/iu;
+// Uma contagem, não um número de encomenda: com uma frequência, uma distância ou "em todo o país" ("Encomendas 10 000 por
+// ano", "Pedidos 1200 por dia", "Encomendas 12 000 km", "Clientes 15 000 em todo o país") e, depois de uma palavra no
+// plural, com um particípio ou um adjetivo no plural ("Clientes 5000 fidelizados", "Encomendas 2500 enviadas").
+const COUNT_AFTER = /^[ \t]*(?:(?:por|ao|à|\/)[ \t]*(?:dias?|semanas?|m[êe]s|meses|anos?|horas?)|km|quil[óo]metros?|em[ \t]+tod[oa]s?)(?!\p{L})/iu;
+const PLURAL_COUNT_AFTER = /^[ \t]+\p{L}{3,}(?:ad|id|eit|it)[oa]s(?!\p{L})/iu;
+// Um intervalo de dias com o mês ("Encomendas 24-26 de dezembro", "24-26/12", "23-24 dez."): datas, não um número.
+const MONTH_AFTER = new RegExp(`^(?:[ \\t]*(?:de[ \\t]+)?(?:${MONTHS.join("|")}|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)(?:\\.|(?!\\p{L}))|\\/\\d{1,2}(?!\\d))`, "iu");
+const isDayRange = (raw: string, after: string) => {
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(raw);
+  return !!m && Number(m[1]) >= 1 && Number(m[1]) < Number(m[2]) && Number(m[2]) <= 31 && MONTH_AFTER.test(after);
+};
+// "vale" é um vale de compras com um artigo ou um determinante antes ("o vale 4471", "Use o seu vale 4471") ou no início
+// da frase ("Vale 4471"); senão é o verbo valer e o número é um valor ("Hoje o anel vale 1250.", "Um relógio destes vale
+// 3500 ou mais.").
+const VOUCHER_BEFORE = /(?:^|[.!?…:;(\n"'«“]|(?<!\p{L})(?:o|um|seu|teu|meu|nosso|vosso|este|esse|aquele|do|no|ao|pelo|num|dum|deste|desse|neste|nesse|cada|qualquer|outro|novo|mesmo|primeiro|último|os|uns|seus|teus|meus|nossos|vossos|estes|esses|dos|nos|aos|pelos|outros|novos|vários|dois|três))[ \t]*$/iu;
+// Letras e algarismos logo a seguir a "reparação" ("A reparação GA2100 custa 45 €"): um modelo, não o número da
+// reparação, menos numa frase sobre a reparação do cliente ("a sua reparação…") ou com uma letra só ou um prefixo de
+// número ("R4471", "REP4471", "LDO4471").
+const ID_PREFIX = /^(?:[a-z]|rep|ldo|gsp|enc|ped|ord|res|fat|ft|cli|orc|pro|ticket|nr|num)-?$/i;
+const POSSESSIVE = /(?<!\p{L})(?:sua|seu|suas|seus|vossa|vosso)(?!\p{L})/iu;
+// "referência", "ref.", "ref.ª" com um número: só é a referência do cliente (recusa) num pagamento ("Referência
+// Multibanco: 4471 2210", "entidade 12345 referência 123456789"), com "sua"/"seu" antes ("a sua referência é 4512"),
+// logo a seguir a uma encomenda ("A sua encomenda (ref. 88123)"), com as palavras dessa encomenda ou desse pagamento até
+// ao número ("a referência da sua encomenda é 4512") ou só com algarismos numa frase sobre "a sua encomenda" ("A sua
+// encomenda tem a referência 4471"). Com letras ou pontos ("T137.410.11.051.00", "GA-2100-1A1ER") ou de um produto, do
+// catálogo, do site ou de uma coleção ("a referência 2203 do catálogo", "Encomende pela referência 2203 no site") é
+// sempre um aviso de código.
+const PAYMENT_CONTEXT = /(?<!\p{L})(?:multibanco|mb|entidade|pagamentos?|pag(?:ar|ou|ue|uei|ámos)|transfer[êe]ncias?)(?!\p{L})/iu;
+const OWN_REF_BEFORE = /(?<!\p{L})(?:sua|seu|vossa|vosso)[ \t]+$/iu;
+const ORDER_NOUN = "(?:encomendas?|pedidos?|compras?|repara[çc](?:[ãa]o|[õo]es)|reservas?|tal[ãa]o|tal[õo]es|faturas?|facturas?|recibos?|or[çc]amentos?)";
+const ORDER_REF_BEFORE = new RegExp(`(?<!\\p{L})${ORDER_NOUN}[ \\t]*(?:[(,:\\-][ \\t]*)?$`, "iu");
+const YOUR_ORDER = new RegExp(`(?<!\\p{L})(?:sua|seu|suas|seus|vossa|vosso)[ \\t]+${ORDER_NOUN}(?!\\p{L})`, "iu");
+const ORDER_OR_PAYMENT_WORD = /(?<!\p{L})(?:seu|sua|mb|multibanco|pagamentos?|encomendas?|compras?|pedidos?|tal[ãa]o|repara[çc][ãa]o|reservas?)(?!\p{L})/iu;
+const PRODUCT_TAIL = /^[ \t]*(?:[,:][ \t]*)?(?:d[aeo]s?|n[aeo]s?|em|de|pel[oa])[ \t]+(?:cat[áa]logo|site|loja[ \t]+online|cole[çc][ãa]o|modelo|artigo|produto|marca|linha|s[ée]rie|fabricante|rel[óo]gio|pe[çc]a)(?!\p{L})/iu;
+const REF_WORD_ONE = new RegExp(REF_WORD_RE.source, "iu");
 const THRESHOLD_BEFORE = /(?<!\p{L})(?:mais|menos|acima|abaixo|partir|superior(?:es)?|inferior(?:es)?|at[ée]|m[íi]nimo|m[áa]ximo|entre|desde|cerca|valor(?:es)?|montante)(?:[ \t]+(?:de|a|d[oa]s?|à|ao))?[ \t]*$/iu;
 const HALLMARKS = new Set(["375", "416", "500", "585", "750", "800", "830", "833", "835", "850", "875", "900", "916", "925", "950", "958", "999", "1000"]);
 const isYear = (d: string) => /^(?:19|20)\d\d$/.test(d);
@@ -895,52 +943,69 @@ function orderRefs(text: string, allow: Allowlist): { block: boolean; codes: str
     .split(/[!?;\n]|(?<!(?<![\p{L}\p{N}])(?:[nN]|[nN]\.?[ \t]*[º°]|[nN]\.[ \t]*[oO]|[nN][rR]|[nN]um|[rR]ef|[rR]ef\.?ª))\.(?=[ \t]+\p{Lu})|\.$/u)[0];
   // O número logo a seguir à palavra (com "n.º", "#", letras ou só o número). Uma data ("24-12") só conta como número
   // depois de "número de" ("Número de cliente: 12-11-23").
-  const direct = (tail: string, numbered: boolean) => {
+  // plural: a palavra está no plural (uma contagem também pode ter um particípio a seguir: "Clientes 5000 fidelizados").
+  const counted = (after: string, plural: boolean) => COUNT_AFTER.test(after) || (plural && PLURAL_COUNT_AFTER.test(after));
+  const direct = (tail: string, numbered: boolean, plural: boolean) => {
     const d = REF_DIRECT.exec(tail);
     if (!d || digits(d[4]).length < 3 || kbNumber(digits(d[4]))) return null;
     const after = tail.slice(d.index + d[0].length);
-    if (d[1] || d[2] || d[3]) return d[4];
+    if (d[1] || d[2] || d[3]) return d;
     const n = digits(d[4]);
-    return isYear(n) || isYearRange(d[4]) || HALLMARKS.has(n) || (isDateGroup(d[4]) && !numbered) || NUM_UNIT_AFTER.test(after) || /^[.,:]\d/.test(after)
-      ? null : d[4];
+    return isYear(n) || isYearRange(d[4]) || HALLMARKS.has(n) || (isDateGroup(d[4]) && !numbered) || isDayRange(d[4], after) || NUM_UNIT_AFTER.test(after)
+      || counted(after, plural) || /^[.,:]\d/.test(after) ? null : d;
   };
   for (const m of text.matchAll(REF_KEY_RE)) {
-    const key = m[0].toLowerCase();
-    const tail = tailOf((m.index ?? 0) + m[0].length);
+    const key = m[0].toLowerCase(), at = m.index ?? 0;
+    const tail = tailOf(at + m[0].length);
     if (INVOICE_KEY.test(key) && invoiceAfter(tail)) return { block: true, codes };
-    if (direct(tail, new RegExp(`${REF_MARK}[ \\t]+d[aeo]s?[ \\t]+$`, "iu").test(text.slice(Math.max(0, (m.index ?? 0) - 20), m.index)))) return { block: true, codes };
+    const plural = /s$/u.test(key);
+    // "vale" sem artigo nem determinante antes é o verbo valer ("o anel vale 1250").
+    const verb = /^vales?$/u.test(key) && !VOUCHER_BEFORE.test(text.slice(Math.max(0, at - 40), at));
+    const d = direct(tail, new RegExp(`${REF_MARK}[ \\t]+d[aeo]s?[ \\t]+$`, "iu").test(text.slice(Math.max(0, at - 20), at)), plural);
+    if (d && !(verb && !d[1] && !d[2])) {
+      // Um modelo logo a seguir a "reparação" ("A reparação GA2100 custa 45 €", "Reparação T137.410"): aviso de código.
+      const value = `${d[3] || ""}${d[4]}${/^[\p{L}\p{N}.-]*/u.exec(tail.slice(d.index + d[0].length))![0]}`;
+      if (d[3] && !d[1] && !d[2] && /^repara/u.test(key) && (!ID_PREFIX.test(d[3]) || value.includes(".")) && !POSSESSIVE.test(sentenceAt(text, at))) codes.push(value);
+      else return { block: true, codes };
+    }
     const near = tail.slice(0, 40);
     const g = REF_GAP.exec(near);
     if (g && digits(g[1]).length >= 3 && !kbNumber(digits(g[1]))) return { block: true, codes };
-    for (const n of near.matchAll(/(?<![\p{L}\p{N}.,:/])\d{3,}(?![\p{L}\p{N}/])/gu)) {
-      const at = n.index ?? 0;
-      const before = near.slice(0, at), after = near.slice(at + n[0].length);
+    if (verb) continue;
+    // Sem os algarismos de um código com hífen ("Reparação GA-2100 em 2 semanas").
+    for (const n of near.matchAll(/(?<![\p{L}\p{N}.,:/]|\p{L}-)\d{3,}(?![\p{L}\p{N}/])/gu)) {
+      const i = n.index ?? 0;
+      const before = near.slice(0, i), after = near.slice(i + n[0].length);
       // Três algarismos só depois de "de X" ("guia de transporte 123", "processo de garantia 451"). Um calibre, um
-      // movimento ou um modelo ("a reparação do calibre ETA 2824", "orçamento para o Omega 2500") não é uma encomenda.
+      // movimento ou um modelo ("a reparação do calibre ETA 2824", "orçamento para o Omega 2500") não é uma encomenda; uma
+      // referência a seguir ("Na encomenda, indique a referência do modelo: 2203") é vista à parte.
       if (n[0].length < 4 && !/^[ \t]*(?:d[aeo]s?|de)[ \t]+\p{L}+[ \t]*$/iu.test(before)) continue;
-      if (isYear(n[0]) || HALLMARKS.has(n[0]) || NUM_UNIT_AFTER.test(after) || /^[.,:]\d/.test(after) || THRESHOLD_BEFORE.test(before)
-        || kbNumber(n[0]) || modelBefore(before, !/(?<!\p{L})(?:sua|seu|suas|seus)(?!\p{L})/iu.test(sentenceAt(text, m.index ?? 0)))) continue;
+      if (isYear(n[0]) || HALLMARKS.has(n[0]) || NUM_UNIT_AFTER.test(after) || counted(after, plural) || /^[.,:]\d/.test(after) || THRESHOLD_BEFORE.test(before)
+        || kbNumber(n[0]) || REF_WORD_ONE.test(before) || modelBefore(before, !POSSESSIVE.test(sentenceAt(text, at)))) continue;
       return { block: true, codes };
     }
   }
-  // "referência", "ref.", "ref.ª": recusa numa frase sobre uma encomenda ou um pagamento (também com palavras entre a
-  // referência e o número: "A ref. do seu pagamento é 4471", "Referência Multibanco: 4471 2210"); senão, aviso com o número.
+  // "referência", "ref.", "ref.ª": recusa quando é a referência do cliente (de um pagamento ou da sua encomenda); senão,
+  // aviso com o número.
   for (const m of text.matchAll(REF_WORD_RE)) {
     const at = m.index ?? 0;
     const tail = tailOf(at + m[0].length);
     if (PRODUCT_REF.test(tail)) continue;
+    const sentence = sentenceAt(text, at), before = text.slice(Math.max(0, at - 30), at);
+    const own = PAYMENT_CONTEXT.test(sentence) || OWN_REF_BEFORE.test(before) || ORDER_REF_BEFORE.test(before);
     const d = REF_DIRECT.exec(tail);
     const n = d && digits(d[4]).length >= 3 && !kbNumber(digits(d[4])) && !HALLMARKS.has(digits(d[4])) ? d[4] : null;
-    const context = ORDER_CONTEXT.test(sentenceAt(text, at));
     if (!n) {
       const w = REF_WORDS_NUMBER.exec(tail.slice(0, 50));
       const x = w ? digits(w[1]) : "";
-      if (context && x.length >= 3 && !kbNumber(x) && !HALLMARKS.has(x) && !isYear(x) && !isYearRange(w![1])
-        && !NUM_UNIT_AFTER.test(tail.slice(w!.index + w![0].length))) return { block: true, codes };
+      if (x.length >= 3 && !kbNumber(x) && !HALLMARKS.has(x) && !isYear(x) && !isYearRange(w![1]) && !NUM_UNIT_AFTER.test(tail.slice(w!.index + w![0].length))
+        && !PRODUCT_TAIL.test(tail.slice(w!.index + w![0].length)) && (own || ORDER_OR_PAYMENT_WORD.test(w![0]) || YOUR_ORDER.test(sentence))) return { block: true, codes };
       continue;
     }
-    if (context) return { block: true, codes };
-    codes.push(`${m[0]} ${n}`);
+    const value = `${d![3] || ""}${n}${/^[\p{L}\p{N}.-]*/u.exec(tail.slice(d!.index + d![0].length))![0]}`;
+    const product = /\p{L}/u.test(value) || (value.match(/\./g) || []).length >= 2 || PRODUCT_TAIL.test(tail.slice(d!.index + d![0].length));
+    if (!product && (own || YOUR_ORDER.test(sentence))) return { block: true, codes };
+    codes.push(`${m[0]} ${value}`);
   }
   // "#4512" e "#LDO1234" sozinhos: recusa numa frase sobre uma encomenda ou um pagamento; senão, aviso.
   for (const m of text.matchAll(/(?<![\p{L}\p{N}])#[ \t]?(?:\d{4,}|[A-Za-z]{2,4}-?\d{3,})(?![\p{L}\p{N}])/gu)) {
@@ -1064,10 +1129,13 @@ const VERB_FORMS = new Set((() => {
       costum crav demor desej deix dour efetu embal encaminh encomend encurt engast entreg envi esper explic fech fur gost grav guard indic
       inform lev levant limp mand mud necessit observ pag pass pes personaliz precis procur prolong recomend reembols repar reserv restaur
       rodi sold solicit test tir trabalh trat troc us utiliz verific visit funcion fic lembr relembr bast aument pens pergunt gast mostr acompanh cham desloc aproveit
-      oferec combin cancel reclam continu aplic termin alter regist convid falt dur cuid apresent agend marc control acab chegu entr partilh public`,
+      oferec combin cancel reclam continu aplic termin alter regist convid falt dur cuid apresent agend marc control acab chegu entr partilh public
+      cust aguent brilh enferruj desbot lasc arranh estic vari`,
     ["ar", "a", "am", "amos", "ámos", "e", "em", "o", "ei", "ou", "ado", "ada", "ados", "adas", "ava", "avam", "aria", "aríamos"]),
-    ...forms("atend devolv entend escolh promet pretend receb respond vend oferec conhec merec perd", ["er", "e", "em", "emos", "i", "eu", "ido", "ida", "idos", "idas", "ia", "iam", "eria", "o"]),
-    ...forms("abr assist decid exist garant permit diminu adquir prefer sub", ["ir", "e", "em", "imos", "i", "iu", "ido", "ida", "idos", "idas", "ia", "iam", "iria", "o"]),
+    ...forms("atend devolv entend escolh promet pretend receb respond vend oferec conhec merec perd escurec encolh depend", ["er", "e", "em", "emos", "i", "eu", "ido", "ida", "idos", "idas", "ia", "iam", "eria", "o"]),
+    ...forms("abr assist decid exist garant permit diminu adquir prefer sub serv", ["ir", "e", "em", "imos", "i", "iu", "ido", "ida", "idos", "idas", "ia", "iam", "iria", "o"]),
+    // Formas irregulares que as respostas usam ("traz", "convém", "cabe"): verbos, não palavras novas nem deixadas cair.
+    ..."traz trazem trouxe convém cabe cabem segue seguem".split(" "),
   ];
 })());
 // Nomes e apelidos com a terminação de um verbo ("-mos"): continuam a ser possíveis nomes.
@@ -1328,8 +1396,47 @@ const CTX_BEFORE = [
 ];
 // Com o à/ao (no texto com acentos): "Diga à rosa que…", "Envie à rosa o talão", "Mande ao rui".
 const DATIVE_BEFORE = /(?:^|[^\p{L}])(?:diga|digam|dizer|disse|dissemos|envie|enviem|enviar|enviámos|enviamos|enviou|mande|mandem|mandar|mandámos|mandou|entregue|entreguem|entregámos|explique|expliquem|lembre|lembrem|transmita|transmitam|pergunte|perguntem|escreva|escrevam|telefone|telefonem|avise|avisem|ligue|liguem|deixe|deixem|dê|dêem|ofereça|ofereçam|mostre|mostrem)(?:-lhe)?[ \t]+(?:à|ao|aos|às)[ \t]+$/iu;
-// O dono de uma peça ("o anel da Rosa"): só com maiúscula ("a pulseira da paz", "o anel da rosa" são modelos).
+// O dono de uma peça ("o anel da Rosa", "o anel da clara", "O FIO DA GRAÇA"): com maiúscula, qualquer nome; em minúsculas,
+// os nomes próprios que também são palavras (FIRST_NAME_TOKENS), não os que são sobretudo palavras ("a pulseira da paz",
+// "a medalha da paz" são modelos).
 const PIECE_OWNER_BEFORE = /(?:^|[^\p{L}])(?:anel|aneis|fio|fios|colar|colares|pulseira|pulseiras|brincos?|relogios?|aliancas?|medalhas?|correntes?|caixa|pedra|pendente|alfinete)[ \t]+d[oa][ \t]+$/iu;
+// Nomes próprios que também são palavras ("clara", "graça", "vitória", "glória", "rosa", "marco"): sem maiúscula, contam
+// como dono de uma peça e como sujeito de um verbo; os que são sobretudo palavras ("dias", "vale", "paz", "neves") não.
+const FIRST_NAME_TOKENS = new Set([...NAME_WORDS].filter((w) => !["dias", "domingos", "santos", "reis", "costa", "vale", "neves", "paz", "mar", "sol", "lua"].includes(w))
+  .concat([...FIRST_NAME_WORDS]).map(fold));
+const MALE_NAME_TOKENS = new Set(["marco", "marcos", "jean", "pierre", "augusto", "germano"]);
+// O sujeito de um verbo com o artigo, no início de uma oração ("a clara enviou a foto", "A CLARA VEM AMANHÃ", "Só a rosa
+// já mandou"): não depois de uma preposição ("o anel com a rosa tem 2 cm") nem de um verbo ("Temos a rosa…").
+const ARTICLE_START = /(?:^|[.!?…:;,\n(«"“]|(?<!\p{L})(?:e|mas|que|quando|porque|pois|se|so|tambem|ja|ainda|ontem|hoje|amanha|depois|entao|agora|entretanto|nem|ou))[ \t]*$/iu;
+// Formas verbais conjugadas (não o infinitivo, o particípio nem a 1.ª pessoa em "-o", que também são nomes ou adjetivos:
+// "envio", "gravada"): as das listas, os verbos mais comuns e as terminações do pretérito, do imperfeito, do futuro e
+// do conjuntivo ("enviou", "recebeu", "partiu", "mandaram", "enviava", "enviará", "enviasse").
+const FINITE_VERBS = new Set(`é era foi será seria está estava esteve estará tem tinha teve terá vai ia vem vinha veio virá pode podia pôde poderá quer queria quis
+  sabe sabia soube diz dizia disse faz fazia fez dá dava deu vê via viu traz trazia trouxe põe pôs fica ficava deve devia precisa acha gosta mora anda chega volta
+  passa liga manda envia escreve compra paga levanta recebe pede deixa leva trata confirma espera aguarda prefere atende telefona encomenda reserva marca escolhe
+  perde oferece agradece reclama devolve troca pergunta responde contacta sai entra usa costuma`.split(/\s+/).filter(Boolean));
+const NOT_VERBS = new Set(["museu", "chapeu", "chapéu", "ceu", "céu", "europeu", "trofeu", "troféu", "pneu", "judeu", "ateu", "liceu", "apogeu", "camafeu", "veu", "véu",
+  "reu", "réu", "ilheu", "ilhéu", "mausoleu", "mausoléu", "adeus"]);
+const VERB_ENDING = /^\p{L}{2,}(?:ou|eu|iu|aram|eram|iram|ará|erá|irá|arão|erão|irão|ava|avam|asse|esse|isse|ássemos|êssemos|íssemos|ávamos|íamos)$/u;
+const ADVERBS_BEFORE_VERB = new Set(["já", "ja", "não", "nao", "também", "tambem", "ainda", "só", "so", "nunca", "sempre", "hoje", "amanhã", "amanha", "ontem", "logo",
+  "depois", "agora", "entretanto", "se", "me", "te", "lhe", "lhes", "nos", "vos"]);
+function finiteVerb(w: string) {
+  const low = w.toLowerCase().replace(CLITIC, "");
+  if (low.length < 2 || NOT_VERBS.has(low)) return false;
+  if (FINITE_VERBS.has(low) || VERB_ENDING.test(low)) return true;
+  return VERB_FORMS.has(low) && !/(?:ar|er|ir|[aeiíoó]d[oa]s?|o)$/u.test(low);
+}
+// O verbo a seguir ao nome, também depois de um advérbio ou de um pronome ("a clara já enviou", "a rosa não se esqueceu").
+function verbAfter(after: string) {
+  const words = after.match(/^(?:[ \t]+\p{L}[\p{L}'’-]*){1,3}/u)?.[0].trim().split(/[ \t]+/) || [];
+  for (const w of words) {
+    if (finiteVerb(w)) return true;
+    if (!ADVERBS_BEFORE_VERB.has(w.toLowerCase())) return false;
+  }
+  return false;
+}
+// Uma inicial do nome antes do apelido ("C. Dias").
+const INITIAL_BEFORE = /(?:^|[^\p{L}])(\p{L})\.[ \t]*$/u;
 // Verbos de que só uma pessoa é o sujeito ("a rosa levanta", "a clara ligou", "a rosa pode levantar"); "fica" e "tem" não
 // ("A pedra clara fica bem", "o anel com a rosa tem 2 cm").
 const CONTACT_PRED = new RegExp(`^[ \\t]+(?:${STRICT_PRED}|(?:(?:j[áa]|n[ãa]o|tamb[ée]m|ainda|s[óo])[ \\t]+)?(?:pode|podia|poder[áa]|vai|vem|veio|vir[áa]|quer|queria|precisa|prefere)[ \\t]+(?:levantar|buscar|passar|ligar|telefonar|pagar|vir|trocar|devolver|falar|escolher|aparecer|contactar|enviar|responder)(?!\\p{L}))`, "iu");
@@ -1341,23 +1448,49 @@ const allCaps = (s: string) => {
   const words = s.match(/\p{L}{2,}/gu) || [];
   return words.length >= 2 && words.every((w) => w === w.toUpperCase());
 };
-// others: os outros nomes da mesma pessoa e a posição de cada um no nome ("Rosa Flores": rosa 0, flores 1).
-function personContext(text: string, folded: string, at: number, end: number, others: Map<string, number>, self: number, capital: boolean) {
+// Uma cor a seguir a um metal, a "em" ou a "cor" ("ouro Rosa", "Ouro Branco 19,2 quilates", "em Rosa"): a cor, não o nome.
+const COLOUR_WORD = new RegExp(`^${COLOUR}$`, "iu");
+const METAL_BEFORE = /(?:^|[^\p{L}])(?:ouro|prata|platina|aco|cor|cores|tom|tons|banho|em)[ \t]+$/iu;
+// Com maiúscula a seguir a "coleção", "linha", "modelo"…: o nome de uma coleção ("A coleção Graça tem anéis finos").
+const COLLECTION_BEFORE = /(?:^|[^\p{L}])(?:colecao|colecoes|coleccao|linha|linhas|modelo|modelos|serie|series|gama|gamas|edicao|campanha|marca|marcas)[ \t]+$/iu;
+// Ao lado de outro nome da mesma pessoa: pela ordem do nome ("rosa flores", "rosa.flores", "clara dias"; não "flores
+// rosa"), em qualquer ordem com uma vírgula ou em MAIÚSCULAS ("Dias, Clara", "DIAS CLARA", "FLORES ROSA"), e com a
+// inicial de outro nome antes ("C. Dias").
+function besideOwnName(text: string, folded: string, at: number, end: number, others: Map<string, number>, self: number) {
   const before = folded.slice(Math.max(0, at - 80), at), after = folded.slice(end, end + 80);
+  const word = text.slice(at, end);
+  const caps = (w: string) => w.length > 1 && w === w.toUpperCase() && word.length > 1 && word === word.toUpperCase();
+  const p = /(\p{L}+)([ \t]+|[._-]|[ \t]*,[ \t]*)$/u.exec(before), n = /^([ \t]+|[._-]|[ \t]*,[ \t]*)(\p{L}+)/u.exec(after);
+  if (p && others.has(p[1].toLowerCase())) {
+    const raw = text.slice(at - p[0].length, at - p[2].length);
+    if (others.get(p[1].toLowerCase())! < self || p[2].includes(",") || caps(raw)) return true;
+  }
+  if (n && others.has(n[2].toLowerCase())) {
+    const raw = text.slice(end + n[1].length, end + n[0].length);
+    if (others.get(n[2].toLowerCase())! > self || n[1].includes(",") || caps(raw)) return true;
+  }
+  const initial = INITIAL_BEFORE.exec(before)?.[1]?.toLowerCase();
+  return !!initial && [...others.keys()].some((o) => o[0] === initial);
+}
+// others: os outros nomes da mesma pessoa e a posição de cada um no nome ("Rosa Flores": rosa 0, flores 1); token: o
+// nome, sem acentos e em minúsculas.
+function personContext(text: string, folded: string, at: number, end: number, others: Map<string, number>, self: number, capital: boolean, token = "") {
+  const before = folded.slice(Math.max(0, at - 80), at), after = folded.slice(end, end + 80);
+  if (besideOwnName(text, folded, at, end, others, self)) return true;
   if (NOT_A_NAME_AFTER.test(after)) return false;
   if (CTX_BEFORE.some((re) => re.test(before)) || DATIVE_BEFORE.test(text.slice(Math.max(0, at - 80), at))) return true;
-  if (capital && PIECE_OWNER_BEFORE.test(before)) return true;
+  if ((capital || FIRST_NAME_TOKENS.has(token)) && PIECE_OWNER_BEFORE.test(before)) return true;
   if (CONTACT_PRED.test(after) || CONTACT_PRED.test(text.slice(end, end + 80))) return true;
+  // Sujeito de um verbo, com o artigo no início de uma oração ("a clara enviou a foto", "A CLARA VEM AMANHÃ").
+  const article = /(?<!\p{L})(a|o)[ \t]+$/iu.exec(before);
+  if (article && FIRST_NAME_TOKENS.has(token) && (article[1].toLowerCase() === "a") !== MALE_NAME_TOKENS.has(token)
+    && ARTICLE_START.test(before.slice(0, before.length - article[0].length)) && verbAfter(text.slice(end, end + 60))) return true;
   // Com uma inicial a seguir ("Rosa F.").
   if (/^[ \t]+\p{Lu}\.(?:[ \t,]|$)/u.test(text.slice(end, end + 6))) return true;
   // Vocativo no início ("rosa, a sua peça…", "rosa: a peça está pronta") ou no fim, depois de uma vírgula, com "!" ou numa
   // frase de cortesia ("Obrigado pela visita, rosa.").
   if (atSentenceStart(folded, at) && (/^[ \t]*,/.test(after) || /^[ \t]*:[ \t]*(?!\d)(?!(?:disponive\p{L}*|esgotad\p{L}*)(?!\p{L}))\p{L}/u.test(after))) return true;
-  if (/,[ \t]*$/.test(before) && /^[ \t]*(?:[!.?…\n]|$)/.test(after) && (/^[ \t]*!/.test(after) || COURTESY.test(sentenceAt(folded, at)))) return true;
-  // Ao lado de outro nome da mesma pessoa, pela ordem do nome ("rosa flores", "rosa.flores", "clara dias"; não "flores
-  // rosa").
-  const prev = /(\p{L}+)(?:[ \t]+|[._-])$/u.exec(before)?.[1]?.toLowerCase(), next = /^(?:[ \t]+|[._-])(\p{L}+)/u.exec(after)?.[1]?.toLowerCase();
-  return (!!prev && others.has(prev) && others.get(prev)! < self) || (!!next && others.has(next) && others.get(next)! > self);
+  return /,[ \t]*$/.test(before) && /^[ \t]*(?:[!.?…\n]|$)/.test(after) && (/^[ \t]*!/.test(after) || COURTESY.test(sentenceAt(folded, at)));
 }
 function nameHit(text: string, token: string, strict: boolean, tokens: string[] = [token]): { kind: "block" | "warn"; word: string } | null {
   const low = token.toLowerCase();
@@ -1376,10 +1509,13 @@ function nameHit(text: string, token: string, strict: boolean, tokens: string[] 
     const at = m.index ?? 0, end = at + m[0].length;
     const word = src.slice(at, end);
     if (!ambiguous) return { kind: "block", word };
+    const lead = folded.slice(Math.max(0, at - 20), at);
+    if (((COLOUR_WORD.test(word) && METAL_BEFORE.test(lead)) || (/^\p{Lu}/u.test(word) && COLLECTION_BEFORE.test(lead)))
+      && !besideOwnName(src, folded, at, end, others, self)) continue;
     // Com maiúscula a meio da frase (num texto que não está todo em maiúsculas) ou num contexto de pessoa.
     const upper = /^\p{Lu}/u.test(word) && !allCaps(sentenceAt(src, at));
     const capital = upper && !atSentenceStart(src, at);
-    if (!capital && !personContext(src, folded, at, end, others, self, upper)) continue;
+    if (!capital && !personContext(src, folded, at, end, others, self, upper, fold(low))) continue;
     if (strict) return { kind: "block", word };
     hit = { kind: "warn", word };
   }
@@ -1497,8 +1633,9 @@ function scan(text: string, allow: Allowlist, names: Names, contact: Names = [])
   if (IBAN_RE.test(rest) || NIF_RE.test(rest) || looseIban(rest) || MASKED_CARD.test(rest)) found.add("pagamento");
   // O fim de um cartão ou de uma conta ("os últimos 4 dígitos do cartão são 4242").
   for (const s of sentencesOf(rest)) {
-    const end = CARD_WORD.test(s) ? CARD_END.exec(s) : null;
-    if (end && !isYear(end[1]) && !allow.numbers.has(end[1])) found.add("pagamento");
+    const end = LAST_DIGITS.exec(s) ?? (CARD_WORD.test(s) ? CARD_END.exec(s) : null);
+    const d = end ? end[1].replace(/\D/g, "") : "";
+    if (end && !isYear(d) && !isDateGroup(end[1]) && !allow.numbers.has(d)) found.add("pagamento");
   }
   if (SHIPPING_RE.test(rest)) found.add("envio");
   const refs = orderRefs(rest, allow);
@@ -1816,6 +1953,9 @@ const statesPolicy = (text: string) => policyHits(text).length > 0 || POLICY_RE.
 // "exceto", "com talão", "no prazo de", "quando", "tem de", "é obrigatório", "uma única vez", "na loja onde"…). "se" não
 // conta como pronome ("não se aceitam", "trata-se").
 const CONDITION_RE = /(?<![\p{L}-])(?:uma[ \t]+[úu]nica[ \t]+vez|uma[ \t]+s[óo][ \t]+vez|s[óo][ \t]+uma|(?:n?a|pela)[ \t]+primeira[ \t]+vez|na[ \t]+primeira|tem[ \t]+de|t[êe]m[ \t]+de|tem[ \t]+que|t[êe]m[ \t]+que|[ée][ \t]+obrigat[óo]ri[oa]|na[ \t]+loja[ \t]+onde|no[ \t]+local[ \t]+onde|s[óo]|apenas|somente|unicamente|exclusivamente|exclusiv[oa]s?|exceto|excepto|salvo|exce[çc][ãa]o|exce[çc][õo]es|acima[ \t]+de|a[ \t]+partir[ \t]+d[eoa]s?|superior(?:es)?[ \t]+a|mais[ \t]+de|m[íi]nimo|m[áa]ximo|at[ée](?![ \t]+(?:breve|j[áa]|logo|amanh[ãa]|[àa][ \t]+pr[óo]xima))|no[ \t]+prazo[ \t]+de|prazo[ \t]+de|dentro[ \t]+de|mediante|desde[ \t]+que|(?<!(?:n[ãa]o|que|j[áa]|tamb[ée]m|nunca|ainda|onde|como|quando|lhe|nos|vos|me|te)[ \t])se|caso|quando|com[ \t]+(?:o[ \t]+|a[ \t]+|os[ \t]+|as[ \t]+)?(?:tal[ãa]o|tal[õo]es|fatura|factura|recibo|comprovativo)|apresenta[çc][ãa]o|sujeit[oa]s?[ \t]+a|para[ \t]+(?:membros|s[óo]cios)|na[ \t]+compra[ \t]+de|em[ \t]+compras?[ \t]+de|por[ \t]+cada|limitad[oa]s?|enquanto|v[áa]lid[oa]s?[ \t]+at[ée]|exig(?:e|em)|requer(?:em)?|obrigat[óo]ri[oa]s?|(?:pagamento|custo|taxa|valor)[ \t]+(?:extra|adicional)|acr[ée]scimo|suplemento|sobretaxa|condi[çc](?:[ãa]o|[õo]es))(?!\p{L})/giu;
+// Condições que se dizem por outras palavras ("desde que traga o talão" = "com o talão"); as restritivas ("só", "apenas",
+// "exceto", "uma única vez"…), as curtas ("se", "caso", "quando") e as que têm uma negação ("desde que não…") não.
+const SOFT_CONDITION = /^(?:desde[ \t]+que|mediante|com[ \t]|apresenta|exig|requer|sujeit)/iu;
 // Uma frase que começa por uma condição ("Só com autorização do titular.", "Apenas na loja onde comprou.").
 const LEADING_CONDITION = /^[\s"'«“(]*(?:s[óo]|apenas|somente|unicamente|exclusivamente|exceto|excepto|salvo|mediante|desde[ \t]+que)(?!\p{L})/iu;
 // O cartão afirma o que a equipa recusa, com o mesmo verbo ("Lamentamos, não temos." → "Temos."; "Não temos loja em
@@ -1842,7 +1982,8 @@ const PLAIN_WORDS = new Set(`para pela pelo pelas pelos como mais menos onde est
   anos meses semanas minutos peça peças loja lojas mensagem resposta pedido pedidos caso casos forma formas vez vezes favor exemplo nossa
   sentido certo certa claro claramente melhor maior menor primeiro primeira seguinte seguintes respetivo respetiva conforme segundo
   sendo havia haver existe existem tenho tinha quer querem pretende pretender deseja desejar precisa precisar necessita neste nesta nestes
-  nestas nesse nessa momento momentos altura pensar hoje amanhã ontem agora atualmente temporariamente definitivamente`.split(/\s+/).filter(Boolean));
+  nestas nesse nessa momento momentos altura pensar hoje amanhã ontem agora atualmente temporariamente definitivamente próprio própria
+  próprios próprias`.split(/\s+/).filter(Boolean));
 const REFUSAL_WORDS = new Set(["não", "nao", "nunca", "jamais", "nenhum", "nenhuma", "nada", "infelizmente", "lamentamos", "lamento"]);
 const stemOf = (w: string) => fold(w.toLowerCase()).slice(0, 5);
 // Formas de uma palavra para saber se o cartão a tem (singular, sem acentos, 5 letras: "cartões" é "cartão", "Portugal"
@@ -1862,11 +2003,13 @@ const shares = (a: string, b: string) => {
   return [...keysOf(b)].some((k) => ka.has(k)) || [...stemsOf(b)].some((w) => sa.has(w));
 };
 // Quantificadores de cada frase do cartão que as frases da equipa e da base de conhecimento sobre o mesmo assunto não têm
-// (um "sempre" noutro parágrafo da base de conhecimento não conta).
+// (um "sempre" noutro parágrafo da base de conhecimento não conta). "cada" depois de um valor é o preço por unidade ("15 €
+// cada peça" = "15 € por peça").
 function broadened(text: string, sources: string[]) {
   const out: string[] = [];
   for (const s of sentencesOf(text)) {
-    const own = [...s.matchAll(QUANT_RE)].map((m) => m[0].toLowerCase());
+    const own = [...s.matchAll(QUANT_RE)].filter((m) => !(/^cada$/iu.test(m[0]) && /\d[ \t]*(?:€|eur(?:os?)?)?[ \t]*$/iu.test(s.slice(0, m.index))))
+      .map((m) => m[0].toLowerCase());
     if (!own.length) continue;
     const known = new Set(sources.filter((x) => shares(s, x)).flatMap((x) => [...x.matchAll(QUANT_RE)].map((m) => quantKey(m[0]))));
     out.push(...own.filter((q) => !known.has(quantKey(q))));
@@ -2029,7 +2172,9 @@ export function sourceWarnings(o: { text: string; staff: string; knowledge?: str
   // Recusas da equipa (frases com uma recusa que não é só de cortesia) e a frase anterior (a pergunta a que respondem).
   const refusing = staffSentences.map((s, i) => ({ s, prev: staffSentences[i - 1] || "", refusals: refusalsIn(s, allow).filter((r) => !COURTESY_MARKERS.has(r.key)) }))
     .filter((x) => x.refusals.length);
-  const uncovered = refusing.filter((r) => !cardSentences.some((c) => copiesRefusal(c, r.s)));
+  // Uma oração do cartão também pode copiar a recusa ("…, e fecha ao domingo." copia "Ao domingo está fechada.").
+  const cardClauses = [...cardSentences, ...cardSentences.flatMap((c) => c.split(/[,;:]/).map((x) => x.trim()).filter(Boolean))];
+  const uncovered = refusing.filter((r) => !cardClauses.some((c) => copiesRefusal(c, r.s)));
   const exposed = new Set<(typeof refusing)[number]>();
   for (const c of cardSentences) {
     if (refusing.some((r) => copiesRefusal(c, r.s)) || (refusalsIn(c).length && !statesPolicy(c))) continue;
@@ -2043,6 +2188,9 @@ export function sourceWarnings(o: { text: string; staff: string; knowledge?: str
   const kbSentences = statements(kb);
   const kbRefusals = kbSentences.filter((s) => [...keysOf(s)].some((k) => cardKeys.has(k))).flatMap((s) => refusalsIn(s, allow));
   const allowedMarkers = new Set([...refusalsIn(staff, allow), ...kbRefusals].map((r) => r.key));
+  // "não" e "sem" dizem a mesma recusa por outras palavras ("não use produtos abrasivos" = "sem produtos abrasivos").
+  if (allowedMarkers.has("sem")) allowedMarkers.add("nao");
+  if (allowedMarkers.has("nao")) allowedMarkers.add("sem");
   const extra = refusalsIn(text, allow).filter((r) => !allowedMarkers.has(r.key));
   if (extra.length) out.push(`Possível contradição: o cartão tem uma recusa que a resposta da equipa não tem (${quoteList(extra.map((r) => r.phrase))})`);
   // O que o cartão já recusa (a base de conhecimento pode recusar o mesmo: "quedas e riscos não estão cobertos").
@@ -2065,6 +2213,9 @@ export function sourceWarnings(o: { text: string; staff: string; knowledge?: str
   const cardNorm = normText(text);
   const relatedTo = (s: string) => [...keysOf(s)].some((k) => cardKeys.has(k)) || [...stemsOf(s)].some((w) => cardStems.has(w));
   const cardNumbers = new Set(numberHits(text).map((h) => h.n));
+  // O que vem a seguir às condições do cartão ("com o talão"), para as condições ditas por outras palavras.
+  const cardConditionStems = new Set([...text.matchAll(CONDITION_RE)].flatMap((m) =>
+    [...stems4(`${m[0]} ${(text.slice((m.index ?? 0) + m[0].length).split(/[,;:.!?()\n]/)[0].match(/[\p{L}'’-]+/gu) || []).slice(0, 3).join(" ")}`)]));
   const conditionWords = new Set<string>();
   for (const unit of units(staff)) {
     const own = statements(unit);
@@ -2077,11 +2228,18 @@ export function sourceWarnings(o: { text: string; staff: string; knowledge?: str
       for (const m of s.matchAll(CONDITION_RE)) {
         const after = s.slice((m.index ?? 0) + m[0].length).split(/[,;:.!?()\n]/)[0].match(/[\p{L}\p{N}%€$'’-]+/gu) || [];
         if (/d[úu]vida|quest[ãa]o|quest[õo]es|ajuda|esclarec|informa[çc]/iu.test(after.slice(0, 3).join(" "))) continue;
-        const number = after.slice(0, 3).find((w) => /^\d/.test(w))?.match(/\d+(?:[.,]\d+)?/)?.[0];
+        const numberWord = after.slice(0, 3).find((w) => /^\d/.test(w));
+        const number = numberWord?.match(/\d+(?:[.,]\d+)?/)?.[0];
         // "se", "caso", "quando" e "até" são palavras curtas e comuns: contam com a palavra seguinte ("se a peça…").
         const short = /^(?:se|caso|quando|at[ée])$/iu.test(m[0]);
-        const hasMarker = cardNorm.includes(normText(short && after[0] ? `${m[0]} ${after[0]}` : m[0]));
-        const hasNumber = !number || cardNorm.includes(` ${number.replace(/[.,]/, " ")} `) || wordIn(number, text);
+        // Uma condição que o cartão diz por outras palavras, com a mesma palavra a seguir ("desde que traga o talão" →
+        // "com o talão"); "só", "apenas", "exceto"… têm de estar no cartão.
+        const reworded = SOFT_CONDITION.test(m[0]) && !refusalsIn(after.slice(0, 3).join(" ")).length
+          && [...stems4(after.slice(0, 3).join(" "))].some((w) => cardConditionStems.has(w));
+        const hasMarker = reworded || cardNorm.includes(normText(short && after[0] ? `${m[0]} ${after[0]}` : m[0]));
+        // O número com a forma do cartão: "14h00", "14h" e "14:00" são a mesma hora.
+        const hasNumber = !number || cardNumbers.has(numberHits(numberWord!)[0]?.n ?? number) || cardNorm.includes(` ${number.replace(/[.,]/, " ")} `)
+          || wordIn(number, text);
         if (!hasMarker || !hasNumber) {
           out.push(`Condição em falta: ${citePhrase(m[0].replace(/\s+/g, " ").toLowerCase(), after, allow)}`);
           if (number) reported.add(number);
@@ -2197,12 +2355,17 @@ export function proposalWarnings(o: { resposta: string; questions: string; staff
 }
 
 // Antes de guardar os avisos de uma proposta: uma citação («…») com dados pessoais (uma recusa ou um aviso de nome,
-// morada, perfil, código, email ou ligação), 4 ou mais algarismos ou um @ passa a «…». Os avisos ficam no cartão e, se o
-// Super Admin os confirmar, no registo de auditoria. A ordem fica (proposalWarnings).
+// morada, perfil, código, email ou ligação), com uma palavra do nome do cliente ou de alguém da equipa (sem acentos e
+// em qualquer forma, também as que são palavras: com a cliente Clara Dias, «exceto à clara» e «clara»), 4 ou mais
+// algarismos ou um @ passa a «…». Os avisos ficam no cartão e, se o Super Admin os confirmar, no registo de auditoria. A
+// ordem fica (proposalWarnings).
+const NAME_PARTICLES = new Set(["de", "da", "do", "das", "dos", "e", "d", "del", "la", "le", "lo", "van", "von", "y", "di", "du"]);
 export function safeAvisos(avisos: string[], allow: Allowlist, names: Names = [], contact: Names = []) {
+  const own = new Set([...names, ...contact].flatMap(nameTokens).map((x) => fold(x.toLowerCase())).filter((x) => x.length >= 2 && !NAME_PARTICLES.has(x)));
+  const hasName = (s: string) => (fold(s.toLowerCase()).match(/\p{L}+/gu) || []).some((w) => own.has(w));
   return [...new Set(avisos.map((a) => a.replace(/«([^»]*)»/g, (q, inner: string) => {
     const r = scan(inner, allow, names, contact);
-    return r.blocks.length || r.warnings.length || /\d{4,}|@/.test(inner) ? "«…»" : q;
+    return r.blocks.length || r.warnings.length || /\d{4,}|@/.test(inner) || hasName(inner) ? "«…»" : q;
   })))].slice(0, PROPOSAL_WARNINGS_MAX);
 }
 
