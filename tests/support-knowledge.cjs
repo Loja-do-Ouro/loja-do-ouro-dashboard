@@ -35,10 +35,19 @@ const DB_FALSE_BLOCKS = ["Encomendas 100% seguras.", "Encomenda 100% personaliza
   "Os pedidos 2026 seguem com a nova embalagem.", "Os pedidos 2026 de Natal seguem até dia 20.", "Encomendas 2026: veja as datas de Natal.", "Encomendas 1000 vezes mais rápidas.",
   "Para encomendas 1000 € ou mais, pagamento por transferência.", "Pedidos 500 € ou mais têm embrulho.", "Faturas de 2025/2026 no site.", "Encomendas 24-12 seguem em janeiro.",
   "Pedidos 20 26 seguem.", "Fatura 12/2025 disponível.", "Fatura 2025/2026 no site.", "Encomendas: 100% seguras.", "Vale 1 000 € em compras.", "Pedido 1.500,00 €",
-  "Encomendas 12.12.2025 seguem"];
+  "Encomendas 12.12.2025 seguem",
+  // Épocas depois da palavra e "c/" (com), "s/" (sem) depois de "fatura" ou "recibo".
+  "Reservas 2026-2027 para casamentos já abertas.", "Orçamentos 2026-2027 disponíveis.", "Os pedidos 2026-2027 de Natal seguem até dia 20.",
+  "As faturas 2025/26 já estão disponíveis.", "Encomendas 2026-2027 €", "Encomenda: 2026-2027 dias", "Pedidos 2026-2027: veja as datas.",
+  "A fatura c/ 23% de IVA segue por email.", "Fatura c/ 23% IVA incluído.", "Enviamos a fatura c/ 2 vias.", "O recibo c/ 2 vias segue com a peça.",
+  "Emitimos fatura s/ 2 cópias.", "Campanha BF 2026/27 já começou."];
 const PRODUCT_REFS = ["O Tissot PRX tem a referência T137.410.11.051.00.", "A Casio com a referência GA-2100-1A1ER está esgotada.", "O fio tem a referência 4512 no site.",
   "A medalha de São Bento tem a referência 2203 no catálogo.", "Pode procurar no site pela referência 2203.", "O anel tem a ref. 2203.", "A referência 1234 do modelo mudou.",
-  "Temos o modelo de referência 1234.", "O relógio tem a referência 1234 gravada no fundo.", "O modelo n.º 1234 está esgotado.", "Partilhe a sua foto com #LDO2026 no Instagram."];
+  "Temos o modelo de referência 1234.", "O relógio tem a referência 1234 gravada no fundo.", "O modelo n.º 1234 está esgotado.", "Partilhe a sua foto com #LDO2026 no Instagram.",
+  "Temos o Rolex Submariner 126610LN em exposição.", "O Rolex Daytona 116500LN está esgotado.", "O Rolex Datejust 126334 tem 41 mm.", "Temos o IWC Portugieser IW371605.",
+  "Breitling Navitimer AB0138211B1A1", "Encomende o Tissot T1204071704100 no site.", "A reparação do calibre ETA 2824-2 demora cerca de 3 semanas.",
+  "O orçamento da revisão de um calibre 7750 é feito na loja.", "O orçamento para o calibre 7750 é de 250 €.", "Fazemos a reparação de movimentos Miyota 8215.",
+  "Reparação de Rolex com calibre 3135: 6 a 8 semanas.", "Pedido de orçamento para o Omega 2500 co-axial."];
 // Um aviso tal como está ou dentro do aviso agrupado do mesmo tipo ("Possível nome: «A»" em "Possíveis nomes: «A», «B»").
 const hasWarning = (warnings, w) => {
   const q = w.slice(w.indexOf("«")), kind = w.slice(0, w.indexOf(":")).split(" ").slice(1).join(" ").slice(0, 5);
@@ -46,12 +55,25 @@ const hasWarning = (warnings, w) => {
 };
 // As recusas desta decisão (sem exceções): emails, telefones, IBAN/NIF/cartões, faturas com qualquer série e números em
 // grupos depois da palavra, referências numa frase sobre uma encomenda ou um pagamento e ligações com um telefone.
+// Espaços que não quebram, estreitos e finos (como no texto colado de um email).
+const NB = String.fromCharCode(0xa0), NNB = String.fromCharCode(0x202f), THIN = String.fromCharCode(0x2009), EM = String.fromCharCode(0x2014);
+const HARD_ROUND8 = [`Ligue 912${NB}345${NB}678 depois das 18h.`, `+351${NB}912${NB}345${NB}678`, `Telemóvel 912${NNB}345${NNB}678`, `912${THIN}345${THIN}678`,
+  `912 ${EM} 345 ${EM} 678`, `912${EM}345${EM}678`, "o telemóvel é o 912, 345, 678", "Ligue para 06 12 34 56 78.", "O telemóvel francês dela: 06 12 34 56 78",
+  "9 12 34 56 78", "O número é 912 34 5 6 7 8", "Tlm 91 2 34 56 78", "21 12 34 56 7", "noventa e um, duzentos e trinta e quatro, cinquenta e seis, setenta e oito",
+  "NIB: 0002 0123 1234 5678 9015 4", "0002 0123 1234 5678 9015 4", `PT50${NB}0002${NB}0123${NB}1234${NB}5678${NB}9015${NB}4`, "PT50.0002.0123.1234.5678.9015.4",
+  "IBAN: PT 50 0002 0123 1234 5678 9015 4", `4111${NB}1111${NB}1111${NB}1111`, "Pagou com o cartão **** **** **** 4242.", "Cartão **** 4242", "Visa ****4242",
+  "cartão •••• 4242", "cartão xxxx xxxx xxxx 4242", "Cartão XXXX-XXXX-XXXX-4242", "a sua fatura ft 1/2345 já foi emitida", "fatura fs 01/234", "fatura ft 1/2345",
+  "Fatura ft1/2345", "fatura fr a/2345", "fatura nº ft 01/2345", "a ft 1/2345 já está na sua conta", "ft 2026/1450", "fs 1/234", `Fatura${NB}FT${NB}1/2345`,
+  "Fatura n. A/145", "Encomenda n. LDO4471", "A sua encomenda n. LDO4471 já seguiu.", "Encomenda Nº. LDO4471", "Encomenda n.º. LDO4471", "Pedido n. VIP2026",
+  "Número de cliente: 12-11-23", "O seu número de cliente é o 12-11-23.", "A ref. do seu pagamento é 4471.", "A referência do seu pagamento é 4471.",
+  "A referência MB é 4471 2210.", "Referência Multibanco: 4471 2210", "A referência de pagamento é a 447 122.", "ref. pagamento 4471", "joana.silva@ gmail.com",
+  "o email é joanasilva no gmail", "912_345_678", "zero seis um dois três quatro cinco seis sete oito"];
 const HARD_CORPUS = ["Fatura simplificada FS 1/234", "fatura FS 1/234", "Fatura FT 1/2345", "A fatura FT 01/2345 já foi emitida.", "Fatura-recibo FR 12/345",
   "Fatura FT1/2345", "A sua fatura é a FS 1/234.", "Encomenda n.º 4 471", "Encomenda 44 71", "Fatura 4.471", "Pedido 4 471", "O seu número de cliente é o 4 471.",
   "Número de cliente: 44-71-23", "Encomenda nº 4471", "ENCOMENDA Nº 4471", "Reparação nº 4471", "Pedido #4471", "gertrudes@sapo", "joana arroba gmail ponto com",
   "wenceslau.pimentel arroba hotmail", "Ligue: 9l2 345 678", "O número dela é nove seis 5 cinco 5 4 4 3 3", "Contacte o 91-234-56-78.", "Os últimos 4 dígitos do cartão são 4242.",
   "Indique o NIF 123456789", "Transfira para PT50 0002 0123 1234 5678 9015 4", "A sua encomenda (ref. 88123) está pronta.", "Pagamento por Multibanco: referência 123 456 789.",
-  "A sua ref.ª 4512 está pronta.", "Fale por wa.me/351912345678", "https://wa.me/+351965554433?text=ola"];
+  "A sua ref.ª 4512 está pronta.", "Fale por wa.me/351912345678", "https://wa.me/+351965554433?text=ola", ...HARD_ROUND8];
 // Os nomes de um aviso agrupado ("Possíveis nomes: «A», «B»") ou sozinho ("Possível nome: «A»").
 const namesIn = (warnings) => warnings.filter((w) => /^Possíve(?:l|is) nomes?:/.test(w)).flatMap((w) => [...w.matchAll(/«([^»]+)»/g)].map((m) => m[1]));
 // Um aviso diz sempre a palavra ou a frase («…»).
@@ -88,7 +110,7 @@ test("Hard blocks only for unambiguous personal data: emails, phones, IBAN/NIF/c
       "Fatura simplificada FS 1/234", "fatura FS 1/234", "Fatura FT 1/2345", "A fatura FT 01/2345 já foi emitida.", "Fatura-recibo FR 12/345", "Fatura FT1/2345",
       "A sua fatura é a FS 1/234.", "Encomenda n.º 4 471", "Encomenda 44 71", "Fatura 4.471", "Pedido 4 471", "O seu número de cliente é o 4 471.",
       "Número de cliente: 44-71-23", "A sua encomenda (ref. 88123) está pronta.", "Pagamento por Multibanco: referência 123 456 789.", "Pedido #4471"],
-    numero: ["Referência 123456789012", "O código RR123456789PT"],
+    numero: ["Referência 123456789012", "Ligue para tel.912345678"],
     envio: ["O código RR123456789PT"],
     ligacao: ["Acompanhe em https://www.lojadoouro.pt/account/orders/abc", "Siga em https://ctt.pt/feapl?objects=RR123456789PT", "Pague em https://pay.example.com/p/8f3a9c2b1e7d",
       "Veja https://www.lojadoouro.pt/discount/JOANA10", "Veja https://www.lojadoouro.pt/pages/cliente-912345678", "Abra exemplo.pt/c/912.345.678", "https://bit.ly/3xYz9Q",
@@ -703,6 +725,22 @@ test("Stored proposal warnings never quote personal data from the team's reply: 
     const avisos = stored(team, card);
     for (const a of avisos) assert.ok(!/guerreiro|nascimento|carreira|ventura|bastos|madureira|fragoso|rosado/i.test(a), `${team} → ${a}`);
   }
+  // Uma palavra que começa como um verbo de recusa só conta se for uma forma da lista fechada e não um nome: "Sr. Cancela",
+  // "Travessa da Cancela", "Sr. Acabado", "Sr. Terminelli" nunca são citados (também com o cliente Rui Cancela).
+  for (const [team, card, contact] of [["Olá Sr. Cancela, não fazemos gravação em peças de prata.", "Fazemos gravação em peças de prata.", ["Rui Cancela", null]],
+    ["Olá Sra. Cancela, infelizmente não fazemos trocas de brincos.", "Fazemos trocas de brincos.", ["Maria Flores", null]],
+    ["Olá Sr. Cancela, não fazemos gravação em peças de prata.", "Fazemos gravação em peças de prata.", ["Rui Mota", null]],
+    ["Pode levantar na Travessa da Cancela, não abrimos ao domingo.", "Abrimos ao domingo na loja.", ["Rui Mota", null]],
+    ["Obrigado Sr. Acabado, não fazemos reparações de relógios.", "Fazemos reparações de relógios.", ["Rui Mota", null]],
+    ["Olá Sr. Terminelli, não fazemos reparações de relógios.", "Fazemos reparações de relógios.", ["Rui Mota", null]],
+    ["Cancela não pode levantar a peça hoje.", "Pode levantar a peça hoje.", ["Rui Cancela", null]]]) {
+    const avisos = k.safeAvisos(k.proposalWarnings({ resposta: card, questions: "Pergunta?", staff: team, knowledge: "", allow: ALLOW }), ALLOW, staffNames, contact);
+    for (const a of avisos) assert.ok(!/cancela|acabado|terminelli/i.test(a), `${team} → ${a}`);
+    if (/não (?:fazemos|abrimos)/.test(team)) assert.ok(avisos.some((a) => a.startsWith("Possível contradição")), `${team} → ${avisos.join(" | ")}`);
+  }
+  // A cópia fiel de uma recusa (sem o nome) não é contradição.
+  assert.deepEqual(k.safeAvisos(k.proposalWarnings({ resposta: "Não fazemos trocas de brincos.", questions: "Pergunta?", staff: "Olá Sra. Cancela, infelizmente não fazemos trocas de brincos.",
+    knowledge: "", allow: ALLOW }), ALLOW, staffNames, ["Maria Flores", null]), []);
   // As contradições e os avisos da pergunta vêm primeiro e nunca ficam de fora dos 20.
   const long = Array.from({ length: 25 }, (_, i) => `Fazemos gravação só em peças de ouro número ${i + 1}, desde que tenha o talão.`).join(" ");
   const ordered = k.proposalWarnings({ resposta: "Fazemos gravação.", questions: "Fazem reembolso total?", staff: `${long} Não fazemos gravação em relógios.`, knowledge: "", allow: ALLOW });
@@ -1107,7 +1145,15 @@ test("Fewer false warnings: sentence starts, watch models, Portuguese cities, de
 // Cópia em JavaScript de ldo_private.support_card_problem: as mesmas expressões (AREs do PostgreSQL; o teste confirma que
 // cada uma está tal e qual na migração), convertidas (\m, \M, [[:alnum:]], [[:alpha:]], [[:space:]] com classes Unicode,
 // como no PostgreSQL da base, en_US.UTF-8) e a mesma lógica. Comparada com o PostgreSQL 17 do projeto (um SELECT só com
-// valores literais) em 472 textos (os corpora deste ficheiro e mais 60 sondas): 0 diferenças.
+// valores literais) em 472 textos (os corpora deste ficheiro e mais 60 sondas): 0 diferenças; com o translate(), as épocas,
+// "c/" e o grupo inteiro, em 175 textos (com espaços que não quebram, travessões e caracteres invisíveis): 0 diferenças.
+// O translate() de support_card_plain: os espaços que não quebram, estreitos e finos passam a espaços, os traços a hífenes
+// e os caracteres invisíveis saem (como plainText no servidor).
+const TRANSLATE_FROM = [0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x202f, 0x205f, 0x3000,
+  0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x2212, 0xfe58, 0xfe63, 0xff0d, 0xad, 0x200b, 0x200c, 0x200d, 0x2060, 0xfeff];
+const TRANSLATE_TO = " ".repeat(16) + "-".repeat(10);
+const TRANSLATE_SQL = `translate(coalesce(p_text, ''), E'${TRANSLATE_FROM.map((c) => String.fromCharCode(92) + "u" + c.toString(16).padStart(4, "0")).join("")}', '${TRANSLATE_TO}')`;
+const translate = (s) => [...s].map((c) => { const i = TRANSLATE_FROM.indexOf(c.charCodeAt(0)); return i < 0 ? c : i < TRANSLATE_TO.length ? TRANSLATE_TO[i] : ""; }).join("");
 const DB_RULE = {
   plain: String.raw`(?:https?://|www\.)[^[:space:]]+|[^[:space:]]*@[^[:space:]]*|[^[:space:]]*[[:alnum:]]\.[[:alpha:]]{2,}/[^[:space:]]*`,
   join: String.raw`([0-9])(?:[ \t]{1,3}|[ \t]?[./–-][ \t]?)(?=[0-9])`,
@@ -1115,18 +1161,19 @@ const DB_RULE = {
   own: String.raw`(^|\.)(lojadoouro\.pt|goldstorepremium\.com)$`,
   nif: String.raw`\m(?:nif|nipc|contribuinte)\M[^0-9]{0,20}([0-9]{9})`,
   iban: String.raw`\m([A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]{4}){4,7})(?![[:alnum:]])`,
-  // Encomendas, clientes, reparações… (sem distinguir maiúsculas).
+  // Encomendas, clientes, reparações… (sem distinguir maiúsculas): com "n.º", com "#", com letras e só o número (o grupo
+  // inteiro, sem anos, épocas, datas, contrastes e unidades).
   ci: [
     String.raw`\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?|no\.(?=[ \t]*[0-9]))[ \t]*(?:(?:é|:|=)[ \t]*(?:(?:o|a)[ \t]+)?)?#?[ \t]*(?:[a-z]{1,4}-?)?([0-9](?:[ .-]?[0-9]){2,})(?![0-9])`,
     String.raw`\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*#[ \t]*(?:[a-z]{1,4}-?)?([0-9](?:[ .-]?[0-9]){2,})(?![0-9])`,
     String.raw`\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]+([a-z]{1,4}-?[0-9](?:[ .-]?[0-9]){2,})(?![0-9])`,
-    String.raw`\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?::[ \t]*)?(?!(?:1[ .-]?9|2[ .-]?0)[ .-]?[0-9][ .-]?[0-9](?![ .-]?[0-9]))(?!1[ .-]?0[ .-]?0[ .-]?0(?![ .-]?[0-9]))(?![0-9]{1,2}[.-][0-9]{1,2}(?:[.-](?:[0-9]{2}|[0-9]{4}))?(?![ .-]?[0-9]))([0-9](?:[ .-]?[0-9]){3,})(?![0-9])(?![.,:][0-9])(?!(?:[.,][0-9]+)?[ \t]*(?:€|\$|£|eur|euros?|%|por[ \t]+cento|h|horas?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?|pts|lojas?|clientes?|pessoas?|artigos?)(?![[:alpha:]]))`,
+    String.raw`\m(?:encomenda|pedido|order|fatura|factura|compra|repara(?:ção|cao|ções|coes)|guia|reserva|tal(?:ão|ao|ões|oes)|recibo|cliente|processo|caso|ticket|s(?:ó|o)cio|or(?:ç|c)amento|vale|senha|cart(?:ão|ao)(?:-|[ \t]+(?:de[ \t]+)?)(?:oferta|presente|prenda))s?\M[ \t]*(?::[ \t]*)?(?!(?:1[ .-]?9|2[ .-]?0)[ .-]?[0-9][ .-]?[0-9](?![ .-]?[0-9]))(?!(?:19|20)[0-9]{2}[ \t]*[-/][ \t]*(?:(?:19|20)[0-9]{2}|[0-9]{2})(?![0-9]))(?!1[ .-]?0[ .-]?0[ .-]?0(?![ .-]?[0-9]))(?![0-9]{1,2}[.-][0-9]{1,2}(?:[.-](?:[0-9]{2}|[0-9]{4}))?(?![ .-]?[0-9]))([0-9](?:[ .-]?[0-9]){3,})(?![ .-]?[0-9])(?![.,:][0-9])(?!(?:[.,][0-9]+)?[ \t]*(?:€|\$|£|eur|euros?|%|por[ \t]+cento|h|horas?|min|kg|g|gr|gramas?|mm|cm|m|kl|kt|k|quilates?|dias?|anos?|meses|semanas?|x|vezes|peças?|unidades?|pontos?|pts|lojas?|clientes?|pessoas?|artigos?)(?![[:alpha:]]))`,
   ],
-  // Faturas (com maiúsculas: o código do documento).
+  // Faturas (com maiúsculas: o código do documento), sem "c/", "s/", "p/", "n/" e "v/" nem épocas ("2025/26").
   cs: [
     String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[A-Z]{1,4}[ \t.-]*(?:[A-Za-z]{1,4}|[0-9]{1,4})(?:[ \t]*/[ \t]*[A-Za-z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])`,
-    String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?:[A-Za-z]{1,4})[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])`,
-    String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?[0-9]{4}[ \t]*/[ \t]*(?!(?:19|20)[0-9]{2}(?![0-9]))([0-9]+)(?![[:alnum:]/])`,
+    String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?:[A-Za-z]{2,4}|(?![cCsSpPnNvV][ \t]*/)[A-Za-z])[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])`,
+    String.raw`(?:^|[^[:alnum:]])(?:fatura|Fatura|FATURA|factura|Factura|FACTURA|recibo|Recibo|RECIBO)(?:s|S)?(?:-(?:recibo|Recibo|RECIBO))?(?![[:alpha:]])[ \t]*(?:(?:n\.?[ \t]*[º°]\.?|n\.[ \t]*o\.?|nº|n\.|n(?:ú|u)mero|nr\.?)[ \t]*)?(?::[ \t]*)?(?!(?:19|20)[0-9]{2}[ \t]*/[ \t]*[0-9]{2}(?![0-9]))[0-9]{4}[ \t]*/[ \t]*(?!(?:19|20)[0-9]{2}(?![0-9]))([0-9]+)(?![[:alnum:]/])`,
     String.raw`(?:^|[^[:alnum:]])(?:FT|FS|FR|NC|ND|VD|GR|GT|RC|RG)[ \t.-]*[A-Z0-9]{1,10}(?:[ \t]*/[ \t]*[A-Z0-9]{1,10})*[ \t]*/[ \t]*([0-9]+)(?![[:alnum:]/])`,
   ],
 };
@@ -1137,7 +1184,7 @@ const dbKnown = (n, kb) => {
   return !!d && new RegExp(`[ |]${d.replace(/([0-9])(?=[0-9])/g, "$1[|]?")}[ |]`).test(` ${(kb || "").replace(are(DB_RULE.join, "g"), "$1|").replace(/[^0-9|]+/g, " ")} `);
 };
 function dbProblem(text, kb = "") {
-  const t = text || "", plain = t.replace(are(DB_RULE.plain, "gi"), " ");
+  const t = text || "", plain = translate(t).replace(are(DB_RULE.plain, "gi"), " ");
   for (const m of t.matchAll(are(DB_RULE.email, "g")))
     if (!are(DB_RULE.own, "").test(m[2].toLowerCase()) && !kb.toLowerCase().includes(m[1].toLowerCase())) return "email";
   for (const m of [...plain.matchAll(are(DB_RULE.nif, "gi")), ...plain.matchAll(are(DB_RULE.iban, "g"))]) if (!dbKnown(m[1], kb)) return "iban";
@@ -1149,6 +1196,10 @@ function dbProblem(text, kb = "") {
 test("DB rule is a strict subset of the server rule: a faithful port of support_card_problem refuses no false positive and nothing the server accepts", (t) => {
   const body = ["support_card_plain(", "support_card_known(", "support_card_problem("].map((f) => fnBody(`create function ldo_private.${f}`)).join("\n");
   for (const [name, v] of Object.entries(DB_RULE)) for (const re of [].concat(v)) assert.ok(body.includes(`'${re}'`), `${name}: ${re}`);
+  // O translate() está tal e qual em support_card_plain, e o servidor lê os mesmos caracteres da mesma forma (um telefone
+  // com cada um deles entre os grupos é sempre recusado).
+  assert.ok(fnBody("create function ldo_private.support_card_plain(").includes(`select regexp_replace(${TRANSLATE_SQL}, '${DB_RULE.plain}', ' ', 'gi');`));
+  for (const c of TRANSLATE_FROM) assert.ok(check(`Ligue 912${String.fromCharCode(c)}345${String.fromCharCode(c)}678`).blocks.includes("telefone"), c.toString(16));
   // Nenhuma outra expressão na função (a cópia tem todas).
   const sqlRes = [...fnBody("create function ldo_private.support_card_problem(").matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1]).filter((x) => /[\\[(]/.test(x));
   const ported = new Set([...Object.values(DB_RULE)].flat());
@@ -1586,7 +1637,7 @@ test("Migration: the daily pass never re-reads a conversation it already read, a
 });
 
 test("Migration: every card needs the Super Admin's confirmation of its current text (with or without warnings), audited with the list shown, cleared by any text change", () => {
-  assert.match(CODE, /avisos text\[\] not null default '\{\}' check \(cardinality\(avisos\) <= 20/);
+  assert.match(CODE, /avisos text\[\] not null default '\{\}' check \(cardinality\(avisos\) <= 30/);
   assert.match(CODE, /avisos_ok text\[\] not null default '\{\}' check \(cardinality\(avisos_ok\) <= 60/);
   const propose = fnBody("create function public.ldo_support_knowledge_propose(");
   assert.match(propose, /jsonb_array_elements_text\(case when jsonb_typeof\(v_card -> 'avisos'\) = 'array'/);
@@ -1632,7 +1683,10 @@ test("Migration: auto_ok is dropped by any edit or merge, the 7 days restart aft
   assert.match(fnBody("create function public.ldo_support_knowledge_card_auto("), /v_c\.texto_em is null or v_c\.texto_em > now\(\) - interval '7 days'/);
   const merge = fnBody("create function public.ldo_support_knowledge_card_merge(");
   assert.match(merge, /returns jsonb/);
-  assert.match(merge, /auto_ok = auto_ok and not v_changed/);
+  assert.match(merge, /avisos_ok = '\{\}', avisos_ok_por = null, avisos_ok_em = null,\n\s+auto_ok = false, auto_ok_em = null,/, "juntar apaga sempre a confirmação e a marca");
+  assert.match(merge, /'auto_retirada', v_into\.auto_ok,/);
+  assert.match(merge, /'avisos_cortados', greatest\(v_total - cardinality\(v_avisos\), 0\)/);
+  assert.match(merge, /group by a order by min\(k\), min\(o\) limit 30/);
   assert.match(merge, /texto_em = case when estado = 'aprovada' and v_changed then now\(\) else texto_em end/);
   assert.match(merge, /raise exception 'A outra resposta já tem 5 formas da pergunta/, "a pergunta juntada nunca se perde em silêncio");
   const purge = fnBody("create function public.ldo_support_knowledge_purge(");
@@ -1737,21 +1791,25 @@ test("Privacy wording is short and literally true: every card read and confirmed
     assert.ok(top.includes(s), s);
   const bottom = /<p className="panel-note">\s*(Privacidade\.[^<]*)<\/p>/.exec(panel)[1].replace(/&quot;/g, "\"");
   for (const s of ["Nenhum modelo é treinado com as conversas", "O Super Admin lê e confirma cada cartão; as regras não apanham tudo",
-    "o texto do cartão, também o que as regras só assinalaram (nas propostas até 180 dias sem novas fontes, nos arquivados 365 dias)",
+    "o texto do cartão, também o que as regras só assinalaram (nas propostas até 180 dias sem novas confirmações, nos arquivados 365 dias, nos aprovados até serem arquivados)",
     "o tema, a loja, quem aprovou, quem confirmou e quando", "em quantas conversas foi confirmado", "só enquanto é proposta, até 3 conversas de origem",
     "os avisos (da resposta da equipa só citam palavras de uma lista fechada e números com a unidade; o resto fica «…»)",
-    "a confirmação, com os avisos mostrados, também no registo de auditoria até o cartão ser apagado", "Não ficam guardados mensagens nem contactos de clientes",
-    "Quem tem acesso direto à base de dados ainda consegue deduzir de que conversa veio um cartão, pelo registo de pedidos e pelas conversas lidas e respostas guardadas, enquanto existirem (até 365 dias)"])
+    "a confirmação, com os avisos mostrados (que podem citar palavras do texto do cartão), também no registo de auditoria até o cartão ser apagado",
+    "Não ficam guardados mensagens nem contactos de clientes",
+    "Quem tem acesso direto à base de dados ainda consegue deduzir de que conversa veio um cartão, pelo registo de pedidos, pelo registo das propostas (quem carregou no botão e quando) e pelas conversas lidas e respostas guardadas, enquanto existirem (até 365 dias)"])
     assert.ok(bottom.includes(s), s);
-  assert.ok(bottom.length < 1300, `curto: ${bottom.length}`);
+  assert.ok(bottom.length < 1450, `curto: ${bottom.length}`);
+  assert.ok(!bottom.includes("sem novas fontes"), "uma confirmação de outra conversa também conta");
   for (const s of ["As regras não apanham tudo", "\"Confirmada em n conversas\"", "nunca o chat do site anónimo", "`amostras`", "Mensagens e contactos de clientes não são guardados",
     "180 dias depois da última vez", "Confirmo que li o texto: não tem dados pessoais nem contradiz a resposta da equipa", "o Super Admin lê e confirma cada cartão",
-    "também o que as regras só assinalaram (nas propostas até 180 dias sem novas fontes, nos arquivados 365 dias)",
+    "também o que as regras só assinalaram (nas propostas até 180 dias sem novas confirmações, nos arquivados 365 dias, nos aprovados até serem arquivados)",
+    "quem pediu cada proposta, quando e o cartão (365 dias, ou até o cartão ser apagado)",
     "só citam palavras de uma lista fechada e números com a unidade", "até o cartão ser apagado", "Quem tem acesso direto à base de dados ainda consegue deduzir",
     "subconjunto estrito das recusas do servidor"])
     assert.ok(readme.includes(s), s);
   for (const s of ["O Super Admin lê e confirma cada cartão", "as regras não apanham tudo", "também o que as regras só assinalaram",
-    "nas propostas até 180 dias sem novas fontes e nos arquivados 365 dias", "citam só palavras de uma lista fechada e números com a unidade",
+    "nas propostas até 180 dias sem novas confirmações, nos arquivados 365 dias e nos aprovados até serem arquivados", "citam só palavras de uma lista fechada e números com a unidade",
+    "pelo registo de auditoria das propostas (quem carregou no botão e quando)",
     "fica também no registo de auditoria até o cartão ser apagado", "As mensagens e os contactos dos clientes não são copiados para estas tabelas",
     "Quem tem acesso direto à base de dados ainda consegue deduzir de que conversa veio um cartão", "só enquanto é proposta, até 3 conversas de origem (amostras)",
     "fontes: cada conversa conta uma vez enquanto está nas conversas lidas", "a BD nunca recusa um texto que o servidor aceita"])
@@ -1759,7 +1817,9 @@ test("Privacy wording is short and literally true: every card read and confirmed
   assert.ok(SQL.replace(/\n--\s*/g, " ").includes("quem lê as tabelas diretamente ainda o pode deduzir pelo registo de pedidos"));
   // A lista dos avisos confirmados sai do registo de auditoria quando a limpeza apaga o cartão.
   assert.match(fnBody("create function public.ldo_support_knowledge_purge("),
-    /with gone as \(\n\s+delete from public\.ldo_support_knowledge_cards\n[^;]*returning id\),\n\s+acks as \(\n\s+delete from public\.ldo_support_audit a using gone\n\s+where a\.action = 'ai\.knowledge\.card' and a\.details ->> 'acao' = 'avisos_confirmados' and a\.details ->> 'id' = gone\.id::text/);
+    /with gone as \(\n\s+delete from public\.ldo_support_knowledge_cards\n[^;]*returning id\),\n\s+acks as \(\n\s+delete from public\.ldo_support_audit a using gone\n\s+where \(a\.action = 'ai\.knowledge\.card' and a\.details ->> 'acao' = 'avisos_confirmados' and a\.details ->> 'id' = gone\.id::text\)\n\s+or \(a\.action = 'ai\.knowledge\.proposta' and a\.details ->> 'card_id' = gone\.id::text\)/);
+  // O registo de auditoria das propostas (quem carregou no botão, quando e o cartão) sai ao fim de 365 dias.
+  assert.match(fnBody("create function public.ldo_support_knowledge_purge("), /delete from public\.ldo_support_audit where action = 'ai\.knowledge\.proposta' and created_at < now\(\) - interval '365 days';/);
   // Os prazos do texto são os da migração.
   const purge = fnBody("create function public.ldo_support_knowledge_purge(");
   assert.match(purge, /\(estado = 'proposta' and ultima_vez < now\(\) - interval '180 days'\) or \(estado = 'arquivada' and updated_at < now\(\) - interval '365 days'\)/);
@@ -1809,4 +1869,125 @@ test("Confirmation on every card: approve, publish and automatic replies wait fo
   assert.deepEqual(k.autoOkBlockers(card, ctx), [k.AUTO_OK_TEXT.confirmar]);
   assert.deepEqual(k.autoOkBlockers({ ...card, avisos_ok: ["Possível nome: «Gertrudes»", "Condição em falta: «acima de 50 €»"] }, ctx), []);
   assert.deepEqual(k.autoOkBlockers({ ...card, avisos_ok: ["Possível nome: «Gertrudes»", "Condição em falta: «acima de 50 €»"], confirmado: false }, ctx), [k.AUTO_OK_TEXT.confirmar]);
+});
+
+// ---------------------------------------------------------------- verificação desta ronda (recusas, falsos alarmes, paráfrases)
+
+test("Contact names that are words: blocked in every person context (dative, vocative with ':', abbreviated greetings, family, joined tokens), never in jewellery sentences", (t) => {
+  const contact = (name) => [name, null];
+  const blocked = (s, name) => k.reviewText(s, ALLOW, [], contact(name)).blocks.includes("nome");
+  for (const s of ["Diga à rosa que a peça chegou.", "Envie à rosa o talão.", "rosa: a peça está pronta", "obg rosa", "Bjs rosa", "Com carinho, rosa", "a família flores",
+    "rosa.flores", "A peça é para a rosa.", "Para: rosa", "Rosa F.", "Obrigado, rosa!", "a rosa flores levanta amanhã", "A encomenda da rosa já seguiu.", "a rosa pode levantar amanhã"])
+    assert.ok(blocked(s, "Rosa Flores"), s);
+  for (const [s, name] of [["olá clara, a peça já chegou", "Clara Dias"], ["a encomenda da clara dias", "Clara Dias"], ["obrigado luz", "Luz Vale"], ["Olá conceição!", "Conceição Gonçalves"]])
+    assert.ok(blocked(s, name), s);
+  // Frases de joalharia com a palavra: nunca recusa (nem a do contacto: "A pedra clara fica bem", "Pulseira da paz").
+  const free = [["Pulseira da paz em prata.", "Paz Monteiro"], ["A pedra clara fica bem com ouro branco.", "Clara Dias"], ["O anel com a rosa tem 2 cm.", "Rosa Flores"],
+    ["Temos brincos com flores rosa.", "Rosa Flores"], ["Bom dia, rosa e branco são as cores disponíveis.", "Rosa Flores"], ["Rosa, branco ou amarelo?", "Rosa Flores"],
+    ["Obrigado, vale a pena!", "Luz Vale"], ["Vale a pena limpar a prata.", "Luz Vale"], ["O embrulho é feito de graça.", "Graça Silva"], ["Dias úteis: das 10h00 às 19h00.", "Clara Dias"],
+    ["Temos alianças em ouro amarelo, branco e rosa.", "Rosa Flores"], ["Medalha da paz em ouro.", "Paz Monteiro"]];
+  for (const [s, name] of free) assert.deepEqual(k.reviewText(s, ALLOW, [], contact(name)).blocks, [], `${s} (${name})`);
+  t.diagnostic(`contactos que são palavras: 19 recusas, ${free.length} frases de joalharia sem recusa`);
+});
+
+// Base de conhecimento da verificação desta ronda (com as reparações) e os seus pares equipa → cartão (paráfrases fiéis).
+const ROUND8_KB = `${VERIFIER_KB}
+
+## Reparações
+Reparação de relógios em 2 a 4 semanas. Orçamento gratuito.`;
+const ROUND8_PARAPHRASES = [
+  ["Olá! As trocas fazem-se em 30 dias com o talão. Peças gravadas não têm troca. Cumprimentos, Equipa Loja do Ouro", "Pode trocar a peça em 30 dias, com o talão. As peças gravadas não têm troca."],
+  ["Bom dia, enviamos para toda a União Europeia, Suíça e Reino Unido. O prazo aparece no checkout. Obrigado!", "Enviamos para toda a União Europeia, para a Suíça e para o Reino Unido; o prazo aparece no checkout."],
+  ["Olá, a garantia é de 2 anos contra defeitos de fabrico e não cobre quedas nem riscos. Cumprimentos", "Os relógios têm 2 anos de garantia contra defeitos de fabrico. Quedas e riscos não estão cobertos."],
+  ["Boa tarde! Aceitamos MB WAY, Multibanco, Visa, Mastercard e PayPal. Até breve", "Pode pagar com MB WAY, Multibanco, Visa, Mastercard ou PayPal."],
+  ["Olá, a gravação é gratuita até 20 caracteres e demora mais 2 dias. Obrigado", "Gravamos até 20 caracteres sem custo; a encomenda demora mais 2 dias."],
+  ["Bom dia, a mudança de pilha faz-se na loja em 15 minutos e custa 8 €. Cumprimentos", "Trocamos a pilha na loja em cerca de 15 minutos, por 8 €."],
+  ["Olá! A loja de Benfica abre de segunda a sábado das 10h00 às 19h00 e está fechada ao domingo.", "A loja de Benfica está aberta de segunda a sábado, das 10h00 às 19h00. Ao domingo está fechada."],
+  ["Olá, não fazemos envios para fora da Europa, lamentamos. Cumprimentos", "Não enviamos para fora da Europa."],
+  ["Boa tarde, os portes são grátis acima de 50 € para Portugal continental. Obrigado", "Os portes para Portugal continental são grátis em encomendas acima de 50 €."],
+  ["Olá, o ouro que compramos é avaliado na loja, ao peso, com o preço do dia. Cumprimentos", "Avaliamos o ouro na loja, ao peso, com o preço do dia."],
+  ["Bom dia! Pode pagar em 3 prestações sem juros com a Klarna. Até breve", "Com a Klarna pode pagar em 3 prestações sem juros."],
+  ["Olá, a prata 925 pode escurecer; limpa-se com um pano próprio. Cumprimentos", "A prata 925 escurece com o tempo, mas limpa-se com um pano próprio."],
+  ["Olá, os anéis podem ser ajustados na loja; o ajuste demora uma semana e custa 15 €. Obrigado", "Ajustamos o tamanho do anel na loja: demora uma semana e custa 15 €."],
+  ["Boa tarde, as encomendas seguem em 2 a 3 dias úteis para Portugal continental. Cumprimentos", "Para Portugal continental, a encomenda chega em 2 a 3 dias úteis."],
+  ["Olá! Não fazemos reembolsos em peças personalizadas. Cumprimentos, Equipa", "As peças personalizadas não têm reembolso."],
+  ["Bom dia, o aço inoxidável não enferruja nem escurece. Obrigado", "O aço inoxidável não enferruja e não escurece."],
+  ["Olá, a reparação de relógios demora 2 a 4 semanas e o orçamento é gratuito. Cumprimentos", "Reparamos relógios em 2 a 4 semanas; o orçamento não tem custo."],
+  ["Olá, o tamanho do anel mede-se pelo perímetro do dedo em milímetros; temos uma tabela no site. Obrigado", "Para saber o tamanho do anel, meça o perímetro do dedo em milímetros e veja a tabela do site."],
+  ["Boa tarde! As alianças levam 3 semanas a fazer, com a gravação incluída. Até breve", "As alianças ficam prontas em 3 semanas e a gravação está incluída."],
+  ["Olá, os brincos não têm troca por questões de higiene. Cumprimentos", "Por higiene, os brincos não podem ser trocados."],
+  ["Olá, o cartão-oferta é válido 1 ano e pode ser usado nas lojas e no site. Obrigado", "O cartão-oferta vale 1 ano, nas lojas e no site."],
+  ["Bom dia, sim, temos ouro de 19,2 quilates em todas as peças de ouro. Cumprimentos", "As nossas peças de ouro são em ouro de 19,2 quilates."],
+  ["Olá, só fazemos a troca na loja onde a peça foi comprada. Obrigado", "A troca faz-se só na loja onde comprou a peça."],
+  ["Olá, a encomenda pode ser levantada em qualquer loja sem custos. Cumprimentos", "Pode levantar a encomenda em qualquer loja, sem custos."],
+  ["Bom dia, os relógios Casio têm 2 anos de garantia da marca. Obrigado", "Os Casio têm 2 anos de garantia da marca."],
+];
+
+test("Paraphrases from this round's verification (25 team → card pairs): none discarded, few warned; synonyms ('sem custo' = 'gratuita', 'vale 1 ano' = 'é válido 1 ano') and copied refusals in other words", (t) => {
+  let warned = 0;
+  const exceptions = [];
+  for (const [staff, resposta] of ROUND8_PARAPHRASES) {
+    const r = proposalResult({ staff, pergunta: "Pergunta?", resposta, knowledge: ROUND8_KB, names: VERIFIER_STAFF, stores: VERIFIER_STORES });
+    assert.equal(r.discard, null, `${resposta} (${r.discard})`);
+    assert.ok(!r.warnings.some((w) => w.startsWith("Possível contradição")), `${resposta} → ${r.warnings.join(" | ")}`);
+    if (r.warnings.length) warned++, exceptions.push(`${resposta} → ${r.warnings.join(" | ")}`);
+  }
+  assert.ok(warned / ROUND8_PARAPHRASES.length <= 0.12, `paráfrases com avisos: ${warned}/${ROUND8_PARAPHRASES.length}\n${exceptions.join("\n")}`);
+  t.diagnostic(`paráfrases desta ronda: ${ROUND8_PARAPHRASES.length}, 0 retiradas, ${warned} com avisos (${Math.round((100 * warned) / ROUND8_PARAPHRASES.length)}%)${exceptions.length ? `: ${exceptions.join(" || ")}` : ""}`);
+});
+
+test("Warning pairs from this round: present-tense closing days, a dropped 'first time', numbers swapped across sentences, a bare 'Temos.' and a leading condition", () => {
+  const w = (staff, card) => proposalResult({ staff, resposta: card, knowledge: "" });
+  for (const [staff, card, need, never] of [
+    ["A loja de Benfica fecha ao domingo.", "A loja de Benfica abre ao domingo.", "Possível contradição", ""],
+    ["O ajuste é grátis na primeira vez.", "O ajuste é grátis.", "Condição em falta: «na primeira vez»", ""],
+    ["Em prata custa 10 €. Em ouro custa 15 €.", "Em prata custa 15 €. Em ouro custa 10 €.", "Números trocados", ""],
+    ["Lamentamos Sr. Pato, não temos.", "Temos.", "Possível contradição: a resposta da equipa tem uma recusa («não temos»)", "pato"],
+    ["Não temos loja em Leiria.", "Temos lojas.", "Possível contradição", "leiria"],
+    ["Só com autorização do titular Mendonça Furtado.", "Pode levantar.", "Condição em falta: «só com …»", "mendon|furtado"],
+  ]) {
+    const r = w(staff, card);
+    assert.equal(r.discard, null, card);
+    assert.ok(r.avisos.some((x) => x.startsWith(need)), `${staff} → ${card}: ${r.avisos.join(" | ")}`);
+    if (never) assert.ok(!r.avisos.some((x) => new RegExp(never, "i").test(x)), r.avisos.join(" | "));
+  }
+  // "fecha às 19h00" é um horário, não uma recusa; "fecha ao domingo" é.
+  assert.deepEqual(w("A loja fecha às 19h00.", "A loja fecha às 19h00.").avisos, []);
+  // Uma frase que junta dois números da equipa não é uma troca.
+  assert.ok(!w("A gravação custa 10 €. A entrega custa 5 €.", "A gravação custa 10 € e a entrega 5 €.").avisos.some((x) => x.startsWith("Números trocados")));
+});
+
+test("DB rule ⊆ server rule on generated texts (keys × marks × numbers × suffixes): the database never refuses a text the server accepts", (t) => {
+  const kb = [KNOWLEDGE, ...STORES.map((s) => `${s.name} ${s.city}`), "apoiocliente@lojadoouro.pt"].join("\n");
+  const keys = ["Encomenda", "encomendas", "Pedido", "pedidos", "Fatura", "faturas", "Fatura-recibo", "Cliente", "Reparação", "Orçamento", "Vale", "Talão", "ENCOMENDA"];
+  const marks = ["", " n.º", " nº", " n.", " número", " #", ":", " é o", " n.º:"];
+  const nums = ["4471", "2026", "1000", "750", "365", "1500", "4 471", "44 71", "4.471", "1 500", "24-12", "12.12.2025", "12-11-23", "2025/2026", "2025/26", "1/2345",
+    "FT 1/2345", "A/145", "2026/145", "LDO4471", "2026-2027", "1500-3000", "24/7", "c/ 23", "s/ 2", "123 456 789", "0457"];
+  const suffixes = ["", " €", "%", " dias", " vezes", " anos", ".", " seguem amanhã.", ",00 €", "/2027", " e 2027", "-A", " IVA", " vias"];
+  let n = 0, refused = 0;
+  const bad = [];
+  for (const key of keys) for (const m of marks) for (const x of nums) for (const s of suffixes) {
+    const text = `${key}${m} ${x}${s}`.replace(/  +/g, " ");
+    n++;
+    if (!dbProblem(text, kb)) continue;
+    refused++;
+    if (!k.reviewText(text, ALLOW).blocks.length) bad.push(text);
+  }
+  assert.deepEqual(bad.slice(0, 20), []);
+  t.diagnostic(`gerados ${n}: a BD recusa ${refused}, o servidor recusa todos esses`);
+});
+
+test("Actions: a text with clear personal data is never confirmed, and joining returns to the other card's tab with the count of warnings that did not fit", () => {
+  const actions = read("app/(painel)/apoio/configuracao/ia/cartoes-actions.ts");
+  assert.match(actions, /if \(id && !blocks\.length\) \{\n\s+try \{\n\s+ack = await confirmText\(/, "Guardar correções não regista a confirmação de um texto com dados pessoais");
+  assert.match(actions, /\}, CARD_ESTADOS\.includes\(r\?\.estado as CardEstado\) \? r!\.estado : estado, q, into\);/);
+  assert.match(actions, /A confirmação da outra foi apagada: leia-a e confirme-a de novo antes de a aprovar ou publicar\./);
+  assert.match(actions, /avisos não couberam/);
+  // Os campos chegam sem espaços que não quebram nem caracteres invisíveis.
+  assert.match(actions, /const field = \(form: FormData, name: string\) => plainSpaces\(String\(form\.get\(name\) \?\? ""\)\)/);
+  assert.equal(k.plainSpaces(`a${String.fromCharCode(0xa0)}b${String.fromCharCode(0x200b)}c`), "a bc");
+  // Publicar: as aprovadas ficam presas e só se copia um texto confirmado.
+  const publish = fnBody("create function public.ldo_support_knowledge_publish(");
+  assert.match(publish, /perform 1 from public\.ldo_support_knowledge_cards where estado = 'aprovada' order by id for update;/);
+  assert.match(publish, /and c\.avisos_ok_em is not null and c\.avisos <@ c\.avisos_ok;/);
 });
