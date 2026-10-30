@@ -8,6 +8,7 @@ import {
   type AiOutput, type UsagePart,
 } from "./ai-rules";
 import { serverRpc, sessionRpc } from "./db";
+import { cardAnswersText, cardsText, type PublishedCard } from "./knowledge-rules";
 import { CHANNEL_LABEL, SITE_BRAND, STATUS_LABEL, visibleSince, visitorSite, type Channel, type SiteKey, type Status } from "./rules";
 import { isCommentChannel, POST_KIND_LABEL, type PostKind } from "./comment-rules";
 
@@ -32,6 +33,8 @@ export type AiBegin = {
   history: { kind: "draft" | "chat"; question: string | null; answer: string | null; draft: string | null }[];
   knowledge: { title: string; body: string }[];
   stores: { name: string; city: string | null; closed_weekdays: number[] | null }[];
+  // Base de conhecimento aprendida: respostas aprovadas e publicadas (ausente antes da migração 20261030130000).
+  cards?: PublishedCard[];
 };
 export type AiSource = { tool: string; label: string };
 export type AiItem = {
@@ -164,6 +167,9 @@ function knowledgeText(begin: AiBegin, store: StoreInfo | null, storeError: stri
   if (begin.knowledge.length) for (const k of begin.knowledge) out.push(`\n## ${k.title}\n${k.body.trim()}`);
   else out.push("(Ainda vazia. Sem estas informações não dês prazos, custos nem condições: indica-os em \"verificar\".)");
   out.push("</base_de_conhecimento>");
+  // Sem respostas publicadas, o bloco fica igual ao de antes (a cache não muda).
+  const cards = cardsText(begin.cards);
+  if (cards) out.push("", cards);
   const stores = storesText(begin.stores);
   if (stores) out.push("", "<lojas_fisicas>", "Lojas físicas registadas no dashboard (moradas e horários só se estiverem na base de conhecimento):", stores, "</lojas_fisicas>");
   out.push("", "<loja_online>");
@@ -470,6 +476,8 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
         : Promise.resolve(null),
     ]);
     const knowledge = knowledgeText(begin, store, storeError);
+    // Fonte de ligações: das respostas aprovadas só as respostas, nunca as perguntas (vêm de clientes).
+    const linkSource = begin.cards?.length ? `${knowledgeText({ ...begin, cards: [] }, store, storeError)}\n${cardAnswersText(begin.cards)}` : knowledge;
     const visitor = detail.conversation.channel === "site"
       ? await sessionRpc<SiteVisitorCtx>(viewer.session, "ldo_support_site_visitor_info", { p_conversation: conversationId }).catch(() => null)
       : null;
@@ -543,7 +551,7 @@ export async function runAssistant(viewer: Viewer, conversationId: string, begin
         // Só fontes de confiança: base de conhecimento, loja online e consultas à loja e às encomendas
         // deste cliente (não as mensagens dos clientes nem outras conversas). No chat do site também as mesmas
         // ligações no site e na língua do cliente.
-        const trustedText = [knowledge, ...ctx.trusted].join("\n");
+        const trustedText = [linkSource, ...ctx.trusted].join("\n");
         const known = site ? `${trustedText}\n${siteTrustedLinks(trustedText, site.site, site.locale)}` : trustedText;
         for (const url of unverifiedLinks(out.resposta_cliente, known))
           out.verificar.push(`Confirme a ligação ${url}: não veio da loja online nem da base de conhecimento.`);

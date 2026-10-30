@@ -185,9 +185,9 @@ const NUMBER_RE = new RegExp(`\\d+(?:[.,:hH/]\\d+)*|(?<![\\p{L}\\p{N}])(?:${Obje
 
 // Números normalizados: "10h00", "10:00" e "10" são o mesmo; "09:30" e "9h30" também; "50,00" é "50". specific: com
 // separadores ou 3+ algarismos (hora, valor, data, telefone); os outros ("2", "dez") só valem com a palavra seguinte
-// ("2 dias" não é "2 a 3 dias").
-type NumberHit = { n: string; specific: boolean; next: string };
-function numberHits(text: string): NumberHit[] {
+// ("2 dias" não é "2 a 3 dias"). raw e at: o texto e a posição (a base de conhecimento aprendida vê o contexto).
+export type NumberHit = { n: string; specific: boolean; next: string; raw: string; at: number };
+export function numberHits(text: string): NumberHit[] {
   const out: NumberHit[] = [];
   const t = text || "";
   for (const m of t.matchAll(NUMBER_RE)) {
@@ -200,7 +200,10 @@ function numberHits(text: string): NumberHit[] {
       n = parts.map((p, i) => (i ? seps[i - 1] + p : p)).join("");
     } else n = NUMBER_WORDS[raw.toLowerCase()];
     const after = /^\s*(\p{L}+|[€%$£]|\d)/u.exec(t.slice((m.index ?? 0) + raw.length));
-    out.push({ n, specific: /^\d+[.,:hH/]/.test(raw) || !/^\d{1,2}$/.test(n), next: !after ? "" : /^\d/.test(after[1]) ? "#" : after[1].toLowerCase() });
+    out.push({
+      n, specific: /^\d+[.,:hH/]/.test(raw) || !/^\d{1,2}$/.test(n), next: !after ? "" : /^\d/.test(after[1]) ? "#" : after[1].toLowerCase(),
+      raw, at: m.index ?? 0,
+    });
   }
   return out;
 }
@@ -266,6 +269,15 @@ const COMMITMENTS: [string, RegExp][] = [
 ];
 export function commitmentsIn(text: string) {
   return COMMITMENTS.filter(([, r]) => r.test(text || "")).map(([key]) => key);
+}
+// Cada compromisso de um texto com o início e o fim (a base de conhecimento aprendida vê se está negado: "não fazemos
+// reembolsos" não é "fazemos reembolsos", nem "o reembolso não é possível").
+const COMMITMENTS_ALL = COMMITMENTS.map(([key, r]): [string, RegExp] => [key, new RegExp(r.source, `${r.flags}g`)]);
+export function commitmentHits(text: string) {
+  const out: { key: string; at: number; end: number }[] = [];
+  for (const [key, r] of COMMITMENTS_ALL)
+    for (const m of (text || "").matchAll(r)) out.push({ key, at: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
+  return out;
 }
 
 // Os números ou as datas e prazos de um texto mudaram noutro (aviso no painel da revisão).

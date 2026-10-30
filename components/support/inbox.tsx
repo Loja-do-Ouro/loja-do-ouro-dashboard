@@ -398,6 +398,8 @@ export function SupportInbox({
   const clearEmojiLimit = () => setSendError((e) => (/^Limite de \d+ caracteres atingido: o emoji/.test(e) ? "" : e));
   const [actionError, setActionError] = useState("");
   const [actionNote, setActionNote] = useState("");
+  // "Guardar como resposta aprovada": resposta cuja proposta a IA está a preparar.
+  const [cardBusy, setCardBusy] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState("");
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; index: number } | null>(null);
@@ -1435,6 +1437,23 @@ export function SupportInbox({
                             setMode(which);
                             setDraft(selected!, which, m.body);
                           }}>Copiar para o rascunho</button>
+                        )}
+                        {/* Base de conhecimento aprendida: a própria pessoa (ou o Super Admin) propõe esta resposta; o Super Admin aprova.
+                            Não nas mensagens anteriores ao histórico visível (a BD recusa-as). */}
+                        {m.kind === "outbound" && m.author_user_id && (m.author_user_id === c.me || c.super) && !m.deleted && m.body.trim().length >= 20
+                          && (m.delivery === "accepted" || m.delivery === "delivered" || m.delivery === "read")
+                          && !(c.history_from && Date.parse(m.created_at) < Date.parse(c.history_from)) && (
+                          <button
+                            type="button"
+                            disabled={cardBusy !== null}
+                            title="A IA prepara uma pergunta e uma resposta genéricas, sem dados do cliente, para o Super Admin aprovar."
+                            onClick={() => {
+                              setCardBusy(m.id);
+                              act({ action: "knowledge", messageId: m.id }).finally(() => setCardBusy(null));
+                            }}
+                          >
+                            {cardBusy === m.id ? "A preparar a proposta…" : "Guardar como resposta aprovada"}
+                          </button>
                         )}
                       </footer>
                     )}

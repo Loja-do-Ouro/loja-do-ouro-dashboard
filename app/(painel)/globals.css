@@ -4383,11 +4383,20 @@ dialog.viewer::backdrop { background: rgba(18, 24, 22, 0.72); }
 .knowledge-item summary { cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 600; font-size: 13px; }
 .knowledge-item summary small { font-weight: 400; color: var(--muted); }
 .knowledge-item form { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+/* Um <select> com opções longas ("Juntar a…") não alarga o painel nem a página no telemóvel. */
+.knowledge-item form, .knowledge-item select { max-width: 100%; }
 .knowledge-item input, .knowledge-item textarea, .knowledge-new input, .knowledge-new textarea { width: 100%; border: 1px solid #dfe3da; border-radius: 7px; padding: 7px 10px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
 .knowledge-item textarea, .knowledge-new textarea { resize: vertical; min-height: 140px; }
 .knowledge-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .knowledge-row input[type="number"] { width: 90px; }
 .knowledge-new { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+/* Confirmação de cada cartão: os avisos por cima da caixa, o texto com as palavras assinaladas e o cartão aberto por uma mensagem. */
+.knowledge-ack { display: flex; flex-direction: column; gap: 4px; border: 1px solid #e8dcb5; background: #fffaf0; border-radius: 7px; padding: 8px 10px; font-size: 13px; }
+.knowledge-ack ul { margin: 0; padding-left: 18px; }
+.knowledge-ack .checkbox-label { align-items: flex-start; font-weight: 600; }
+.knowledge-preview { white-space: pre-wrap; font-size: 13px; border: 1px dashed #dfe3da; border-radius: 7px; padding: 8px 10px; background: #fafbf8; overflow-wrap: anywhere; }
+.knowledge-preview mark { background: #ffe39a; border-radius: 3px; padding: 0 2px; }
+.knowledge-item.focus { border-color: #c9a227; box-shadow: 0 0 0 2px rgba(201, 162, 39, .2); }
 @media (max-width: 1190px) {
   .support-app.show-info .ai-panel > .support-back { display: inline-flex; align-self: flex-start; margin: 6px 0 0 8px; }
 }

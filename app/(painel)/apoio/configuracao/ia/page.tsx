@@ -11,6 +11,7 @@ import {
   isSurveyMode, SURVEY_CHANNEL_LABEL, SURVEY_CHANNELS, SURVEY_DEFAULT_DELAY, SURVEY_MAX_DELAY, SURVEY_MODE_LABEL, SURVEY_MODES,
 } from "@/lib/support/survey-rules";
 import { requireViewer } from "@/lib/viewer";
+import { PainelCartoes } from "./painel-cartoes";
 import { Panel } from "@/components/dashboard/ui";
 import { AppShell, Flash, PageHeading } from "@/components/shell";
 import { ReviewStatsList } from "@/components/support/review-stats";
@@ -26,8 +27,8 @@ type SurveySettings = {
   month: { created: number; sent: number; rated: number; skipped: number; declined: number; failed: number; follow_up: number };
 };
 
-// Definições da IA do Apoio ao Cliente que não cabem na página principal da configuração: a revisão da IA antes de enviar
-// e, à parte (sem IA), o pedido de avaliação depois de resolver. Só o Super Admin.
+// Definições da IA do Apoio ao Cliente que não cabem na página principal da configuração: a revisão da IA antes de enviar,
+// a base de conhecimento aprendida e, à parte (sem IA), o pedido de avaliação depois de resolver. Só o Super Admin.
 export default async function SupportAiSettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
   if (!viewer.isSuper) redirect(homePath(viewer) || "/api/auth/logout?error=noaccess");
@@ -45,7 +46,7 @@ export default async function SupportAiSettingsPage({ searchParams }: { searchPa
 
   return (
     <AppShell viewer={viewer} current="apoio-config" title="IA do apoio">
-      <PageHeading eyebrow="APOIO AO CLIENTE" title="IA do apoio" text="Revisão das respostas da equipa antes de seguirem para o cliente e pedido de avaliação depois de resolver. Só o Super Admin vê esta página.">
+      <PageHeading eyebrow="APOIO AO CLIENTE" title="IA do apoio" text="Revisão das respostas da equipa antes de seguirem para o cliente, base de conhecimento aprendida e pedido de avaliação depois de resolver. Só o Super Admin vê esta página.">
         <Link className="outline-button" href="/apoio/configuracao#ia">Configuração do apoio</Link>
       </PageHeading>
 
@@ -107,6 +108,7 @@ export default async function SupportAiSettingsPage({ searchParams }: { searchPa
           A resposta, as últimas mensagens da conversa e a base de conhecimento são enviadas à Anthropic para a revisão; do texto fica guardado só um código (hash), nunca a resposta nem a sugestão (registo apagado ao fim de 365 dias). Estas estatísticas não servem para avaliar pessoas: aqui aparecem só os totais da equipa, e cada pessoa vê as suas em A minha conta, onde também pode desligar a revisão no modo Opcional.
         </p>
       </Panel>
+      <PainelCartoes viewer={viewer} q={q} />
 
       {/* Sem IA: secção à parte, com as suas próprias mensagens. */}
       <Panel title="Pedido de avaliação depois de resolver" eyebrow="SATISFAÇÃO DOS CLIENTES" id="avaliacao">
