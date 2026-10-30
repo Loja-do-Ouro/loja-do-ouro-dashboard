@@ -21,6 +21,11 @@
   - Textos automáticos em PT, EN, ES, FR, DE (campos vazios no editor = texto traduzido automático).
   - Datas em hora de Lisboa. Antes do início mostra «Começa em», durante «Termina em»; pode esconder-se
     sozinha antes do início e/ou depois do fim (no editor de temas fica sempre visível, com um aviso).
+  - O botão «Descobrir ofertas» (no fim da animação e na barra de atalhos) só existe durante a Black Friday,
+    entre o Início e o Fim (hora de Lisboa), e pode desligar-se nas definições; o link é a coleção escolhida.
+    Antes do início a barra mostra só «Lembrar-me»; depois do fim, «Ver joias». O HTML já sai no estado
+    certo e o script confirma a cada segundo com o relógio do visitante: aparece no início e desaparece
+    no fim sem recarregar a página, mesmo que a página venha da cache da loja.
   - O palco fixo começa por baixo do cabeçalho fixo do tema (altura medida em tempo real).
 
   Instalação: assets/lbf3d-three-r149.min.js (o three.js r149 oficial, sem alterações) e
@@ -358,6 +363,62 @@
   assign u_see = s.secondary_url | default: routes.collections_url
   assign u_remind = s.remind_url | default: ''
 
+  # Fase da campanha à hora do pedido (fuso da loja: Europe/Lisbon), como o motor a lê: 0 antes do início,
+  # 1 durante, 2 depois do fim (o minuto do fim conta; datas ilegíveis = 27 a 30 de novembro de 2026).
+  # O botão «Descobrir ofertas» só existe durante a Black Friday e com a opção ligada: o HTML já sai assim
+  # (sem piscar antes do início, também sem JavaScript); o motor volta a ver a fase a cada segundo com o
+  # relógio do visitante (a página pode vir da cache da loja) e mostra-o ou retira-o sem recarregar.
+  assign cta_on = true
+  if s.show_cta == false
+    assign cta_on = false
+  endif
+  assign ph_now = 'now' | date: '%s' | plus: 0
+  assign ph_st = bf_start | date: '%s' | plus: 0
+  if ph_st < 1000000000
+    assign ph_st = '2026-11-27 00:00' | date: '%s' | plus: 0
+  endif
+  assign ph_en = bf_end | date: '%s' | plus: 0
+  if ph_en < 1000000000
+    assign ph_en = '2026-11-30 23:59' | date: '%s' | plus: 0
+  endif
+  assign ph_en = ph_en | plus: 60
+  if ph_en <= ph_st
+    assign ph_en = ph_st | plus: 60
+  endif
+  if ph_now < ph_st
+    assign bf_phase = 0
+  elsif ph_now < ph_en
+    assign bf_phase = 1
+  else
+    assign bf_phase = 2
+  endif
+  # Botão do fim da animação e botão dourado da barra: «Descobrir ofertas» durante (com a opção ligada),
+  # «Ver joias» depois do fim, nenhum antes do início. Botão secundário da barra: «Lembrar-me» antes,
+  # «Ver joias» durante, nenhum depois do fim.
+  if bf_phase == 2
+    assign c_lbl = x_see
+    assign c_url = u_see
+    assign c_on = true
+  else
+    assign c_lbl = x_cta
+    assign c_url = u_cta
+    assign c_on = false
+    if bf_phase == 1 and cta_on
+      assign c_on = true
+    endif
+  endif
+  if bf_phase == 0
+    assign b2_lbl = x_remind
+    if u_remind != blank
+      assign b2_url = u_remind
+    else
+      assign b2_url = '#lbf3d-oferta-' | append: section.id
+    endif
+  else
+    assign b2_lbl = x_see
+    assign b2_url = u_see
+  endif
+
   case s.sequence_length
     when '240'
       assign seq_len = 240
@@ -626,6 +687,8 @@
   #lbf3d-{{ section.id }} .lbf3d__cell b{font-size:44px}
   #lbf3d-{{ section.id }} .lbf3d__cell{min-width:72px}
 }
+/* the offers button outside the Black Friday (or switched off) is [hidden]: stronger than every display rule above */
+#lbf3d-{{ section.id }}.lbf3d .lbf3d__cta[hidden]{display:none!important}
 #lbf3d-{{ section.id }}.is-short .lbf3d__line{display:none}
 #lbf3d-{{ section.id }}.is-tight .lbf3d__cell b{font-size:26px}
 #lbf3d-{{ section.id }}.is-tight .lbf3d__cd{margin-bottom:10px}
@@ -923,7 +986,7 @@
               {%- endif -%}
             {%- endfor -%}
           </p>
-          <a class="lbf3d-pill lbf3d-pill--gold lbf3d__cta" href="{{ u_cta | escape }}">{{ x_cta | escape }}</a>
+          <a class="lbf3d-pill lbf3d-pill--gold lbf3d__cta" href="{{ c_url | escape }}"{% unless c_on %} hidden{% endunless %}>{{ c_lbl | escape }}</a>
         </div>
       </div>
     </div>
@@ -936,8 +999,8 @@
 {%- if s.show_bottom_bar %}
 <nav id="lbf3d-bar-{{ section.id }}" class="lbf3d-bar is-pre" aria-label="{{ t_bar | escape }}" style="--lbf3d-bar-off:{{ bar_off }}px;--lbf3d-bar-side:{{ bar_side }}px">
   <div class="lbf3d-bar__in">
-    <a class="lbf3d-pill lbf3d-pill--gold" href="{{ u_cta | escape }}" data-primary>{{ x_cta | escape }}</a>
-    <a class="lbf3d-pill lbf3d-pill--ghost" href="{% if u_remind != blank %}{{ u_remind | escape }}{% else %}#lbf3d-oferta-{{ section.id }}{% endif %}" data-remind>{{ x_remind | escape }}</a>
+    <a class="lbf3d-pill lbf3d-pill--gold" href="{{ c_url | escape }}" data-primary{% unless c_on %} hidden{% endunless %}>{{ c_lbl | escape }}</a>
+    <a class="lbf3d-pill lbf3d-pill--ghost" href="{{ b2_url | escape }}" data-remind{% if bf_phase == 2 %} hidden{% endif %}>{{ b2_lbl | escape }}</a>
     <p class="lbf3d-bar__status" role="status" aria-live="polite"></p>
   </div>
 </nav>
@@ -1021,6 +1084,7 @@
   "end": {{ bf_end | json }},
   "hideAfterEnd": {{ s.hide_after_end | json }},
   "showBeforeStart": {{ s.show_before_start | json }},
+  "showCta": {{ cta_on | json }},
   "discount": {{ disc_show | json }},
   "design": {{ request.design_mode | json }},
   "loader": {{ s.show_loader | json }},
@@ -2002,7 +2066,7 @@ function probeTier(cap) {
 function create(sec) {
 var sid = sec.getAttribute('data-section-id') || '', cfg = readCfg(sid);
 if (!cfg) return null;
-var TX = cfg.t, URLS = cfg.url || {}, design = cfg.design === true, rmStatic = cfg.rmStatic === true;
+var TX = cfg.t, URLS = cfg.url || {}, design = cfg.design === true, rmStatic = cfg.rmStatic === true, ctaOn = cfg.showCta !== false;
 var AC = W.AbortController ? new AbortController() : null, alive = true, mqOff = null;
 function LO(o) { o = o || {}; if (AC) o.signal = AC.signal; return o; }
 function $(s, el) { return (el || sec).querySelector(s); }
@@ -2110,16 +2174,19 @@ function applyPhase(ph) {
   cdCells.hidden = ph === 2;
   cdDone.hidden = ph !== 2;
   if (ph === 2) cd.setAttribute('aria-label', TX.endedAria);
+  var offers = ph === 1 && ctaOn, was = holdCta ? holdCta.hidden : false;
+  if (holdCta) holdCta.hidden = !(offers || ph === 2);
   pill(holdCta, ph === 2 ? TX.see : TX.cta, ph === 2 ? URLS.see : URLS.cta);
+  if (holdCta && holdCta.hidden !== was) { onResize(); endCta(S.endOn === true); }
   if (!bar) return;
   if (ph === 0) {
-    pill(barPrimary, TX.cta, URLS.cta);
+    barPrimary.hidden = true; pill(barPrimary, TX.cta, URLS.cta);
     barSecond.hidden = false; pill(barSecond, TX.remind, URLS.remind || ('#' + offer.id));
   } else if (ph === 1) {
-    pill(barPrimary, TX.cta, URLS.cta);
+    barPrimary.hidden = !offers; pill(barPrimary, TX.cta, URLS.cta);
     barSecond.hidden = false; pill(barSecond, TX.see, URLS.see);
   } else {
-    pill(barPrimary, TX.see, URLS.see);
+    barPrimary.hidden = false; pill(barPrimary, TX.see, URLS.see);
     barSecond.hidden = true;
   }
 }
@@ -2641,7 +2708,7 @@ function setHold(h) {
   var act = h >= 0.5;
   if (hold._act !== act) { hold._act = act; if (act) hold.removeAttribute('inert'); else hold.setAttribute('inert', ''); }
 }
-function endCta(on) { if (bar) bar.classList.toggle('is-endcta', on && W.innerWidth >= 900 && !bar.contains(D.activeElement)); }
+function endCta(on) { S.endOn = on; if (bar) bar.classList.toggle('is-endcta', on && !!holdCta && !holdCta.hidden && W.innerWidth >= 900 && !bar.contains(D.activeElement)); }
 function overlay(p) {
   var a, b;
   setBlk(ch1, 1 - sstep(0.12, 0.20, p), S.RM ? 0 : -12 * sstep(0.12, 0.20, p));
@@ -2676,6 +2743,7 @@ function resetOverlay() {
   hold.style.removeProperty('--h');
   hold.removeAttribute('inert');
   sec.classList.remove('is-holdon');
+  S.endOn = false;
   if (bar) bar.classList.remove('is-endcta');
 }
 $('.lbf3d__skip').addEventListener('click', function (e) {
@@ -3643,6 +3711,7 @@ function boot() {
   stage.addEventListener('pointerdown', function (e) {
     S.lastInput = now(); wake();
     if (!G) return;
+    if (e.target && e.target.closest && e.target.closest('a,button')) return;
     var t = now();
     G.drag = { id: e.pointerId, lx: e.clientX, ly: e.clientY, lt: t, t0: t, moved: 0, v: 0 };
     if (e.pointerType === 'mouse') { try { stage.setPointerCapture(e.pointerId); } catch (err) {} }
@@ -3829,17 +3898,24 @@ scan(D);
       "content": "Botões"
     },
     {
+      "type": "checkbox",
+      "id": "show_cta",
+      "label": "Mostrar o botão «Descobrir ofertas» (só durante a Black Friday)",
+      "default": true,
+      "info": "Só aparece entre o Início e o Fim (hora de Lisboa), no fim da animação e na barra de atalhos; antes do início e depois do fim não aparece. Antes do início a barra mostra só «Lembrar-me»."
+    },
+    {
       "type": "text",
       "id": "cta_label",
-      "label": "Botão principal: texto",
+      "label": "Botão «Descobrir ofertas»: texto",
       "info": "Vazio = «Descobrir ofertas» (traduzido)."
     },
     {
       "type": "url",
       "id": "cta_url",
-      "label": "Botão principal: link",
+      "label": "Botão «Descobrir ofertas»: coleção",
       "default": "/collections/all",
-      "info": "Vazio = página de todas as coleções."
+      "info": "Escolha a coleção ou categoria da Black Friday. Por omissão: todos os produtos (/collections/all). Vazio = página de todas as coleções."
     },
     {
       "type": "text",
