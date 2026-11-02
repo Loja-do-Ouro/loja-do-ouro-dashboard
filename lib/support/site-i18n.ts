@@ -33,8 +33,9 @@ const PT = {
   you: "Você",
   transfer: "A conversa foi transferida para {name}.",
   someoneElse: "outra pessoa da equipa",
-  // Ficheiros da equipa que não seguem em anexo no email (limite de 7 MB por email, ou já apagados).
-  fileInChat: "{name} (grande demais para este email: pode vê-lo no chat)",
+  // Ficheiros da equipa que não seguem em anexo no email (limite de 7 MB por email, ou já apagados). O chat só os mostra
+  // no browser em que o cliente falou connosco (o token fica nesse browser): sempre com a alternativa de responder.
+  fileInChat: "{name} (demasiado grande para este email: pode vê-lo no chat do site, no mesmo navegador em que falou connosco, ou responda e enviamo-lo de outra forma)",
   fileMissing: "{name} (não seguiu neste email: responda e enviamo-lo de outra forma)",
 };
 export type SiteTexts = typeof PT;
@@ -68,7 +69,7 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "You",
     transfer: "The conversation was transferred to {name}.",
     someoneElse: "another team member",
-    fileInChat: "{name} (too large for this email: you can see it in the chat)",
+    fileInChat: "{name} (too large for this email: you can see it in the chat on our website, in the same browser you used to talk to us, or reply and we will send it another way)",
     fileMissing: "{name} (not included in this email: reply and we will send it another way)",
   },
   es: {
@@ -96,7 +97,7 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "Usted",
     transfer: "La conversación se ha transferido a {name}.",
     someoneElse: "otra persona del equipo",
-    fileInChat: "{name} (demasiado grande para este correo: puede verlo en el chat)",
+    fileInChat: "{name} (demasiado grande para este correo: puede verlo en el chat de la web, en el mismo navegador en el que habló con nosotros, o responda y se lo enviaremos de otra forma)",
     fileMissing: "{name} (no se incluyó en este correo: responda y se lo enviaremos de otra forma)",
   },
   fr: {
@@ -124,7 +125,7 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "Vous",
     transfer: "La conversation a été transférée à {name}.",
     someoneElse: "un autre membre de l'équipe",
-    fileInChat: "{name} (trop volumineux pour cet e-mail : vous pouvez le voir dans le chat)",
+    fileInChat: "{name} (trop volumineux pour cet e-mail : vous pouvez le voir dans le chat du site, dans le navigateur utilisé pour nous écrire, ou répondez-nous et nous vous l’enverrons autrement)",
     fileMissing: "{name} (non inclus dans cet e-mail : répondez-nous et nous vous l’enverrons autrement)",
   },
   de: {
@@ -152,7 +153,7 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "Sie",
     transfer: "Der Chat wurde an {name} übergeben.",
     someoneElse: "eine andere Person aus dem Team",
-    fileInChat: "{name} (zu groß für diese E-Mail: Sie können die Datei im Chat ansehen)",
+    fileInChat: "{name} (zu groß für diese E-Mail: Sie können die Datei im Chat auf unserer Website ansehen, im selben Browser, in dem Sie uns geschrieben haben, oder Sie antworten uns, dann senden wir sie Ihnen auf anderem Weg)",
     fileMissing: "{name} (nicht in dieser E-Mail enthalten: Antworten Sie uns, dann senden wir sie Ihnen auf anderem Weg)",
   },
 };

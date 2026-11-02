@@ -1,3 +1,4 @@
+import { clientKey, overLimit } from "@/lib/rate-limit";
 import { serverRpc } from "@/lib/support/db";
 import { asciiName, isUuid, sniffType } from "@/lib/support/rules";
 import { ChatError, chatHandle, checkOrigin, corsHeaders, identityEmail, preflight, visitorTokenHash } from "@/lib/support/site-chat";
@@ -8,6 +9,10 @@ export const maxDuration = 30;
 
 // Os anexos guardados têm no máximo 4 MB (as respostas das funções Vercel, 4,5 MB).
 const MAX_BYTES = 4 * 1024 * 1024;
+// Pedidos por ligação (IP) nesta instância do servidor: 120 em 10 minutos. O limite que vale entre instâncias é o da BD
+// (60 ficheiros ou 60 MB por visitante em 10 minutos); este trava pedidos em paralelo com vários tokens.
+const IP_MAX = 120;
+const IP_WINDOW_MS = 10 * 60 * 1000;
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -23,6 +28,7 @@ export async function GET(request: Request) {
     const q = new URL(request.url).searchParams;
     const message = q.get("m"), index = q.get("i") || "";
     if (!isUuid(message) || !/^[0-4]$/.test(index)) throw new ChatError(400, "Pedido inválido.");
+    if (overLimit(`chat-files:${clientKey(request)}`, IP_MAX, IP_WINDOW_MS)) throw new ChatError(429, "Demasiados pedidos de ficheiros. Aguarde um pouco.");
     const f = await serverRpc<{ name: string; type: string; size: number; data: string } | null>("ldo_support_site_attachment", {
       p_token_hash: tokenHash, p_identity_email: identityEmail(request), p_message: message, p_index: Number(index),
     });

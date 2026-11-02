@@ -353,6 +353,19 @@ export function asciiName(name: string) {
   return (name || "anexo").normalize("NFKD").replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "anexo";
 }
 
+// Nome de um anexo escrito pela equipa (type: o tipo real, já confirmado): sem caracteres proibidos e no máximo 120
+// caracteres, sempre a acabar na extensão do tipo real. Corta-se o nome antes da extensão, nunca a extensão; só se tira
+// uma extensão de ficheiro conhecida (um nome como "Fio 19.2K" fica inteiro).
+const UPLOAD_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+export function uploadName(name: string, type: string) {
+  const clean = name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim();
+  const ext = UPLOAD_EXT[type] || "bin";
+  const keep = clean.toLowerCase().endsWith(`.${ext}`);
+  const tail = keep ? clean.slice(-ext.length - 1) : `.${ext}`;
+  const stem = keep ? clean.slice(0, -tail.length) : clean.replace(/\.(jpe?g|png|webp|gif|heic|heif|pdf)$/i, "");
+  return `${Array.from(stem).slice(0, 120 - tail.length).join("").trim().replace(/\.+$/, "") || "anexo"}${tail}`;
+}
+
 // Como o dashboard mostra cada tipo: imagens, PDF, vídeo e áudio em pré-visualização; o resto descarrega.
 export type PreviewKind = "image" | "pdf" | "video" | "audio" | "file";
 export function previewKind(type: string | null | undefined): PreviewKind {

@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const site = require("../.test-build/support/site-rules.js");
 const rules = require("../.test-build/support/rules.js");
+const limit = require("../.test-build/rate-limit.js");
 
 // Anexos da equipa no chat do site: migração, rota do widget, emails e caixa de entrada.
 const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8").replace(/\r\n/g, "\n");
@@ -40,6 +41,7 @@ const BEGIN = "create or replace function public.ldo_support_begin_send(";
 const MESSAGES = "create or replace function public.ldo_support_site_messages(";
 const CLAIM = "create or replace function public.ldo_support_site_notify_claim(";
 const END = "create or replace function public.ldo_support_site_end(";
+const SAVE = "create or replace function public.ldo_support_upload_save(";
 
 // ---------------------------------------------------------------- migração
 
@@ -61,9 +63,12 @@ test("Site attachments migration: the copied functions start from the production
       "            'body', m.body, 'at', m.created_at) as item",
       "  return jsonb_build_object('email', v.email, 'name', v.name, 'transcript', v_copy, 'messages', v_items,",
     ]],
+    ["20261007210000_ldo_support_upload_source.sql", SAVE, "2473bf9187bb35a02804caf3586a2b0f", [
+      "  if (select coalesce(sum(size), 0) from public.ldo_support_uploads where data is not null) + octet_length(v_data) > 150 * 1024 * 1024 then",
+    ]],
   ];
   for (const [file, head, live, removed] of COPIES) {
-    const src = source(file, head);
+    const src = source(file, head === SAVE ? "create function public.ldo_support_upload_save(" : head).replace(/^create function /, "create or replace function ");
     assert.equal(md5(body(src)), live, `${head}: o texto da migração de origem é o de produção`);
     assert.ok(HEADER.includes(live) && HEADER.includes(file.slice(0, 14)), `${head}: md5 e migração de origem no cabeçalho`);
     const copy = fn(SQL, head);
@@ -72,9 +77,27 @@ test("Site attachments migration: the copied functions start from the production
     assert.deepEqual(removedLines(body(src), body(copy)), removed, head);
   }
   assert.ok(HEADER.includes("Os privilégios mantêm-se (create or replace)."));
-  // Só as duas funções novas; nada de tabelas novas nem alterações às tabelas.
+  // Só as duas funções novas; nada de tabelas novas: só as três colunas do limite de ficheiros nos visitantes.
   assert.deepEqual([...SQL.matchAll(/^create function ([\w.]+)\(/gm)].map((m) => m[1]), ["ldo_private.site_files", "public.ldo_support_site_attachment"]);
-  assert.ok(!/^\s*(create|alter|drop) table/im.test(SQL.replace(/--[^\n]*/g, "")));
+  const code = SQL.replace(/--[^\n]*/g, "");
+  assert.ok(!/^\s*(create|drop) table/im.test(code));
+  assert.deepEqual([...code.matchAll(/^alter table[^;]+;/gim)].map((m) => m[0].replace(/\s+/g, " ")), [
+    "alter table public.ldo_support_site_visitors add column file_reads integer not null default 0, add column file_bytes bigint not null default 0, add column file_reads_since timestamptz;",
+  ]);
+});
+
+test("upload_save: site chat files have their own 100 MB and no longer take the 150 MB of the other channels", () => {
+  const save = fn(SQL, SAVE);
+  assert.ok(save.includes("v_site := exists (select 1 from public.ldo_support_conversations where id = p_conversation and channel = 'site');"));
+  assert.ok(save.includes("if (select coalesce(sum(u.size), 0) from public.ldo_support_uploads u join public.ldo_support_conversations c on c.id = u.conversation_id\n"
+    + "      where u.data is not null and (c.channel = 'site') = v_site) + octet_length(v_data) > (case when v_site then 100 else 150 end) * 1024 * 1024 then"));
+  assert.ok(save.includes("raise exception 'Espaço de anexos do chat do site cheio (cada ficheiro fica 30 dias). Tente mais tarde.' using errcode = '22023';"));
+  assert.ok(save.includes("raise exception 'Espaço de anexos cheio. Tente mais tarde.' using errcode = '22023';"));
+  // O limite diário por pessoa (40 MB) e o resto ficam iguais; a verificação do espaço continua dentro do bloqueio.
+  assert.ok(save.indexOf("pg_advisory_xact_lock(hashtext('ldo_support_uploads'))") < save.indexOf("v_site := exists"));
+  assert.ok(save.includes("+ octet_length(v_data) > 40 * 1024 * 1024 then"));
+  // A documentação fala dos dois espaços.
+  assert.ok(read("docs/apoio/32-atalhos-e-limites.md").includes("| Espaço dos anexos guardados no dashboard | 100 MB para o chat do site (cada ficheiro fica 30 dias) e 150 MB para os outros canais |"));
 });
 
 test("begin_send: the site chat takes images and PDF in replies; notes, the limit of 5 and the empty body stay", () => {
@@ -113,21 +136,36 @@ test("Files in the site chat functions: positions, names, types and sizes for th
 test("site_attachment: only a delivered team reply of the visitor's own conversation, with the file still stored", () => {
   const one = fn(SQL, "create function public.ldo_support_site_attachment(p_token text, p_token_hash text, p_identity_email text, p_message uuid, p_index integer)");
   for (const s of [
-    "language plpgsql stable security definer set search_path = ''",
+    "language plpgsql volatile security definer set search_path = ''",
     "perform ldo_private.bi_check(p_token);",
     "v := ldo_private.site_visitor(p_token_hash, p_identity_email);",
     "if p_message is null or p_index is null or p_index not between 0 and 4 then",
     "where m.id = p_message and m.conversation_id = v.conversation_id and m.kind = 'outbound' and m.deleted_at is null",
     "and m.delivery in ('accepted', 'delivered', 'read');",
-    "v_ref !~ '^upload:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'",
+    "if v_ref ~ '^upload:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then",
     "where u.id = substr(v_ref, 8)::uuid and u.conversation_id = v.conversation_id and u.message_id = p_message",
-    "and u.data is not null);",
+    "and u.data is not null;",
     // Só o ficheiro: nunca ids, a pessoa que o enviou nem a referência.
     "jsonb_build_object('name', u.name, 'type', u.content_type, 'size', u.size, 'data', encode(u.data, 'base64'))",
   ]) assert.ok(one.includes(s), s);
   // Cada erro tem o seu código para o widget (tests/support-site.cjs lê todas as funções do chat).
-  assert.deepEqual([...one.matchAll(/raise exception '([^']+)'/g)].map((x) => x[1]), ["Pedido inválido."]);
+  assert.deepEqual([...one.matchAll(/raise exception '([^']+)'/g)].map((x) => x[1]), ["Pedido inválido.", "Demasiados pedidos de ficheiros. Aguarde um pouco."]);
   assert.equal(site.errorCode("Pedido inválido."), "invalid_request");
+  assert.equal(site.errorCode("Demasiados pedidos de ficheiros. Aguarde um pouco."), "too_many_files");
+  // Limite: 60 ficheiros ou 60 MB por visitante em 10 minutos, contado com a linha do visitante bloqueada (pedidos em
+  // paralelo não passam ao lado); cada pedido conta, também o de um ficheiro que já não existe.
+  for (const x of [
+    "select * into v from public.ldo_support_site_visitors where id = v.id for update;",
+    "v_new := v.file_reads_since is null or v.file_reads_since < now() - interval '10 minutes';",
+    "if not v_new and (v.file_reads >= 60 or v.file_bytes >= 60 * 1024 * 1024) then",
+    "raise exception 'Demasiados pedidos de ficheiros. Aguarde um pouco.' using errcode = 'P0429';",
+    "file_reads = case when v_new then 1 else file_reads + 1 end,",
+    "file_bytes = case when v_new then 0 else file_bytes end + coalesce((v_file ->> 'size')::bigint, 0),",
+    "file_reads_since = case when v_new then now() else file_reads_since end",
+  ]) assert.ok(one.includes(x), x);
+  assert.ok(one.indexOf("for update;") < one.indexOf("select m.attachments"), "o limite antes de ler o ficheiro");
+  assert.ok(one.indexOf("update public.ldo_support_site_visitors set") < one.indexOf("return v_file;"));
+  assert.equal(one.split("return ").length - 1, 1, "um só return (o pedido conta sempre)");
 });
 
 test("Site attachments migration: the new function only for the server (anon with the server token); the helper for nobody", () => {
@@ -142,9 +180,10 @@ test("Site attachments migration: the new function only for the server (anon wit
 
 // ---------------------------------------------------------------- regras
 
-test("Site chat rules: the unavailable file has its own code; files for an email follow the order and the cap, and skip what does not fit", () => {
+test("Site chat rules: the unavailable file and the file limit have their own codes; files for an email follow the order and the cap, and skip what does not fit", () => {
   assert.equal(site.errorCode("Este ficheiro já não está disponível."), "attachment_unavailable");
   assert.ok(site.CHAT_ERROR_CODES.includes("attachment_unavailable"));
+  assert.ok(site.CHAT_ERROR_CODES.includes("too_many_files"));
   assert.deepEqual(site.SITE_FILE_TYPES, ["image/jpeg", "image/png", "image/webp", "application/pdf"]);
   assert.equal(site.EMAIL_FILES_MAX_BYTES, 7 * 1024 * 1024);
   const MB = 1024 * 1024;
@@ -157,6 +196,30 @@ test("Site chat rules: the unavailable file has its own code; files for an email
   assert.deepEqual(plan([{ id: "a", size: 2 * MB }, { id: "b", size: 2 * MB }], 3 * MB), ["a"]);
   assert.deepEqual(plan([]), []);
   assert.deepEqual(plan([{ id: "a", size: 0 }, { id: "b", size: Number.NaN }]), []);
+});
+
+test("uploadName: at most 120 characters, always ending in the real type's extension (the stem is cut, never the extension)", () => {
+  const n = rules.uploadName;
+  assert.equal(n("foto.jpg", "image/jpeg"), "foto.jpg");
+  assert.equal(n("Fatura.PDF", "application/pdf"), "Fatura.PDF");
+  assert.equal(n("IMG_1.HEIC", "image/jpeg"), "IMG_1.jpg");
+  assert.equal(n("photo.jpeg", "image/jpeg"), "photo.jpg");
+  assert.equal(n("Fio 19.2K", "application/pdf"), "Fio 19.2K.pdf", "só se tira uma extensão conhecida");
+  assert.equal(n("a/b:c?.png", "image/png"), "a_b_c_.png");
+  assert.equal(n("", "image/webp"), "anexo.webp");
+  assert.equal(n(".pdf", "application/pdf"), "anexo.pdf");
+  // Nomes compridos: o radical é cortado e a extensão fica (antes, 121 a 124 caracteres e a extensão cortada no widget).
+  const html = n("A".repeat(115) + ".html", "application/pdf");
+  assert.equal(html, "A".repeat(115) + ".pdf");
+  for (const [name, type, ext] of [["B".repeat(300) + ".svg", "image/png", ".png"], ["C".repeat(200) + ".pdf", "application/pdf", ".pdf"], ["Fatura ".repeat(30) + ".docx", "application/pdf", ".pdf"]]) {
+    const out = n(name, type);
+    assert.ok(out.length <= 120 && out.endsWith(ext), out);
+  }
+  assert.equal(Array.from(n("😀".repeat(130), "image/jpeg")).length, 120, "emojis inteiros");
+  // O dashboard usa esta função ao guardar (sem cópia própria).
+  const uploads = read("lib/support/uploads.ts");
+  assert.ok(uploads.includes("const finalName = uploadName(name, type);"));
+  assert.ok(!uploads.includes(".slice(0, 120)"));
 });
 
 test("asciiName keeps the Content-Disposition safe (no quotes or line breaks)", () => {
@@ -183,17 +246,31 @@ test("Visitor route: token in the header, the conversation checked in the DB, re
     "throw new ChatError(404, \"Este ficheiro já não está disponível.\");",
     "...corsHeaders(request),", "\"Content-Type\": real,", "\"X-Content-Type-Options\": \"nosniff\"",
     "\"Content-Security-Policy\": \"default-src 'none'; sandbox\"", "\"Referrer-Policy\": \"no-referrer\"",
+    // Limite por ligação nesta instância, antes de ir à BD (que tem o limite por visitante).
+    "if (overLimit(`chat-files:${clientKey(request)}`, IP_MAX, IP_WINDOW_MS)) throw new ChatError(429, \"Demasiados pedidos de ficheiros. Aguarde um pouco.\");",
+    "const IP_MAX = 120;", "const IP_WINDOW_MS = 10 * 60 * 1000;",
     "${real === \"application/pdf\" ? \"attachment\" : \"inline\"}; filename=\"${asciiName(name)}\"",
   ]) assert.ok(route.includes(s), s);
   // O widget lê-o de outro site: nada de CORP same-origin. Number(null) seria 0: a posição é validada como texto.
   assert.ok(!route.includes("Cross-Origin-Resource-Policy"));
   assert.ok(!route.includes("Number(q.get(\"i\"))"));
+  assert.ok(route.indexOf("overLimit(") < route.indexOf("serverRpc<"));
   // O token nunca vem no endereço.
   assert.ok(!/searchParams\.get\("(t|token|tok)"\)|q\.get\("(t|token|tok)"\)/.test(route));
   // Sem cache: corsHeaders põe no-store em todas as respostas do chat.
   assert.ok(read("lib/support/site-chat.ts").includes("\"Cache-Control\": \"no-store\","));
   // /api/chat/* é público (sem sessão do dashboard).
   assert.ok(read("proxy.ts").includes("/api/chat/"));
+});
+
+test("Request limiter: counts per key inside the window and does not count the refused requests", () => {
+  const t0 = Date.parse("2026-11-02T10:00:00Z"), W = 10 * 60 * 1000;
+  for (let i = 0; i < 3; i++) assert.equal(limit.overLimit("ip-a", 3, W, t0 + i), false);
+  assert.equal(limit.overLimit("ip-a", 3, W, t0 + 10), true);
+  assert.equal(limit.overLimit("ip-b", 3, W, t0 + 10), false, "outra chave");
+  // Os recusados não contam: passada a janela do primeiro, volta a haver lugar.
+  assert.equal(limit.overLimit("ip-a", 3, W, t0 + W), false);
+  assert.equal(limit.overLimit("ip-a", 3, W, t0 + W), true);
 });
 
 test("Emails with the team files: real attachments through Resend, up to 7 MB, only files of the conversation; nothing reaches the widget", () => {
@@ -221,7 +298,12 @@ test("Inbox: 📎 in site chat replies (up to 5, PDF too), never in its notes; n
   const inbox = read("components/support/inbox.tsx");
   assert.ok(inbox.includes("const isSiteChat = c?.conversation.platform === \"site\";"));
   assert.ok(inbox.includes("const maxAttachments = !c || isComment ? 0 : zendeskLive || ((isGmail || isSiteChat) && mode === \"reply\") ? 5 :"));
-  assert.ok(inbox.includes(": isSiteChat ? (mode === \"reply\" ? \"Até 5 imagens ou PDF: o cliente vê-os no chat (30 dias)"));
+  assert.ok(inbox.includes(": isSiteChat ? (mode === \"reply\" ? `Até 5 imagens ou PDF: o cliente vê-os no chat (30 dias)"));
+  // Email por confirmar: o aviso no título do 📎 e à vista por baixo dos anexos, antes de enviar.
+  assert.ok(inbox.includes("const siteUnconfirmed = isSiteChat && siteVisitor?.info?.verified !== true;"));
+  assert.ok(inbox.includes("${siteUnconfirmed ? ` ${UNCONFIRMED_FILES}` : \"\"}"));
+  assert.ok(inbox.includes("{siteUnconfirmed && mode === \"reply\" && pendingHere.length > 0 && <p className=\"support-warning\" role=\"note\">{UNCONFIRMED_FILES}</p>}"));
+  assert.ok(inbox.includes("Email por confirmar: se o cliente sair do site, os ficheiros seguem para o email que ele escreveu. Não envie documentos com dados pessoais ou de encomendas."));
   assert.ok(inbox.includes("!zendeskLive && !isGmail && !isSiteChat) throw new Error(\"PDF só no email, no chat do site e nos tickets Zendesk.\");"));
   assert.ok(inbox.includes("accept={isZendesk || isGmail || isSiteChat ? \"image/jpeg,image/png,image/webp,image/heic,application/pdf\""));
   assert.ok(inbox.includes("<CatalogPicker canAttach={!isSiteChat && maxAttachments > pendingHere.length}"));

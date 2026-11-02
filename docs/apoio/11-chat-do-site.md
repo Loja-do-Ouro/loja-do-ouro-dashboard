@@ -35,14 +35,14 @@ Responda **na língua do cliente** e fale **só da marca da conversa**. Para per
 
 A mensagem passa a **Entregue** quando o chat do cliente a recebe e a **Lida** quando ele a vê com o chat aberto. O chat do cliente procura mensagens novas a cada 3,5 segundos com o chat aberto e a cada 30 segundos fechado.
 
-> **Atenção:** Num chat por confirmar, o email foi escrito pelo cliente: não envie documentos com dados pessoais ou de encomendas.
+> **Atenção:** Num chat por confirmar, o email foi escrito pelo cliente: não envie documentos com dados pessoais ou de encomendas. Se o cliente sair do site, os ficheiros seguem para esse email. Ao anexar ficheiros num chat por confirmar, aparece este aviso por baixo dos anexos.
 
 ## Quando o cliente sai do site
 <!-- perguntas: O cliente fechou o chat, ainda lhe posso responder? | O cliente saiu do site, recebe a resposta? | A resposta do chat vai por email? -->
 
 Pode responder sempre. Se o cliente já não está no site (sem contacto há mais de 45 segundos), a resposta fica no chat **e segue também por email**, para o email que ele indicou, na língua e com a marca do site dele, com o primeiro nome de quem respondeu. O detalhe da mensagem diz "Cliente fora do site: resposta enviada também por email para …".
 
-Os ficheiros seguem em anexo no email, até 7 MB por email; os que não couberem ficam só no chat e o email diz isso ao cliente.
+Os ficheiros seguem em anexo no email, até 7 MB por email; os que não couberem ficam só no chat e o email diz isso ao cliente: pode vê-los no chat do site, no mesmo navegador em que falou connosco (noutro dispositivo o chat não tem a conversa), ou responder ao email para os receber de outra forma.
 
 Respostas que o cliente ainda não viu são juntadas num só email. Se o envio do email falhar ("aviso por email não enviado … Nova tentativa automática."), o sistema volta a tentar mais tarde, enquanto alguém da equipa tiver as Conversas abertas.
 
@@ -104,5 +104,7 @@ Por baixo há ligações para testar as outras línguas (PT, EN, ES, FR, DE) e a
 <!-- perguntas: O cliente pode enviar anexos no chat? | Há limite de mensagens no chat? -->
 
 - A equipa envia até 5 imagens ou PDF por resposta (até 4 MB cada); o cliente vê-os no chat durante 30 dias. O cliente não envia anexos.
+- As imagens só são descarregadas quando o cliente as tem perto do ecrã; os PDF, quando lhes toca. Se um ficheiro não carregar (por exemplo, sem rede), o cliente vê o nome e **Tentar de novo**.
+- Os ficheiros do chat do site têm um espaço próprio de 100 MB no dashboard (cada um fica 30 dias). Se estiver cheio, o 📎 Anexar diz "Espaço de anexos do chat do site cheio (cada ficheiro fica 30 dias). Tente mais tarde."; os outros canais não são afetados.
 - Mensagens do cliente até 2000 caracteres.
-- Para travar abusos, há limites de conversas novas por ligação e de mensagens seguidas; quem passa o limite vê uma mensagem a pedir para esperar.
+- Para travar abusos, há limites de conversas novas por ligação, de mensagens seguidas e de ficheiros abertos (60 ficheiros ou 60 MB em 10 minutos por conversa); quem passa o limite vê uma mensagem a pedir para esperar.

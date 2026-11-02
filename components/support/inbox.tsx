@@ -692,7 +692,11 @@ export function SupportInbox({
   const maxChars = publicReply && commentChannel ? COMMENT_MAX_CHARS[commentChannel] : 20000;
   // Texto posto por código (proposta da IA, rascunho guardado) pode passar o limite: não se publica assim.
   const overLimit = publicReply && text.length > maxChars;
-  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : isComment ? "Os comentários levam só texto (sem anexos)." : isSiteChat ? (mode === "reply" ? "Até 5 imagens ou PDF: o cliente vê-os no chat (30 dias) e, se já saiu do site, recebe-os também por email. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : "As notas internas deste canal não levam anexos.") : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
+  // Chat do site com o email por confirmar (ou ainda sem os dados do visitante): se o cliente sair do site, os ficheiros
+  // seguem para o email que ele escreveu, que pode estar errado.
+  const siteUnconfirmed = isSiteChat && siteVisitor?.info?.verified !== true;
+  const UNCONFIRMED_FILES = "Email por confirmar: se o cliente sair do site, os ficheiros seguem para o email que ele escreveu. Não envie documentos com dados pessoais ou de encomendas.";
+  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : isComment ? "Os comentários levam só texto (sem anexos)." : isSiteChat ? (mode === "reply" ? `Até 5 imagens ou PDF: o cliente vê-os no chat (30 dias) e, se já saiu do site, recebe-os também por email.${siteUnconfirmed ? ` ${UNCONFIRMED_FILES}` : ""} Formatação: linhas com "- " viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço.` : "As notas internas deste canal não levam anexos.") : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
     if (!selected) return;
@@ -1617,6 +1621,8 @@ export function SupportInbox({
                         ))}
                       </ul>
                     )}
+                    {/* Ficheiros para um cliente do chat do site com o email por confirmar: o aviso fica à vista antes de enviar. */}
+                    {siteUnconfirmed && mode === "reply" && pendingHere.length > 0 && <p className="support-warning" role="note">{UNCONFIRMED_FILES}</p>}
                   </>
                 )}
                 </div>

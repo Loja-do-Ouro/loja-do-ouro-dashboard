@@ -105,7 +105,7 @@ Antes de enviar:
 - Para retirar um anexo antes de enviar, carregue no **✕** ao lado dele.
 - Ao colar, se a área de transferência tiver texto e imagem (como acontece no Excel ou no Word), fica só o texto.
 
-Os ficheiros que envia ficam guardados no sistema até 30 dias, ou menos quando o anexo já fica guardado na própria plataforma (os que nunca chegaram a ser enviados, 1 dia; no chat do site, 30 dias: depois o cliente vê "Este ficheiro já não está disponível."). Mensagens de erro comuns: "PDF só no email, no chat do site e nos tickets Zendesk.", "PDF demasiado grande (máximo 4 MB).", "No máximo N anexo(s) nesta mensagem.", "O Facebook e o Instagram aceitam uma imagem por mensagem.", "Limite diário de anexos atingido.".
+Os ficheiros que envia ficam guardados no sistema até 30 dias, ou menos quando o anexo já fica guardado na própria plataforma (os que nunca chegaram a ser enviados, 1 dia; no chat do site, 30 dias: depois o cliente vê "Este ficheiro já não está disponível."). Mensagens de erro comuns: "PDF só no email, no chat do site e nos tickets Zendesk.", "PDF demasiado grande (máximo 4 MB).", "No máximo N anexo(s) nesta mensagem.", "O Facebook e o Instagram aceitam uma imagem por mensagem.", "Limite diário de anexos atingido.", "Espaço de anexos do chat do site cheio (cada ficheiro fica 30 dias). Tente mais tarde.".
 
 > **Atenção:** Antes de enviar uma imagem, veja se não mostra dados de outros clientes (por exemplo, uma fotografia de uma etiqueta de envio ou de um ecrã).
 

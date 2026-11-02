@@ -112,8 +112,9 @@ const CHAT_ERRORS = new Map<string, string>([
   // Estrelas do pedido de avaliação (ldo_support_site_rate).
   ["Escolha de 1 a 5 estrelas.", "rating_invalid"],
   ["Esta avaliação já não está disponível.", "survey_closed"],
-  // Ficheiro de uma resposta da equipa (/api/chat/attachments) já apagado (30 dias).
+  // Ficheiro de uma resposta da equipa (/api/chat/attachments): já apagado (30 dias) ou limite de pedidos.
   ["Este ficheiro já não está disponível.", "attachment_unavailable"],
+  ["Demasiados pedidos de ficheiros. Aguarde um pouco.", "too_many_files"],
   [CHAT_UNAVAILABLE, "chat_unavailable"],
   ["Sem permissão.", "chat_unavailable"], // token do servidor recusado (ldo_private.bi_check)
 ]);

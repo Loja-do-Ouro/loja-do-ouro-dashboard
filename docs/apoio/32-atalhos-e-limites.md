@@ -31,6 +31,8 @@
 | Anexos nos comentários | Nenhum |
 | PDF | Até 4 MB |
 | Ficheiros por email no chat do site (cliente fora do site) | Até 7 MB por email; o resto fica só no chat |
+| Espaço dos anexos guardados no dashboard | 100 MB para o chat do site (cada ficheiro fica 30 dias) e 150 MB para os outros canais |
+| Ficheiros que o cliente abre no chat do site | 60 ficheiros ou 60 MB em 10 minutos |
 | Imagens | Reduzidas a 2048 píxeis (sem dados de localização) |
 | Anexos por enviar numa conversa | 20 por pessoa |
 | Anexos recebidos que abrem no dashboard | Até 4 MB |

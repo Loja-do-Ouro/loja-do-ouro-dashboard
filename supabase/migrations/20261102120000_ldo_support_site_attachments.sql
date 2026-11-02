@@ -15,12 +15,17 @@
 --   devolve também a conversa, para o servidor confirmar os ficheiros, e notify_claim se a conversa já foi terminada
 --   (os ficheiros que não cabem no email deixam de se ver no chat). Nada disto chega ao widget.
 -- * ldo_support_site_attachment (nova): um ficheiro de uma resposta entregue na conversa do próprio visitante, enquanto
---   os bytes existirem; null quando já não está disponível.
+--   os bytes existirem; null quando já não está disponível. Limite por visitante: 60 ficheiros ou 60 MB em 10 minutos
+--   (colunas novas file_reads, file_bytes e file_reads_since em ldo_support_site_visitors; erro P0429).
+-- * ldo_support_upload_save: os ficheiros do chat do site ficam 30 dias no dashboard (os outros canais guardam a sua
+--   cópia e a do dashboard sai na limpeza diária), por isso têm um espaço próprio de 100 MB e deixam de contar nos
+--   150 MB dos outros canais.
 -- Funções alteradas, a partir do texto em produção a 02-11-2026 (pg_get_functiondef; md5 do prosrc igual ao do corpo da
 -- migração indicada): cópia com as linhas assinaladas: ldo_support_begin_send (c6515c635e40a584dae2eed5ad4a833e,
 -- 20261013100000), ldo_support_site_messages (e32eaa7e483cd3be4250efc2856973ae, 20261030120000),
--- ldo_support_site_notify_claim (e7d97d254175ddd33a35fa81a1c83a7a, 20261030120000) e ldo_support_site_end
--- (b8fd71533cbefbb709b3bc17a3e1de7b, 20261015120000).
+-- ldo_support_site_notify_claim (e7d97d254175ddd33a35fa81a1c83a7a, 20261030120000), ldo_support_site_end
+-- (b8fd71533cbefbb709b3bc17a3e1de7b, 20261015120000) e ldo_support_upload_save (2473bf9187bb35a02804caf3586a2b0f,
+-- 20261007210000).
 -- Os privilégios mantêm-se (create or replace). Compatível com o dashboard em produção (campos novos ignorados).
 -- Depende de 20261030120000.
 
@@ -41,6 +46,49 @@ $$;
 revoke all on function ldo_private.site_files(jsonb, boolean) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------- envio
+
+-- Anexos guardados (texto em produção; assinalado): o chat do site tem o seu espaço (100 MB) e os outros canais
+-- continuam com os 150 MB, sem os ficheiros do chat do site.
+create or replace function public.ldo_support_upload_save(p_token text, p_user_id uuid, p_conversation uuid, p_name text,
+  p_content_type text, p_data_b64 text, p_source_url text) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_data bytea := decode(p_data_b64, 'base64');
+  v_id uuid;
+  v_site boolean;
+begin
+  perform ldo_private.bi_check(p_token);
+  if not exists (select 1 from public.ldo_app_users where id = p_user_id and active and (support_access or is_super_admin)) then
+    raise exception 'Sem acesso ao Apoio ao Cliente.' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.ldo_support_conversations where id = p_conversation) then
+    raise exception 'Conversa não encontrada.' using errcode = 'P0002';
+  end if;
+  if (select count(*) from public.ldo_support_uploads where user_id = p_user_id and conversation_id = p_conversation and message_id is null
+      and created_at > now() - interval '1 day') >= 20 then
+    raise exception 'Demasiados anexos por enviar nesta conversa.' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtext('ldo_support_uploads'));
+  if (select coalesce(sum(size), 0) from public.ldo_support_uploads where user_id = p_user_id and created_at > now() - interval '1 day')
+      + octet_length(v_data) > 40 * 1024 * 1024 then
+    raise exception 'Limite diário de anexos atingido.' using errcode = '22023';
+  end if;
+  -- Espaço (bytes ainda guardados): os ficheiros do chat do site ficam 30 dias no dashboard (o widget lê-os daqui), por
+  -- isso têm 100 MB à parte; os outros canais, que guardam a sua cópia, continuam com 150 MB só para eles.
+  v_site := exists (select 1 from public.ldo_support_conversations where id = p_conversation and channel = 'site');
+  if (select coalesce(sum(u.size), 0) from public.ldo_support_uploads u join public.ldo_support_conversations c on c.id = u.conversation_id
+      where u.data is not null and (c.channel = 'site') = v_site) + octet_length(v_data) > (case when v_site then 100 else 150 end) * 1024 * 1024 then
+    if v_site then
+      raise exception 'Espaço de anexos do chat do site cheio (cada ficheiro fica 30 dias). Tente mais tarde.' using errcode = '22023';
+    end if;
+    raise exception 'Espaço de anexos cheio. Tente mais tarde.' using errcode = '22023';
+  end if;
+  insert into public.ldo_support_uploads (conversation_id, user_id, name, content_type, size, data, source_url)
+  values (p_conversation, p_user_id, left(btrim(p_name), 200), p_content_type, octet_length(v_data), v_data, nullif(p_source_url, ''))
+  returning id into v_id;
+  return jsonb_build_object('id', v_id, 'name', left(btrim(p_name), 200), 'type', p_content_type, 'size', octet_length(v_data));
+end;
+$$;
 
 -- Envio (texto em produção; assinalado): o chat do site aceita anexos nas respostas, com os mesmos tipos do email.
 create or replace function public.ldo_support_begin_send(p_session text, p_id uuid, p_kind text, p_body text, p_client_key uuid, p_uploads uuid[])
@@ -372,31 +420,52 @@ begin
 end;
 $$;
 
+-- Leituras de ficheiros por visitante, para o limite de ldo_support_site_attachment (janela de 10 minutos).
+alter table public.ldo_support_site_visitors
+  add column file_reads integer not null default 0,
+  add column file_bytes bigint not null default 0,
+  add column file_reads_since timestamptz;
+
 -- Um ficheiro de uma resposta da equipa, para o widget do visitante: só na conversa dele, numa resposta já entregue
 -- (não apagada) e com o anexo ligado a essa mensagem e ainda guardado (30 dias). null = já não está disponível.
+-- Limite: 60 ficheiros ou 60 MB por visitante em 10 minutos (cada leitura traz até 4 MB; o widget pede cada ficheiro
+-- uma vez por página e só as imagens perto do ecrã). Erro P0429 = aguardar.
 create function public.ldo_support_site_attachment(p_token text, p_token_hash text, p_identity_email text, p_message uuid, p_index integer)
 returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql volatile security definer set search_path = '' as $$
 declare
   v public.ldo_support_site_visitors;
   v_ref text;
+  v_file jsonb;
+  v_new boolean;
 begin
   perform ldo_private.bi_check(p_token);
   v := ldo_private.site_visitor(p_token_hash, p_identity_email);
   if p_message is null or p_index is null or p_index not between 0 and 4 then
     raise exception 'Pedido inválido.' using errcode = '22023';
   end if;
+  select * into v from public.ldo_support_site_visitors where id = v.id for update;
+  v_new := v.file_reads_since is null or v.file_reads_since < now() - interval '10 minutes';
+  if not v_new and (v.file_reads >= 60 or v.file_bytes >= 60 * 1024 * 1024) then
+    raise exception 'Demasiados pedidos de ficheiros. Aguarde um pouco.' using errcode = 'P0429';
+  end if;
   select m.attachments -> p_index ->> 'ref' into v_ref
   from public.ldo_support_messages m
   where m.id = p_message and m.conversation_id = v.conversation_id and m.kind = 'outbound' and m.deleted_at is null
     and m.delivery in ('accepted', 'delivered', 'read');
-  if v_ref is null or v_ref !~ '^upload:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-    return null;
-  end if;
-  return (select jsonb_build_object('name', u.name, 'type', u.content_type, 'size', u.size, 'data', encode(u.data, 'base64'))
+  if v_ref ~ '^upload:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    select jsonb_build_object('name', u.name, 'type', u.content_type, 'size', u.size, 'data', encode(u.data, 'base64')) into v_file
     from public.ldo_support_uploads u
     where u.id = substr(v_ref, 8)::uuid and u.conversation_id = v.conversation_id and u.message_id = p_message
-      and u.data is not null);
+      and u.data is not null;
+  end if;
+  -- Cada pedido conta (também os de um ficheiro que já não existe), com os bytes do que é entregue.
+  update public.ldo_support_site_visitors set
+    file_reads = case when v_new then 1 else file_reads + 1 end,
+    file_bytes = case when v_new then 0 else file_bytes end + coalesce((v_file ->> 'size')::bigint, 0),
+    file_reads_since = case when v_new then now() else file_reads_since end
+  where id = v.id;
+  return v_file;
 end;
 $$;
 

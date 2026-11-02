@@ -181,11 +181,11 @@ test("Team files in the emails: a files-only reply has no empty quote; names are
   const files = [{ name: "foto <1>.jpg", status: "attached" }, { name: "certificado.pdf", status: "chat" }, { name: "fatura.pdf", status: "missing" }];
   const pt = i18n.replyEmail({ site: "ldo", locale: "pt", name: "Ana", items: [{ body: "", author: "Rita", files }] }, BASE);
   assert.doesNotMatch(pt.html, /white-space:pre-wrap"><\/div>/, "sem citação vazia");
-  assert.match(pt.html, /pre-wrap">📎 foto &lt;1&gt;\.jpg\n📎 certificado\.pdf \(grande demais para este email: pode vê-lo no chat\)\n📎 fatura\.pdf \(não seguiu neste email: responda e enviamo-lo de outra forma\)<\/div>/);
+  assert.match(pt.html, /pre-wrap">📎 foto &lt;1&gt;\.jpg\n📎 certificado\.pdf \(demasiado grande para este email: pode vê-lo no chat do site, no mesmo navegador em que falou connosco, ou responda e enviamo-lo de outra forma\)\n📎 fatura\.pdf \(não seguiu neste email: responda e enviamo-lo de outra forma\)<\/div>/);
   assert.doesNotMatch(pt.html, /foto <1>/);
   // Pré-visualização: o nome do primeiro ficheiro (a resposta não tem texto).
   assert.match(pt.html, /color:transparent">foto &lt;1&gt;\.jpg<\/div>/);
-  assert.match(pt.text, /\nRita · Loja do Ouro:\n📎 foto <1>\.jpg\n📎 certificado\.pdf \(grande demais para este email: pode vê-lo no chat\)\n📎 fatura\.pdf \(não seguiu/);
+  assert.match(pt.text, /\nRita · Loja do Ouro:\n📎 foto <1>\.jpg\n📎 certificado\.pdf \(demasiado grande para este email: pode vê-lo no chat do site, no mesmo navegador em que falou connosco, ou responda e enviamo-lo de outra forma\)\n📎 fatura\.pdf \(não seguiu/);
   // Com texto: o texto, uma linha em branco e os ficheiros; a pré-visualização é o texto.
   const withText = i18n.replyEmail({ site: "ldo", locale: "pt", name: "Ana", items: [{ body: `Segue o certificado: ${LINK}`, author: "Rita", files: files.slice(0, 1) }] }, BASE);
   assert.match(withText.html, /<a href="https:\/\/www\.lojadoouro\.pt\/products\/anel-ouro\?variant=1"[^>]*>[^<]+<\/a>\n\n📎 foto &lt;1&gt;\.jpg<\/div>/);
@@ -195,10 +195,16 @@ test("Team files in the emails: a files-only reply has no empty quote; names are
     i18n.replyEmail({ site: "ldo", locale: "pt", name: "Ana", items: [{ ...items[0], files: [] }] }, BASE).html);
 
   const en = i18n.replyEmail({ site: "gsp", locale: "en", name: "John", items: [{ body: "", author: "Rita", files }] }, BASE);
-  assert.match(en.text, /📎 certificado\.pdf \(too large for this email: you can see it in the chat\)/);
+  assert.match(en.text, /📎 certificado\.pdf \(too large for this email: you can see it in the chat on our website, in the same browser you used to talk to us, or reply and we will send it another way\)/);
   assert.match(en.text, /📎 fatura\.pdf \(not included in this email: reply and we will send it another way\)/);
   const fr = i18n.replyEmail({ site: "gsp", locale: "fr", name: "Luc", items: [{ body: "", author: "Rita", files }] }, BASE);
-  assert.match(fr.text, /📎 certificado\.pdf \(trop volumineux pour cet e-mail : vous pouvez le voir dans le chat\)/);
+  assert.match(fr.text, /📎 certificado\.pdf \(trop volumineux pour cet e-mail : vous pouvez le voir dans le chat du site, dans le navigateur utilisé pour nous écrire, ou répondez-nous et nous vous l’enverrons autrement\)/);
+  // Em todas as línguas, um ficheiro que ficou só no chat diz em que navegador se vê e que se pode responder ao email.
+  const where = { pt: /mesmo navegador.*responda/, en: /same browser.*reply/, es: /mismo navegador.*responda/, fr: /navigateur.*répondez/, de: /selben Browser.*antworten/ };
+  for (const locale of SITE_LOCALES) {
+    const mail = i18n.replyEmail({ site: "ldo", locale, name: "A", items: [{ body: "", author: "Rita", files: files.slice(1, 2) }] }, BASE);
+    assert.match(mail.text, where[locale], locale);
+  }
   // A Gold Store Premium nunca fala da Loja do Ouro, também nas linhas dos ficheiros.
   for (const locale of SITE_LOCALES) {
     const mail = i18n.replyEmail({ site: "gsp", locale, name: "A", items: [{ body: "", author: "Rita", files }] }, BASE);
