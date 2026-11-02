@@ -11,7 +11,11 @@ export function OPTIONS(request: Request) {
 
 type Messages = {
   name: string; verified: boolean; typing: boolean;
-  messages: { id: string; from: "visitor" | "team"; author: string | null; key: string | null; body: string; created_at: string; inserted_at: string }[];
+  messages: {
+    id: string; from: "visitor" | "team"; author: string | null; key: string | null; body: string; created_at: string; inserted_at: string;
+    // Anexos de uma resposta da equipa (posição, nome, tipo e tamanho; o ficheiro em /api/chat/attachments).
+    attachments?: { i: number; name: string; type: string; size: number }[];
+  }[];
 };
 
 // Mensagens da conversa do visitante (desde ?depois=<inserted_at>). Com ?aberto=1 o chat está à vista:

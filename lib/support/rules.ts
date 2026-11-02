@@ -348,6 +348,11 @@ export function sniffType(b: Uint8Array): string | null {
   return null;
 }
 
+// Nome só com ASCII para o filename= do Content-Disposition (o nome completo segue em filename*).
+export function asciiName(name: string) {
+  return (name || "anexo").normalize("NFKD").replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "anexo";
+}
+
 // Como o dashboard mostra cada tipo: imagens, PDF, vídeo e áudio em pré-visualização; o resto descarrega.
 export type PreviewKind = "image" | "pdf" | "video" | "audio" | "file";
 export function previewKind(type: string | null | undefined): PreviewKind {

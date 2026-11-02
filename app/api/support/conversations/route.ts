@@ -5,6 +5,8 @@ import { importTicket, zendeskConfigured, zendeskOff } from "@/lib/support/zende
 import { handle, json, supportViewer } from "@/lib/support/http";
 
 export const dynamic = "force-dynamic";
+// Os avisos por email do chat do site (after) podem levar ficheiros em anexo.
+export const maxDuration = 60;
 
 const FILTERS = new Set(["all", "mine", "unassigned", "unread", "auto"]);
 

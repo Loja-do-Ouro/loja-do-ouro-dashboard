@@ -112,6 +112,8 @@ const CHAT_ERRORS = new Map<string, string>([
   // Estrelas do pedido de avaliação (ldo_support_site_rate).
   ["Escolha de 1 a 5 estrelas.", "rating_invalid"],
   ["Esta avaliação já não está disponível.", "survey_closed"],
+  // Ficheiro de uma resposta da equipa (/api/chat/attachments) já apagado (30 dias).
+  ["Este ficheiro já não está disponível.", "attachment_unavailable"],
   [CHAT_UNAVAILABLE, "chat_unavailable"],
   ["Sem permissão.", "chat_unavailable"], // token do servidor recusado (ldo_private.bi_check)
 ]);
@@ -119,6 +121,26 @@ export const CHAT_ERROR_CODES = [...new Set(CHAT_ERRORS.values()), "unknown"];
 
 export function errorCode(message: unknown) {
   return (typeof message === "string" && CHAT_ERRORS.get(message.trim())) || "unknown";
+}
+
+// Anexos da equipa no chat do site: os tipos que o widget mostra (os do email) e o máximo de bytes dos ficheiros num
+// email ao cliente (7 MB, cerca de 9,5 MB em base64: abaixo do limite de 10 MB de muitas caixas de correio).
+export const SITE_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+export const EMAIL_FILES_MAX_BYTES = 7 * 1024 * 1024;
+
+// Ficheiros que seguem num email, pela ordem das mensagens: cada um entra se o total não passar o máximo; um que não
+// cabe não impede os seguintes, mais pequenos. Um id repetido conta uma vez.
+export function planEmailFiles(files: { id: string; size: number }[], maxBytes: number): Set<string> {
+  const out = new Set<string>();
+  let total = 0;
+  for (const f of files) {
+    if (out.has(f.id) || !(f.size > 0)) continue;
+    if (total + f.size <= maxBytes) {
+      out.add(f.id);
+      total += f.size;
+    }
+  }
+  return out;
 }
 
 export function isEmail(v: unknown): v is string {
