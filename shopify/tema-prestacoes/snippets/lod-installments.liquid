@@ -338,10 +338,20 @@
     letter-spacing: -.005em;
   }
   .lodp-inst__logo { display: block; width: auto; height: 14px; margin-top: 1px; }
-  .lodp-inst__klarna { display: block; width: 100%; min-height: 22px; }
-  .lodp-inst__klarna::part(osm-container) { font-family: var(--font-body-family, Arial, sans-serif); }
-  .lodp-inst__klarna::part(osm-message) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; color: var(--text); }
-  .lodp-inst__klarna::part(osm-cta) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; color: var(--ink); }
+  /* Klarna (Part API oficial): só contentor, letra, tamanho e cor. Logótipo, texto legal e modal ficam intactos. */
+  .lodp-inst__klarna { display: block; width: 100%; min-height: 44px; }
+  .lodp-inst__klarna::part(osm-container) {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 0;
+    text-align: left;
+    background-color: transparent;
+    border-color: transparent;
+    font-family: var(--font-body-family, Arial, sans-serif);
+  }
+  .lodp-inst__klarna::part(osm-message) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; line-height: 1.45; color: var(--text); }
+  .lodp-inst__klarna::part(osm-cta) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; font-weight: 600; color: var(--ink); }
+  .lodp-inst__klarna::part(osm-legal) { font-family: var(--font-body-family, Arial, sans-serif); color: var(--muted); }
   .lodp-inst__line {
     display: block;
     min-height: 1.45em;
@@ -429,7 +439,6 @@
   }
   @media (max-width: 849px) {
     .lodp-inst__title { font-size: 16px; }
-    .lodp-inst__klarna { min-height: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .lodp-inst__body, .lodp-inst__example summary::before { transition: none !important; }
@@ -535,7 +544,8 @@
       /* ----- Klarna: placement oficial; o SDK é carregado pela app Klarna ----- */
       function klarnaReady() {
         var r = kPl && kPl.shadowRoot;
-        return !!(r && (r.textContent || '').replace(/\s+/g, '').length > 3);
+        var m = r && r.querySelector('[part~="osm-message"]');
+        return !!(m && (m.textContent || '').trim());
       }
       function klarnaWait() {
         if (!kPl || !inRange(cfg.klarna)) return;
