@@ -9,7 +9,8 @@
        Opção «Diretiva 2023/2225»: «3x [valor] · TAN 0% · TAEG 0% · crédito [credito]».
      - seQura: «Ou pague em até [n]x», sem valores. [n] vem da definição e é confirmado pela seQura.
        Como «até [n]x» inclui planos com custos, a TAEG de cada plano com custos fica SEMPRE à vista
-       (DL 133/2009, art. 5.º, n.ºs 1 a 3), em Arial 16 px = 12 pt, a letra de referência do Aviso do BdP n.º 5/2024.
+       (DL 133/2009, art. 5.º, n.ºs 1 a 3), na letra dos títulos (Oswald) com a altura das maiúsculas de Arial 12 pt
+       (16 px), a letra de referência do Aviso do BdP n.º 5/2024; o guia do BdP mede a equivalência pela altura das letras.
        Esses valores só existem na seQura: a linha da TAEG tem a altura reservada desde o início e é preenchida
        quando a seQura responde. Se a seQura falhar (bloqueada, sem rede, 8 s sem resposta), a linha seQura sai logo.
   2. Logótipos oficiais em SVG embutido (sem pedidos externos):
@@ -455,24 +456,31 @@
     cursor: pointer;
   }
   .lodp-inst .lodp-inst__more:hover { text-decoration-color: currentColor; }
-  /* Informação obrigatória (TAEG, aviso, diálogos): Arial 16 px = 12 pt, a letra e o tamanho de referência do BdP */
+  /* Informação obrigatória (aviso, diálogos): Arial 16 px = 12 pt, a letra e o tamanho de referência do BdP */
+  /* TAEG: letra dos títulos e dos valores Peso/Toque/Metal (Oswald), estreita, para caber por baixo do texto.
+     O BdP mede a equivalência pela altura das letras: maiúsculas de 11,7 px ≥ Arial 16 px (11,5 px).
+     font-size-adjust fixa essa altura mesmo que a letra dos títulos mude no tema. Cor 7,3:1 sobre o fundo */
   .lodp-inst__taeg {
     grid-column: 2 / -1;
     padding-left: 14px;
-    color: var(--text);
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 16px;
+    color: #5a554b;
+    font-family: var(--font-heading-family, Oswald, sans-serif);
+    font-size: 14.5px;
+    font-size-adjust: cap-height .81;
     font-weight: 400;
     line-height: 20px;
+    letter-spacing: .02em;
   }
   .lodp-inst__taeg[data-inst-pending] { color: var(--muted); }
   .lodp-inst__warning { display: block; margin: 14px 0 0; color: var(--ink); font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 700; line-height: 20px; }
-  /* Altura da TAEG reservada desde a 1.ª pintura: 2 linhas onde o texto final (medido em Arial 16 px) não cabe numa */
-  @media (min-width: 850px) {
-    @container lodpinst (max-width: 411.9px) { .lodp-inst__taeg { min-height: 40px; } }
-    @container lodpinst (max-width: 427.9px) { .lodp-inst[data-lang="fr"] .lodp-inst__taeg { min-height: 40px; } }
-    @container lodpinst (max-width: 485.9px) { .lodp-inst[data-lang="de"] .lodp-inst__taeg { min-height: 40px; } }
-  }
+  /* Larguras medidas com o pior caso «12x 88,88%»: PT/EN/ES/IT 253 px, FR 265 px, DE 311 px.
+     Alinhada com o texto (72 + 14 px) onde cabe; senão ocupa a largura toda; 2 linhas reservadas desde a 1.ª pintura onde nem assim cabe */
+  @container lodpinst (max-width: 342.9px) { .lodp-inst__taeg { grid-column: 1 / -1; padding-left: 0; } }
+  @container lodpinst (max-width: 354.9px) { .lodp-inst[data-lang="fr"] .lodp-inst__taeg { grid-column: 1 / -1; padding-left: 0; } }
+  @container lodpinst (max-width: 400.9px) { .lodp-inst[data-lang="de"] .lodp-inst__taeg { grid-column: 1 / -1; padding-left: 0; } }
+  @container lodpinst (max-width: 256.9px) { .lodp-inst__taeg { min-height: 40px; } }
+  @container lodpinst (max-width: 268.9px) { .lodp-inst[data-lang="fr"] .lodp-inst__taeg { min-height: 40px; } }
+  @container lodpinst (max-width: 314.9px) { .lodp-inst[data-lang="de"] .lodp-inst__taeg { min-height: 40px; } }
 
   .lodp-inst__dlg {
     width: min(560px, calc(100vw - 32px));
@@ -549,14 +557,10 @@
       white-space: nowrap !important;
     }
     .lodp-inst__row { font-size: 15px; }
-    .lodp-inst__taeg { grid-column: 1 / -1; padding-left: 0; }
     .lodp-inst__dlg-in { padding: 18px 18px 20px; }
     @container lodpinst (max-width: 340px) {
       .lodp-inst__row, .lodp-inst .lodp-inst__more { font-size: 14px; }
     }
-    @container lodpinst (max-width: 323.9px) { .lodp-inst__taeg { min-height: 40px; } }
-    @container lodpinst (max-width: 339.9px) { .lodp-inst[data-lang="fr"] .lodp-inst__taeg { min-height: 40px; } }
-    @container lodpinst (max-width: 397.9px) { .lodp-inst[data-lang="de"] .lodp-inst__taeg { min-height: 40px; } }
   }
 </style>
 
