@@ -124,6 +124,7 @@ type Pending = {
   visitor: string; conversation: string; email: string; name: string; until: string; replies: string[];
   items?: { body: string; author: string | null; files?: SiteFile[] }[];
   locale?: string | null; site?: string | null; country?: string | null; // língua, loja e país do visitante
+  ended?: boolean; // conversa terminada no widget: o chat já não mostra os ficheiros
 };
 
 // Bytes dos ficheiros que seguem no email de um visitante (os que cabem nos 7 MB).
@@ -154,7 +155,8 @@ export async function notifySiteVisitors(opts: { conversation: string | null; id
     await serverRpc("ldo_support_site_notify_done", { p_visitor: p.visitor, p_until: p.until, p_ok: r.ok }).catch(() => undefined);
     detail = r.ok
       ? `Cliente fora do site: resposta enviada também por email para ${p.email}${r.files ? ` com ${r.files} anexo(s)` : ""}`
-        + `${r.left ? `; ${r.left} anexo(s) ficaram só no chat (limite de 7 MB por email)` : ""}.`
+        + `${r.left ? `; ${r.left} anexo(s) ficaram só no chat (limite de 7 MB por email)` : ""}`
+        + `${r.missing ? `; ${r.missing} anexo(s) não seguiram no email` : ""}.`
       : `Cliente fora do site; aviso por email não enviado (${r.detail}). Nova tentativa automática.`;
   }
   return detail;
@@ -185,19 +187,21 @@ async function loadEmailFiles(conversation: string, files: SiteFile[], maxBytes:
 }
 
 // Na língua e com a marca do site do visitante (quem respondeu aparece só com o primeiro nome, como no chat). Os
-// ficheiros seguem em anexo até 7 MB; os que não cabem ficam no chat e o email diz isso ao cliente.
-async function sendReplies(p: Pending): Promise<{ ok: boolean; detail: string; files: number; left: number }> {
-  if (!emailConfigured()) return { ok: false, detail: "RESEND_API_KEY por configurar", files: 0, left: 0 };
+// ficheiros seguem em anexo até 7 MB; os que não cabem ficam no chat (numa conversa já terminada, só nomeados) e o
+// email diz isso ao cliente.
+async function sendReplies(p: Pending): Promise<{ ok: boolean; detail: string; files: number; left: number; missing: number }> {
+  if (!emailConfigured()) return { ok: false, detail: "RESEND_API_KEY por configurar", files: 0, left: 0, missing: 0 };
   const replies = p.items?.length ? p.items : (p.replies || []).map((body) => ({ body, author: null as string | null, files: [] as SiteFile[] }));
   const all = replies.flatMap((r) => r.files || []);
-  const f = await loadEmailFiles(p.conversation, all, EMAIL_FILES_MAX_BYTES, "chat");
+  const f = await loadEmailFiles(p.conversation, all, EMAIL_FILES_MAX_BYTES, p.ended ? "missing" : "chat");
   const items = replies.map((r) => ({ body: r.body, author: r.author, files: (r.files || []).map((x) => ({ name: x.name, status: f.status(x.id) })) }));
   const mail = replyEmail({ site: p.site, locale: p.locale, country: p.country, name: p.name, items }, baseUrl(), chatOrigin());
   const sent = await sendEmail([p.email], mail.subject, mail.html, {
     from: supportEmailFrom(visitorLang(p.site, p.locale).site), replyTo: supportReplyTo(), text: mail.text,
     attachments: f.attachments, timeoutMs: f.attachments.length ? 30000 : 8000,
   });
-  return { ...sent, files: f.count, left: all.filter((x) => f.status(x.id) === "chat").length };
+  const count = (s: EmailFile["status"]) => all.filter((x) => f.status(x.id) === s).length;
+  return { ...sent, files: f.count, left: count("chat"), missing: count("missing") };
 }
 
 export type Transcript = {

@@ -12,7 +12,8 @@
 -- * ldo_support_site_messages: cada resposta da equipa traz "attachments" (sem ids nem referências).
 -- * ldo_support_site_notify_claim e ldo_support_site_end: cada resposta traz "files" com o id do anexo, para o email ao
 --   cliente que saiu do site e a cópia da conversa seguirem com os ficheiros em anexo (até 7 MB por email); site_end
---   devolve também a conversa, para o servidor confirmar os ficheiros. Nada disto chega ao widget.
+--   devolve também a conversa, para o servidor confirmar os ficheiros, e notify_claim se a conversa já foi terminada
+--   (os ficheiros que não cabem no email deixam de se ver no chat). Nada disto chega ao widget.
 -- * ldo_support_site_attachment (nova): um ficheiro de uma resposta entregue na conversa do próprio visitante, enquanto
 --   os bytes existirem; null quando já não está disponível.
 -- Funções alteradas, a partir do texto em produção a 02-11-2026 (pg_get_functiondef; md5 do prosrc igual ao do corpo da
@@ -298,7 +299,8 @@ begin
     update public.ldo_support_site_visitors set notify_lease_until = now() + interval '2 minutes' where id = v.id;
     v_out := v_out || jsonb_build_array(jsonb_build_object('visitor', v.id, 'conversation', v.conversation_id, 'email', v.email,
       'name', v.name, 'until', v_until, 'replies', v_replies, 'items', v_items,
-      'locale', v.locale, 'site', v.site, 'country', v.country));
+      -- ended: conversa terminada no widget (os ficheiros que não cabem no email já não se veem no chat).
+      'locale', v.locale, 'site', v.site, 'country', v.country, 'ended', v.ended_at is not null));
   end loop;
   return v_out;
 end;
