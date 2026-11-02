@@ -1,0 +1,665 @@
+{%- comment -%}
+  LOJA DO OURO — PAGAMENTO EM PRESTAÇÕES (Klarna + seQura) / v1 — 02-11-2026
+  Renderizado por sections/lod-main-product.liquid logo a seguir à linha do preço.
+  Parâmetros: product, variant, s (section.settings), sid (section.id), lang (pt|en|es|fr|de|it)
+
+  Regras seguidas (pesquisa de 02-11-2026; não é parecer jurídico):
+  - Klarna: a linha com o valor é o placement OFICIAL <klarna-placement data-key="credit-promotion-auto-size">.
+    Texto, arredondamento, logótipo e modal «Saber mais» são da Klarna; aqui só se muda letra, tamanho e cor (::part).
+    O script da app Klarna (ScriptTag) carrega o SDK e reescreve data-purchase-amount com o preço da variante de ?variant=.
+  - seQura: prestação, n.º de prestações, TAEG e exemplo vêm SEMPRE de Sequra.computeCreditAgreements
+    (nada fixo no código). «Saber mais» abre o pop-up oficial (.sequra-educational-popup).
+    A biblioteca seQura é carregada pela app seQura (widget ligado na app). Não desligar o widget na app.
+  - Cada linha só aparece dentro dos limites das definições, no país e moeda certos e fora dos produtos excluídos.
+  - Atualiza com o evento 'lodp:variant-change' que a ficha emite ao mudar de variante.
+  Textos: por omissão em 6 línguas (abaixo); se o campo do editor estiver preenchido, substitui em todas
+  as línguas (traduzível na app Translate & Adapt). Marcas: [n], [valor], [taeg] e as do exemplo.
+{%- endcomment -%}
+{%- liquid
+  assign inst_country = localization.country.iso_code | default: 'PT' | upcase
+  assign inst_currency = cart.currency.iso_code | default: shop.currency | upcase
+  assign inst_cents = variant.price
+  assign inst_cc = ',' | append: inst_country | append: ','
+
+  # ----- Produtos excluídos (cartões-oferta, vouchers, ouro de investimento, etiquetas/tipos nas definições) -----
+  assign inst_excluded = false
+  if product.gift_card?
+    assign inst_excluded = true
+  endif
+  assign inst_ex_tags = s.inst_excluded_tags | downcase | split: ','
+  for inst_tag in product.tags
+    assign inst_tag_d = inst_tag | downcase | strip
+    for inst_ex in inst_ex_tags
+      assign inst_ex_d = inst_ex | strip
+      if inst_ex_d != blank and inst_ex_d == inst_tag_d
+        assign inst_excluded = true
+      endif
+    endfor
+  endfor
+  assign inst_type_d = product.type | downcase | strip
+  if inst_type_d != blank
+    assign inst_ex_types = s.inst_excluded_types | downcase | split: ','
+    for inst_ex in inst_ex_types
+      assign inst_ex_d = inst_ex | strip
+      if inst_ex_d != blank and inst_ex_d == inst_type_d
+        assign inst_excluded = true
+      endif
+    endfor
+  endif
+
+  # ----- Mercado e moeda -----
+  assign inst_k_countries = s.inst_klarna_countries | upcase | remove: ' ' | prepend: ',' | append: ','
+  assign inst_s_countries = s.inst_sequra_countries | upcase | remove: ' ' | prepend: ',' | append: ','
+  assign inst_k_market = false
+  if s.inst_klarna and inst_currency == 'EUR' and inst_k_countries contains inst_cc
+    assign inst_k_market = true
+  endif
+  assign inst_s_market = false
+  if s.inst_sequra and inst_currency == 'EUR' and inst_s_countries contains inst_cc
+    assign inst_s_market = true
+  endif
+
+  # ----- Limites (em cêntimos) -----
+  assign inst_k_min = s.inst_klarna_min | default: 35 | times: 100 | round
+  assign inst_k_max = s.inst_klarna_max | default: 1000 | times: 100 | round
+  assign inst_s_min = s.inst_sequra_min | default: 50 | times: 100 | round
+  assign inst_s_max = s.inst_sequra_max | default: 3000 | times: 100 | round
+
+  # Alguma variante pode mostrar a linha? (senão a linha nem é desenhada)
+  if product.price_max < inst_k_min or product.price_min > inst_k_max
+    assign inst_k_market = false
+  endif
+  if product.price_max < inst_s_min or product.price_min > inst_s_max
+    assign inst_s_market = false
+  endif
+
+  assign inst_k_show = false
+  if inst_k_market and inst_cents >= inst_k_min and inst_cents <= inst_k_max
+    assign inst_k_show = true
+  endif
+  assign inst_s_show = false
+  if inst_s_market and inst_cents >= inst_s_min and inst_cents <= inst_s_max
+    assign inst_s_show = true
+  endif
+
+  # ----- Locale da Klarna (os que a conta tem ativos; senão inglês do país, como faz a app) -----
+  assign inst_k_locale = lang | append: '-' | append: inst_country
+  assign inst_k_known = ',pt-PT,en-PT,es-ES,en-ES,fr-FR,en-FR,fr-BE,nl-BE,en-BE,'
+  assign inst_k_probe = ',' | append: inst_k_locale | append: ','
+  unless inst_k_known contains inst_k_probe
+    assign inst_k_locale = 'en-' | append: inst_country
+  endunless
+
+  assign inst_s_product = s.inst_sequra_product | default: 'pp3' | strip
+
+  # ----- Textos por língua -----
+  case lang
+    when 'en'
+      assign t_label = 'Pay in instalments'
+      assign t_k_title = 'Pay in 3 interest-free instalments'
+      assign t_k_note = 'APRC 0%. Subject to approval. No fees if you pay on time; late fees may apply.'
+      assign t_s_title = 'Or up to [n] instalments with'
+      assign t_s_line = 'From [valor]/month · APRC [taeg]'
+      assign t_s_free = 'or [n] instalments at no cost'
+      assign t_s_note = 'Subject to approval.'
+      assign t_more = 'Learn more'
+      assign t_more_sr = 'about paying in instalments with seQura'
+      assign t_ex_sum = 'Representative example'
+      assign t_ex = 'Cash price [preco], paid in [n] monthly instalments of [valor] (including a fixed fee of [custo_mes] per month). Borrowing rate [tan] · APRC [taeg] · total cost of credit [custo_credito] · total amount payable [total].'
+      assign t_over = 'Any amount above [max] is paid with the first instalment.'
+      assign t_lender = 'Financial service provided by SVEA Bank AB; seQura acts as IT service provider. Where consumer credit rules apply, Lendismart Unipessoal Lda acts as tied credit intermediary, registered with Banco de Portugal under no. 0006212.'
+      assign t_warning = 'Warning! Borrowing money costs money.'
+    when 'es'
+      assign t_label = 'Pago a plazos'
+      assign t_k_title = 'Paga en 3 plazos sin intereses'
+      assign t_k_note = 'TAE 0 %. Sujeto a aprobación. Sin coste si pagas a tiempo; pueden aplicarse cargos por demora.'
+      assign t_s_title = 'O hasta [n] plazos con'
+      assign t_s_line = 'Desde [valor]/mes · TAE [taeg]'
+      assign t_s_free = 'o [n] plazos sin coste'
+      assign t_s_note = 'Sujeto a aprobación.'
+      assign t_more = 'Más información'
+      assign t_more_sr = 'sobre el pago a plazos con seQura'
+      assign t_ex_sum = 'Ejemplo representativo'
+      assign t_ex = 'Precio al contado [preco], en [n] cuotas mensuales de [valor] (incluye [custo_mes] de coste fijo al mes). TIN [tan] · TAE [taeg] · coste total del crédito [custo_credito] · importe total adeudado [total].'
+      assign t_over = 'El importe que supere [max] se paga con la primera cuota.'
+      assign t_lender = 'Servicio financiero prestado por SVEA Bank AB; seQura actúa como proveedor de servicios de TI. Cuando se apliquen las normas de crédito al consumo, Lendismart Unipessoal Lda actúa como intermediario de crédito vinculado, registrado en el Banco de Portugal con el n.º 0006212.'
+      assign t_warning = '¡Atención! Pedir dinero prestado cuesta dinero.'
+    when 'fr'
+      assign t_label = 'Paiement en plusieurs fois'
+      assign t_k_title = 'Payez en 3 fois sans intérêts'
+      assign t_k_note = "TAEG 0 %. Sous réserve d'acceptation. Sans frais si vous payez à temps ; des frais de retard peuvent s'appliquer."
+      assign t_s_title = "Ou jusqu'à [n] fois avec"
+      assign t_s_line = 'Dès [valor]/mois · TAEG [taeg]'
+      assign t_s_free = 'ou [n] fois sans frais'
+      assign t_s_note = "Sous réserve d'acceptation."
+      assign t_more = 'En savoir plus'
+      assign t_more_sr = 'sur le paiement en plusieurs fois avec seQura'
+      assign t_ex_sum = 'Exemple représentatif'
+      assign t_ex = 'Prix au comptant [preco], en [n] mensualités de [valor] (dont [custo_mes] de frais fixes par mois). Taux débiteur [tan] · TAEG [taeg] · coût total du crédit [custo_credito] · montant total dû [total].'
+      assign t_over = 'Le montant au-delà de [max] est réglé avec la première échéance.'
+      assign t_lender = "Service financier fourni par SVEA Bank AB ; seQura agit en tant que prestataire de services informatiques. Lorsque les règles du crédit à la consommation s'appliquent, Lendismart Unipessoal Lda agit en tant qu'intermédiaire de crédit lié, enregistré auprès de la Banco de Portugal sous le n° 0006212."
+      assign t_warning = "Attention ! Emprunter de l'argent coûte de l'argent."
+    when 'de'
+      assign t_label = 'Ratenzahlung'
+      assign t_k_title = 'In 3 zinsfreien Raten zahlen'
+      assign t_k_note = 'Effektiver Jahreszins 0 %. Vorbehaltlich Genehmigung. Keine Kosten bei pünktlicher Zahlung; Verzugsgebühren möglich.'
+      assign t_s_title = 'Oder bis zu [n] Raten mit'
+      assign t_s_line = 'Ab [valor]/Monat · eff. Jahreszins [taeg]'
+      assign t_s_free = 'oder [n] Raten ohne Kosten'
+      assign t_s_note = 'Vorbehaltlich Genehmigung.'
+      assign t_more = 'Mehr erfahren'
+      assign t_more_sr = 'über Ratenzahlung mit seQura'
+      assign t_ex_sum = 'Repräsentatives Beispiel'
+      assign t_ex = 'Barzahlungspreis [preco], in [n] Monatsraten zu je [valor] (inkl. [custo_mes] Fixgebühr pro Monat). Sollzinssatz [tan] · effektiver Jahreszins [taeg] · Gesamtkosten des Kredits [custo_credito] · Gesamtbetrag [total].'
+      assign t_over = 'Der Betrag über [max] wird mit der ersten Rate bezahlt.'
+      assign t_lender = 'Finanzdienstleistung der SVEA Bank AB; seQura handelt als IT-Dienstleister. Soweit Verbraucherkreditrecht gilt, handelt Lendismart Unipessoal Lda als gebundener Kreditvermittler, registriert bei der Banco de Portugal unter Nr. 0006212.'
+      assign t_warning = 'Achtung! Geld zu leihen kostet Geld.'
+    when 'it'
+      assign t_label = 'Pagamento a rate'
+      assign t_k_title = 'Paga in 3 rate senza interessi'
+      assign t_k_note = 'TAEG 0%. Soggetto ad approvazione. Nessun costo se paghi in tempo; possono applicarsi penali per ritardo.'
+      assign t_s_title = 'Oppure fino a [n] rate con'
+      assign t_s_line = 'Da [valor]/mese · TAEG [taeg]'
+      assign t_s_free = 'o [n] rate senza costi'
+      assign t_s_note = 'Soggetto ad approvazione.'
+      assign t_more = 'Scopri di più'
+      assign t_more_sr = 'sul pagamento a rate con seQura'
+      assign t_ex_sum = 'Esempio rappresentativo'
+      assign t_ex = 'Prezzo in contanti [preco], in [n] rate mensili da [valor] (incluso un costo fisso di [custo_mes] al mese). TAN [tan] · TAEG [taeg] · costo totale del credito [custo_credito] · importo totale dovuto [total].'
+      assign t_over = "L'importo oltre [max] si paga con la prima rata."
+      assign t_lender = 'Servizio finanziario fornito da SVEA Bank AB; seQura agisce come fornitore di servizi IT. Quando si applicano le norme sul credito ai consumatori, Lendismart Unipessoal Lda agisce come intermediario del credito vincolato, registrato presso il Banco de Portugal con il n. 0006212.'
+      assign t_warning = 'Attenzione! Prendere denaro in prestito costa denaro.'
+    else
+      assign t_label = 'Pagamento em prestações'
+      assign t_k_title = 'Pague em 3x sem juros'
+      assign t_k_note = 'TAEG 0%. Sujeito a aprovação. Sem custos se pagar a tempo; podem aplicar-se taxas por atraso.'
+      assign t_s_title = 'Ou até [n]x com'
+      assign t_s_line = 'Desde [valor]/mês · TAEG [taeg]'
+      assign t_s_free = 'ou [n]x sem custos'
+      assign t_s_note = 'Sujeito a aprovação.'
+      assign t_more = 'Saber mais'
+      assign t_more_sr = 'sobre o pagamento em prestações com seQura'
+      assign t_ex_sum = 'Exemplo representativo'
+      assign t_ex = 'Compra a pronto de [preco], em [n] prestações mensais de [valor] (inclui [custo_mes] de custo fixo por mês). TAN [tan] · TAEG [taeg] · custo total do crédito [custo_credito] · montante total a pagar [total].'
+      assign t_over = 'O valor acima de [max] é pago com a 1.ª prestação.'
+      assign t_lender = 'Serviço financeiro prestado pelo SVEA Bank AB; a seQura atua como prestador de serviços de IT. Quando se apliquem as regras do crédito ao consumo, a Lendismart Unipessoal Lda atua como intermediário de crédito vinculado, registado no Banco de Portugal com o n.º 0006212.'
+      assign t_warning = 'Atenção! Pedir dinheiro emprestado custa dinheiro.'
+  endcase
+
+  # ----- Textos do editor (se preenchidos, substituem em todas as línguas) -----
+  if s.inst_label != blank
+    assign t_label = s.inst_label
+  endif
+  if s.inst_klarna_title != blank
+    assign t_k_title = s.inst_klarna_title
+  endif
+  if s.inst_klarna_note != blank
+    assign t_k_note = s.inst_klarna_note
+  endif
+  if s.inst_sequra_title != blank
+    assign t_s_title = s.inst_sequra_title
+  endif
+  if s.inst_sequra_line != blank
+    assign t_s_line = s.inst_sequra_line
+  endif
+  if s.inst_sequra_free != blank
+    assign t_s_free = s.inst_sequra_free
+  endif
+  if s.inst_sequra_note != blank
+    assign t_s_note = s.inst_sequra_note
+  endif
+  if s.inst_sequra_lender != blank
+    assign t_lender = s.inst_sequra_lender
+  endif
+  if s.inst_warning_text != blank
+    assign t_warning = s.inst_warning_text
+  endif
+
+  assign inst_render = true
+  if inst_excluded
+    assign inst_render = false
+  endif
+  unless inst_k_market or inst_s_market
+    assign inst_render = false
+  endunless
+-%}
+{%- if inst_render -%}
+{%- capture inst_row_k -%}
+  {%- if inst_k_market -%}
+    <li class="lodp-inst__row lodp-inst__row--klarna is-pending" data-inst-row="klarna"{% unless inst_k_show %} hidden{% endunless %}>
+      <div class="lodp-inst__body">
+        <span class="lodp-inst__title">{{ t_k_title | escape }}</span>
+        <klarna-placement
+          class="lodp-inst__klarna"
+          data-key="credit-promotion-auto-size"
+          data-locale="{{ inst_k_locale }}"
+          data-purchase-amount="{{ inst_cents }}"
+        ></klarna-placement>
+        <span class="lodp-inst__note">{{ t_k_note | escape }}</span>
+      </div>
+    </li>
+  {%- endif -%}
+{%- endcapture -%}
+{%- capture inst_row_s -%}
+  {%- if inst_s_market -%}
+    <li class="lodp-inst__row lodp-inst__row--sequra is-pending" data-inst-row="sequra"{% unless inst_s_show %} hidden{% endunless %}>
+      <div class="lodp-inst__body">
+        <span class="lodp-inst__title">
+          <span data-sq-title>{{ t_s_title | remove: '[n]' | escape }}</span>
+          <img
+            class="lodp-inst__logo"
+            src="https://live.sequracdn.com/assets/images/logos/logo_black.svg"
+            alt="seQura"
+            width="67"
+            height="14"
+            decoding="async"
+          >
+        </span>
+        <span class="lodp-inst__line" data-sq-line aria-live="polite" aria-atomic="true">&nbsp;</span>
+        <span class="lodp-inst__sub">
+          <span data-sq-free hidden></span>
+          <button
+            type="button"
+            class="lodp-inst__more sequra-educational-popup sequra-educational-popup--{{ inst_s_product | escape }}"
+            data-sq-more
+            data-product="{{ inst_s_product | escape }}"
+            data-amount="{{ inst_cents }}"
+            aria-haspopup="dialog"
+          >{{ t_more | escape }}<span class="lodp__sr"> {{ t_more_sr | escape }}</span></button>
+        </span>
+        {%- if s.inst_sequra_example -%}
+          <details class="lodp-inst__example">
+            <summary>{{ t_ex_sum | escape }}</summary>
+            <div class="lodp-inst__example-body">
+              <span>{{ t_s_note | escape }}</span>
+              <span data-sq-example></span>
+              <span class="lodp-inst__lender">{{ t_lender | escape }}</span>
+            </div>
+          </details>
+        {%- else -%}
+          <span class="lodp-inst__note">{{ t_s_note | escape }}</span>
+        {%- endif -%}
+      </div>
+    </li>
+  {%- endif -%}
+{%- endcapture -%}
+
+<style>
+  /* LOJA DO OURO — PAGAMENTO EM PRESTAÇÕES / v1 */
+  .lodp-inst { margin: 18px 0 0; }
+  .lodp-inst[hidden], .lodp-inst [hidden] { display: none !important; }
+  .lodp-inst__label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+  }
+  .lodp-inst__label::before { content: ""; width: 24px; height: 1px; flex: 0 0 24px; background: var(--gold); }
+  .lodp-inst__rows {
+    margin: 10px 0 0 !important;
+    padding: 0 !important;
+    list-style: none !important;
+    border-bottom: 1px solid var(--line);
+  }
+  .lodp-inst__row {
+    display: grid;
+    grid-template-columns: 9px minmax(0, 1fr);
+    gap: 0 13px;
+    margin: 0 !important;
+    padding: 13px 0 12px;
+    border-top: 1px solid var(--line);
+  }
+  .lodp-inst__row::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    margin: 8px 0 0 1px;
+    border: 1px solid var(--gold);
+    transform: rotate(45deg);
+  }
+  .lodp-inst__body { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; transition: opacity .3s ease; }
+  .lodp-inst__row.is-pending .lodp-inst__body { opacity: 0; visibility: hidden; }
+  .lodp-inst__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    margin: 0 0 3px;
+    color: var(--ink);
+    font-family: var(--font-heading-family, Georgia, serif);
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.25;
+    letter-spacing: -.005em;
+  }
+  .lodp-inst__logo { display: block; width: auto; height: 14px; margin-top: 1px; }
+  .lodp-inst__klarna { display: block; width: 100%; min-height: 22px; }
+  .lodp-inst__klarna::part(osm-container) { font-family: var(--font-body-family, Arial, sans-serif); }
+  .lodp-inst__klarna::part(osm-message) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; color: var(--text); }
+  .lodp-inst__klarna::part(osm-cta) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; color: var(--ink); }
+  .lodp-inst__line {
+    display: block;
+    min-height: 1.45em;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+  }
+  .lodp-inst__sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 12px;
+    margin-top: 1px;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .lodp-inst__note { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .lodp-inst .lodp-inst__more {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    color: var(--ink);
+    background: none;
+    border: 0;
+    border-radius: 2px;
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .lodp-inst .lodp-inst__more:hover { text-decoration-color: currentColor; }
+  .lodp-inst .lodp-inst__more:focus-visible,
+  .lodp-inst .lodp-inst__example summary:focus-visible { outline: 2px solid var(--ink) !important; outline-offset: 2px; }
+  .lodp-inst__example { width: 100%; margin-top: 7px; }
+  .lodp-inst__example summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: .02em;
+    list-style: none;
+    cursor: pointer;
+  }
+  .lodp-inst__example summary::-webkit-details-marker { display: none; }
+  .lodp-inst__example summary::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    background:
+      linear-gradient(currentColor, currentColor) center / 9px 1px no-repeat,
+      linear-gradient(currentColor, currentColor) center / 1px 9px no-repeat;
+    transition: transform .25s ease;
+  }
+  .lodp-inst__example[open] summary::before { transform: rotate(45deg); }
+  .lodp-inst__example-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 12px 14px;
+    color: var(--text);
+    background: var(--ivory);
+    border-radius: 10px;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .lodp-inst__lender { color: var(--muted); }
+  .lodp-inst__warning {
+    display: block;
+    margin: 10px 0 0;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+  }
+  @media (max-width: 849px) {
+    .lodp-inst__title { font-size: 16px; }
+    .lodp-inst__klarna { min-height: 44px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lodp-inst__body, .lodp-inst__example summary::before { transition: none !important; }
+  }
+</style>
+
+<div
+  class="lodp-inst"
+  id="LODInst-{{ sid }}"
+  data-lodp-inst
+  {% unless inst_k_show or inst_s_show %}hidden{% endunless %}
+>
+  <span class="lodp-inst__label" id="LODInstLabel-{{ sid }}">{{ t_label | escape }}</span>
+  <ul class="lodp-inst__rows" aria-labelledby="LODInstLabel-{{ sid }}">
+    {%- if s.inst_order == 'sequra' -%}
+      {{ inst_row_s }}{{ inst_row_k }}
+    {%- else -%}
+      {{ inst_row_k }}{{ inst_row_s }}
+    {%- endif -%}
+  </ul>
+  {%- if s.inst_warning -%}
+    <span class="lodp-inst__warning">{{ t_warning | escape }}</span>
+  {%- endif -%}
+  <noscript><style>#LODInst-{{ sid }} { display: none !important; }</style></noscript>
+  <script type="application/json" data-inst-config>
+    {
+      "lang": {{ lang | json }},
+      "cents": {{ inst_cents | json }},
+      "variantId": {{ variant.id | json }},
+      "firstVariantId": {{ product.variants.first.id | json }},
+      "klarna": { "on": {{ inst_k_market | json }}, "min": {{ inst_k_min | json }}, "max": {{ inst_k_max | json }} },
+      "sequra": { "on": {{ inst_s_market | json }}, "min": {{ inst_s_min | json }}, "max": {{ inst_s_max | json }}, "product": {{ inst_s_product | json }} },
+      "t": {
+        "sqTitle": {{ t_s_title | json }},
+        "sqLine": {{ t_s_line | json }},
+        "sqFree": {{ t_s_free | json }},
+        "sqExample": {{ t_ex | json }},
+        "sqOver": {{ t_over | json }}
+      }
+    }
+  </script>
+</div>
+
+<script>
+  (function () {
+    'use strict';
+    var LOC = { pt: 'pt-PT', en: 'en-IE', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT' };
+
+    function money(cents, loc) {
+      try { return new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR' }).format(cents / 100); }
+      catch (e) { return (cents / 100).toFixed(2).replace('.', ',') + ' €'; }
+    }
+    function pct(basisPoints, loc) {
+      try { return new Intl.NumberFormat(loc, { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(basisPoints / 10000); }
+      catch (e) { return (basisPoints / 100).toFixed(2) + '%'; }
+    }
+    function fill(tpl, map) {
+      return String(tpl || '').replace(/\[([a-z_0-9]+)\]/gi, function (m, k) {
+        return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : m;
+      });
+    }
+    function num(x) { return x && typeof x === 'object' ? Number(x.value) : Number(x); }
+    function poll(test, ms, done) {
+      var t0 = Date.now();
+      (function tick() {
+        var ok = false;
+        try { ok = !!test(); } catch (e) {}
+        if (ok) return done(true);
+        if (Date.now() - t0 >= ms) return done(false);
+        setTimeout(tick, 200);
+      })();
+    }
+
+    function init(el) {
+      if (!el || el.dataset.instReady === '1') return;
+      el.dataset.instReady = '1';
+      var cfg;
+      try { cfg = JSON.parse(el.querySelector('[data-inst-config]').textContent); } catch (e) { el.hidden = true; return; }
+      var loc = LOC[cfg.lang] || 'pt-PT';
+      var host = el.closest('[data-lodp]') || document;
+      var kRow = el.querySelector('[data-inst-row="klarna"]');
+      var sRow = el.querySelector('[data-inst-row="sequra"]');
+      var kPl = kRow ? kRow.querySelector('klarna-placement') : null;
+      var sq = sRow ? {
+        title: sRow.querySelector('[data-sq-title]'),
+        line: sRow.querySelector('[data-sq-line]'),
+        free: sRow.querySelector('[data-sq-free]'),
+        more: sRow.querySelector('[data-sq-more]'),
+        example: sRow.querySelector('[data-sq-example]')
+      } : null;
+      /* estados: pending (à espera do fornecedor) | ok | fail (fornecedor não respondeu) | na (fornecedor diz indisponível) */
+      var st = { cents: Number(cfg.cents) || 0, k: 'pending', s: 'pending', sqLib: 'wait', kToken: 0 };
+
+      function inRange(p) { return !!(p && p.on && st.cents >= p.min && st.cents <= p.max); }
+      function layout() {
+        var kShow = !!kRow && inRange(cfg.klarna) && st.k !== 'fail';
+        var sShow = !!sRow && inRange(cfg.sequra) && st.s !== 'fail' && st.s !== 'na';
+        if (kRow) { kRow.hidden = !kShow; kRow.classList.toggle('is-pending', st.k === 'pending'); }
+        if (sRow) { sRow.hidden = !sShow; sRow.classList.toggle('is-pending', st.s === 'pending'); }
+        el.hidden = !(kShow || sShow);
+      }
+
+      /* ----- Klarna: placement oficial; o SDK é carregado pela app Klarna ----- */
+      function klarnaReady() {
+        var r = kPl && kPl.shadowRoot;
+        return !!(r && (r.textContent || '').replace(/\s+/g, '').length > 3);
+      }
+      function klarnaWait() {
+        if (!kPl || !inRange(cfg.klarna)) return;
+        if (klarnaReady()) { st.k = 'ok'; layout(); return; }
+        st.k = 'pending'; layout();
+        var token = ++st.kToken;
+        poll(klarnaReady, 15000, function (ok) {
+          if (token !== st.kToken) return;
+          st.k = ok ? 'ok' : 'fail';
+          layout();
+        });
+      }
+      function klarnaUpdate() {
+        if (!kPl) return;
+        kPl.setAttribute('data-purchase-amount', String(st.cents));
+        try {
+          if (window.Klarna && Klarna.OnsiteMessaging && typeof Klarna.OnsiteMessaging.refresh === 'function') Klarna.OnsiteMessaging.refresh();
+        } catch (e) {}
+      }
+
+      /* ----- seQura: valores e TAEG só de Sequra.computeCreditAgreements ----- */
+      function sequraLib(cb) {
+        poll(function () { return window.Sequra && typeof window.Sequra.onLoad === 'function'; }, 20000, function (ok) {
+          if (!ok) return cb(false);
+          var done = false;
+          function finish(v) { if (!done) { done = true; cb(v); } }
+          try {
+            Sequra.onLoad(function () {
+              poll(function () { return typeof Sequra.computeCreditAgreements === 'function'; }, 5000, finish);
+            });
+          } catch (e) { finish(false); return; }
+          setTimeout(function () { finish(typeof Sequra.computeCreditAgreements === 'function'); }, 15000);
+        });
+      }
+      function sequraPlans(cents) {
+        var r = Sequra.computeCreditAgreements({ amount: String(cents), product: cfg.sequra.product });
+        var list = (r && r[cfg.sequra.product]) || [];
+        return list.filter(function (p) { return p && p.available && p.instalment_count > 0; });
+      }
+      function sequraRender() {
+        if (!sRow || st.sqLib !== 'ok') return;
+        if (!inRange(cfg.sequra)) { layout(); return; }
+        var plans = [];
+        try { plans = sequraPlans(st.cents); } catch (e) { plans = []; }
+        if (!plans.length) { st.s = 'na'; layout(); return; }
+        var top = plans.reduce(function (a, b) { return b.instalment_count > a.instalment_count ? b : a; });
+        var free = plans.filter(function (p) { return num(p.apr) === 0 && num(p.cost_of_credit) === 0; })
+          .sort(function (a, b) { return b.instalment_count - a.instalment_count; })[0];
+        var map = { n: String(top.instalment_count), valor: money(num(top.instalment_total), loc), taeg: pct(num(top.apr), loc) };
+        if (sq.title) sq.title.textContent = fill(cfg.t.sqTitle, map);
+        if (sq.line) sq.line.textContent = fill(cfg.t.sqLine, map);
+        if (sq.free) {
+          var showFree = !!free && free !== top;
+          sq.free.hidden = !showFree;
+          sq.free.textContent = showFree ? fill(cfg.t.sqFree, { n: String(free.instalment_count), valor: money(num(free.instalment_total), loc) }) : '';
+        }
+        if (sq.example) {
+          var text = fill(cfg.t.sqExample, {
+            preco: money(st.cents, loc),
+            n: String(top.instalment_count),
+            valor: money(num(top.instalment_total), loc),
+            custo_mes: money(num(top.instalment_fee), loc),
+            tan: pct(num(top.interest), loc),
+            taeg: pct(num(top.apr), loc),
+            custo_credito: money(num(top.cost_of_credit), loc),
+            total: money(num(top.grand_total), loc)
+          });
+          if (num(top.over_max) > 0) text += ' ' + fill(cfg.t.sqOver, { max: money(num(top.max_financed_amount), loc) });
+          sq.example.textContent = text;
+        }
+        if (sq.more && sq.more.getAttribute('data-amount') !== String(st.cents)) {
+          sq.more.setAttribute('data-amount', String(st.cents));
+          try { if (typeof Sequra.refreshComponents === 'function') Sequra.refreshComponents(); } catch (e) {}
+        }
+        st.s = 'ok';
+        layout();
+      }
+
+      /* ----- A app Klarna lê ?variant= (ou a 1.ª variante): alinhar com a variante mostrada ----- */
+      if (kPl && cfg.variantId && cfg.firstVariantId && cfg.variantId !== cfg.firstVariantId) {
+        try {
+          var u = new URL(window.location.href);
+          if (!u.searchParams.get('variant')) {
+            u.searchParams.set('variant', cfg.variantId);
+            window.history.replaceState(window.history.state, '', u.toString());
+          }
+        } catch (e) {}
+      }
+
+      /* ----- Mudança de variante (evento emitido pela ficha) ----- */
+      host.addEventListener('lodp:variant-change', function (event) {
+        var v = event.detail && event.detail.variant;
+        var cents = v ? Number(v.cents) : NaN;
+        if (!isFinite(cents) || cents === st.cents) return;
+        st.cents = cents;
+        if (kPl) {
+          if (st.k === 'fail') st.k = 'pending';
+          klarnaUpdate();
+          klarnaWait();
+        }
+        if (sRow) {
+          if (st.s === 'na') st.s = 'pending';
+          sequraRender();
+        }
+        layout();
+      });
+
+      layout();
+      if (kPl) klarnaWait();
+      if (sRow) {
+        sequraLib(function (ok) {
+          st.sqLib = ok ? 'ok' : 'none';
+          if (!ok) { st.s = 'fail'; layout(); return; }
+          sequraRender();
+        });
+      }
+    }
+
+    function initAll(scope) { (scope || document).querySelectorAll('[data-lodp-inst]').forEach(init); }
+    initAll(document);
+    if (!window.__lodpInstListen) {
+      window.__lodpInstListen = true;
+      document.addEventListener('shopify:section:load', function (event) { initAll(event.target); });
+    }
+  })();
+</script>
+{%- endif -%}
