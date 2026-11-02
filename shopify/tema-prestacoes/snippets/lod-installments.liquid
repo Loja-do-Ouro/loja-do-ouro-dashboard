@@ -1,19 +1,30 @@
 {%- comment -%}
-  LOJA DO OURO — PAGAMENTO EM PRESTAÇÕES (Klarna + seQura) / v1 — 02-11-2026
+  LOJA DO OURO — PAGAMENTO EM PRESTAÇÕES (Klarna + seQura) / v3 — 02-11-2026
   Renderizado por sections/lod-main-product.liquid logo a seguir à linha do preço.
   Parâmetros: product, variant, s (section.settings), sid (section.id), lang (pt|en|es|fr|de|it)
 
-  Regras seguidas (pesquisa de 02-11-2026; não é parecer jurídico):
-  - Klarna: a linha com o valor é o placement OFICIAL <klarna-placement data-key="credit-promotion-auto-size">.
-    Texto, arredondamento, logótipo e modal «Saber mais» são da Klarna; aqui só se muda letra, tamanho e cor (::part).
-    O script da app Klarna (ScriptTag) carrega o SDK e reescreve data-purchase-amount com o preço da variante de ?variant=.
-  - seQura: prestação, n.º de prestações, TAEG e exemplo vêm SEMPRE de Sequra.computeCreditAgreements
-    (nada fixo no código). «Saber mais» abre o pop-up oficial (.sequra-educational-popup).
-    A biblioteca seQura é carregada pela app seQura (widget ligado na app). Não desligar o widget na app.
-  - Cada linha só aparece dentro dos limites das definições, no país e moeda certos e fora dos produtos excluídos.
-  - Atualiza com o evento 'lodp:variant-change' que a ficha emite ao mudar de variante.
-  Textos: por omissão em 6 línguas (abaixo); se o campo do editor estiver preenchido, substitui em todas
-  as línguas (traduzível na app Translate & Adapt). Marcas: [n], [valor], [taeg] e as do exemplo.
+  1. Tudo o que se vê é desenhado pelo Liquid na primeira pintura, com a altura final:
+     - Klarna: «3x [valor] sem juros», [valor] = preço da variante ÷ 3 arredondado para baixo ao cêntimo
+       (o mesmo que a Klarna mostra; Klarna Paga em 3 vezes: TAEG 0%, sem juros).
+     - seQura: «Ou pague em até [n]x», sem valores. [n] vem da definição e é confirmado pela seQura.
+       Como «até [n]x» inclui planos com custos, a TAEG de cada plano com custos fica à vista, a 16 px
+       (DL 133/2009, art. 5.º, n.ºs 1 a 3). Esses valores só existem na seQura, por isso a linha da TAEG
+       tem a altura reservada desde o início e é preenchida quando a seQura responde.
+  2. Logótipos oficiais em SVG embutido (sem pedidos externos):
+     - Klarna: badge rosa oficial, https://x.klarnacdn.net/payment-method/assets/badges/generic/klarna.svg
+     - seQura: logótipo oficial, https://live.sequracdn.com/assets/images/logos/logo.svg (ou logo_black.svg)
+  3. Os scripts dos fornecedores só acrescentam:
+     - seQura: a biblioteca oficial (sequra-checkout.min.js) é pedida logo aqui, com prioridade baixa, em vez de esperar
+       pelo «load» da página (a app seQura só a carrega depois). Valores e TAEG vêm SEMPRE de Sequra.computeCreditAgreements.
+     - Klarna: o SDK continua a ser carregado pela app Klarna. Depois do «load» monta-se um placement oficial escondido
+       que confirma a elegibilidade (3 pagamentos) e abre o modal oficial «Saber mais». Sem SDK, «Saber mais» abre a
+       página oficial da Klarna.
+  4. «Saber mais» da seQura abre um diálogo nosso (<dialog> modal: o foco entra, Tab fica dentro, Escape fecha, o foco
+     volta ao botão) com a TAEG e a prestação de cada plano, o exemplo representativo, o mutuante e o acesso ao
+     simulador oficial da seQura.
+  5. Exclusões: cartões-oferta, etiquetas, tipos e coleções (por omissão a coleção «Investimento» =
+     moedas-de-investimento, que reúne as libras, moedas e barras de ouro de investimento).
+  Textos: por omissão em PT, EN, ES, FR, DE e IT. Um texto escrito no editor substitui o de todas as línguas.
 {%- endcomment -%}
 {%- liquid
   assign inst_country = localization.country.iso_code | default: 'PT' | upcase
@@ -21,7 +32,7 @@
   assign inst_cents = variant.price
   assign inst_cc = ',' | append: inst_country | append: ','
 
-  # ----- Produtos excluídos (cartões-oferta, vouchers, ouro de investimento, etiquetas/tipos nas definições) -----
+  # ----- Produtos excluídos -----
   assign inst_excluded = false
   if product.gift_card?
     assign inst_excluded = true
@@ -46,6 +57,17 @@
       endif
     endfor
   endif
+  assign inst_ex_cols = s.inst_excluded_collections | downcase | split: ','
+  if inst_ex_cols.size > 0
+    for inst_col in product.collections
+      for inst_ex in inst_ex_cols
+        assign inst_ex_d = inst_ex | strip
+        if inst_ex_d != blank and inst_ex_d == inst_col.handle
+          assign inst_excluded = true
+        endif
+      endfor
+    endfor
+  endif
 
   # ----- Mercado e moeda -----
   assign inst_k_countries = s.inst_klarna_countries | upcase | remove: ' ' | prepend: ',' | append: ','
@@ -64,15 +86,12 @@
   assign inst_k_max = s.inst_klarna_max | default: 1000 | times: 100 | round
   assign inst_s_min = s.inst_sequra_min | default: 50 | times: 100 | round
   assign inst_s_max = s.inst_sequra_max | default: 3000 | times: 100 | round
-
-  # Alguma variante pode mostrar a linha? (senão a linha nem é desenhada)
   if product.price_max < inst_k_min or product.price_min > inst_k_max
     assign inst_k_market = false
   endif
   if product.price_max < inst_s_min or product.price_min > inst_s_max
     assign inst_s_market = false
   endif
-
   assign inst_k_show = false
   if inst_k_market and inst_cents >= inst_k_min and inst_cents <= inst_k_max
     assign inst_k_show = true
@@ -82,105 +101,183 @@
     assign inst_s_show = true
   endif
 
-  # ----- Locale da Klarna (os que a conta tem ativos; senão inglês do país, como faz a app) -----
+  # ----- Klarna: valor da prestação (arredondado para baixo, como a Klarna) e locale do modal oficial -----
+  assign inst_k_third = inst_cents | divided_by: 3
+  assign inst_k_value = inst_k_third | money | strip_html
   assign inst_k_locale = lang | append: '-' | append: inst_country
-  assign inst_k_known = ',pt-PT,en-PT,es-ES,en-ES,fr-FR,en-FR,fr-BE,nl-BE,en-BE,'
+  assign inst_k_known = ',pt-PT,en-PT,es-ES,en-ES,fr-FR,en-FR,fr-BE,en-BE,nl-BE,'
   assign inst_k_probe = ',' | append: inst_k_locale | append: ','
   unless inst_k_known contains inst_k_probe
     assign inst_k_locale = 'en-' | append: inst_country
   endunless
+  case inst_country
+    when 'ES'
+      assign inst_k_url = 'https://www.klarna.com/es/'
+    when 'FR'
+      assign inst_k_url = 'https://www.klarna.com/fr/'
+    when 'BE'
+      assign inst_k_url = 'https://www.klarna.com/be/'
+    else
+      assign inst_k_url = 'https://www.klarna.com/pt/formas-de-pagamento/paga-em-3-vezes/'
+  endcase
 
+  # ----- seQura -----
   assign inst_s_product = s.inst_sequra_product | default: 'pp3' | strip
+  assign inst_s_n = s.inst_sequra_max_n | default: 12
+  case lang
+    when 'en'
+      assign inst_s_locale = 'en-US'
+    when 'es'
+      assign inst_s_locale = 'es-ES'
+    when 'fr'
+      assign inst_s_locale = 'fr-FR'
+    when 'it'
+      assign inst_s_locale = 'it-IT'
+    else
+      assign inst_s_locale = 'pt-PT'
+  endcase
+  assign inst_s_fill = '#00C2A3'
+  if s.inst_sequra_logo == 'black'
+    assign inst_s_fill = '#1C1C1C'
+  endif
 
   # ----- Textos por língua -----
   case lang
     when 'en'
       assign t_label = 'Pay in instalments'
-      assign t_k_title = 'Pay in 3 interest-free instalments'
-      assign t_k_note = 'APRC 0%. Subject to approval. No fees if you pay on time; late fees may apply.'
-      assign t_s_title = 'Or up to [n] instalments with'
-      assign t_s_line = 'From [valor]/month · APRC [taeg]'
-      assign t_s_free = 'or [n] instalments at no cost'
-      assign t_s_note = 'Subject to approval.'
+      assign t_k = '3x [valor] interest-free'
+      assign t_k_sr = 'about paying in 3 instalments with Klarna'
+      assign t_s_or = 'Or up to [n] instalments'
+      assign t_s_solo = 'Pay in up to [n] instalments'
+      assign t_taeg = 'APRC'
+      assign t_taeg_wait = 'APRC: calculating…'
       assign t_more = 'Learn more'
-      assign t_more_sr = 'about paying in instalments with seQura'
-      assign t_ex_sum = 'Representative example'
-      assign t_ex = 'Cash price [preco], paid in [n] monthly instalments of [valor] (including a fixed fee of [custo_mes] per month). Borrowing rate [tan] · APRC [taeg] · total cost of credit [custo_credito] · total amount payable [total].'
+      assign t_s_sr = 'about paying in instalments with seQura'
+      assign t_d_title = 'Pay in instalments with seQura'
+      assign t_d_close = 'Close'
+      assign t_d_wait = 'Getting the conditions from seQura…'
+      assign t_d_fail = 'The seQura conditions are not available right now. Please try again later.'
+      assign t_d_plans = 'Plans for [preco]'
+      assign t_d_plan = '[n] instalments of [valor] · APRC [taeg] · total [total]'
+      assign t_d_official = 'Open the official seQura simulator'
+      assign t_s_note = 'Subject to approval by seQura. Late payment costs may apply.'
+      assign t_ex = 'Representative example: cash price [preco]. Paid in [n] instalments of [valor][ultima], each including a fixed fee of [custo_mes]; the 1st ([sinal]) is paid at checkout and the remaining [resto] monthly. Total amount of credit [credito] · duration [meses] months · borrowing rate [tan] · APRC [taeg] · total cost of credit [custo_credito] · total amount payable [total].'
+      assign t_ex_last = ' (the last one [x])'
       assign t_over = 'Any amount above [max] is paid with the first instalment.'
       assign t_lender = 'Financial service provided by SVEA Bank AB; seQura acts as IT service provider. Where consumer credit rules apply, Lendismart Unipessoal Lda acts as tied credit intermediary, registered with Banco de Portugal under no. 0006212.'
       assign t_warning = 'Warning! Borrowing money costs money.'
     when 'es'
       assign t_label = 'Pago a plazos'
-      assign t_k_title = 'Paga en 3 plazos sin intereses'
-      assign t_k_note = 'TAE 0 %. Sujeto a aprobación. Sin coste si pagas a tiempo; pueden aplicarse cargos por demora.'
-      assign t_s_title = 'O hasta [n] plazos con'
-      assign t_s_line = 'Desde [valor]/mes · TAE [taeg]'
-      assign t_s_free = 'o [n] plazos sin coste'
-      assign t_s_note = 'Sujeto a aprobación.'
+      assign t_k = '3x [valor] sin intereses'
+      assign t_k_sr = 'sobre pagar en 3 plazos con Klarna'
+      assign t_s_or = 'O hasta [n] plazos'
+      assign t_s_solo = 'Paga en hasta [n] plazos'
+      assign t_taeg = 'TAE'
+      assign t_taeg_wait = 'TAE: calculando…'
       assign t_more = 'Más información'
-      assign t_more_sr = 'sobre el pago a plazos con seQura'
-      assign t_ex_sum = 'Ejemplo representativo'
-      assign t_ex = 'Precio al contado [preco], en [n] cuotas mensuales de [valor] (incluye [custo_mes] de coste fijo al mes). TIN [tan] · TAE [taeg] · coste total del crédito [custo_credito] · importe total adeudado [total].'
+      assign t_s_sr = 'sobre el pago a plazos con seQura'
+      assign t_d_title = 'Pago a plazos con seQura'
+      assign t_d_close = 'Cerrar'
+      assign t_d_wait = 'Obteniendo las condiciones de seQura…'
+      assign t_d_fail = 'Las condiciones de seQura no están disponibles en este momento. Inténtalo más tarde.'
+      assign t_d_plans = 'Planes para [preco]'
+      assign t_d_plan = '[n] plazos de [valor] · TAE [taeg] · total [total]'
+      assign t_d_official = 'Abrir el simulador oficial de seQura'
+      assign t_s_note = 'Sujeto a aprobación de seQura. Pueden aplicarse costes por retraso.'
+      assign t_ex = 'Ejemplo representativo: precio al contado [preco]. Pago en [n] cuotas de [valor][ultima], cada una con [custo_mes] de coste fijo; la 1.ª ([sinal]) se paga al comprar y las [resto] restantes cada mes. Importe total del crédito [credito] · duración [meses] meses · TIN [tan] · TAE [taeg] · coste total del crédito [custo_credito] · importe total adeudado [total].'
+      assign t_ex_last = ' (la última de [x])'
       assign t_over = 'El importe que supere [max] se paga con la primera cuota.'
       assign t_lender = 'Servicio financiero prestado por SVEA Bank AB; seQura actúa como proveedor de servicios de TI. Cuando se apliquen las normas de crédito al consumo, Lendismart Unipessoal Lda actúa como intermediario de crédito vinculado, registrado en el Banco de Portugal con el n.º 0006212.'
       assign t_warning = '¡Atención! Pedir dinero prestado cuesta dinero.'
     when 'fr'
       assign t_label = 'Paiement en plusieurs fois'
-      assign t_k_title = 'Payez en 3 fois sans intérêts'
-      assign t_k_note = "TAEG 0 %. Sous réserve d'acceptation. Sans frais si vous payez à temps ; des frais de retard peuvent s'appliquer."
-      assign t_s_title = "Ou jusqu'à [n] fois avec"
-      assign t_s_line = 'Dès [valor]/mois · TAEG [taeg]'
-      assign t_s_free = 'ou [n] fois sans frais'
-      assign t_s_note = "Sous réserve d'acceptation."
+      assign t_k = '3x [valor] sans intérêts'
+      assign t_k_sr = 'sur le paiement en 3 fois avec Klarna'
+      assign t_s_or = "Ou jusqu'à [n] fois"
+      assign t_s_solo = "Payez jusqu'en [n] fois"
+      assign t_taeg = 'TAEG'
+      assign t_taeg_wait = 'TAEG : calcul en cours…'
       assign t_more = 'En savoir plus'
-      assign t_more_sr = 'sur le paiement en plusieurs fois avec seQura'
-      assign t_ex_sum = 'Exemple représentatif'
-      assign t_ex = 'Prix au comptant [preco], en [n] mensualités de [valor] (dont [custo_mes] de frais fixes par mois). Taux débiteur [tan] · TAEG [taeg] · coût total du crédit [custo_credito] · montant total dû [total].'
+      assign t_s_sr = 'sur le paiement en plusieurs fois avec seQura'
+      assign t_d_title = 'Paiement en plusieurs fois avec seQura'
+      assign t_d_close = 'Fermer'
+      assign t_d_wait = 'Récupération des conditions seQura…'
+      assign t_d_fail = 'Les conditions seQura ne sont pas disponibles pour le moment. Réessayez plus tard.'
+      assign t_d_plans = 'Formules pour [preco]'
+      assign t_d_plan = '[n] fois [valor] · TAEG [taeg] · total [total]'
+      assign t_d_official = 'Ouvrir le simulateur officiel seQura'
+      assign t_s_note = "Sous réserve d'acceptation par seQura. Des frais de retard peuvent s'appliquer."
+      assign t_ex = "Exemple représentatif : prix au comptant [preco]. Paiement en [n] mensualités de [valor][ultima], chacune avec [custo_mes] de frais fixes ; la 1re ([sinal]) est payée à l'achat et les [resto] autres chaque mois. Montant total du crédit [credito] · durée [meses] mois · taux débiteur [tan] · TAEG [taeg] · coût total du crédit [custo_credito] · montant total dû [total]."
+      assign t_ex_last = ' (la dernière de [x])'
       assign t_over = 'Le montant au-delà de [max] est réglé avec la première échéance.'
       assign t_lender = "Service financier fourni par SVEA Bank AB ; seQura agit en tant que prestataire de services informatiques. Lorsque les règles du crédit à la consommation s'appliquent, Lendismart Unipessoal Lda agit en tant qu'intermédiaire de crédit lié, enregistré auprès de la Banco de Portugal sous le n° 0006212."
       assign t_warning = "Attention ! Emprunter de l'argent coûte de l'argent."
     when 'de'
       assign t_label = 'Ratenzahlung'
-      assign t_k_title = 'In 3 zinsfreien Raten zahlen'
-      assign t_k_note = 'Effektiver Jahreszins 0 %. Vorbehaltlich Genehmigung. Keine Kosten bei pünktlicher Zahlung; Verzugsgebühren möglich.'
-      assign t_s_title = 'Oder bis zu [n] Raten mit'
-      assign t_s_line = 'Ab [valor]/Monat · eff. Jahreszins [taeg]'
-      assign t_s_free = 'oder [n] Raten ohne Kosten'
-      assign t_s_note = 'Vorbehaltlich Genehmigung.'
+      assign t_k = '3x [valor] zinsfrei'
+      assign t_k_sr = 'über die Zahlung in 3 Raten mit Klarna'
+      assign t_s_or = 'Oder bis zu [n] Raten'
+      assign t_s_solo = 'In bis zu [n] Raten zahlen'
+      assign t_taeg = 'Eff. Jahreszins'
+      assign t_taeg_wait = 'Eff. Jahreszins: wird berechnet…'
       assign t_more = 'Mehr erfahren'
-      assign t_more_sr = 'über Ratenzahlung mit seQura'
-      assign t_ex_sum = 'Repräsentatives Beispiel'
-      assign t_ex = 'Barzahlungspreis [preco], in [n] Monatsraten zu je [valor] (inkl. [custo_mes] Fixgebühr pro Monat). Sollzinssatz [tan] · effektiver Jahreszins [taeg] · Gesamtkosten des Kredits [custo_credito] · Gesamtbetrag [total].'
+      assign t_s_sr = 'über Ratenzahlung mit seQura'
+      assign t_d_title = 'Ratenzahlung mit seQura'
+      assign t_d_close = 'Schließen'
+      assign t_d_wait = 'Die Bedingungen von seQura werden abgerufen…'
+      assign t_d_fail = 'Die Bedingungen von seQura sind derzeit nicht verfügbar. Bitte später erneut versuchen.'
+      assign t_d_plans = 'Pläne für [preco]'
+      assign t_d_plan = '[n] Raten zu [valor] · eff. Jahreszins [taeg] · gesamt [total]'
+      assign t_d_official = 'Offiziellen seQura-Rechner öffnen'
+      assign t_s_note = 'Vorbehaltlich Genehmigung durch seQura. Bei Zahlungsverzug können Kosten anfallen.'
+      assign t_ex = 'Repräsentatives Beispiel: Barzahlungspreis [preco]. Zahlung in [n] Raten zu je [valor][ultima], jeweils inkl. [custo_mes] Fixgebühr; die 1. Rate ([sinal]) wird beim Kauf bezahlt, die übrigen [resto] monatlich. Gesamtkreditbetrag [credito] · Laufzeit [meses] Monate · Sollzinssatz [tan] · effektiver Jahreszins [taeg] · Gesamtkosten des Kredits [custo_credito] · Gesamtbetrag [total].'
+      assign t_ex_last = ' (die letzte [x])'
       assign t_over = 'Der Betrag über [max] wird mit der ersten Rate bezahlt.'
       assign t_lender = 'Finanzdienstleistung der SVEA Bank AB; seQura handelt als IT-Dienstleister. Soweit Verbraucherkreditrecht gilt, handelt Lendismart Unipessoal Lda als gebundener Kreditvermittler, registriert bei der Banco de Portugal unter Nr. 0006212.'
       assign t_warning = 'Achtung! Geld zu leihen kostet Geld.'
     when 'it'
       assign t_label = 'Pagamento a rate'
-      assign t_k_title = 'Paga in 3 rate senza interessi'
-      assign t_k_note = 'TAEG 0%. Soggetto ad approvazione. Nessun costo se paghi in tempo; possono applicarsi penali per ritardo.'
-      assign t_s_title = 'Oppure fino a [n] rate con'
-      assign t_s_line = 'Da [valor]/mese · TAEG [taeg]'
-      assign t_s_free = 'o [n] rate senza costi'
-      assign t_s_note = 'Soggetto ad approvazione.'
+      assign t_k = '3x [valor] senza interessi'
+      assign t_k_sr = 'sul pagamento in 3 rate con Klarna'
+      assign t_s_or = 'Oppure fino a [n] rate'
+      assign t_s_solo = 'Paga fino a [n] rate'
+      assign t_taeg = 'TAEG'
+      assign t_taeg_wait = 'TAEG: in calcolo…'
       assign t_more = 'Scopri di più'
-      assign t_more_sr = 'sul pagamento a rate con seQura'
-      assign t_ex_sum = 'Esempio rappresentativo'
-      assign t_ex = 'Prezzo in contanti [preco], in [n] rate mensili da [valor] (incluso un costo fisso di [custo_mes] al mese). TAN [tan] · TAEG [taeg] · costo totale del credito [custo_credito] · importo totale dovuto [total].'
+      assign t_s_sr = 'sul pagamento a rate con seQura'
+      assign t_d_title = 'Pagamento a rate con seQura'
+      assign t_d_close = 'Chiudi'
+      assign t_d_wait = 'Recupero delle condizioni seQura…'
+      assign t_d_fail = 'Le condizioni seQura non sono disponibili al momento. Riprova più tardi.'
+      assign t_d_plans = 'Piani per [preco]'
+      assign t_d_plan = '[n] rate da [valor] · TAEG [taeg] · totale [total]'
+      assign t_d_official = 'Apri il simulatore ufficiale seQura'
+      assign t_s_note = 'Soggetto ad approvazione di seQura. Possono applicarsi costi per ritardo.'
+      assign t_ex = "Esempio rappresentativo: prezzo in contanti [preco]. Pagamento in [n] rate da [valor][ultima], ciascuna con [custo_mes] di costo fisso; la 1ª ([sinal]) si paga all'acquisto e le restanti [resto] ogni mese. Importo totale del credito [credito] · durata [meses] mesi · TAN [tan] · TAEG [taeg] · costo totale del credito [custo_credito] · importo totale dovuto [total]."
+      assign t_ex_last = " (l'ultima da [x])"
       assign t_over = "L'importo oltre [max] si paga con la prima rata."
       assign t_lender = 'Servizio finanziario fornito da SVEA Bank AB; seQura agisce come fornitore di servizi IT. Quando si applicano le norme sul credito ai consumatori, Lendismart Unipessoal Lda agisce come intermediario del credito vincolato, registrato presso il Banco de Portugal con il n. 0006212.'
       assign t_warning = 'Attenzione! Prendere denaro in prestito costa denaro.'
     else
       assign t_label = 'Pagamento em prestações'
-      assign t_k_title = 'Pague em 3x sem juros'
-      assign t_k_note = 'TAEG 0%. Sujeito a aprovação. Sem custos se pagar a tempo; podem aplicar-se taxas por atraso.'
-      assign t_s_title = 'Ou até [n]x com'
-      assign t_s_line = 'Desde [valor]/mês · TAEG [taeg]'
-      assign t_s_free = 'ou [n]x sem custos'
-      assign t_s_note = 'Sujeito a aprovação.'
+      assign t_k = '3x [valor] sem juros'
+      assign t_k_sr = 'sobre pagar em 3x com Klarna'
+      assign t_s_or = 'Ou pague em até [n]x'
+      assign t_s_solo = 'Pague em até [n]x'
+      assign t_taeg = 'TAEG'
+      assign t_taeg_wait = 'TAEG: a calcular…'
       assign t_more = 'Saber mais'
-      assign t_more_sr = 'sobre o pagamento em prestações com seQura'
-      assign t_ex_sum = 'Exemplo representativo'
-      assign t_ex = 'Compra a pronto de [preco], em [n] prestações mensais de [valor] (inclui [custo_mes] de custo fixo por mês). TAN [tan] · TAEG [taeg] · custo total do crédito [custo_credito] · montante total a pagar [total].'
+      assign t_s_sr = 'sobre pagar em prestações com seQura'
+      assign t_d_title = 'Pagamento em prestações com seQura'
+      assign t_d_close = 'Fechar'
+      assign t_d_wait = 'A obter as condições da seQura…'
+      assign t_d_fail = 'As condições da seQura não estão disponíveis neste momento. Tente mais tarde.'
+      assign t_d_plans = 'Planos para [preco]'
+      assign t_d_plan = '[n]x de [valor] · TAEG [taeg] · total [total]'
+      assign t_d_official = 'Abrir o simulador oficial da seQura'
+      assign t_s_note = 'Sujeito a aprovação da seQura. Podem aplicar-se custos por atraso.'
+      assign t_ex = 'Exemplo representativo: preço a pronto [preco]. Pagamento em [n] prestações de [valor][ultima], cada uma com [custo_mes] de custo fixo; a 1.ª ([sinal]) é paga no ato da compra e as restantes [resto] mensalmente. Montante total do crédito [credito] · duração [meses] meses · TAN [tan] · TAEG [taeg] · custo total do crédito [custo_credito] · montante total a pagar [total].'
+      assign t_ex_last = ' (a última de [x])'
       assign t_over = 'O valor acima de [max] é pago com a 1.ª prestação.'
       assign t_lender = 'Serviço financeiro prestado pelo SVEA Bank AB; a seQura atua como prestador de serviços de IT. Quando se apliquem as regras do crédito ao consumo, a Lendismart Unipessoal Lda atua como intermediário de crédito vinculado, registado no Banco de Portugal com o n.º 0006212.'
       assign t_warning = 'Atenção! Pedir dinheiro emprestado custa dinheiro.'
@@ -190,23 +287,14 @@
   if s.inst_label != blank
     assign t_label = s.inst_label
   endif
-  if s.inst_klarna_title != blank
-    assign t_k_title = s.inst_klarna_title
+  if s.inst_klarna_text != blank
+    assign t_k = s.inst_klarna_text
   endif
-  if s.inst_klarna_note != blank
-    assign t_k_note = s.inst_klarna_note
+  if s.inst_sequra_text != blank
+    assign t_s_or = s.inst_sequra_text
   endif
-  if s.inst_sequra_title != blank
-    assign t_s_title = s.inst_sequra_title
-  endif
-  if s.inst_sequra_line != blank
-    assign t_s_line = s.inst_sequra_line
-  endif
-  if s.inst_sequra_free != blank
-    assign t_s_free = s.inst_sequra_free
-  endif
-  if s.inst_sequra_note != blank
-    assign t_s_note = s.inst_sequra_note
+  if s.inst_sequra_text_solo != blank
+    assign t_s_solo = s.inst_sequra_text_solo
   endif
   if s.inst_sequra_lender != blank
     assign t_lender = s.inst_sequra_lender
@@ -214,6 +302,11 @@
   if s.inst_warning_text != blank
     assign t_warning = s.inst_warning_text
   endif
+
+  assign t_k_line = t_k | replace: '[valor]', inst_k_value
+  assign inst_s_n_str = inst_s_n | append: ''
+  assign t_s_or_line = t_s_or | replace: '[n]', inst_s_n_str
+  assign t_s_solo_line = t_s_solo | replace: '[n]', inst_s_n_str
 
   assign inst_render = true
   if inst_excluded
@@ -226,154 +319,69 @@
 {%- if inst_render -%}
 {%- capture inst_row_k -%}
   {%- if inst_k_market -%}
-    <li class="lodp-inst__row lodp-inst__row--klarna is-pending" data-inst-row="klarna"{% unless inst_k_show %} hidden{% endunless %}>
-      <div class="lodp-inst__body">
-        <span class="lodp-inst__title">{{ t_k_title | escape }}</span>
-        <klarna-placement
-          class="lodp-inst__klarna"
-          data-key="credit-promotion-auto-size"
-          data-locale="{{ inst_k_locale }}"
-          data-purchase-amount="{{ inst_cents }}"
-        ></klarna-placement>
-        <span class="lodp-inst__note">{{ t_k_note | escape }}</span>
-      </div>
+    <li class="lodp-inst__row" data-inst-row="klarna"{% unless inst_k_show %} hidden{% endunless %}>
+      <span class="lodp-inst__brand">
+        <svg class="lodp-inst__logo lodp-inst__logo--klarna" viewBox="0 0 1448 609" width="57" height="24" role="img" aria-label="Klarna" focusable="false"><path fill="#FFA8CD" d="M0 304.493C0 180.585 0 118.631 30.3995 74.5079C42.2947 57.2427 57.2427 42.2947 74.5079 30.3995C118.631 0 180.585 0 304.493 0H1142.75C1266.65 0 1328.61 0 1372.73 30.3995C1390 42.2947 1404.95 57.2427 1416.84 74.5079C1447.24 118.631 1447.24 180.585 1447.24 304.493C1447.24 428.402 1447.24 490.356 1416.84 534.479C1404.95 551.744 1390 566.692 1372.73 578.587C1328.61 608.987 1266.65 608.987 1142.75 608.987H304.494C180.585 608.987 118.631 608.987 74.5079 578.587C57.2427 566.692 42.2947 551.744 30.3995 534.479C0 490.356 0 428.402 0 304.493Z"/><path fill="#0B051D" d="M1166.17 389.005C1140.92 389.005 1121.24 368.125 1121.24 342.771C1121.24 317.416 1140.92 296.536 1166.17 296.536C1191.42 296.536 1211.1 317.416 1211.1 342.771C1211.1 368.125 1191.42 389.005 1166.17 389.005ZM1153.54 437.85C1175.08 437.85 1202.56 429.647 1217.79 397.581L1219.27 398.327C1212.59 415.851 1212.59 426.292 1212.59 428.902V433.003H1266.8V252.538H1212.59V256.64C1212.59 259.25 1212.59 269.69 1219.27 287.214L1217.79 287.96C1202.56 255.894 1175.08 247.691 1153.54 247.691C1101.93 247.691 1065.54 288.706 1065.54 342.771C1065.54 396.835 1101.93 437.85 1153.54 437.85ZM971.216 247.691C946.707 247.691 927.397 256.267 911.801 287.96L910.316 287.214C917 269.69 917 259.25 917 256.64V252.538H862.784V433.003H918.485V337.923C918.485 312.942 932.968 297.281 956.362 297.281C979.757 297.281 991.268 310.704 991.268 337.55V433.003H1046.97V318.162C1046.97 277.147 1015.03 247.691 971.216 247.691ZM782.203 287.96L780.717 287.214C787.401 269.69 787.401 259.25 787.401 256.64V252.538H733.186V433.003H788.887L789.258 346.126C789.258 320.772 802.626 305.484 824.536 305.484C830.477 305.484 835.305 306.23 840.875 307.722V252.538C816.366 247.318 794.457 256.64 782.203 287.96ZM605.073 389.005C579.821 389.005 560.14 368.125 560.14 342.771C560.14 317.416 579.821 296.536 605.073 296.536C630.324 296.536 650.005 317.416 650.005 342.771C650.005 368.125 630.324 389.005 605.073 389.005ZM592.447 437.85C613.985 437.85 641.464 429.647 656.689 397.581L658.174 398.327C651.49 415.851 651.49 426.292 651.49 428.902V433.003H705.706V252.538H651.49V256.64C651.49 259.25 651.49 269.69 658.174 287.214L656.689 287.96C641.464 255.894 613.985 247.691 592.447 247.691C540.83 247.691 504.439 288.706 504.439 342.771C504.439 396.835 540.83 437.85 592.447 437.85ZM426.828 433.003H482.53V172H426.828V433.003ZM385.981 172H329.165C329.165 218.608 300.572 260.368 257.125 290.197L240.043 302.129V172H181V433.003H240.043V303.62L337.706 433.003H409.747L315.797 309.213C358.501 278.266 386.352 230.166 385.981 172Z"/></svg>
+      </span>
+      <span class="lodp-inst__text" data-k-text>{{ t_k_line | escape }}</span>
+      <a class="lodp-inst__more" href="{{ inst_k_url }}" target="_blank" rel="noopener" data-k-more>{{ t_more | escape }}<span class="lodp__sr"> {{ t_k_sr | escape }}</span></a>
     </li>
   {%- endif -%}
 {%- endcapture -%}
 {%- capture inst_row_s -%}
   {%- if inst_s_market -%}
-    <li class="lodp-inst__row lodp-inst__row--sequra is-pending" data-inst-row="sequra"{% unless inst_s_show %} hidden{% endunless %}>
-      <div class="lodp-inst__body">
-        <span class="lodp-inst__title">
-          <span data-sq-title>{{ t_s_title | remove: '[n]' | escape }}</span>
-          <img
-            class="lodp-inst__logo"
-            src="https://live.sequracdn.com/assets/images/logos/logo_black.svg"
-            alt="seQura"
-            width="67"
-            height="14"
-            decoding="async"
-          >
-        </span>
-        <span class="lodp-inst__line" data-sq-line aria-live="polite" aria-atomic="true">&nbsp;</span>
-        <span class="lodp-inst__sub">
-          <span data-sq-free hidden></span>
-          <button
-            type="button"
-            class="lodp-inst__more sequra-educational-popup sequra-educational-popup--{{ inst_s_product | escape }}"
-            data-sq-more
-            data-product="{{ inst_s_product | escape }}"
-            data-amount="{{ inst_cents }}"
-            aria-haspopup="dialog"
-          >{{ t_more | escape }}<span class="lodp__sr"> {{ t_more_sr | escape }}</span></button>
-        </span>
-        {%- if s.inst_sequra_example -%}
-          <details class="lodp-inst__example">
-            <summary>{{ t_ex_sum | escape }}</summary>
-            <div class="lodp-inst__example-body">
-              <span>{{ t_s_note | escape }}</span>
-              <span data-sq-example></span>
-              <span class="lodp-inst__lender">{{ t_lender | escape }}</span>
-            </div>
-          </details>
-        {%- else -%}
-          <span class="lodp-inst__note">{{ t_s_note | escape }}</span>
-        {%- endif -%}
-      </div>
+    <li class="lodp-inst__row lodp-inst__row--sequra" data-inst-row="sequra"{% unless inst_s_show %} hidden{% endunless %}>
+      <span class="lodp-inst__brand">
+        <svg class="lodp-inst__logo lodp-inst__logo--sequra" viewBox="10.686 0 234.514 54" width="61" height="14" role="img" aria-label="seQura" focusable="false"><g fill="{{ inst_s_fill }}"><path d="M140.079 45.849a18.877 18.877 0 0 1-5.091-.875c-.18-.051-.257-.308-.129-.462 2.906-3.343 4.938-7.406 5.915-11.752a26.643 26.643 0 0 0-2.546-18.308 26.94 26.94 0 0 0-13.86-12.318 27.186 27.186 0 0 0-18.591-.488 26.952 26.952 0 0 0-14.478 11.597 26.732 26.732 0 0 0-3.497 18.154c1.029 6.275 4.295 11.983 9.155 16.097a27.19 27.19 0 0 0 16.765 6.352h.052c.488 0 .951-.206 1.285-.592a1.77 1.77 0 0 0 .386-1.131v-4.551a1.69 1.69 0 0 0-1.671-1.698c-4.243-.154-8.383-1.723-11.623-4.474a18.744 18.744 0 0 1-6.429-11.288 18.837 18.837 0 0 1 2.443-12.73 18.78 18.78 0 0 1 10.183-8.125 19.019 19.019 0 0 1 13.063.335c4.166 1.645 7.637 4.705 9.72 8.64 2.108 3.934 2.751 8.485 1.774 12.83-.771 3.524-2.571 6.738-5.117 9.284-.077.077-.411.077-.489 0-1.774-1.749-3.137-3.806-4.114-6.094a18.54 18.54 0 0 1-1.44-6.558 1.707 1.707 0 0 0-1.697-1.671h-4.577c-.412 0-.849.128-1.157.411a1.74 1.74 0 0 0-.592 1.312 26.182 26.182 0 0 0 2.057 9.566 26.932 26.932 0 0 0 5.838 8.69 27.087 27.087 0 0 0 8.742 5.812c3.06 1.26 6.3 1.955 9.618 2.032h.051c.489 0 .951-.206 1.286-.592.257-.308.385-.72.385-1.131v-4.551c.052-.926-.694-1.698-1.62-1.723ZM41.671 33.017a9.372 9.372 0 0 0-2.829-3.368c-1.26-.9-2.622-1.62-4.114-2.109a52.846 52.846 0 0 0-4.86-1.466h-.026a34.697 34.697 0 0 1-3.497-.925 16.79 16.79 0 0 1-2.905-1.183h-.026a5.976 5.976 0 0 1-1.054-.617 5.244 5.244 0 0 1-.695-.592 1.957 1.957 0 0 1-.308-.488 1.959 1.959 0 0 1-.077-.54v-.026c.025-.489.231-.951.565-1.311.412-.463.926-.798 1.517-1.055.695-.308 1.44-.488 2.212-.591.823-.103 1.646-.154 2.494-.077h.026c1.311.051 2.597.36 3.728.951.823.412 2.598 1.929 3.498 2.726.36.308.874.334 1.234.077l4.783-3.291a1 1 0 0 0 .257-1.415c-1.183-1.723-2.854-3.137-4.809-4.063-2.443-1.26-5.091-1.928-7.843-2.108a23.402 23.402 0 0 0-5.528.257 18.52 18.52 0 0 0-4.989 1.568c-1.517.72-2.828 1.8-3.831 3.086a8.354 8.354 0 0 0-1.749 4.629 8.067 8.067 0 0 0 .926 4.757l.026.026a9.544 9.544 0 0 0 3.085 3.163c1.389.874 2.88 1.542 4.449 2.057 1.62.54 3.343 1.054 5.169 1.491.951.232 1.902.514 2.931.823h.026c.823.257 1.594.591 2.314 1.029h.026c.565.334 1.054.745 1.414 1.26.309.462.437.977.36 1.517v.077a2.436 2.436 0 0 1-.643 1.568c-.463.515-1.08.9-1.748 1.158h-.026a9.38 9.38 0 0 1-2.494.642h-.026c-.926.103-1.852.103-2.777.052h-.026a11.091 11.091 0 0 1-5.117-1.44 14.499 14.499 0 0 1-3.034-2.546c-.335-.386-.9-.437-1.338-.154l-5.04 3.497a1.02 1.02 0 0 0-.205 1.491 15.675 15.675 0 0 0 5.528 4.295l.026.025a25.43 25.43 0 0 0 8.717 1.955 28.38 28.38 0 0 0 2.109.077c1.26 0 2.494-.077 3.754-.232a18.452 18.452 0 0 0 5.349-1.517 11.142 11.142 0 0 0 4.062-3.24 9.308 9.308 0 0 0 1.852-5.194 8.982 8.982 0 0 0-.823-4.706Zm184.937 7.251c-5.889 0-10.697-4.731-10.697-10.568s4.783-10.569 10.697-10.569c5.888 0 10.671 4.732 10.671 10.569 0 5.837-4.783 10.568-10.671 10.568ZM244.994 29.7c0-10.029-8.255-18.206-18.386-18.206-10.132 0-18.386 8.177-18.386 18.206 0 10.028 8.254 18.206 18.386 18.206 6.094 0 9.154-2.803 10.234-4.089a.275.275 0 0 1 .489.18v2.211c0 .926.771 1.698 1.697 1.698h4.268c.926 0 1.698-.772 1.698-1.698V29.7Zm-38.546-17.743c-.334-.309-.771-.489-1.208-.463-2.186.077-4.32.54-6.351 1.389a18.11 18.11 0 0 0-5.992 3.985 18.27 18.27 0 0 0-3.986 5.966 17.732 17.732 0 0 0-1.337 6.3v17.074c0 .926.772 1.697 1.723 1.697h4.294c.952 0 1.723-.771 1.723-1.697V29.16c.052-1.183.309-2.34.772-3.446a10.531 10.531 0 0 1 2.314-3.471 10.538 10.538 0 0 1 3.471-2.315 10.83 10.83 0 0 1 3.497-.797 1.725 1.725 0 0 0 1.646-1.723v-4.243a1.838 1.838 0 0 0-.566-1.208Zm-25.843-.746h-4.268c-.926 0-1.697.772-1.697 1.698v18.154c-.283 2.417-1.26 4.5-2.88 6.094a9.788 9.788 0 0 1-3.189 2.134 10 10 0 0 1-3.78.746 10 10 0 0 1-3.78-.746 9.275 9.275 0 0 1-3.188-2.134c-1.62-1.62-2.598-3.703-2.88-6.12V12.91c0-.926-.772-1.698-1.697-1.698h-4.269c-.926 0-1.697.772-1.697 1.698v17.28c0 2.314.437 4.577 1.337 6.711a17.246 17.246 0 0 0 3.806 5.683 17.65 17.65 0 0 0 5.682 3.806 17.662 17.662 0 0 0 6.712 1.337c2.314 0 4.577-.437 6.711-1.337a17.25 17.25 0 0 0 5.683-3.806c2.88-2.88 4.655-6.634 5.117-10.954V12.909a1.734 1.734 0 0 0-1.723-1.698Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M78.056 17.666a18.215 18.215 0 0 1 4.5 11.905v1.954c0 .952-.77 1.723-1.722 1.723H54.579c-.282 0-.488.283-.385.54.102.258.205.515.334.746a10.982 10.982 0 0 0 5.657 5.323c2.469 1.029 5.22 1.106 7.766.257a11.071 11.071 0 0 0 4.191-2.597 1.833 1.833 0 0 1 2.16-.334l3.394 1.774c.926.489 1.183 1.723.49 2.52a18.29 18.29 0 0 1-7.947 5.4 18.16 18.16 0 0 1-12.754-.412 18.108 18.108 0 0 1-9.309-8.768 18.251 18.251 0 0 1-1.26-12.754c1.132-4.269 3.78-7.946 7.432-10.415a18.044 18.044 0 0 1 12.446-2.905 17.987 17.987 0 0 1 11.263 6.043Zm-12.137.848c-2.7-.36-5.425.283-7.688 1.8a11.128 11.128 0 0 0-4.32 5.554c-.077.18.077.36.257.36h20.546c.18 0 .334-.18.257-.36a10.913 10.913 0 0 0-2.109-3.625 11.194 11.194 0 0 0-6.943-3.729Z"/></g></svg>
+      </span>
+      <span class="lodp-inst__text"><span class="lodp-inst__or" data-s-or>{{ t_s_or_line | escape }}</span><span class="lodp-inst__solo" data-s-solo>{{ t_s_solo_line | escape }}</span></span>
+      <button type="button" class="lodp-inst__more" data-s-more aria-haspopup="dialog" aria-controls="LODInstDlg-{{ sid }}">{{ t_more | escape }}<span class="lodp__sr"> {{ t_s_sr | escape }}</span></button>
+      {%- if s.inst_sequra_taeg -%}
+        <span class="lodp-inst__taeg" data-s-taeg data-inst-pending aria-live="polite">{{ t_taeg_wait | escape }}</span>
+      {%- endif -%}
     </li>
   {%- endif -%}
 {%- endcapture -%}
 
 <style>
-  /* LOJA DO OURO — PAGAMENTO EM PRESTAÇÕES / v1 */
-  .lodp-inst { margin: 18px 0 0; }
+  /* LOJA DO OURO — PAGAMENTO EM PRESTAÇÕES / v3 (compacto, desenhado no servidor) */
+  .lodp-inst { margin: 16px 0 0; }
   .lodp-inst[hidden], .lodp-inst [hidden] { display: none !important; }
   .lodp-inst__label {
     display: flex;
     align-items: center;
     gap: 12px;
+    margin: 0 0 10px;
     color: var(--muted);
     font-size: 9.5px;
     font-weight: 700;
-    line-height: 1.3;
+    line-height: 13px;
     letter-spacing: .2em;
     text-transform: uppercase;
   }
   .lodp-inst__label::before { content: ""; width: 24px; height: 1px; flex: 0 0 24px; background: var(--gold); }
-  .lodp-inst__rows {
-    margin: 10px 0 0 !important;
-    padding: 0 !important;
-    list-style: none !important;
-    border-bottom: 1px solid var(--line);
-  }
+  .lodp-inst__rows { display: flex; flex-direction: column; gap: 12px; margin: 0 !important; padding: 0 !important; list-style: none !important; }
   .lodp-inst__row {
     display: grid;
-    grid-template-columns: 9px minmax(0, 1fr);
-    gap: 0 13px;
-    margin: 0 !important;
-    padding: 13px 0 12px;
-    border-top: 1px solid var(--line);
-  }
-  .lodp-inst__row::before {
-    content: "";
-    width: 6px;
-    height: 6px;
-    margin: 8px 0 0 1px;
-    border: 1px solid var(--gold);
-    transform: rotate(45deg);
-  }
-  .lodp-inst__body { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; transition: opacity .3s ease; }
-  .lodp-inst__row.is-pending .lodp-inst__body { opacity: 0; visibility: hidden; }
-  .lodp-inst__title {
-    display: flex;
-    flex-wrap: wrap;
+    grid-template-columns: 61px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 2px 6px;
-    margin: 0 0 3px;
-    color: var(--ink);
-    font-family: var(--font-heading-family, Georgia, serif);
-    font-size: 17px;
-    font-weight: 400;
-    line-height: 1.25;
-    letter-spacing: -.005em;
-  }
-  .lodp-inst__logo { display: block; width: auto; height: 14px; margin-top: 1px; }
-  /* Klarna (Part API oficial): só contentor, letra, tamanho e cor. Logótipo, texto legal e modal ficam intactos. */
-  .lodp-inst__klarna { display: block; width: 100%; min-height: 49px; }
-  .lodp-inst__klarna::part(osm-container) {
-    flex-direction: row;
-    justify-content: flex-start;
+    gap: 0 12px;
+    margin: 0 !important;
     padding: 0;
-    text-align: left;
-    background-color: transparent;
-    border-color: transparent;
-    font-family: var(--font-body-family, Arial, sans-serif);
-  }
-  .lodp-inst__klarna::part(osm-message) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; line-height: 1.45; color: var(--text); }
-  .lodp-inst__klarna::part(osm-cta) { font-family: var(--font-body-family, Arial, sans-serif); font-size: 15px; font-weight: 600; color: var(--ink); }
-  .lodp-inst__klarna::part(osm-legal) { font-family: var(--font-body-family, Arial, sans-serif); color: var(--muted); }
-  .lodp-inst__line {
-    display: block;
-    min-height: 1.45em;
     color: var(--ink);
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.45;
-    font-variant-numeric: tabular-nums;
+    font-size: 16px;
+    line-height: 24px;
   }
-  .lodp-inst__sub {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 12px;
-    margin-top: 1px;
-    color: var(--text);
-    font-size: 14px;
-    line-height: 1.45;
-  }
-  .lodp-inst__note { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .lodp-inst__brand { display: flex; align-items: center; height: 24px; }
+  .lodp-inst__logo { display: block; flex: 0 0 auto; }
+  .lodp-inst__logo--klarna { width: 57px; height: 24px; }
+  .lodp-inst__logo--sequra { width: 61px; height: 14px; }
+  .lodp-inst__text { min-width: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .lodp-inst__solo { display: none; }
+  .lodp-inst:not(.has-k) .lodp-inst__or { display: none; }
+  .lodp-inst:not(.has-k) .lodp-inst__solo { display: inline; }
   .lodp-inst .lodp-inst__more {
-    display: inline;
+    justify-self: end;
     margin: 0;
     padding: 0;
     color: var(--ink);
@@ -381,7 +389,10 @@
     border: 0;
     border-radius: 2px;
     font: inherit;
+    font-size: 15px;
     font-weight: 600;
+    line-height: 24px;
+    white-space: nowrap;
     text-decoration: underline;
     text-decoration-color: var(--gold);
     text-decoration-thickness: 1px;
@@ -389,69 +400,101 @@
     cursor: pointer;
   }
   .lodp-inst .lodp-inst__more:hover { text-decoration-color: currentColor; }
-  .lodp-inst .lodp-inst__more:focus-visible,
-  .lodp-inst .lodp-inst__example summary:focus-visible { outline: 2px solid var(--ink) !important; outline-offset: 2px; }
-  .lodp-inst__example { width: 100%; margin-top: 7px; }
-  .lodp-inst__example summary {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+  .lodp-inst__taeg {
+    grid-column: 2 / -1;
+    margin-top: 2px;
     color: var(--text);
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.5;
-    letter-spacing: .02em;
-    list-style: none;
+    font-size: 16px;
+    line-height: 22px;
+    font-variant-numeric: tabular-nums;
+  }
+  .lodp-inst__taeg[data-inst-pending] { color: var(--muted); }
+  .lodp-inst__warning { display: block; margin: 10px 0 0; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 22px; }
+
+  .lodp-inst__dlg {
+    width: min(560px, calc(100vw - 32px));
+    max-height: min(86vh, 760px);
+    margin: auto;
+    padding: 0;
+    overflow: auto;
+    color: var(--text, #292720);
+    background: var(--paper, #fffdfa);
+    border: 1px solid var(--line, rgba(188, 145, 76, .27));
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(11, 11, 9, .22);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .lodp-inst__dlg::backdrop { background: rgba(11, 11, 9, .5); }
+  .lodp-inst__dlg-in { padding: 22px 24px 24px; }
+  .lodp-inst__dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+  .lodp-inst__dlg-title {
+    margin: 0;
+    color: var(--ink, #0b0b09);
+    font-family: var(--font-heading-family, Georgia, serif);
+    font-size: 21px;
+    font-weight: 400;
+    line-height: 1.25;
+  }
+  .lodp-inst__dlg-x {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    margin: -8px -10px 0 0;
+    padding: 0;
+    color: var(--ink, #0b0b09);
+    background: none;
+    border: 1px solid var(--line, rgba(188, 145, 76, .27));
+    border-radius: 999px;
     cursor: pointer;
   }
-  .lodp-inst__example summary::-webkit-details-marker { display: none; }
-  .lodp-inst__example summary::before {
-    content: "";
-    width: 9px;
-    height: 9px;
-    flex: 0 0 9px;
-    background:
-      linear-gradient(currentColor, currentColor) center / 9px 1px no-repeat,
-      linear-gradient(currentColor, currentColor) center / 1px 9px no-repeat;
-    transition: transform .25s ease;
-  }
-  .lodp-inst__example[open] summary::before { transform: rotate(45deg); }
-  .lodp-inst__example-body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
-    padding: 12px 14px;
-    color: var(--text);
-    background: var(--ivory);
-    border-radius: 10px;
-    font-size: 12.5px;
-    line-height: 1.6;
-  }
-  .lodp-inst__lender { color: var(--muted); }
-  .lodp-inst__warning {
-    display: block;
-    margin: 10px 0 0;
-    color: var(--ink);
-    font-size: 13px;
+  .lodp-inst__dlg p { margin: 0 0 12px; }
+  .lodp-inst__dlg-plans { margin: 0 0 14px !important; padding: 0 !important; list-style: none !important; border-top: 1px solid var(--line, rgba(188, 145, 76, .27)); }
+  .lodp-inst__dlg-plans li { margin: 0 !important; padding: 8px 0; border-bottom: 1px solid var(--line, rgba(188, 145, 76, .27)); font-variant-numeric: tabular-nums; }
+  .lodp-inst__dlg-sub { color: var(--ink, #0b0b09); font-weight: 600; }
+  .lodp-inst__dlg-muted { color: var(--muted, #746e64); }
+  .lodp-inst__dlg-official {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-top: 4px;
+    padding: 0 18px;
+    color: var(--ink, #0b0b09);
+    background: none;
+    border: 1px solid var(--ink, #0b0b09);
+    border-radius: 999px;
+    font: inherit;
+    font-size: 14px;
     font-weight: 600;
-    line-height: 1.45;
+    cursor: pointer;
   }
+  .lodp-inst__dlg button:focus-visible, .lodp-inst__dlg a:focus-visible { outline: 2px solid var(--gold, #bc914c); outline-offset: 3px; }
   @media (max-width: 849px) {
-    .lodp-inst__title { font-size: 16px; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .lodp-inst__body, .lodp-inst__example summary::before { transition: none !important; }
+    .lodp-inst { margin-top: 14px; }
+    .lodp-inst__label {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      margin: 0;
+      overflow: hidden !important;
+      clip: rect(0 0 0 0) !important;
+      white-space: nowrap !important;
+    }
+    .lodp-inst__rows { gap: 11px; }
+    .lodp-inst__taeg { grid-column: 1 / -1; }
+    .lodp-inst__dlg-in { padding: 18px 18px 20px; }
   }
 </style>
 
 <div
-  class="lodp-inst"
+  class="lodp-inst{% if inst_k_show %} has-k{% endif %}"
   id="LODInst-{{ sid }}"
   data-lodp-inst
   {% unless inst_k_show or inst_s_show %}hidden{% endunless %}
 >
-  <span class="lodp-inst__label" id="LODInstLabel-{{ sid }}">{{ t_label | escape }}</span>
+  <p class="lodp-inst__label" id="LODInstLabel-{{ sid }}">{{ t_label | escape }}</p>
   <ul class="lodp-inst__rows" aria-labelledby="LODInstLabel-{{ sid }}">
     {%- if s.inst_order == 'sequra' -%}
       {{ inst_row_s }}{{ inst_row_k }}
@@ -462,38 +505,100 @@
   {%- if s.inst_warning -%}
     <span class="lodp-inst__warning">{{ t_warning | escape }}</span>
   {%- endif -%}
-  <noscript><style>#LODInst-{{ sid }} { display: none !important; }</style></noscript>
+  {%- if inst_s_market -%}
+    {%- if s.inst_sequra_taeg -%}
+      <noscript><style>#LODInst-{{ sid }} [data-inst-row="sequra"] { display: none !important; }</style></noscript>
+    {%- endif -%}
+    <dialog class="lodp-inst__dlg" id="LODInstDlg-{{ sid }}" aria-labelledby="LODInstDlgT-{{ sid }}">
+      <div class="lodp-inst__dlg-in">
+        <div class="lodp-inst__dlg-head">
+          <h2 class="lodp-inst__dlg-title" id="LODInstDlgT-{{ sid }}">{{ t_d_title | escape }}</h2>
+          <button type="button" class="lodp-inst__dlg-x" data-dlg-close aria-label="{{ t_d_close | escape }}">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <p data-dlg-status aria-live="polite">{{ t_d_wait | escape }}</p>
+        <div data-dlg-body hidden>
+          <p class="lodp-inst__dlg-sub" data-dlg-plans-title></p>
+          <ul class="lodp-inst__dlg-plans" data-dlg-plans></ul>
+          <p data-dlg-example></p>
+        </div>
+        {%- if s.inst_warning -%}<p class="lodp-inst__dlg-sub">{{ t_warning | escape }}</p>{%- endif -%}
+        <p>{{ t_s_note | escape }}</p>
+        <p class="lodp-inst__dlg-muted">{{ t_lender | escape }}</p>
+        <button
+          type="button"
+          class="lodp-inst__dlg-official sequra-educational-popup sequra-educational-popup--{{ inst_s_product | escape }}"
+          data-dlg-official
+          data-product="{{ inst_s_product | escape }}"
+          data-amount="{{ inst_cents }}"
+        >{{ t_d_official | escape }}</button>
+      </div>
+    </dialog>
+  {%- endif -%}
   <script type="application/json" data-inst-config>
     {
+      "sid": {{ sid | json }},
       "lang": {{ lang | json }},
       "cents": {{ inst_cents | json }},
       "variantId": {{ variant.id | json }},
       "firstVariantId": {{ product.variants.first.id | json }},
-      "klarna": { "on": {{ inst_k_market | json }}, "min": {{ inst_k_min | json }}, "max": {{ inst_k_max | json }} },
-      "sequra": { "on": {{ inst_s_market | json }}, "min": {{ inst_s_min | json }}, "max": {{ inst_s_max | json }}, "product": {{ inst_s_product | json }} },
+      "moneySample": {{ 123456789 | money | strip_html | json }},
+      "k": { "on": {{ inst_k_market | json }}, "min": {{ inst_k_min | json }}, "max": {{ inst_k_max | json }}, "locale": {{ inst_k_locale | json }} },
+      "s": {
+        "on": {{ inst_s_market | json }}, "min": {{ inst_s_min | json }}, "max": {{ inst_s_max | json }},
+        "n": {{ inst_s_n | json }}, "product": {{ inst_s_product | json }}, "locale": {{ inst_s_locale | json }},
+        "merchant": {{ s.inst_sequra_merchant | default: '' | strip | json }}, "assetKey": {{ s.inst_sequra_asset_key | default: '' | strip | json }},
+        "cdn": "https://live.cdn.sequra.svea.com", "taeg": {{ s.inst_sequra_taeg | json }}
+      },
       "t": {
-        "sqTitle": {{ t_s_title | json }},
-        "sqLine": {{ t_s_line | json }},
-        "sqFree": {{ t_s_free | json }},
-        "sqExample": {{ t_ex | json }},
-        "sqOver": {{ t_over | json }}
+        "k": {{ t_k | json }}, "sOr": {{ t_s_or | json }}, "sSolo": {{ t_s_solo | json }},
+        "taeg": {{ t_taeg | json }}, "plansTitle": {{ t_d_plans | json }}, "plan": {{ t_d_plan | json }},
+        "ex": {{ t_ex | json }}, "exLast": {{ t_ex_last | json }}, "over": {{ t_over | json }}, "fail": {{ t_d_fail | json }}
       }
     }
   </script>
 </div>
+{%- if inst_s_market -%}
+  <link rel="preconnect" href="https://live.cdn.sequra.svea.com">
+  <link rel="preconnect" href="https://live.cdn.sequra.svea.com" crossorigin>
+{%- endif -%}
 
 <script>
   (function () {
     'use strict';
-    var LOC = { pt: 'pt-PT', en: 'en-IE', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT' };
+    var PCT_SPACE = { es: 1, fr: 1, de: 1 };
+    var SEQURA_WAIT = 20000;   /* depois do «load»: a app seQura pode ainda carregar a biblioteca */
+    var KLARNA_WAIT = 15000;   /* depois do «load»: o SDK da Klarna é carregado pela app Klarna */
 
-    function money(cents, loc) {
-      try { return new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR' }).format(cents / 100); }
-      catch (e) { return (cents / 100).toFixed(2).replace('.', ',') + ' €'; }
+    function decode(s) {
+      try { var t = document.createElement('textarea'); t.innerHTML = String(s || ''); return t.value; }
+      catch (e) { return String(s || ''); }
     }
-    function pct(basisPoints, loc) {
-      try { return new Intl.NumberFormat(loc, { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(basisPoints / 10000); }
-      catch (e) { return (basisPoints / 100).toFixed(2) + '%'; }
+    /* Formato de dinheiro da loja (o mesmo do preço da ficha), lido de um exemplo formatado pela Shopify (1234567,89) */
+    function moneyFormat(sample) {
+      var str = decode(sample);
+      var m = str.match(/\d[\d.,'   ]*\d/);
+      var pre = '€', suf = '', thou = '.', dec = ',';
+      if (m) {
+        var n = m[0];
+        pre = str.slice(0, m.index);
+        suf = str.slice(m.index + n.length);
+        thou = /\d/.test(n.charAt(1)) ? '' : n.charAt(1);
+        dec = /[.,]89$/.test(n) ? n.charAt(n.length - 3) : (thou === ',' ? '.' : ',');
+      }
+      return {
+        thou: thou,
+        dec: dec,
+        money: function (cents) {
+          cents = Math.round(Number(cents));
+          if (!isFinite(cents)) return '—';
+          var neg = cents < 0; if (neg) cents = -cents;
+          var units = String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, thou);
+          var c = cents % 100;
+          return (neg ? '-' : '') + pre + units + dec + (c < 10 ? '0' : '') + c + suf;
+        }
+      };
     }
     function fill(tpl, map) {
       return String(tpl || '').replace(/\[([a-z_0-9]+)\]/gi, function (m, k) {
@@ -501,131 +606,361 @@
       });
     }
     function num(x) { return x && typeof x === 'object' ? Number(x.value) : Number(x); }
-    function poll(test, ms, done) {
+    function poll(test, ms, done, step) {
       var t0 = Date.now();
       (function tick() {
         var ok = false;
         try { ok = !!test(); } catch (e) {}
         if (ok) return done(true);
         if (Date.now() - t0 >= ms) return done(false);
-        setTimeout(tick, 200);
+        setTimeout(tick, step || 200);
       })();
     }
+    function afterLoad(fn) {
+      if (document.readyState === 'complete') setTimeout(fn, 0);
+      else window.addEventListener('load', function () { setTimeout(fn, 0); }, { once: true });
+    }
+    function shown(n) {
+      if (!n || !document.documentElement.contains(n)) return false;
+      var cs = getComputedStyle(n);
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && n.getClientRects().length > 0;
+    }
+    function focusEl(n) { if (!n) return; try { n.focus({ preventScroll: true }); } catch (e) { try { n.focus(); } catch (x) {} } }
+
+    /* ----- seQura: pedir já a biblioteca oficial (prioridade baixa), com a mesma configuração da app seQura ----- */
+    function sequraBoot(c, dec, thou) {
+      var S = window.Sequra;
+      if (S && typeof S.computeCreditAgreements === 'function') return;
+      if (window.SequraConfiguration || window.__lodpSqBoot) return;
+      if (!c.merchant || !c.assetKey) return;
+      window.__lodpSqBoot = 1;
+      var g = {
+        merchant: c.merchant,
+        assetKey: c.assetKey,
+        products: [c.product],
+        scriptUri: c.cdn + '/assets/sequra-checkout.min.js',
+        decimalSeparator: dec,
+        thousandSeparator: thou || '.',
+        locale: c.locale,
+        currency: 'EUR'
+      };
+      window.SequraConfiguration = g;
+      window.SequraOnLoad = [];
+      window.Sequra = { onLoad: function (cb) { window.SequraOnLoad.push(cb); } };
+      var a = document.createElement('script');
+      a.async = true;
+      a.src = g.scriptUri;
+      try { a.fetchPriority = 'low'; } catch (e) {}
+      (document.head || document.documentElement).appendChild(a);
+      /* Biblioteca carregada: a app seQura já não a volta a pedir nesta página (o widget dela não tem onde aparecer na ficha LOD) */
+      window.Sequra.onLoad(function () { window.sequraWidgetsScriptLoaded = true; });
+    }
+    function sequraFn() { var S = window.Sequra; return S && typeof S.computeCreditAgreements === 'function' ? S : null; }
 
     function init(el) {
       if (!el || el.dataset.instReady === '1') return;
       el.dataset.instReady = '1';
       var cfg;
-      try { cfg = JSON.parse(el.querySelector('[data-inst-config]').textContent); } catch (e) { el.hidden = true; return; }
-      var loc = LOC[cfg.lang] || 'pt-PT';
+      try { cfg = JSON.parse(el.querySelector('[data-inst-config]').textContent); } catch (e) { return; }
+      var fmt = moneyFormat(cfg.moneySample);
+      var lang = cfg.lang || 'pt';
+      var pctDec = lang === 'en' ? '.' : ',';
+      function money(c) { return fmt.money(c); }
+      function pct(bp) {
+        var v = Number(bp);
+        if (!isFinite(v)) return '—';
+        var s = v === 0 ? '0' : (v / 100).toFixed(2);
+        return s.replace('.', pctDec) + (PCT_SPACE[lang] ? ' %' : '%');
+      }
       var host = el.closest('[data-lodp]') || document;
       var kRow = el.querySelector('[data-inst-row="klarna"]');
       var sRow = el.querySelector('[data-inst-row="sequra"]');
-      var kPl = kRow ? kRow.querySelector('klarna-placement') : null;
-      var sq = sRow ? {
-        title: sRow.querySelector('[data-sq-title]'),
-        line: sRow.querySelector('[data-sq-line]'),
-        free: sRow.querySelector('[data-sq-free]'),
-        more: sRow.querySelector('[data-sq-more]'),
-        example: sRow.querySelector('[data-sq-example]')
-      } : null;
-      /* estados: pending (à espera do fornecedor) | ok | fail (fornecedor não respondeu) | na (fornecedor diz indisponível) */
-      var st = { cents: Number(cfg.cents) || 0, k: 'pending', s: 'pending', sqLib: 'wait', kToken: 0 };
+      var kText = kRow && kRow.querySelector('[data-k-text]');
+      var kMore = kRow && kRow.querySelector('[data-k-more]');
+      var sOr = sRow && sRow.querySelector('[data-s-or]');
+      var sSolo = sRow && sRow.querySelector('[data-s-solo]');
+      var sMore = sRow && sRow.querySelector('[data-s-more]');
+      var sTaeg = sRow && sRow.querySelector('[data-s-taeg]');
+      var dlg = el.querySelector('.lodp-inst__dlg');
+      var st = { cents: Number(cfg.cents) || 0, kNa: false, sNa: false, sq: 'wait', plans: null, plansFor: -1 };
 
       function inRange(p) { return !!(p && p.on && st.cents >= p.min && st.cents <= p.max); }
       function layout() {
-        var kShow = !!kRow && inRange(cfg.klarna) && st.k !== 'fail';
-        var sShow = !!sRow && inRange(cfg.sequra) && st.s !== 'fail' && st.s !== 'na';
-        if (kRow) { kRow.hidden = !kShow; kRow.classList.toggle('is-pending', st.k === 'pending'); }
-        if (sRow) { sRow.hidden = !sShow; sRow.classList.toggle('is-pending', st.s === 'pending'); }
+        var kShow = !!kRow && inRange(cfg.k) && !st.kNa;
+        var sShow = !!sRow && inRange(cfg.s) && !st.sNa;
+        if (kRow) kRow.hidden = !kShow;
+        if (sRow) sRow.hidden = !sShow;
+        el.classList.toggle('has-k', kShow);
         el.hidden = !(kShow || sShow);
       }
 
-      /* ----- Klarna: placement oficial; o SDK é carregado pela app Klarna ----- */
-      function klarnaReady() {
+      /* ===== Klarna ===== */
+      function klarnaText() {
+        if (kText) kText.textContent = fill(cfg.t.k, { valor: money(Math.floor(st.cents / 3)) });
+      }
+      var kHost = null, kPl = null, kOpen = null;
+      function kSdk() { return window.Klarna && Klarna.OnsiteMessaging && typeof Klarna.OnsiteMessaging.refresh === 'function'; }
+      function kMount() {
+        if (kPl || !kRow || !kSdk()) return !!kPl;
+        kHost = document.createElement('div');
+        kHost.setAttribute('aria-hidden', 'true');
+        kHost.className = 'lodp-inst-klarna-host';
+        kHost.style.cssText = 'position:absolute;left:-10000px;top:0;width:360px;visibility:hidden;pointer-events:none;';
+        kPl = document.createElement('klarna-placement');
+        kPl.setAttribute('data-key', 'credit-promotion-auto-size');
+        kPl.setAttribute('data-locale', cfg.k.locale);
+        kPl.setAttribute('data-purchase-amount', String(st.cents));
+        kHost.appendChild(kPl);
+        document.body.appendChild(kHost);
+        try { Klarna.OnsiteMessaging.refresh(); } catch (e) {}
+        kCheck();
+        return true;
+      }
+      function kMsg() {
         var r = kPl && kPl.shadowRoot;
         var m = r && r.querySelector('[part~="osm-message"]');
-        return !!(m && (m.textContent || '').trim());
+        return m ? (m.textContent || '').replace(/\s+/g, ' ').trim() : '';
       }
-      function klarnaWait() {
-        if (!kPl || !inRange(cfg.klarna)) return;
-        if (klarnaReady()) { st.k = 'ok'; layout(); return; }
-        st.k = 'pending'; layout();
-        var token = ++st.kToken;
-        poll(klarnaReady, 15000, function (ok) {
-          if (token !== st.kToken) return;
-          st.k = ok ? 'ok' : 'fail';
-          layout();
+      function kCta() { var r = kPl && kPl.shadowRoot; return r ? r.querySelector('[part~="osm-cta"]') : null; }
+      /* Elegibilidade: a mensagem oficial tem de ter o 3 e um valor (ex.: «3 pagamentos de 241,73 €»); senão a linha sai */
+      var kCheckToken = 0;
+      function kHas(t) { return t.replace(/\D/g, '').indexOf(String(Math.floor(st.cents / 3))) >= 0 && /(^|\D)3(\D|$)/.test(t); }
+      function kCheck() {
+        if (!kPl) return;
+        var token = ++kCheckToken, want = String(st.cents);
+        poll(function () {
+          var t = kMsg();
+          /* resposta da Klarna para este valor: ou tem a prestação certa, ou não tem prestação nenhuma («Paga depois») */
+          return kPl.getAttribute('data-purchase-amount') === want && /\d/.test(t) && (kHas(t) || !/\d[.,]\d{2}(\D|$)/.test(t));
+        }, 8000, function (ok) {
+          if (token !== kCheckToken || !ok) return;
+          var valid = kHas(kMsg());
+          if (st.kNa !== !valid) { st.kNa = !valid; layout(); }
+        }, 250);
+      }
+      function kWatch() {
+        var o = kOpen = { t0: Date.now(), seen: false };
+        var timer = setInterval(function () {
+          if (kOpen !== o) { clearInterval(timer); return; }
+          var m = document.getElementById('klarna-fullscreen-shadow-dom');
+          var on = !!(m && shown(m));
+          if (on) o.seen = true;
+          if ((o.seen && !on) || (!o.seen && Date.now() - o.t0 > 4000)) {
+            clearInterval(timer);
+            kOpen = null;
+            var a = document.activeElement;
+            if (o.seen && (!a || a === document.body || a === document.documentElement || (kHost && kHost.contains(a)))) focusEl(kMore);
+          }
+        }, 200);
+      }
+      if (kMore) {
+        var warm = function () { if (!kPl) kMount(); };
+        kMore.addEventListener('pointerenter', warm);
+        kMore.addEventListener('focus', warm);
+        kMore.addEventListener('touchstart', warm, { passive: true });
+        kMore.addEventListener('click', function (e) {
+          var c = kCta();
+          if (!c) return;            /* sem SDK: o link abre a página oficial da Klarna */
+          e.preventDefault();
+          c.click();                 /* modal oficial da Klarna */
+          kWatch();
         });
       }
       function klarnaUpdate() {
+        klarnaText();
         if (!kPl) return;
         kPl.setAttribute('data-purchase-amount', String(st.cents));
-        try {
-          if (window.Klarna && Klarna.OnsiteMessaging && typeof Klarna.OnsiteMessaging.refresh === 'function') Klarna.OnsiteMessaging.refresh();
-        } catch (e) {}
+        try { if (kSdk()) Klarna.OnsiteMessaging.refresh(); } catch (e) {}
+        kCheck();
       }
 
-      /* ----- seQura: valores e TAEG só de Sequra.computeCreditAgreements ----- */
-      function sequraLib(cb) {
-        poll(function () { return window.Sequra && typeof window.Sequra.onLoad === 'function'; }, 20000, function (ok) {
-          if (!ok) return cb(false);
-          var done = false;
-          function finish(v) { if (!done) { done = true; cb(v); } }
-          try {
-            Sequra.onLoad(function () {
-              poll(function () { return typeof Sequra.computeCreditAgreements === 'function'; }, 5000, finish);
-            });
-          } catch (e) { finish(false); return; }
-          setTimeout(function () { finish(typeof Sequra.computeCreditAgreements === 'function'); }, 15000);
-        });
-      }
+      /* ===== seQura ===== */
+      function isFree(p) { return num(p.apr) === 0 && num(p.cost_of_credit) === 0; }
       function sequraPlans(cents) {
-        var r = Sequra.computeCreditAgreements({ amount: String(cents), product: cfg.sequra.product });
-        var list = (r && r[cfg.sequra.product]) || [];
-        return list.filter(function (p) { return p && p.available && p.instalment_count > 0; });
+        var S = sequraFn();
+        if (!S) return null;
+        var r = S.computeCreditAgreements({ amount: String(cents), product: cfg.s.product });
+        var list = (r && r[cfg.s.product]) || [];
+        return list
+          .filter(function (p) { return p && p.available && p.instalment_count > 0; })
+          .sort(function (a, b) { return a.instalment_count - b.instalment_count; });
+      }
+      function setN(n) {
+        if (sOr) sOr.textContent = fill(cfg.t.sOr, { n: String(n) });
+        if (sSolo) sSolo.textContent = fill(cfg.t.sSolo, { n: String(n) });
       }
       function sequraRender() {
-        if (!sRow || st.sqLib !== 'ok') return;
-        if (!inRange(cfg.sequra)) { layout(); return; }
-        var plans = [];
-        try { plans = sequraPlans(st.cents); } catch (e) { plans = []; }
-        if (!plans.length) { st.s = 'na'; layout(); return; }
-        var top = plans.reduce(function (a, b) { return b.instalment_count > a.instalment_count ? b : a; });
-        var free = plans.filter(function (p) { return num(p.apr) === 0 && num(p.cost_of_credit) === 0; })
-          .sort(function (a, b) { return b.instalment_count - a.instalment_count; })[0];
-        var map = { n: String(top.instalment_count), valor: money(num(top.instalment_total), loc), taeg: pct(num(top.apr), loc) };
-        if (sq.title) sq.title.textContent = fill(cfg.t.sqTitle, map);
-        if (sq.line) sq.line.textContent = fill(cfg.t.sqLine, map);
-        if (sq.free) {
-          var showFree = !!free && free !== top;
-          sq.free.hidden = !showFree;
-          sq.free.textContent = showFree ? fill(cfg.t.sqFree, { n: String(free.instalment_count), valor: money(num(free.instalment_total), loc) }) : '';
+        if (!sRow) return;
+        if (!inRange(cfg.s)) { layout(); return; }
+        var plans = null;
+        try { plans = sequraPlans(st.cents); } catch (e) { plans = null; }
+        if (plans === null) return false;          /* biblioteca ainda não pronta */
+        if (!plans.length) return false;
+        st.plans = plans; st.plansFor = st.cents; st.sNa = false;
+        var top = plans[plans.length - 1];
+        setN(top.instalment_count);
+        var costed = plans.filter(function (p) { return !isFree(p); });
+        if (sTaeg) {
+          sTaeg.textContent = cfg.t.taeg + (lang === 'fr' ? ' : ' : ': ') + (costed.length
+            ? costed.map(function (p) { return p.instalment_count + 'x ' + pct(num(p.apr)); }).join(' · ')
+            : pct(0));
+          sTaeg.removeAttribute('data-inst-pending');
         }
-        if (sq.example) {
-          var text = fill(cfg.t.sqExample, {
-            preco: money(st.cents, loc),
-            n: String(top.instalment_count),
-            valor: money(num(top.instalment_total), loc),
-            custo_mes: money(num(top.instalment_fee), loc),
-            tan: pct(num(top.interest), loc),
-            taeg: pct(num(top.apr), loc),
-            custo_credito: money(num(top.cost_of_credit), loc),
-            total: money(num(top.grand_total), loc)
-          });
-          if (num(top.over_max) > 0) text += ' ' + fill(cfg.t.sqOver, { max: money(num(top.max_financed_amount), loc) });
-          sq.example.textContent = text;
-        }
-        if (sq.more && sq.more.getAttribute('data-amount') !== String(st.cents)) {
-          sq.more.setAttribute('data-amount', String(st.cents));
-          try { if (typeof Sequra.refreshComponents === 'function') Sequra.refreshComponents(); } catch (e) {}
-        }
-        st.s = 'ok';
+        dialogFill();
         layout();
+        return true;
+      }
+      function sequraLibReady() {
+        var S = sequraFn();
+        if (!S) return false;
+        try {
+          var r = S.computeCreditAgreements({ amount: String(Math.max(st.cents, cfg.s.min)), product: cfg.s.product });
+          var l = r && r[cfg.s.product];
+          return !!(l && l.length);
+        } catch (e) { return false; }
+      }
+      function sequraWait(cb) {
+        /* espera pela biblioteca: a nossa (pedida já) ou, se falhar, a da app seQura depois do «load» */
+        var t0 = Date.now(), loaded = document.readyState === 'complete', tLoad = loaded ? t0 : 0;
+        if (!loaded) window.addEventListener('load', function () { tLoad = Date.now(); }, { once: true });
+        (function tick() {
+          if (sequraLibReady()) return cb(true);
+          if (tLoad && Date.now() - tLoad > SEQURA_WAIT) return cb(false);
+          setTimeout(tick, sequraFn() ? 250 : 150);
+        })();
       }
 
-      /* ----- A app Klarna lê ?variant= (ou a 1.ª variante): alinhar com a variante mostrada ----- */
-      if (kPl && cfg.variantId && cfg.firstVariantId && cfg.variantId !== cfg.firstVariantId) {
+      /* ----- Diálogo «Saber mais» da seQura (modal nativo: foco dentro, Tab fica dentro, Escape fecha) ----- */
+      var dlgStatus = dlg && dlg.querySelector('[data-dlg-status]');
+      var dlgBody = dlg && dlg.querySelector('[data-dlg-body]');
+      var dlgOfficial = dlg && dlg.querySelector('[data-dlg-official]');
+      var toOfficial = false;
+      function dialogFill() {
+        if (!dlg || !st.plans || st.plansFor !== st.cents) return;
+        var plans = st.plans, top = plans[plans.length - 1];
+        var costed = plans.filter(function (p) { return !isFree(p); });
+        dlg.querySelector('[data-dlg-plans-title]').textContent = fill(cfg.t.plansTitle, { preco: money(st.cents) });
+        var ul = dlg.querySelector('[data-dlg-plans]');
+        ul.textContent = '';
+        plans.forEach(function (p) {
+          var li = document.createElement('li');
+          li.textContent = fill(cfg.t.plan, { n: String(p.instalment_count), valor: money(num(p.instalment_total)), taeg: pct(num(p.apr)), total: money(num(p.grand_total)) });
+          ul.appendChild(li);
+        });
+        var ex = dlg.querySelector('[data-dlg-example]');
+        var ref = costed.length ? costed[costed.length - 1] : null;
+        if (ref) {
+          var n = ref.instalment_count, inst = num(ref.instalment_total), grand = num(ref.grand_total);
+          var down = num(ref.down_payment_total); if (!isFinite(down)) down = inst;
+          var rest = num(ref.remaining_instalment_count); if (!isFinite(rest)) rest = n - 1;
+          var credit = num(ref.drawdown_payment_amount); if (!isFinite(credit)) credit = st.cents - down;
+          var last = n >= 2 ? grand - down - (n - 2) * inst : inst;
+          var ultima = (isFinite(last) && last > 0 && Math.abs(last - inst) >= 1) ? fill(cfg.t.exLast, { x: money(last) }) : '';
+          var text = fill(cfg.t.ex, {
+            preco: money(st.cents), n: String(n), valor: money(inst), ultima: ultima,
+            custo_mes: money(num(ref.instalment_fee)), sinal: money(down), resto: String(rest),
+            credito: money(credit), meses: String(rest), tan: pct(num(ref.interest)), taeg: pct(num(ref.apr)),
+            custo_credito: money(num(ref.cost_of_credit)), total: money(grand)
+          });
+          if (num(top.over_max) > 0) text += ' ' + fill(cfg.t.over, { max: money(num(top.max_financed_amount)) });
+          ex.textContent = text;
+          ex.hidden = false;
+        } else {
+          ex.textContent = '';
+          ex.hidden = true;
+        }
+        if (dlgStatus) dlgStatus.hidden = true;
+        if (dlgBody) dlgBody.hidden = false;
+      }
+      function dialogOpen() {
+        if (!dlg) return;
+        if (st.plans && st.plansFor === st.cents) dialogFill();
+        else if (st.sq === 'fail' && dlgStatus) { dlgStatus.textContent = cfg.t.fail; dlgStatus.hidden = false; if (dlgBody) dlgBody.hidden = true; }
+        toOfficial = false;
+        if (typeof dlg.showModal === 'function') { if (!dlg.open) dlg.showModal(); }
+        else dlg.setAttribute('open', '');
+        if (sMore) sMore.setAttribute('aria-expanded', 'true');
+        focusEl(dlg.querySelector('[data-dlg-close]'));
+      }
+      function dialogClose() {
+        if (!dlg) return;
+        if (typeof dlg.close === 'function') { if (dlg.open) dlg.close(); }
+        else { dlg.removeAttribute('open'); onDialogClose(); }
+      }
+      function onDialogClose() {
+        if (sMore) sMore.setAttribute('aria-expanded', 'false');
+        if (toOfficial) { toOfficial = false; sqWatch(); return; }
+        setTimeout(function () { focusEl(sMore); }, 0);
+      }
+      if (dlg) {
+        dlg.addEventListener('close', onDialogClose);
+        dlg.addEventListener('click', function (e) { if (e.target === dlg) dialogClose(); });   /* clique no fundo */
+        var x = dlg.querySelector('[data-dlg-close]');
+        if (x) x.addEventListener('click', dialogClose);
+      }
+      if (sMore) { sMore.setAttribute('aria-expanded', 'false'); sMore.addEventListener('click', dialogOpen); }
+
+      /* ----- Simulador oficial seQura (pop-up da seQura): o foco entra, Escape fecha, o foco volta ao «Saber mais» ----- */
+      var sqOpen = null;
+      function sqFrame() {
+        var ws = document.querySelectorAll('.Sequra__EducationalPopupWrapper');
+        for (var i = ws.length - 1; i >= 0; i--) {
+          var f = ws[i].querySelector('iframe.Sequra__EducationalPopup') || ws[i].querySelector('iframe');
+          if (f && shown(ws[i]) && shown(f)) return f;
+        }
+        return null;
+      }
+      function sqClose() {
+        var o = sqOpen;
+        if (!o) return;
+        sqOpen = null;
+        clearInterval(o.timer);
+        document.removeEventListener('keydown', o.onKey, true);
+        document.removeEventListener('focusin', o.onFocus, true);
+        setTimeout(function () { focusEl(sMore); }, 0);
+      }
+      function sqWatch() {
+        if (sqOpen) return;
+        poll(sqFrame, 3000, function (ok) {
+          var f = ok ? sqFrame() : null;
+          if (!f) { focusEl(sMore); return; }
+          var o = sqOpen = { frame: f };
+          if (!f.getAttribute('title')) f.setAttribute('title', dlgOfficial ? dlgOfficial.textContent : 'seQura');
+          focusEl(f);
+          f.addEventListener('load', function () { if (sqOpen === o && document.activeElement !== f) focusEl(f); });
+          o.onKey = function (e) {
+            if (sqOpen !== o || (e.key !== 'Escape' && e.key !== 'Esc')) return;
+            e.preventDefault();
+            var w = f.closest('.Sequra__EducationalPopupWrapper') || f;
+            if (w.parentNode) w.parentNode.removeChild(w);   /* o mesmo que a seQura faz ao fechar */
+            sqClose();
+          };
+          o.onFocus = function (e) {
+            if (sqOpen !== o) return;
+            var w = f.closest('.Sequra__EducationalPopupWrapper');
+            if (e.target !== f && !(w && w.contains(e.target))) focusEl(f);
+          };
+          document.addEventListener('keydown', o.onKey, true);
+          document.addEventListener('focusin', o.onFocus, true);
+          o.timer = setInterval(function () { if (sqOpen === o && !shown(f)) sqClose(); }, 250);
+        }, 100);
+      }
+      if (dlgOfficial) {
+        dlgOfficial.addEventListener('click', function () {
+          /* o pop-up da seQura abre por baixo de um <dialog> modal: fechar primeiro o nosso */
+          toOfficial = true;
+          dialogClose();
+          if (!sequraFn()) { toOfficial = false; focusEl(sMore); }
+        });
+      }
+      function officialAmount() {
+        if (!dlgOfficial || dlgOfficial.getAttribute('data-amount') === String(st.cents)) return;
+        dlgOfficial.setAttribute('data-amount', String(st.cents));
+        try { var S = sequraFn(); if (S && typeof S.refreshComponents === 'function') S.refreshComponents(); } catch (e) {}
+      }
+
+      /* ===== A app Klarna lê ?variant= (ou a 1.ª variante): alinhar com a variante mostrada ===== */
+      if (kRow && cfg.variantId && cfg.firstVariantId && cfg.variantId !== cfg.firstVariantId) {
         try {
           var u = new URL(window.location.href);
           if (!u.searchParams.get('variant')) {
@@ -635,31 +970,48 @@
         } catch (e) {}
       }
 
-      /* ----- Mudança de variante (evento emitido pela ficha) ----- */
+      /* ===== Mudança de variante (evento emitido pela ficha) ===== */
       host.addEventListener('lodp:variant-change', function (event) {
         var v = event.detail && event.detail.variant;
         var cents = v ? Number(v.cents) : NaN;
         if (!isFinite(cents) || cents === st.cents) return;
         st.cents = cents;
-        if (kPl) {
-          if (st.k === 'fail') st.k = 'pending';
-          klarnaUpdate();
-          klarnaWait();
-        }
+        st.kNa = false;
+        klarnaUpdate();
         if (sRow) {
-          if (st.s === 'na') st.s = 'pending';
-          sequraRender();
+          officialAmount();
+          if (st.sq === 'ok') {
+            st.sNa = false;
+            if (sequraRender() !== true && inRange(cfg.s)) { st.sNa = true; }
+          }
         }
         layout();
       });
 
+      /* ===== Arranque ===== */
       layout();
-      if (kPl) klarnaWait();
       if (sRow) {
-        sequraLib(function (ok) {
-          st.sqLib = ok ? 'ok' : 'none';
-          if (!ok) { st.s = 'fail'; layout(); return; }
-          sequraRender();
+        sequraBoot(cfg.s, fmt.dec, fmt.thou);
+        sequraWait(function (ok) {
+          st.sq = ok ? 'ok' : 'fail';
+          if (ok && inRange(cfg.s) && sequraRender() !== true) { st.sNa = true; layout(); }
+          if (ok) { try { var S = sequraFn(); if (S && typeof S.refreshComponents === 'function') S.refreshComponents(); } catch (e) {} }
+          if (!ok) {
+            /* Sem dados da seQura não se pode mostrar «até [n]x» sem a TAEG: a linha sai */
+            if (cfg.s.taeg !== false) { st.sNa = true; layout(); }
+            if (dlg && dlg.open && dlgStatus) { dlgStatus.textContent = cfg.t.fail; dlgStatus.hidden = false; }
+            return;
+          }
+          officialAmount();
+        });
+      }
+      if (kRow) {
+        afterLoad(function () {
+          poll(kSdk, KLARNA_WAIT, function (ok) {
+            if (!ok) return;
+            var go = function () { kMount(); };
+            if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 3000 }); else setTimeout(go, 1200);
+          }, 300);
         });
       }
     }

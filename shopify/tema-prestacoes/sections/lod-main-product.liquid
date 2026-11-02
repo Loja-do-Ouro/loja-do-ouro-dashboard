@@ -1850,7 +1850,7 @@
     { "type": "header", "content": "Pagamento em prestações" },
     {
       "type": "paragraph",
-      "content": "Bloco por baixo do preço com a Klarna (3x sem juros) e a seQura. Os valores e a TAEG vêm sempre da Klarna e da seQura. Textos vazios = texto da casa em PT, EN, ES, FR, DE e IT; um texto escrito aqui substitui em todas as línguas (traduza-o na app Translate & Adapt)."
+      "content": "Bloco compacto por baixo do preço com a Klarna (3x sem juros) e a seQura. O texto e os logótipos aparecem logo com a página. A TAEG de cada plano seQura com custos vem sempre da seQura. Textos vazios = texto da casa em PT, EN, ES, FR, DE e IT; um texto escrito aqui substitui em todas as línguas (traduza-o na app Translate & Adapt)."
     },
     { "type": "checkbox", "id": "inst_enabled", "label": "Mostrar pagamento em prestações", "default": true },
     {
@@ -1863,13 +1863,20 @@
       ],
       "default": "klarna"
     },
-    { "type": "text", "id": "inst_label", "label": "Título do bloco", "info": "Vazio = «Pagamento em prestações»." },
+    { "type": "text", "id": "inst_label", "label": "Título do bloco", "info": "Vazio = «Pagamento em prestações». No telemóvel o título fica só para leitores de ecrã." },
+    {
+      "type": "text",
+      "id": "inst_excluded_collections",
+      "label": "Coleções sem prestações",
+      "default": "moedas-de-investimento",
+      "info": "Identificadores (handles) separados por vírgulas. Por omissão a coleção «Investimento» (libras, moedas e barras de ouro de investimento)."
+    },
     {
       "type": "text",
       "id": "inst_excluded_tags",
       "label": "Etiquetas sem prestações",
       "default": "voucher, ouro-investimento, sem-prestacoes",
-      "info": "Separadas por vírgulas. Produtos com uma destas etiquetas não mostram o bloco. Os cartões-oferta Shopify ficam sempre de fora."
+      "info": "Separadas por vírgulas. Os cartões-oferta Shopify ficam sempre de fora."
     },
     {
       "type": "text",
@@ -1888,23 +1895,39 @@
     { "type": "text", "id": "inst_warning_text", "label": "Texto do aviso", "info": "Vazio = texto oficial em cada língua." },
     { "type": "header", "content": "Klarna — 3x sem juros" },
     { "type": "checkbox", "id": "inst_klarna", "label": "Mostrar Klarna", "default": true },
-    { "type": "text", "id": "inst_klarna_title", "label": "Título Klarna", "info": "Vazio = «Pague em 3x sem juros». A linha com o valor, o logótipo e o «Saber mais» são os oficiais da Klarna." },
-    { "type": "text", "id": "inst_klarna_note", "label": "Nota Klarna", "info": "Vazio = «TAEG 0%. Sujeito a aprovação. Sem custos se pagar a tempo; podem aplicar-se taxas por atraso.»" },
+    { "type": "text", "id": "inst_klarna_text", "label": "Texto Klarna", "info": "[valor] = preço ÷ 3, arredondado para baixo como a Klarna. Vazio = «3x [valor] sem juros». «Saber mais» abre o modal oficial da Klarna." },
     { "type": "number", "id": "inst_klarna_min", "label": "Klarna: valor mínimo (€)", "default": 35 },
-    { "type": "number", "id": "inst_klarna_max", "label": "Klarna: valor máximo (€)", "default": 1000, "info": "Acima de 1000 € a Klarna só oferece «Paga depois». Limites medidos a 02-11-2026; confirmar no portal Klarna." },
+    { "type": "number", "id": "inst_klarna_max", "label": "Klarna: valor máximo (€)", "default": 1000, "info": "Acima de 1000 € a Klarna só oferece «Paga depois». Limites medidos a 02-11-2026; confirmar no portal Klarna. Se a Klarna disser que um valor não tem 3 pagamentos, a linha sai sozinha." },
     { "type": "text", "id": "inst_klarna_countries", "label": "Klarna: países", "default": "PT, ES", "info": "Códigos de país separados por vírgulas. Só em euros." },
     { "type": "header", "content": "seQura — prestações" },
     { "type": "checkbox", "id": "inst_sequra", "label": "Mostrar seQura", "default": true },
-    { "type": "text", "id": "inst_sequra_title", "label": "Título seQura", "info": "[n] = n.º máximo de prestações que a seQura devolve (hoje 12). Vazio = «Ou até [n]x com» + logótipo seQura." },
-    { "type": "text", "id": "inst_sequra_line", "label": "Linha de valores seQura", "info": "[valor] = prestação mensal, [taeg] = TAEG, [n]. Vazio = «Desde [valor]/mês · TAEG [taeg]». A TAEG tem de ficar visível." },
-    { "type": "text", "id": "inst_sequra_free", "label": "Opção sem custos", "info": "Só aparece se a seQura devolver um plano com TAEG 0%. [n] = n.º de prestações. Vazio = «ou [n]x sem custos»." },
-    { "type": "text", "id": "inst_sequra_note", "label": "Nota seQura", "info": "Vazio = «Sujeito a aprovação.»" },
-    { "type": "checkbox", "id": "inst_sequra_example", "label": "Mostrar exemplo representativo", "default": true },
-    { "type": "textarea", "id": "inst_sequra_lender", "label": "Mutuante e intermediário de crédito", "info": "Vazio = SVEA Bank AB e Lendismart Unipessoal Lda (BdP n.º 0006212), como no pop-up oficial. Confirmar com a seQura." },
+    { "type": "number", "id": "inst_sequra_max_n", "label": "seQura: n.º máximo de prestações", "default": 12, "info": "Mostrado logo com a página; a seQura confirma o número quando responde. A conta tem hoje 3x (sem custos), 6x, 9x e 12x (com custos)." },
+    { "type": "text", "id": "inst_sequra_text", "label": "Texto seQura (com a Klarna por cima)", "info": "[n] = n.º máximo de prestações. Vazio = «Ou pague em até [n]x»." },
+    { "type": "text", "id": "inst_sequra_text_solo", "label": "Texto seQura (sozinha)", "info": "Usado quando a linha Klarna não aparece. Vazio = «Pague em até [n]x»." },
+    {
+      "type": "checkbox",
+      "id": "inst_sequra_taeg",
+      "label": "Mostrar a TAEG de cada plano seQura com custos",
+      "default": true,
+      "info": "DL 133/2009, art. 5.º, n.ºs 1 a 3: a publicidade a crédito indica a TAEG de cada modalidade, legível. Não desligar sem parecer jurídico."
+    },
+    {
+      "type": "select",
+      "id": "inst_sequra_logo",
+      "label": "Logótipo seQura",
+      "options": [
+        { "value": "color", "label": "Standard (verde-água)" },
+        { "value": "black", "label": "Preto" }
+      ],
+      "default": "color"
+    },
+    { "type": "textarea", "id": "inst_sequra_lender", "label": "Mutuante e intermediário de crédito (no «Saber mais»)", "info": "Vazio = SVEA Bank AB e Lendismart Unipessoal Lda (BdP n.º 0006212), como no pop-up oficial. Confirmar com a seQura." },
     { "type": "number", "id": "inst_sequra_min", "label": "seQura: valor mínimo (€)", "default": 50 },
     { "type": "number", "id": "inst_sequra_max", "label": "seQura: valor máximo (€)", "default": 3000, "info": "Máximo financiado pela seQura. Acima disto o excedente vai na 1.ª prestação." },
     { "type": "text", "id": "inst_sequra_countries", "label": "seQura: países", "default": "PT", "info": "A conta seQura só está ativa para Portugal." },
     { "type": "text", "id": "inst_sequra_product", "label": "seQura: código do produto", "default": "pp3", "info": "Só mudar se a seQura ativar outro produto (ex.: campanha 10x)." },
+    { "type": "text", "id": "inst_sequra_merchant", "label": "seQura: referência do comerciante", "default": "lojadoouro_sv_pt", "info": "Igual à da app seQura. Com a referência e a chave, a ficha pede a biblioteca seQura logo no início (mais rápido). Vazio = esperar pela app seQura." },
+    { "type": "text", "id": "inst_sequra_asset_key", "label": "seQura: chave pública (assetKey)", "default": "H2V0Emas_e", "info": "Chave pública que a app seQura já publica no site. Se a seQura a mudar, atualizar aqui ou deixar vazio." },
     { "type": "header", "content": "Serviço premium" },
     { "type": "checkbox", "id": "show_services", "label": "Mostrar serviços (certificado, garantia, envio, oferta)", "default": true },
     { "type": "checkbox", "id": "show_concierge", "label": "Mostrar consultoria privada", "default": true },
