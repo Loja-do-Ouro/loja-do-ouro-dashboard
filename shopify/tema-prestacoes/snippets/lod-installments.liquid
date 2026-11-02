@@ -741,11 +741,13 @@
       a.async = true;
       a.src = g.scriptUri;
       /* Pedido falhado (bloqueador, sem rede, CDN em baixo): a linha seQura sai logo, sem esperar */
-      a.onerror = function () { window.__lodpSqFail = 1; };
+      a.onerror = function () { window.__lodpSqFail = 1; sequraKick(); };
       (document.head || document.documentElement).appendChild(a);
       /* Biblioteca carregada: a app seQura já não a volta a pedir nesta página (o widget dela não tem onde aparecer na ficha LOD) */
-      window.Sequra.onLoad(function () { window.sequraWidgetsScriptLoaded = true; });
+      window.Sequra.onLoad(function () { window.sequraWidgetsScriptLoaded = true; sequraKick(); });
     }
+    /* Avisa logo quem espera pela seQura (biblioteca pronta ou pedido falhado), sem esperar pela próxima verificação */
+    function sequraKick() { try { window.dispatchEvent(new Event('lodp:sequra')); } catch (e) {} }
     function sequraFn() { var S = window.Sequra; return S && typeof S.computeCreditAgreements === 'function' ? S : null; }
 
     function init(el) {
@@ -844,15 +846,20 @@
         /* A nossa biblioteca (pedida já): até SEQURA_WAIT depois do pedido, ou falha logo se o pedido der erro.
            Sem pedido nosso: a da app seQura, até SEQURA_WAIT_APP depois do «load». */
         var own = !!window.__lodpSqBoot, t0 = own ? window.__lodpSqBoot : Date.now();
-        var tLoad = document.readyState === 'complete' ? Date.now() : 0;
+        var tLoad = document.readyState === 'complete' ? Date.now() : 0, done = false, timer = 0;
         if (!tLoad) window.addEventListener('load', function () { tLoad = Date.now(); }, { once: true });
-        (function tick() {
-          if (sequraLibReady()) return cb(true);
+        function finish(ok) { done = true; clearTimeout(timer); window.removeEventListener('lodp:sequra', tick); cb(ok); }
+        function tick() {
+          if (done) return;
+          clearTimeout(timer);
+          if (sequraLibReady()) return finish(true);
           var now = Date.now();
-          if (own && (window.__lodpSqFail || now - t0 > SEQURA_WAIT)) return cb(false);
-          if (!own && tLoad && now - tLoad > SEQURA_WAIT_APP) return cb(false);
-          setTimeout(tick, 100);
-        })();
+          if (own && (window.__lodpSqFail || now - t0 > SEQURA_WAIT)) return finish(false);
+          if (!own && tLoad && now - tLoad > SEQURA_WAIT_APP) return finish(false);
+          timer = setTimeout(tick, 100);
+        }
+        window.addEventListener('lodp:sequra', tick);
+        tick();
       }
 
       /* ----- Diálogo «Saber mais» da seQura (modal nativo: foco dentro, Tab fica dentro, Escape fecha) ----- */
