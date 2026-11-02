@@ -176,3 +176,45 @@ test("Loja do Ouro links in replies to Gold Store Premium customers point to the
   assert.equal(r("https://evil.example/www.lojadoouro.pt"), "https://evil.example/www.lojadoouro.pt");
   assert.equal(i18n.rebrandLinks(`Veja ${LINK}`, "ldo", "en"), `Veja ${LINK}`);
 });
+
+test("Team files in the emails: a files-only reply has no empty quote; names are escaped; what did not fit is named, in every language", () => {
+  const files = [{ name: "foto <1>.jpg", status: "attached" }, { name: "certificado.pdf", status: "chat" }, { name: "fatura.pdf", status: "missing" }];
+  const pt = i18n.replyEmail({ site: "ldo", locale: "pt", name: "Ana", items: [{ body: "", author: "Rita", files }] }, BASE);
+  assert.doesNotMatch(pt.html, /white-space:pre-wrap"><\/div>/, "sem citação vazia");
+  assert.match(pt.html, /pre-wrap">📎 foto &lt;1&gt;\.jpg\n📎 certificado\.pdf \(grande demais para este email: pode vê-lo no chat\)\n📎 fatura\.pdf \(não seguiu neste email: responda e enviamo-lo de outra forma\)<\/div>/);
+  assert.doesNotMatch(pt.html, /foto <1>/);
+  // Pré-visualização: o nome do primeiro ficheiro (a resposta não tem texto).
+  assert.match(pt.html, /color:transparent">foto &lt;1&gt;\.jpg<\/div>/);
+  assert.match(pt.text, /\nRita · Loja do Ouro:\n📎 foto <1>\.jpg\n📎 certificado\.pdf \(grande demais para este email: pode vê-lo no chat\)\n📎 fatura\.pdf \(não seguiu/);
+  // Com texto: o texto, uma linha em branco e os ficheiros; a pré-visualização é o texto.
+  const withText = i18n.replyEmail({ site: "ldo", locale: "pt", name: "Ana", items: [{ body: `Segue o certificado: ${LINK}`, author: "Rita", files: files.slice(0, 1) }] }, BASE);
+  assert.match(withText.html, /<a href="https:\/\/www\.lojadoouro\.pt\/products\/anel-ouro\?variant=1"[^>]*>[^<]+<\/a>\n\n📎 foto &lt;1&gt;\.jpg<\/div>/);
+  assert.match(withText.html, /color:transparent">Segue o certificado: /);
+  // Respostas sem ficheiros ficam como antes.
+  assert.equal(i18n.replyEmail({ site: "ldo", locale: "pt", name: "Ana", items: items.slice(0, 1) }, BASE).html,
+    i18n.replyEmail({ site: "ldo", locale: "pt", name: "Ana", items: [{ ...items[0], files: [] }] }, BASE).html);
+
+  const en = i18n.replyEmail({ site: "gsp", locale: "en", name: "John", items: [{ body: "", author: "Rita", files }] }, BASE);
+  assert.match(en.text, /📎 certificado\.pdf \(too large for this email: you can see it in the chat\)/);
+  assert.match(en.text, /📎 fatura\.pdf \(not included in this email: reply and we will send it another way\)/);
+  const fr = i18n.replyEmail({ site: "gsp", locale: "fr", name: "Luc", items: [{ body: "", author: "Rita", files }] }, BASE);
+  assert.match(fr.text, /📎 certificado\.pdf \(trop volumineux pour cet e-mail : vous pouvez le voir dans le chat\)/);
+  // A Gold Store Premium nunca fala da Loja do Ouro, também nas linhas dos ficheiros.
+  for (const locale of SITE_LOCALES) {
+    const mail = i18n.replyEmail({ site: "gsp", locale, name: "A", items: [{ body: "", author: "Rita", files }] }, BASE);
+    assert.doesNotMatch(all(mail), /Loja do Ouro|lojadoouro\.pt|logo-loja-do-ouro/, locale);
+    assert.match(mail.text, /📎 foto <1>\.jpg\n📎 certificado\.pdf \(/, locale);
+  }
+
+  // Cópia da conversa: os ficheiros da equipa por baixo do texto (em anexo ou que não seguiram).
+  const copy = i18n.transcriptEmail({ site: "gsp", locale: "es", country: "ES", name: "María", messages: [
+    ...messages,
+    { from: "team", author: "Ana", body: "Aquí tiene el certificado.", at: "2026-10-15T10:03:00Z", files: [{ name: "certificado.pdf", status: "attached" }, { name: "foto.jpg", status: "missing" }] },
+    { from: "team", author: "Ana", body: "", at: "2026-10-15T10:04:00Z", files: [{ name: "garantia.pdf", status: "attached" }] },
+  ] }, BASE);
+  assert.match(copy.html, /Aquí tiene el certificado\.\n\n📎 certificado\.pdf\n📎 foto\.jpg \(no se incluyó en este correo: responda y se lo enviaremos de otra forma\)<\/div>/);
+  assert.match(copy.html, /pre-wrap">📎 garantia\.pdf<\/div>/);
+  assert.doesNotMatch(copy.html, /white-space:pre-wrap"><\/div>/);
+  assert.match(copy.text, /Aquí tiene el certificado\.\n\n📎 certificado\.pdf\n📎 foto\.jpg \(no se incluyó/);
+  assert.doesNotMatch(all(copy), /Loja do Ouro|lojadoouro\.pt/);
+});
