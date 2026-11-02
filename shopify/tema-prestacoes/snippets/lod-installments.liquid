@@ -650,9 +650,10 @@
   {%- assign inst_s_merchant = s.inst_sequra_merchant | default: '' | strip -%}
   {%- assign inst_s_key = s.inst_sequra_asset_key | default: '' | strip -%}
   {%- if inst_s_merchant != blank and inst_s_key != blank -%}
-    {%- comment -%} Pedidos da seQura em paralelo, logo aqui: a biblioteca e a tabela de custos do produto {%- endcomment -%}
-    <link rel="preload" as="script" href="https://live.cdn.sequra.svea.com/assets/sequra-checkout.min.js">
-    <link rel="preload" as="fetch" crossorigin="anonymous" href="https://live.cdn.sequra.svea.com/scripts/{{ inst_s_merchant | url_encode }}/{{ inst_s_key | url_encode }}/{{ inst_s_product | url_encode }}_cost.json">
+    {%- comment -%} Pedidos da seQura em paralelo, logo aqui: a biblioteca e a tabela de custos do produto.
+      Prioridade baixa: não competem com o que a página precisa para pintar o preço (letras, CSS, imagem). {%- endcomment -%}
+    <link rel="preload" as="script" fetchpriority="low" href="https://live.cdn.sequra.svea.com/assets/sequra-checkout.min.js">
+    <link rel="preload" as="fetch" fetchpriority="low" crossorigin="anonymous" href="https://live.cdn.sequra.svea.com/scripts/{{ inst_s_merchant | url_encode }}/{{ inst_s_key | url_encode }}/{{ inst_s_product | url_encode }}_cost.json">
   {%- else -%}
     <link rel="preconnect" href="https://live.cdn.sequra.svea.com" crossorigin>
   {%- endif -%}
@@ -739,6 +740,7 @@
       window.Sequra = { onLoad: function (cb) { window.SequraOnLoad.push(cb); } };
       var a = document.createElement('script');
       a.async = true;
+      try { a.fetchPriority = 'low'; } catch (e) {}
       a.src = g.scriptUri;
       /* Pedido falhado (bloqueador, sem rede, CDN em baixo): a linha seQura sai logo, sem esperar */
       a.onerror = function () { window.__lodpSqFail = 1; sequraKick(); };
