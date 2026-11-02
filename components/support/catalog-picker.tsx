@@ -6,7 +6,8 @@ type Item = { kind: "product" | "collection" | "page"; title: string; url: strin
 const KIND = { product: "Produto", collection: "Coleção", page: "Página" } as const;
 
 // Pesquisa na loja online (só produtos, coleções e páginas publicados) para inserir o link na resposta.
-// "Link + foto" também anexa a fotografia do produto (canais que aceitam imagens).
+// "Link + foto" também anexa a fotografia do produto (canais que aceitam imagens, exceto o chat do site, onde o cartão já
+// mostra a foto).
 export function CatalogPicker({ onInsert, onClose, canAttach }: {
   onInsert: (item: Item, withImage: boolean) => void;
   onClose: () => void;
