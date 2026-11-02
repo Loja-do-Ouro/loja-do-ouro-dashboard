@@ -18,7 +18,7 @@
      - seQura: logótipo oficial, https://live.sequracdn.com/assets/images/logos/logo.svg (ou logo_black.svg), 72 px.
   3. Os scripts dos fornecedores só acrescentam:
      - seQura: a biblioteca oficial (sequra-checkout.min.js) e a tabela de custos do produto (pp3_cost.json) são pedidas
-       logo aqui, em paralelo, em vez de esperar pelo «load» da página (a app seQura só as carrega depois). Valores e TAEG vêm SEMPRE de Sequra.computeCreditAgreements.
+       em paralelo logo a seguir à 1.ª pintura do preço (ligação à CDN aberta antes), em vez de esperar pelo «load» da página. Valores e TAEG vêm SEMPRE de Sequra.computeCreditAgreements.
      - Klarna: nada. A linha usa os limites das definições (confirmar no portal Klarna); não se monta nenhum placement.
   4. «Saber mais» abre um diálogo nosso (<dialog> modal: o foco entra, Tab fica dentro, Escape fecha, o foco volta):
      - seQura: prestação e TAEG de cada plano, exemplo representativo, mutuante e acesso ao simulador oficial da seQura
@@ -649,14 +649,9 @@
 {%- if inst_s_market -%}
   {%- assign inst_s_merchant = s.inst_sequra_merchant | default: '' | strip -%}
   {%- assign inst_s_key = s.inst_sequra_asset_key | default: '' | strip -%}
-  {%- if inst_s_merchant != blank and inst_s_key != blank -%}
-    {%- comment -%} Pedidos da seQura em paralelo, logo aqui: a biblioteca e a tabela de custos do produto.
-      Prioridade baixa: não competem com o que a página precisa para pintar o preço (letras, CSS, imagem). {%- endcomment -%}
-    <link rel="preload" as="script" fetchpriority="low" href="https://live.cdn.sequra.svea.com/assets/sequra-checkout.min.js">
-    <link rel="preload" as="fetch" fetchpriority="low" crossorigin="anonymous" href="https://live.cdn.sequra.svea.com/scripts/{{ inst_s_merchant | url_encode }}/{{ inst_s_key | url_encode }}/{{ inst_s_product | url_encode }}_cost.json">
-  {%- else -%}
-    <link rel="preconnect" href="https://live.cdn.sequra.svea.com" crossorigin>
-  {%- endif -%}
+  {%- comment -%} Ligação à CDN da seQura aberta já (sem descarregar nada): os pedidos saem logo a seguir à 1.ª pintura do preço {%- endcomment -%}
+  <link rel="preconnect" href="https://live.cdn.sequra.svea.com">
+  <link rel="preconnect" href="https://live.cdn.sequra.svea.com" crossorigin>
 {%- endif -%}
 
 <script>
@@ -718,13 +713,22 @@
     }
     function focusEl(n) { if (!n) return; try { n.focus({ preventScroll: true }); } catch (e) { try { n.focus(); } catch (x) {} } }
 
-    /* ----- seQura: pedir já a biblioteca oficial, com a mesma configuração da app seQura ----- */
+    /* Logo a seguir à pintura que já mostra o preço e o bloco (ou 1,5 s, se a página estiver em segundo plano) */
+    function afterPaint(fn) {
+      var done = false;
+      function go() { if (!done) { done = true; fn(); } }
+      if (window.requestAnimationFrame) requestAnimationFrame(function () { setTimeout(go, 0); });
+      setTimeout(go, 1500);
+    }
+
+    /* ----- seQura: a biblioteca oficial e a tabela de custos, com a mesma configuração da app seQura.
+       Pedidas com prioridade alta logo depois da 1.ª pintura: não atrasam o preço e chegam antes das imagens. ----- */
     function sequraBoot(c, dec, thou) {
       var S = window.Sequra;
       if (S && typeof S.computeCreditAgreements === 'function') return;
       if (window.SequraConfiguration || window.__lodpSqBoot) return;
       if (!c.merchant || !c.assetKey) return;
-      window.__lodpSqBoot = Date.now();
+      window.__lodpSqBoot = 1;
       var g = {
         merchant: c.merchant,
         assetKey: c.assetKey,
@@ -738,13 +742,23 @@
       window.SequraConfiguration = g;
       window.SequraOnLoad = [];
       window.Sequra = { onLoad: function (cb) { window.SequraOnLoad.push(cb); } };
-      var a = document.createElement('script');
-      a.async = true;
-      try { a.fetchPriority = 'low'; } catch (e) {}
-      a.src = g.scriptUri;
-      /* Pedido falhado (bloqueador, sem rede, CDN em baixo): a linha seQura sai logo, sem esperar */
-      a.onerror = function () { window.__lodpSqFail = 1; sequraKick(); };
-      (document.head || document.documentElement).appendChild(a);
+      afterPaint(function () {
+        var head = document.head || document.documentElement;
+        var l = document.createElement('link');
+        l.rel = 'preload'; l.as = 'fetch'; l.crossOrigin = 'anonymous';
+        try { l.fetchPriority = 'high'; } catch (e) {}
+        l.href = c.cdn + '/scripts/' + encodeURIComponent(c.merchant) + '/' + encodeURIComponent(c.assetKey) + '/' + encodeURIComponent(c.product) + '_cost.json';
+        head.appendChild(l);
+        var a = document.createElement('script');
+        a.async = true;
+        try { a.fetchPriority = 'high'; } catch (e) {}
+        a.src = g.scriptUri;
+        /* Pedido falhado (bloqueador, sem rede, CDN em baixo): a linha seQura sai logo, sem esperar */
+        a.onerror = function () { window.__lodpSqFail = 1; sequraKick(); };
+        window.__lodpSqT0 = Date.now();
+        head.appendChild(a);
+        sequraKick();
+      });
       /* Biblioteca carregada: a app seQura já não a volta a pedir nesta página (o widget dela não tem onde aparecer na ficha LOD) */
       window.Sequra.onLoad(function () { window.sequraWidgetsScriptLoaded = true; sequraKick(); });
     }
@@ -847,7 +861,7 @@
       function sequraWait(cb) {
         /* A nossa biblioteca (pedida já): até SEQURA_WAIT depois do pedido, ou falha logo se o pedido der erro.
            Sem pedido nosso: a da app seQura, até SEQURA_WAIT_APP depois do «load». */
-        var own = !!window.__lodpSqBoot, t0 = own ? window.__lodpSqBoot : Date.now();
+        var own = !!window.__lodpSqBoot;
         var tLoad = document.readyState === 'complete' ? Date.now() : 0, done = false, timer = 0;
         if (!tLoad) window.addEventListener('load', function () { tLoad = Date.now(); }, { once: true });
         function finish(ok) { done = true; clearTimeout(timer); window.removeEventListener('lodp:sequra', tick); cb(ok); }
@@ -856,7 +870,7 @@
           clearTimeout(timer);
           if (sequraLibReady()) return finish(true);
           var now = Date.now();
-          if (own && (window.__lodpSqFail || now - t0 > SEQURA_WAIT)) return finish(false);
+          if (own && (window.__lodpSqFail || (window.__lodpSqT0 && now - window.__lodpSqT0 > SEQURA_WAIT))) return finish(false);
           if (!own && tLoad && now - tLoad > SEQURA_WAIT_APP) return finish(false);
           timer = setTimeout(tick, 100);
         }
