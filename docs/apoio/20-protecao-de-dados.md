@@ -2,7 +2,7 @@
 <!-- resumo: Como o RGPD se aplica ao Apoio ao Cliente: que dados guardamos e porquê, com que base legal, durante quanto tempo, com que fornecedores, como os protegemos e o que fazer se algo correr mal. -->
 <!-- publico: todos -->
 <!-- termos: RGPD, GDPR, proteção de dados, privacidade, dados pessoais, Lei 58/2019, CNPD, base legal, fundamento de licitude, interesse legítimo, consentimento, prazo de conservação, retenção, quanto tempo guardamos, apagar, subcontratante, fornecedor, transferência internacional, EUA, Anthropic, Vercel, Supabase, Metricool, segurança, fuga de dados, violação de dados, data breach, incidente, 72 horas, registo de atividades, responsável pelo tratamento, cookies, localStorage, sessionStorage, armazenamento no browser -->
-<!-- atualizado: 2026-10-30 -->
+<!-- atualizado: 2026-11-02 -->
 
 Cada conversa do Apoio ao Cliente tem dados pessoais: o nome e o email do cliente, o telefone, o nome de utilizador no Instagram, o que escreveu, as encomendas e também as notas que a equipa deixa sobre ele. O Regulamento Geral sobre a Proteção de Dados (RGPD) e a lei portuguesa que o executa (Lei n.º 58/2019) aplicam-se a tudo isto.
 
@@ -129,7 +129,7 @@ Prazos que o dashboard aplica hoje (a passagem diária corre às 06:00 UTC):
 | --- | --- |
 | Conversas, mensagens, notas internas, contactos e notas das avaliações | Sem prazo automático: nada é apagado |
 | Registo de ações e leituras por colaborador | Sem prazo automático (saem com a conversa) |
-| Ficheiros que a equipa anexou às respostas | Bytes apagados até 30 dias depois, ou antes quando o anexo já fica guardado na plataforma (1 dia se nunca chegaram a ser enviados); a mensagem continua a mostrar o nome do anexo |
+| Ficheiros que a equipa anexou às respostas | Bytes apagados até 30 dias depois, ou antes quando o anexo já fica guardado na plataforma (1 dia se nunca chegaram a ser enviados); no chat do site, 30 dias (os que seguiram por email ficam com o cliente); a mensagem continua a mostrar o nome do anexo |
 | Ligação temporária de uma imagem enviada pelo Messenger ou Instagram | 1 hora |
 | Registo do visitante do chat do site (token, IP e rede em hash, navegador, página, carrinho) | Apagado 180 dias depois da última visita |
 | Pedidos ao Assistente de IA (pergunta e proposta) | Apagados ao fim de 180 dias |

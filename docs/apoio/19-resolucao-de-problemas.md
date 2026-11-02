@@ -1,7 +1,7 @@
 # Resolução de problemas
 <!-- resumo: O que fazer quando algo não funciona no Apoio ao Cliente: sintoma, causa provável e passos para resolver, do acesso aos canais, envios, IA e encomendas. -->
 <!-- termos: problema, problemas, erro, erros, não funciona, avaria, bug, falha, troubleshooting, ajuda, suporte técnico, não consigo, não aparece, desapareceu, bloqueado, sessão terminada, lento, não chega, não recebe, resolução de problemas, FAQ técnico -->
-<!-- atualizado: 2026-10-30 -->
+<!-- atualizado: 2026-11-02 -->
 
 Cada problema tem a causa mais provável e o que fazer. Se nada resultar, fale com o Super Admin, indicando a conversa (a ligação `/apoio?conversa=…`), a hora e a mensagem de erro exata.
 
@@ -102,7 +102,7 @@ Cada problema tem a causa mais provável e o que fazer. Se nada resultar, fale c
 ### Não consigo anexar um ficheiro
 <!-- perguntas: O anexo não carrega | PDF não é aceite | Só posso enviar uma imagem -->
 
-- **Causa:** o canal não aceita esse tipo ou esse número de anexos (o chat do site e os comentários não aceitam nenhum; Facebook e Instagram, uma imagem; PDF só no email e no Zendesk), o ficheiro é grande demais, ou chegou ao limite diário.
+- **Causa:** o canal não aceita esse tipo ou esse número de anexos (os comentários não aceitam nenhum; Facebook e Instagram, uma imagem; PDF só no email, no chat do site e no Zendesk; notas internas com anexos só no Zendesk), o ficheiro é grande demais, ou chegou ao limite diário.
 - **O que fazer:** veja a tabela em [Responder](/apoio/documentacao/responder#anexar-imagens-e-pdf). Para PDF no Instagram, por exemplo, envie a informação em texto ou peça o email do cliente.
 
 ### Perdi o texto que estava a escrever

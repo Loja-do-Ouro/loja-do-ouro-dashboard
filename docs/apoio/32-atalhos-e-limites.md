@@ -1,7 +1,7 @@
 # Atalhos, limites e prazos
 <!-- resumo: Tabelas de consulta rápida: atalhos de teclado, limites de texto e de anexos, tempos de atualização e prazos de conservação dos dados do Apoio ao Cliente. -->
 <!-- termos: atalhos, atalhos de teclado, teclado, shortcuts, Ctrl+Enter, Esc, limites, máximo, caracteres, tamanho, MB, anexos, tempos, frequência, prazos, retenção, conservação, quanto tempo, apagado, 180 dias, 30 dias, 365 dias, referência rápida, cheat sheet -->
-<!-- atualizado: 2026-10-30 -->
+<!-- atualizado: 2026-11-02 -->
 
 ## Atalhos de teclado
 <!-- perguntas: Há atalho para enviar? | Como fecho o painel de emojis? | Como recolho o menu? -->
@@ -26,10 +26,11 @@
 | Resposta ou nota interna | 20 000 caracteres |
 | Resposta a comentário no Instagram | 2200 caracteres |
 | Resposta a comentário no Facebook | 8000 caracteres |
-| Anexos no email e no Zendesk | Até 5 por mensagem (imagens ou PDF) |
+| Anexos no email, no chat do site e no Zendesk | Até 5 por mensagem (imagens ou PDF) |
 | Anexos no Facebook e no Instagram | 1 imagem por mensagem |
-| Anexos no chat do site e nos comentários | Nenhum |
+| Anexos nos comentários | Nenhum |
 | PDF | Até 4 MB |
+| Ficheiros por email no chat do site (cliente fora do site) | Até 7 MB por email; o resto fica só no chat |
 | Imagens | Reduzidas a 2048 píxeis (sem dados de localização) |
 | Anexos por enviar numa conversa | 20 por pessoa |
 | Anexos recebidos que abrem no dashboard | Até 4 MB |
@@ -89,7 +90,7 @@
 
 | O quê | Apagado ao fim de |
 | --- | --- |
-| Ficheiros enviados pela equipa | Até 30 dias, ou menos quando o anexo já fica guardado na plataforma (1 dia se nunca foram enviados) |
+| Ficheiros enviados pela equipa | Até 30 dias, ou menos quando o anexo já fica guardado na plataforma (1 dia se nunca foram enviados); no chat do site, 30 dias |
 | Pedidos ao assistente de IA | 180 dias |
 | Dados do visitante do chat do site (sessão, página, carrinho) | 180 dias sem atividade |
 | Registo das revisões da IA (sem o texto) | 365 dias |

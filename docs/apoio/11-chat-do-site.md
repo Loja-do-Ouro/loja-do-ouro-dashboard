@@ -1,7 +1,7 @@
 # Chat do site
-<!-- resumo: Como funciona o chat "Fale connosco" da Loja do Ouro e da Gold Store Premium: o que o cliente vê, como responder, marcas e línguas, o que acontece quando o cliente sai do site e como testar. -->
-<!-- termos: chat, chat do site, live chat, chat ao vivo, widget, botão, Fale connosco, chatbot, Bluedot, site, loja online, lojadoouro.pt, Gold Store Premium, goldstorepremium.com, GSP, inglês, espanhol, francês, alemão, tradução, língua, idioma, no site agora, carrinho, página, visitante, visita, desde que abriu o chat, cookies, browser, terminar conversa, cópia da conversa, fora do horário, a escrever, testar o chat, chat-teste -->
-<!-- atualizado: 2026-10-30 -->
+<!-- resumo: Como funciona o chat "Fale connosco" da Loja do Ouro e da Gold Store Premium: o que o cliente vê, como responder e enviar imagens e PDF, marcas e línguas, o que acontece quando o cliente sai do site e como testar. -->
+<!-- termos: chat, chat do site, live chat, chat ao vivo, widget, botão, Fale connosco, chatbot, Bluedot, site, loja online, lojadoouro.pt, Gold Store Premium, goldstorepremium.com, GSP, inglês, espanhol, francês, alemão, tradução, língua, idioma, no site agora, carrinho, página, visitante, visita, desde que abriu o chat, cookies, browser, terminar conversa, cópia da conversa, fora do horário, a escrever, testar o chat, chat-teste, anexo, anexos, anexar, ficheiro, ficheiros, imagem, fotografia, PDF, documento -->
+<!-- atualizado: 2026-11-02 -->
 
 O chat do site é o botão **Fale connosco** que aparece em lojadoouro.pt e em goldstorepremium.com. As conversas entram no canal **Chat do site** e chegam no momento: o indicador na barra de cima diz "Em direto". É o único canal em que o dashboard é a própria plataforma, por isso é também o único que mostra se o cliente recebeu e leu a resposta.
 
@@ -29,16 +29,20 @@ Responda **na língua do cliente** e fale **só da marca da conversa**. Para per
 <!-- perguntas: Como respondo no chat do site? | O cliente do chat recebeu a minha resposta? | Posso enviar imagens no chat do site? | Como envio um produto no chat? -->
 
 1. Confirme a linha "Envia por: Chat do site · marca · em (língua) · para (nome) (se já tiver saído do site, recebe também por email)".
-2. Escreva a resposta. Pode usar listas (linhas começadas por "- "), negrito (`**texto**`) e ligações. **Não** se podem enviar anexos.
+2. Escreva a resposta. Pode usar listas (linhas começadas por "- "), negrito (`**texto**`) e ligações, e juntar até 5 imagens ou PDF com **📎 Anexar** (também sem texto). O cliente vê as imagens em miniatura (toca para ampliar) e os PDF como ficheiro para descarregar.
 3. Para mostrar um produto, use **🛍 Produto** → **Inserir link**: o cliente vê um cartão com a foto e o preço, no site e na língua dele.
 4. Carregue em **Enviar ao cliente**.
 
 A mensagem passa a **Entregue** quando o chat do cliente a recebe e a **Lida** quando ele a vê com o chat aberto. O chat do cliente procura mensagens novas a cada 3,5 segundos com o chat aberto e a cada 30 segundos fechado.
 
+> **Atenção:** Num chat por confirmar, o email foi escrito pelo cliente: não envie documentos com dados pessoais ou de encomendas.
+
 ## Quando o cliente sai do site
 <!-- perguntas: O cliente fechou o chat, ainda lhe posso responder? | O cliente saiu do site, recebe a resposta? | A resposta do chat vai por email? -->
 
 Pode responder sempre. Se o cliente já não está no site (sem contacto há mais de 45 segundos), a resposta fica no chat **e segue também por email**, para o email que ele indicou, na língua e com a marca do site dele, com o primeiro nome de quem respondeu. O detalhe da mensagem diz "Cliente fora do site: resposta enviada também por email para …".
+
+Os ficheiros seguem em anexo no email, até 7 MB por email; os que não couberem ficam só no chat e o email diz isso ao cliente.
 
 Respostas que o cliente ainda não viu são juntadas num só email. Se o envio do email falhar ("aviso por email não enviado … Nova tentativa automática."), o sistema volta a tentar mais tarde, enquanto alguém da equipa tiver as Conversas abertas.
 
@@ -46,6 +50,8 @@ Respostas que o cliente ainda não viu são juntadas num só email. Se o envio d
 <!-- perguntas: O cliente terminou a conversa no chat, o que acontece? | O que é a cópia da conversa por email? -->
 
 No chat, o cliente pode carregar em **Terminar conversa**. Aparece "Terminar a conversa?", com a opção "Enviar-me uma cópia desta conversa por email" (só para o email que ele indicou) e o botão **Continuar a conversar** para desistir. Depois vê "Obrigado por falar connosco!" e pode **Iniciar nova conversa**.
+
+A cópia da conversa leva também os ficheiros enviados pela equipa (até 7 MB). Depois de terminar, o cliente já não vê os ficheiros no chat.
 
 Na equipa aparece o acontecimento "O cliente terminou a conversa no site" (e "… e pediu uma cópia por email"). Pode continuar a responder: as respostas seguem por email. Numa conversa terminada pelo cliente já não sai pedido de avaliação.
 
@@ -97,6 +103,6 @@ Por baixo há ligações para testar as outras línguas (PT, EN, ES, FR, DE) e a
 ## Limites do chat
 <!-- perguntas: O cliente pode enviar anexos no chat? | Há limite de mensagens no chat? -->
 
-- Nem a equipa nem o cliente enviam anexos no chat.
+- A equipa envia até 5 imagens ou PDF por resposta (até 4 MB cada); o cliente vê-os no chat durante 30 dias. O cliente não envia anexos.
 - Mensagens do cliente até 2000 caracteres.
 - Para travar abusos, há limites de conversas novas por ligação e de mensagens seguidas; quem passa o limite vê uma mensagem a pedir para esperar.

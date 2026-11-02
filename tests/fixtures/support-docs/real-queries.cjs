@@ -52,6 +52,7 @@ module.exports = [
   ["passar comentario para mensagem privada", ["comentarios-publicos#passar-para-mensagem-privada"]],
   ["o cliente fechou o chat ainda posso responder", ["chat-do-site#quando-o-cliente-sai-do-site", `${FAQ}#o-cliente-fechou-o-chat-do-site-ainda-lhe-posso-responder`, "chat-do-site#quando-o-cliente-termina-a-conversa"]],
   ["testar o chat do site", ["chat-do-site#testar-o-chat"]],
+  ["posso mandar um pdf no chat do site", ["chat-do-site#responder-no-chat", "responder#anexar-imagens-e-pdf", "chat-do-site#limites-do-chat"]],
   ["os emails do spam entram", ["email#que-emails-entram"]],
   ["recebemos o seu email resposta automatica", ["respostas-automaticas#recebemos-o-seu-email", "email#resposta-automatica-recebemos-o-seu-email"]],
   ["agradecer reaçoes nas stories", ["respostas-automaticas#facebook-e-instagram-agradecimento-a-reacoes", "facebook-instagram#reacoes-stories-e-o-separador-automaticas"]],

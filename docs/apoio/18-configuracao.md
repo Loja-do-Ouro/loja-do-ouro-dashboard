@@ -2,7 +2,7 @@
 <!-- resumo: Guia do Super Admin para todas as opções da Configuração do apoio e da IA do apoio: ligações, sincronização, email, respostas automáticas, assistente e base de conhecimento, chat do site, acessos, revisão, respostas aprovadas e pedido de avaliação. -->
 <!-- publico: super-admin -->
 <!-- termos: configuração, configurar, definições, settings, admin, administração, Super Admin, ligações, integrações, Validar ligações, diagnóstico, Zendesk, Metricool, Gmail, ligar Gmail, sincronização, frequência, Sincronizar agora, WhatsApp, histórico visível, assinatura, horário, respostas automáticas, assistente, IA, ANTHROPIC_API_KEY, orçamento, limite diário, base de conhecimento, chat do site, acessos, dar acesso, retirar acesso, novo utilizador, revisão, critérios, respostas aprovadas, base de conhecimento aprendida, propostas automáticas, pedido de avaliação, auditoria, limpezas -->
-<!-- atualizado: 2026-10-30 -->
+<!-- atualizado: 2026-11-02 -->
 
 Só o Super Admin vê estas páginas. Quem não é Super Admin e tenta abri-las volta à sua página inicial, e a base de dados recusa qualquer alteração ("Só o Super Admin configura o Apoio ao Cliente."). Há duas páginas:
 
@@ -220,7 +220,7 @@ Limpezas da passagem diária:
 
 | O quê | Apagado ao fim de |
 | --- | --- |
-| Ficheiros enviados pela equipa | Até 30 dias, ou menos quando o anexo já fica guardado na plataforma (1 dia se nunca foram enviados) |
+| Ficheiros enviados pela equipa | Até 30 dias, ou menos quando o anexo já fica guardado na plataforma (1 dia se nunca foram enviados); no chat do site, 30 dias (os que seguiram por email ficam com o cliente) |
 | Pedidos ao assistente de IA | 180 dias |
 | Dados do visitante do chat do site (sessão, página, carrinho) | 180 dias sem atividade |
 | Registo das revisões da IA | 365 dias |

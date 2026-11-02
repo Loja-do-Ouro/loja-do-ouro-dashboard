@@ -1,7 +1,7 @@
 # Canais
 <!-- resumo: Comparação de todos os canais do apoio (email, Facebook, Instagram, comentários, chat do site, Zendesk, WhatsApp): o que se pode enviar, o que se confirma e quando as mensagens chegam. -->
 <!-- termos: canais, canal, plataformas, fontes, integrações, email, Gmail, Facebook, Messenger, Instagram, Direct, DM, mensagens privadas, comentários, chat do site, live chat, chatbot, widget, Zendesk, WhatsApp, Metricool, Meta, sincronização, sync, quando chegam as mensagens, atraso, demora, comparação -->
-<!-- atualizado: 2026-10-30 -->
+<!-- atualizado: 2026-11-02 -->
 
 O Apoio ao Cliente junta vários canais numa só caixa de entrada, mas cada canal tem as suas regras. Este artigo compara-os; cada um tem também um artigo próprio.
 
@@ -14,7 +14,7 @@ O Apoio ao Cliente junta vários canais numa só caixa de entrada, mas cada cana
 | [Facebook](/apoio/documentacao/facebook-instagram) | Metricool → Messenger | 1 imagem | Aceite pela plataforma | Sim | Pedido de apoio e agradecimento a reações (se ligadas) |
 | [Instagram](/apoio/documentacao/facebook-instagram) | Metricool → Instagram Direct | 1 imagem | Aceite pela plataforma | Sim | Pedido de apoio e agradecimento a reações (se ligadas) |
 | [Comentários Facebook e Instagram](/apoio/documentacao/comentarios-publicos) | Metricool → publicações | Não (só texto, público) | Aceite pela plataforma | Não | Não |
-| [Chat do site](/apoio/documentacao/chat-do-site) | Botão "Fale connosco" no site | Não | Entregue e Lida | Sim (estrelas no chat) | Não (mensagem fora de horas no próprio chat) |
+| [Chat do site](/apoio/documentacao/chat-do-site) | Botão "Fale connosco" no site | Até 5 imagens ou PDF | Entregue e Lida | Sim (estrelas no chat) | Não (mensagem fora de horas no próprio chat) |
 | [Zendesk](/apoio/documentacao/whatsapp-zendesk#zendesk-ligado) | Zendesk (se ligado) | Até 5 imagens ou PDF | Aceite pela plataforma | Não | Não |
 | [WhatsApp](/apoio/documentacao/whatsapp-zendesk#whatsapp) | Por configurar | — | — | Não | Não |
 
