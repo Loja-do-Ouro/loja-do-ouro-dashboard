@@ -25,7 +25,8 @@
  * nesta visita (neste separador ou noutro), há quanto tempo o abriu e quantas páginas viu desde então; enquanto a
  * conversa estiver guardada, também nas visitas seguintes (a página e o carrinho, sem a hora).
  * Ficheiros da equipa (imagens e PDF das respostas): só ficam na memória da página (endereços blob:), nunca em
- * localStorage, sessionStorage ou cookies, e só são descarregados com o chat aberto (um PDF, quando o cliente lhe toca).
+ * localStorage, sessionStorage ou cookies, e só são descarregados com o chat aberto (uma imagem, quando fica perto do
+ * ecrã; um PDF, quando o cliente lhe toca).
  * Nenhum texto do cliente ou da equipa é interpretado como HTML.
  */
 (function () {
@@ -112,6 +113,7 @@
       err_survey_closed: "Esta avaliação já não está disponível.",
       err_rating_invalid: "Escolha de 1 a 5 estrelas.",
       err_attachment_unavailable: "Este ficheiro já não está disponível.",
+      err_too_many_files: "Abriu muitos ficheiros seguidos. Aguarde um pouco e tente de novo.",
     },
     en: {
       title: "Chat with us",
@@ -187,6 +189,7 @@
       err_survey_closed: "This rating is no longer available.",
       err_rating_invalid: "Please choose 1 to 5 stars.",
       err_attachment_unavailable: "This file is no longer available.",
+      err_too_many_files: "You have opened many files in a row. Please wait a moment and try again.",
     },
     es: {
       title: "Hable con nosotros",
@@ -262,6 +265,7 @@
       err_survey_closed: "Esta valoración ya no está disponible.",
       err_rating_invalid: "Elija de 1 a 5 estrellas.",
       err_attachment_unavailable: "Este archivo ya no está disponible.",
+      err_too_many_files: "Ha abierto muchos archivos seguidos. Espere un momento e inténtelo de nuevo.",
     },
     fr: {
       title: "Contactez-nous",
@@ -337,6 +341,7 @@
       err_survey_closed: "Cette évaluation n’est plus disponible.",
       err_rating_invalid: "Choisissez de 1 à 5 étoiles.",
       err_attachment_unavailable: "Ce fichier n’est plus disponible.",
+      err_too_many_files: "Vous avez ouvert beaucoup de fichiers à la suite. Veuillez patienter un instant et réessayer.",
     },
     de: {
       title: "Schreiben Sie uns",
@@ -412,6 +417,7 @@
       err_survey_closed: "Diese Bewertung ist nicht mehr verfügbar.",
       err_rating_invalid: "Bitte wählen Sie 1 bis 5 Sterne.",
       err_attachment_unavailable: "Diese Datei ist nicht mehr verfügbar.",
+      err_too_many_files: "Sie haben viele Dateien hintereinander geöffnet. Bitte warten Sie einen Moment und versuchen Sie es erneut.",
     },
   };
   var INTL = { pt: "pt-PT", en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" };
@@ -800,9 +806,18 @@
   }
 
   // Ficheiro de uma resposta da equipa (imagem ou PDF, até 4 MB), com o token no cabeçalho como os outros pedidos
-  // (nunca no endereço). Erro com "code" (attachment_unavailable: apagado ao fim de 30 dias).
+  // (nunca no endereço). Devolve { blob, type } com o tipo real; erro com "code" (attachment_unavailable: apagado ao fim
+  // de 30 dias; too_many_files: limite de pedidos).
   var FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+  var FILE_EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
   var FILE_MAX = 4 * 1024 * 1024;
+  // Nome para guardar o ficheiro: termina sempre na extensão do tipo real (nunca na que o nome traga antes dela).
+  function fileName(name, type) {
+    var ext = FILE_EXT[type] || "";
+    var lower = String(name || "").toLowerCase();
+    if (!ext || lower.slice(-ext.length - 1) === "." + ext || (ext === "jpg" && lower.slice(-5) === ".jpeg")) return name;
+    return name + "." + ext;
+  }
   function requestFile(url) {
     var headers = {};
     if (state.session && state.session.token) headers.Authorization = "Bearer " + state.session.token;
@@ -825,7 +840,7 @@
             e.code = "attachment_unavailable";
             throw e;
           }
-          return blob;
+          return { blob: blob, type: type };
         });
       });
   }
@@ -1129,6 +1144,9 @@
   // Conversa: lista (atualizada aos poucos), indicador de escrita e caixa de texto que nunca é recriada.
   var chat = el("div", { class: "chat" });
   var list = el("div", { class: "messages", role: "log", "aria-live": "polite", "aria-label": t("messages") });
+  // A lista está no fim (o cliente não subiu para ler mensagens antigas): o que chega depois continua à vista.
+  var stick = true;
+  list.addEventListener("scroll", function () { stick = list.scrollHeight - list.scrollTop - list.clientHeight < 40; });
   var typingEl = el("div", { class: "typing", hidden: "" }, t("typingTeam"));
   chat.appendChild(list);
   chat.appendChild(typingEl);
@@ -1190,7 +1208,7 @@
     viewerName.textContent = name;
     viewer.setAttribute("aria-label", name);
     viewerSave.setAttribute("href", c.url);
-    viewerSave.setAttribute("download", name);
+    viewerSave.setAttribute("download", fileName(name, c.type));
     viewerSave.textContent = t("downloadFile", { name: name });
     viewing = from;
     viewer.hidden = false;
@@ -1410,38 +1428,93 @@
     return card;
   }
 
-  // Ficheiros das respostas da equipa: "<mensagem>:<posição>" → "loading", "none" (já não existe) ou { url, type }, com o
-  // endereço blob: na memória da página (nunca gravado no browser). Como nos produtos, o mesmo endereço mantém os nós da
-  // lista (renderMessages). As imagens chegam sozinhas, uma de cada vez, só com o chat aberto e à vista; um PDF, quando o
-  // cliente lhe toca. Uma falha de rede deixa o ficheiro por carregar: volta a tentar no desenho seguinte.
+  // Ficheiros das respostas da equipa: "<mensagem>:<posição>" → "loading", "none" (já não existe), "error" (falhou: o
+  // cliente pode tocar para tentar de novo) ou { url, type }, com o endereço blob: na memória da página (nunca gravado
+  // no browser). Como nos produtos, o mesmo endereço mantém os nós da lista (renderMessages); quando um ficheiro muda de
+  // estado troca-se só o nó dele (redrawFile), para os leitores de ecrã não voltarem a ler a mensagem inteira. As imagens
+  // chegam sozinhas, uma de cada vez, só com o chat aberto e quando ficam perto do ecrã; um PDF, quando o cliente lhe
+  // toca. Uma imagem que falhe volta a ser pedida mais duas vezes (5 s e 20 s depois).
   var files = {};
+  var fileFails = {}; // falhas seguidas de cada ficheiro
+  var fileJobs = {}; // imagens à espera de ficarem perto do ecrã: "<mensagem>:<posição>" → { m, f }
   var fileQueue = Promise.resolve();
+  var nearby = typeof window.IntersectionObserver === "function"
+    ? new window.IntersectionObserver(function (entries) {
+      entries.forEach(function (x) {
+        var job = x.isIntersecting && fileJobs[x.target.getAttribute("data-file")];
+        if (job && queueImage(job.m, job.f)) nearby.unobserve(x.target);
+      });
+    }, { root: list, rootMargin: "200px 0px" })
+    : null;
+  // Depois de cada desenho, as imagens por pedir passam a ser vigiadas (sem IntersectionObserver, pedem-se logo).
+  function watchFiles() {
+    if (!nearby) return;
+    nearby.disconnect();
+    Array.prototype.forEach.call(list.querySelectorAll(".file-wait"), function (n) { nearby.observe(n); });
+  }
   function fetchFile(m, f) {
     var key = m.id + ":" + f.i;
     files[key] = "loading";
-    return requestFile("/api/chat/attachments?m=" + encodeURIComponent(m.id) + "&i=" + f.i).then(function (blob) {
-      if (state.destroyed || files[key] !== "loading") return; // conversa recomeçada entretanto
-      files[key] = { url: URL.createObjectURL(blob), type: f.type };
-      renderMessages();
+    return requestFile("/api/chat/attachments?m=" + encodeURIComponent(m.id) + "&i=" + f.i).then(function (r) {
+      if (state.destroyed || files[key] !== "loading") return null; // conversa recomeçada entretanto
+      var c = files[key] = { url: URL.createObjectURL(r.blob), type: r.type };
+      delete fileFails[key];
+      redrawFile(m, f);
+      return c;
     }, function (e) {
-      if (files[key] !== "loading") return;
-      if (e && e.code === "attachment_unavailable") { files[key] = "none"; renderMessages(); }
-      else delete files[key];
+      if (files[key] !== "loading") return null;
+      if (e && e.code === "attachment_unavailable") files[key] = "none";
+      else {
+        files[key] = "error";
+        var n = fileFails[key] = (fileFails[key] || 0) + 1;
+        if (f.type !== "application/pdf" && n < 3) {
+          setTimeout(function () {
+            if (state.destroyed || files[key] !== "error") return;
+            delete files[key];
+            redrawFile(m, f);
+          }, 5000 * n * n);
+        }
+      }
+      redrawFile(m, f);
+      throw e;
     });
   }
+  // true: já pedida ou na fila (o resto fica para depois: chat fechado ou separador escondido).
   function queueImage(m, f) {
     var key = m.id + ":" + f.i;
-    if (files[key] || !state.session || !state.open || document.hidden) return;
+    if (files[key]) return true;
+    if (!state.session || !state.open || document.hidden) return false;
     files[key] = "loading";
+    delete fileJobs[key];
     fileQueue = fileQueue
       .then(function () { return files[key] === "loading" ? fetchFile(m, f) : null; })
       .catch(function () { if (files[key] === "loading") delete files[key]; });
+    return true;
+  }
+  // Troca o nó de um ficheiro na lista pelo do estado atual (o foco, se lá estava, passa para o novo). Se a lista estava
+  // no fim, continua no fim.
+  function redrawFile(m, f) {
+    var key = m.id + ":" + f.i;
+    var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+    var active = root.activeElement || document.activeElement;
+    Array.prototype.forEach.call(list.querySelectorAll(".files"), function (box) {
+      Array.prototype.slice.call(box.childNodes).forEach(function (n) {
+        if (n.getAttribute("data-file") !== key) return;
+        var fresh = fileNode(m, f);
+        box.replaceChild(fresh, n);
+        if (active === n && fresh.nodeName === "BUTTON") fresh.focus();
+      });
+    });
+    if (atBottom) list.scrollTop = list.scrollHeight;
+    watchFiles();
   }
   function dropFiles() {
     Object.keys(files || {}).forEach(function (k) {
       if (files[k] && typeof files[k] === "object") URL.revokeObjectURL(files[k].url);
     });
     files = {};
+    fileFails = {};
+    fileJobs = {};
   }
   var sizeFmt = {};
   function sizeLabel(bytes) {
@@ -1454,13 +1527,13 @@
     } catch (e) { text = String(Math.round(n * 10) / 10); }
     return mb ? t("sizeMB", { n: text }) : t("sizeKB", { n: text });
   }
-  // Só os ficheiros válidos (posição 0 a 4, imagem ou PDF): nome só como texto.
+  // Só os ficheiros válidos (posição 0 a 4, imagem ou PDF): nome só como texto (ao guardar, com a extensão do tipo real).
   function filesNode(m) {
     var box = null;
     (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 5).forEach(function (a) {
       if (!a || typeof a.i !== "number" || a.i % 1 !== 0 || a.i < 0 || a.i > 4 || FILE_TYPES.indexOf(a.type) < 0) return;
       if (typeof a.name !== "string" || typeof a.size !== "number") return;
-      var f = { i: a.i, type: a.type, size: a.size, name: a.name.trim().slice(0, 120) || "—" };
+      var f = { i: a.i, type: a.type, size: a.size, name: a.name.trim().slice(0, 200) || "—" };
       box = box || el("div", { class: "files" });
       box.appendChild(fileNode(m, f));
     });
@@ -1468,8 +1541,9 @@
   }
   function fileNode(m, f) {
     var key = m.id + ":" + f.i;
-    if (files[key] === "none") {
-      var gone = el("span", { class: "file gone" });
+    var c = files[key];
+    if (c === "none") {
+      var gone = el("span", { class: "file gone", "data-file": key });
       var info = el("span", { class: "finfo" });
       info.appendChild(el("span", { class: "fname" }, f.name));
       info.appendChild(el("span", { class: "fmeta" }, t("err_attachment_unavailable")));
@@ -1477,17 +1551,37 @@
       return gone;
     }
     if (f.type !== "application/pdf") {
-      queueImage(m, f);
-      var c = files[key];
-      if (!c || typeof c !== "object") return el("span", { class: "file-img loading", role: "img", "aria-label": t("loadingFile") });
-      var thumb = el("button", { type: "button", class: "file-img", "aria-label": t("viewImage", { name: f.name }), title: f.name });
-      thumb.appendChild(el("img", { src: c.url, alt: "" }));
+      if (c === "error") {
+        // Falhou (rede, servidor ou limite de pedidos): o nome e "Tentar de novo".
+        var again = el("button", { type: "button", class: "file", "data-file": key });
+        again.appendChild(el("span", { class: "ficon", "aria-hidden": "true" }, "🖼️"));
+        var retryInfo = el("span", { class: "finfo" });
+        retryInfo.appendChild(el("span", { class: "fname" }, f.name));
+        retryInfo.appendChild(el("span", { class: "fmeta" }, t("retry")));
+        again.appendChild(retryInfo);
+        again.addEventListener("click", function () {
+          if (files[key] !== "error") return;
+          delete files[key];
+          redrawFile(m, f);
+        });
+        return again;
+      }
+      if (!c || typeof c !== "object") {
+        if (nearby) { if (!c) fileJobs[key] = { m: m, f: f }; } else queueImage(m, f);
+        // Com a altura da miniatura: a lista não salta quando a imagem chega.
+        return el("span", { class: "file-img loading file-wait", role: "img", "aria-label": t("loadingFile"), "data-file": key });
+      }
+      var thumb = el("button", { type: "button", class: "file-img", "aria-label": t("viewImage", { name: f.name }), title: f.name, "data-file": key });
+      var pic = el("img", { src: c.url, alt: "" });
+      // Se a lista estava no fim, continua no fim depois de a imagem ganhar a largura.
+      pic.addEventListener("load", function () { if (stick) list.scrollTop = list.scrollHeight; });
+      thumb.appendChild(pic);
       // O nó pode ser reaproveitado no desenho seguinte: o endereço lê-se no momento do toque.
       thumb.addEventListener("click", function () { openViewer(key, f.name, thumb); });
       return thumb;
     }
-    var loading = files[key] === "loading";
-    var pdf = el("button", { type: "button", class: "file", title: t("downloadFile", { name: f.name }) });
+    var loading = c === "loading";
+    var pdf = el("button", { type: "button", class: "file", title: t("downloadFile", { name: f.name }), "data-file": key });
     if (loading) pdf.setAttribute("aria-busy", "true");
     pdf.appendChild(el("span", { class: "ficon", "aria-hidden": "true" }, "📄"));
     var text = el("span", { class: "finfo" });
@@ -1498,17 +1592,23 @@
     return pdf;
   }
   // PDF: descarregado só agora; se o browser não deixar guardar depois da espera (Safari do iPhone), o segundo toque
-  // já tem o ficheiro.
+  // já tem o ficheiro. Uma falha mostra o aviso (que sai quando o PDF chega) e o PDF fica pronto para outro toque.
+  var fileError = "";
   function downloadPdf(m, f) {
     var key = m.id + ":" + f.i;
     var c = files[key];
-    if (c && typeof c === "object") return saveFile(c.url, f.name);
-    if (c || !state.session) return;
+    if (c && typeof c === "object") return saveFile(c.url, fileName(f.name, c.type));
+    if (c === "loading" || c === "none" || !state.session) return;
     var done = fetchFile(m, f);
-    renderMessages();
-    done.then(function () {
-      var x = files[key];
-      if (x && typeof x === "object") saveFile(x.url, f.name);
+    redrawFile(m, f);
+    done.then(function (x) {
+      if (fileError && state.error === fileError) setError("");
+      fileError = "";
+      if (x) saveFile(x.url, fileName(f.name, x.type));
+    }, function (e) {
+      if ((e && e.code === "attachment_unavailable") || !state.session) return;
+      fileError = (e && e.message) || t("err_network");
+      setError(fileError);
     });
   }
   function saveFile(url, name) {
@@ -1582,6 +1682,7 @@
     list.textContent = "";
     list.appendChild(frag);
     list.scrollTop = atBottom ? list.scrollHeight : prevTop;
+    watchFiles();
   }
   function renderTyping() {
     typingEl.textContent = state.agent ? t("typingAgent", { name: state.agent }) : t("typingTeam");
@@ -1659,10 +1760,25 @@
 
   // ------------------------------------------------------------ eventos
 
+  // Imagem ampliada e "Terminar a conversa?" (aria-modal): o Tab dá a volta dentro deles, sem passar para o chat por trás.
+  function modalItems() {
+    if (viewing) return [viewerClose, viewerSave];
+    if (sheet.hidden) return null;
+    return [copyLabel.hidden ? null : copyBox, endConfirm.getAttribute("disabled") === null ? endConfirm : null, endCancel].filter(Boolean);
+  }
+  function trapTab(e) {
+    var items = modalItems();
+    if (!items || !items.length) return;
+    var i = items.indexOf(root.activeElement || document.activeElement);
+    var next = i < 0 ? items[e.shiftKey ? items.length - 1 : 0]
+      : e.shiftKey && i === 0 ? items[items.length - 1] : !e.shiftKey && i === items.length - 1 ? items[0] : null;
+    if (next) { e.preventDefault(); next.focus(); }
+  }
   function onKey(e) {
-    if (e.key !== "Escape" || !state.open || e.isComposing) return;
+    if ((e.key !== "Escape" && e.key !== "Tab") || !state.open || e.isComposing) return;
     var inside = e.composedPath ? e.composedPath().indexOf(host) >= 0 : true;
     if (!inside) return;
+    if (e.key === "Tab") { trapTab(e); return; }
     if (viewing) { closeViewer(); return; }
     if (!sheet.hidden) { closeSheet(); focusInput(); return; }
     close();
@@ -1695,6 +1811,7 @@
     state.destroyed = true;
     clearTimeout(state.timer);
     dropFiles();
+    if (nearby) nearby.disconnect();
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("visibilitychange", onVisibility);
     document.removeEventListener("click", onClick);
@@ -1764,8 +1881,9 @@
       // Ficheiros da equipa: miniaturas das imagens e PDF para descarregar.
       ".files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }",
       ".file-img { display: block; border: 0; padding: 0; border-radius: 8px; background: #f2f4ef; max-width: 100%; cursor: pointer; overflow: hidden; }",
-      ".file-img img { display: block; max-width: 100%; max-height: 220px; border-radius: 8px; }",
-      ".file-img.loading { width: 220px; height: 140px; cursor: default; }",
+      // Altura fixa (a do marcador): a miniatura não muda a altura da lista ao chegar nem ao ser descodificada.
+      ".file-img img { display: block; height: 160px; width: auto; max-width: 100%; object-fit: cover; border-radius: 8px; }",
+      ".file-img.loading { width: 220px; height: 160px; cursor: default; }",
       ".file { display: flex; gap: 8px; align-items: center; max-width: 100%; border: 1px solid #e6e9e3; border-radius: 10px; background: #fafbf8; color: #253531; padding: 8px; text-align: left; font: inherit; cursor: pointer; }",
       ".ficon { font-size: 22px; line-height: 1; flex-shrink: 0; } .finfo { display: flex; flex-direction: column; min-width: 0; }",
       ".fname { overflow-wrap: anywhere; font-weight: 600; font-size: 13px; } .fmeta { font-size: 11.5px; color: #78807c; }",
