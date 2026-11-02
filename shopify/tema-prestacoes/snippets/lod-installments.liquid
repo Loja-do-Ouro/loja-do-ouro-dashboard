@@ -174,7 +174,7 @@
       assign t_s_solo = 'Paga en hasta [n] plazos'
       assign t_taeg = 'TAE'
       assign t_taeg_wait = 'TAE: calculando…'
-      assign t_more = 'Más información'
+      assign t_more = 'Más info'
       assign t_s_sr = 'sobre el pago a plazos con seQura'
       assign t_d_title = 'Pago a plazos con seQura'
       assign t_d_close = 'Cerrar'
@@ -376,7 +376,7 @@
   .lodp-inst__logo { display: block; flex: 0 0 auto; }
   .lodp-inst__logo--klarna { width: 57px; height: 24px; }
   .lodp-inst__logo--sequra { width: 61px; height: 14px; }
-  .lodp-inst__text { min-width: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .lodp-inst__text { min-width: 0; font-weight: 500; }
   .lodp-inst__solo { display: none; }
   .lodp-inst:not(.has-k) .lodp-inst__or { display: none; }
   .lodp-inst:not(.has-k) .lodp-inst__solo { display: inline; }
@@ -389,9 +389,12 @@
     border: 0;
     border-radius: 2px;
     font: inherit;
+    font-family: var(--font-body-family, Arial, sans-serif);
     font-size: 15px;
     font-weight: 600;
     line-height: 24px;
+    letter-spacing: normal;
+    text-transform: none;
     white-space: nowrap;
     text-decoration: underline;
     text-decoration-color: var(--gold);
@@ -406,7 +409,6 @@
     color: var(--text);
     font-size: 16px;
     line-height: 22px;
-    font-variant-numeric: tabular-nums;
   }
   .lodp-inst__taeg[data-inst-pending] { color: var(--muted); }
   .lodp-inst__warning { display: block; margin: 10px 0 0; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 22px; }
@@ -483,7 +485,10 @@
       white-space: nowrap !important;
     }
     .lodp-inst__rows { gap: 11px; }
-    .lodp-inst__taeg { grid-column: 1 / -1; }
+    .lodp-inst__row { grid-template-columns: 56px minmax(0, 1fr) auto; gap: 0 10px; font-size: 15px; }
+    .lodp-inst__logo--klarna { width: 48px; height: 20px; }
+    .lodp-inst__logo--sequra { width: 56px; height: 13px; }
+    .lodp-inst__taeg { grid-column: 1 / -1; font-size: 16px; }
     .lodp-inst__dlg-in { padding: 18px 18px 20px; }
   }
 </style>
