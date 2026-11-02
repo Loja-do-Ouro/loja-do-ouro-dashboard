@@ -14,8 +14,8 @@
      - Klarna: badge rosa oficial, https://x.klarnacdn.net/payment-method/assets/badges/generic/klarna.svg
      - seQura: logótipo oficial, https://live.sequracdn.com/assets/images/logos/logo.svg (ou logo_black.svg)
   3. Os scripts dos fornecedores só acrescentam:
-     - seQura: a biblioteca oficial (sequra-checkout.min.js) é pedida logo aqui, com prioridade baixa, em vez de esperar
-       pelo «load» da página (a app seQura só a carrega depois). Valores e TAEG vêm SEMPRE de Sequra.computeCreditAgreements.
+     - seQura: a biblioteca oficial (sequra-checkout.min.js) e a tabela de custos do produto (pp3_cost.json) são pedidas
+       logo aqui, em paralelo, em vez de esperar pelo «load» da página (a app seQura só as carrega depois). Valores e TAEG vêm SEMPRE de Sequra.computeCreditAgreements.
      - Klarna: o SDK continua a ser carregado pela app Klarna. Depois do «load» monta-se um placement oficial escondido
        só para confirmar a elegibilidade (3 pagamentos para este valor); se a Klarna disser que não, a linha sai.
   4. «Saber mais» abre um diálogo nosso (<dialog> modal: o foco entra, Tab fica dentro, Escape fecha, o foco volta):
@@ -621,8 +621,15 @@
   </script>
 </div>
 {%- if inst_s_market -%}
-  <link rel="preconnect" href="https://live.cdn.sequra.svea.com">
-  <link rel="preconnect" href="https://live.cdn.sequra.svea.com" crossorigin>
+  {%- assign inst_s_merchant = s.inst_sequra_merchant | default: '' | strip -%}
+  {%- assign inst_s_key = s.inst_sequra_asset_key | default: '' | strip -%}
+  {%- if inst_s_merchant != blank and inst_s_key != blank -%}
+    {%- comment -%} Pedidos da seQura em paralelo, logo aqui: a biblioteca e a tabela de custos do produto {%- endcomment -%}
+    <link rel="preload" as="script" href="https://live.cdn.sequra.svea.com/assets/sequra-checkout.min.js">
+    <link rel="preload" as="fetch" crossorigin="anonymous" href="https://live.cdn.sequra.svea.com/scripts/{{ inst_s_merchant | url_encode }}/{{ inst_s_key | url_encode }}/{{ inst_s_product | url_encode }}_cost.json">
+  {%- else -%}
+    <link rel="preconnect" href="https://live.cdn.sequra.svea.com" crossorigin>
+  {%- endif -%}
 {%- endif -%}
 
 <script>
@@ -711,7 +718,6 @@
       var a = document.createElement('script');
       a.async = true;
       a.src = g.scriptUri;
-      try { a.fetchPriority = 'low'; } catch (e) {}
       (document.head || document.documentElement).appendChild(a);
       /* Biblioteca carregada: a app seQura já não a volta a pedir nesta página (o widget dela não tem onde aparecer na ficha LOD) */
       window.Sequra.onLoad(function () { window.sequraWidgetsScriptLoaded = true; });
@@ -861,7 +867,7 @@
         (function tick() {
           if (sequraLibReady()) return cb(true);
           if (tLoad && Date.now() - tLoad > SEQURA_WAIT) return cb(false);
-          setTimeout(tick, sequraFn() ? 250 : 150);
+          setTimeout(tick, 100);
         })();
       }
 
