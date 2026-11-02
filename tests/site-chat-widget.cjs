@@ -326,15 +326,23 @@ class FakeNode {
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
 }
 
-// Servidor do chat falso: regista os pedidos (método, caminho, corpo e token).
-function fakeServer() {
+// Servidor do chat falso: regista os pedidos (método, caminho, parâmetros, corpo e token). messages: o que o GET das
+// mensagens devolve; files: os ficheiros de /api/chat/attachments ("<mensagem>:<posição>" → { type, bytes }; os
+// outros respondem 404, como um ficheiro já apagado).
+function fakeServer({ messages = [], files = {} } = {}) {
   const calls = [];
   const fetch = (url, opts = {}) => {
     const u = new URL(url, "https://www.lojadoouro.pt");
-    const call = { method: opts.method || "GET", path: u.pathname, body: opts.body ? JSON.parse(opts.body) : null, auth: (opts.headers || {}).Authorization || null };
+    const call = { method: opts.method || "GET", path: u.pathname, query: u.search, body: opts.body ? JSON.parse(opts.body) : null, auth: (opts.headers || {}).Authorization || null };
     calls.push(call);
+    if (call.path === "/api/chat/attachments") {
+      const f = files[`${u.searchParams.get("m")}:${u.searchParams.get("i")}`];
+      return Promise.resolve(f
+        ? { ok: true, status: 200, blob: () => Promise.resolve(new Blob([f.bytes], { type: f.type })) }
+        : { ok: false, status: 404, json: () => Promise.resolve({ error: "Este ficheiro já não está disponível.", code: "attachment_unavailable" }) });
+    }
     const data = call.path === "/api/chat/start" ? { token: "tok-1", verified: null }
-      : call.path === "/api/chat/messages" && call.method === "GET" ? { messages: [], agent: null, typing: false } : { ok: true };
+      : call.path === "/api/chat/messages" && call.method === "GET" ? { messages, agent: null, typing: false } : { ok: true };
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) });
   };
   return { fetch, calls, context: () => calls.filter((c) => c.path === "/api/chat/context") };
@@ -677,4 +685,99 @@ test("Chat widget: with an earlier conversation, a new visit stores nothing unti
   const after = srv.context().at(-1).body;
   assert.deepEqual([after.visitStartedAt, after.pages], [new Date(opened).toISOString(), 1]);
   assert.deepEqual(json(b.local, TOKEN_KEY), { token: "tok-1", name: "Ana", verifiedEmail: null, seenAt: "", visit: { start: opened, pages: 1, last: opened } });
+});
+
+// ---------------------------------------------------------------- ficheiros da equipa
+
+test("Chat widget: team files are shown from memory, only with the chat open (images at once, a PDF when tapped)", async () => {
+  const b = browser();
+  b.local.map.set(TOKEN_KEY, JSON.stringify({ token: "tok-1", name: "Ana", verifiedEmail: null, seenAt: "" }));
+  const MID = "6f1c2a4e-8b1d-4c3e-9a5f-0d7e2b6c1a90";
+  const OLD = "0b6e3f2a-1c4d-4e5f-8a9b-7c6d5e4f3a21";
+  const team = (id, body, attachments, at) => ({ id, from: "team", author: "Rita", key: null, body, created_at: at, inserted_at: at, attachments });
+  const srv = fakeServer({
+    messages: [
+      // Ficheiro já apagado (30 dias): 404 com o código.
+      team(OLD, "Segue a foto.", [{ i: 0, name: "antiga.png", type: "image/png", size: 99 }], "2026-10-29T09:00:00.000Z"),
+      // Resposta só com ficheiros (sem texto), mais um anexo inválido que o widget ignora.
+      team(MID, "", [
+        { i: 0, name: "foto.jpg", type: "image/jpeg", size: 1234 },
+        { i: 1, name: "certificado.pdf", type: "application/pdf", size: 200000 },
+        { i: 2, name: "pagina.html", type: "text/html", size: 10 },
+      ], "2026-10-30T09:00:00.000Z"),
+    ],
+    files: {
+      [`${MID}:0`]: { type: "image/jpeg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]) },
+      [`${MID}:1`]: { type: "application/pdf", bytes: "%PDF-1.4" },
+    },
+  });
+  const fileCalls = () => srv.calls.filter((c) => c.path === "/api/chat/attachments");
+  const bubble = (page, id) => page.panel.querySelectorAll(".msg").find((n) => n.getAttribute("data-id") === id);
+  const created = [], revoked = [];
+  const { createObjectURL, revokeObjectURL } = URL;
+  URL.createObjectURL = (blob) => { const u = createObjectURL(blob); created.push(u); return u; };
+  URL.revokeObjectURL = (u) => { revoked.push(u); revokeObjectURL(u); };
+  try {
+    // Chat fechado: as respostas chegam (aviso de mensagens novas), os ficheiros não.
+    const page = openPage(b, { fetch: srv.fetch });
+    await flush();
+    assert.ok(srv.calls.some((c) => c.path === "/api/chat/messages"));
+    assert.deepEqual(fileCalls(), []);
+
+    // Ao abrir o chat: só as imagens, uma de cada vez, com o token no cabeçalho (nunca no endereço).
+    b.log.length = 0;
+    page.launcher.click();
+    await flush();
+    assert.deepEqual(fileCalls().map((c) => c.query), [`?m=${OLD}&i=0`, `?m=${MID}&i=0`]);
+    assert.ok(fileCalls().every((c) => c.method === "GET" && c.auth === "Bearer tok-1" && !c.query.includes("tok-1")));
+    const msg = bubble(page, MID);
+    assert.equal(msg.querySelector(".txt"), null, "resposta só com ficheiros: sem texto vazio");
+    const thumb = msg.querySelector(".file-img");
+    assert.equal(thumb.nodeName, "BUTTON");
+    assert.equal(thumb.getAttribute("aria-label"), "Ver a imagem foto.jpg");
+    assert.match(thumb.querySelector("img").getAttribute("src"), /^blob:/);
+    assert.equal(msg.querySelectorAll(".file").length, 1, "o anexo HTML é ignorado");
+    const pdf = msg.querySelector(".file");
+    assert.match(pdf.textContent, /certificado\.pdf/);
+    assert.match(pdf.textContent, /PDF · 195 KB/);
+    // Ficheiro apagado: o nome e o aviso, na língua do cliente; o texto da resposta fica.
+    const old = bubble(page, OLD);
+    assert.match(old.querySelector(".gone").textContent, /antiga\.png.*Este ficheiro já não está disponível\./);
+    assert.ok(old.querySelector(".txt"));
+    assert.equal(old.querySelector("img"), null);
+
+    // O PDF só é descarregado quando o cliente lhe toca.
+    assert.ok(!fileCalls().some((c) => c.query.endsWith("&i=1")));
+    pdf.click();
+    await flush();
+    assert.deepEqual(fileCalls().map((c) => c.query).slice(2), [`?m=${MID}&i=1`]);
+    assert.equal(created.length, 2);
+
+    // A imagem abre em grande dentro do chat (não noutro separador) e fecha no ×.
+    bubble(page, MID).querySelector(".file-img").click();
+    const viewer = page.panel.querySelector(".viewer");
+    assert.equal(viewer.hidden, false);
+    assert.equal(viewer.querySelector("img").getAttribute("src"), created[0]);
+    assert.equal(viewer.querySelector("a").getAttribute("download"), "foto.jpg");
+    viewer.querySelector(".viewer-close").click();
+    assert.equal(viewer.hidden, true);
+
+    // Nada gravado no browser por causa dos ficheiros (só o que abrir o chat já grava).
+    assert.ok(b.log.every(([store, , key]) => (store === "session" && [OPEN_KEY, VISIT_KEY].includes(key)) || (store === "local" && key === TOKEN_KEY)),
+      JSON.stringify(b.log));
+    assert.ok(!b.log.some(([store]) => store === "cookie"));
+    // Novos desenhos não voltam a pedir os ficheiros.
+    const before = fileCalls().length;
+    page.launcher.click();
+    page.launcher.click();
+    await flush();
+    assert.equal(fileCalls().length, before);
+
+    // Ao sair, os endereços blob: são libertados.
+    page.window.LdoChat.destroy();
+    assert.deepEqual([...revoked].sort(), [...created].sort());
+  } finally {
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+  }
 });

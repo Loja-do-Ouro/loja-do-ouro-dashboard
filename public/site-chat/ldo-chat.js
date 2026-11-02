@@ -24,6 +24,8 @@
  * Depois de o cliente iniciar o chat, envia à equipa a página em que está, o carrinho da loja e, se abriu o chat
  * nesta visita (neste separador ou noutro), há quanto tempo o abriu e quantas páginas viu desde então; enquanto a
  * conversa estiver guardada, também nas visitas seguintes (a página e o carrinho, sem a hora).
+ * Ficheiros da equipa (imagens e PDF das respostas): só ficam na memória da página (endereços blob:), nunca em
+ * localStorage, sessionStorage ou cookies, e só são descarregados com o chat aberto (um PDF, quando o cliente lhe toca).
  * Nenhum texto do cliente ou da equipa é interpretado como HTML.
  */
 (function () {
@@ -87,6 +89,12 @@
       surveyRequestNoName: "Obrigado por falar connosco! Como avalia o nosso atendimento?",
       surveyThanks: "Obrigado pela sua avaliação!",
       surveyStar: "{n} de 5",
+      viewImage: "Ver a imagem {name}",
+      downloadFile: "Descarregar {name}",
+      loadingFile: "A carregar…",
+      closeViewer: "Fechar a imagem",
+      sizeKB: "{n} KB",
+      sizeMB: "{n} MB",
       err_network: "Sem ligação. Verifique a internet e tente novamente.",
       err_status: "O chat está indisponível de momento (erro {status}). Tente novamente dentro de instantes.",
       err_chat_unavailable: "O chat está indisponível de momento. Tente novamente dentro de instantes.",
@@ -103,6 +111,7 @@
       err_too_many_messages: "Enviou muitas mensagens seguidas. Aguarde um pouco.",
       err_survey_closed: "Esta avaliação já não está disponível.",
       err_rating_invalid: "Escolha de 1 a 5 estrelas.",
+      err_attachment_unavailable: "Este ficheiro já não está disponível.",
     },
     en: {
       title: "Chat with us",
@@ -155,6 +164,12 @@
       surveyRequestNoName: "Thank you for talking to us! How would you rate our help?",
       surveyThanks: "Thank you for your feedback!",
       surveyStar: "{n} of 5",
+      viewImage: "View image {name}",
+      downloadFile: "Download {name}",
+      loadingFile: "Loading…",
+      closeViewer: "Close image",
+      sizeKB: "{n} KB",
+      sizeMB: "{n} MB",
       err_network: "No connection. Please check your internet connection and try again.",
       err_status: "The chat is unavailable at the moment (error {status}). Please try again shortly.",
       err_chat_unavailable: "The chat is unavailable at the moment. Please try again shortly.",
@@ -171,6 +186,7 @@
       err_too_many_messages: "You have sent several messages in a row. Please wait a moment.",
       err_survey_closed: "This rating is no longer available.",
       err_rating_invalid: "Please choose 1 to 5 stars.",
+      err_attachment_unavailable: "This file is no longer available.",
     },
     es: {
       title: "Hable con nosotros",
@@ -223,6 +239,12 @@
       surveyRequestNoName: "¡Gracias por hablar con nosotros! ¿Cómo valora nuestra atención?",
       surveyThanks: "¡Gracias por su valoración!",
       surveyStar: "{n} de 5",
+      viewImage: "Ver la imagen {name}",
+      downloadFile: "Descargar {name}",
+      loadingFile: "Cargando…",
+      closeViewer: "Cerrar la imagen",
+      sizeKB: "{n} KB",
+      sizeMB: "{n} MB",
       err_network: "Sin conexión. Compruebe su conexión a internet e inténtelo de nuevo.",
       err_status: "El chat no está disponible en este momento (error {status}). Inténtelo de nuevo en unos instantes.",
       err_chat_unavailable: "El chat no está disponible en este momento. Inténtelo de nuevo en unos instantes.",
@@ -239,6 +261,7 @@
       err_too_many_messages: "Ha enviado muchos mensajes seguidos. Espere un momento, por favor.",
       err_survey_closed: "Esta valoración ya no está disponible.",
       err_rating_invalid: "Elija de 1 a 5 estrellas.",
+      err_attachment_unavailable: "Este archivo ya no está disponible.",
     },
     fr: {
       title: "Contactez-nous",
@@ -291,6 +314,12 @@
       surveyRequestNoName: "Merci d’avoir échangé avec nous ! Comment évaluez-vous notre aide ?",
       surveyThanks: "Merci pour votre avis !",
       surveyStar: "{n} sur 5",
+      viewImage: "Voir l’image {name}",
+      downloadFile: "Télécharger {name}",
+      loadingFile: "Chargement…",
+      closeViewer: "Fermer l’image",
+      sizeKB: "{n} Ko",
+      sizeMB: "{n} Mo",
       err_network: "Pas de connexion. Veuillez vérifier votre connexion Internet et réessayer.",
       err_status: "Le chat est momentanément indisponible (erreur {status}). Veuillez réessayer dans quelques instants.",
       err_chat_unavailable: "Le chat est momentanément indisponible. Veuillez réessayer dans quelques instants.",
@@ -307,6 +336,7 @@
       err_too_many_messages: "Vous avez envoyé plusieurs messages à la suite. Veuillez patienter un instant.",
       err_survey_closed: "Cette évaluation n’est plus disponible.",
       err_rating_invalid: "Choisissez de 1 à 5 étoiles.",
+      err_attachment_unavailable: "Ce fichier n’est plus disponible.",
     },
     de: {
       title: "Schreiben Sie uns",
@@ -359,6 +389,12 @@
       surveyRequestNoName: "Danke, dass Sie uns geschrieben haben! Wie bewerten Sie unsere Beratung?",
       surveyThanks: "Vielen Dank für Ihre Bewertung!",
       surveyStar: "{n} von 5",
+      viewImage: "Bild {name} ansehen",
+      downloadFile: "{name} herunterladen",
+      loadingFile: "Wird geladen…",
+      closeViewer: "Bild schließen",
+      sizeKB: "{n} KB",
+      sizeMB: "{n} MB",
       err_network: "Keine Verbindung. Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
       err_status: "Der Chat ist im Moment nicht verfügbar (Fehler {status}). Bitte versuchen Sie es gleich noch einmal.",
       err_chat_unavailable: "Der Chat ist im Moment nicht verfügbar. Bitte versuchen Sie es gleich noch einmal.",
@@ -375,6 +411,7 @@
       err_too_many_messages: "Sie haben viele Nachrichten hintereinander gesendet. Bitte warten Sie einen Moment.",
       err_survey_closed: "Diese Bewertung ist nicht mehr verfügbar.",
       err_rating_invalid: "Bitte wählen Sie 1 bis 5 Sterne.",
+      err_attachment_unavailable: "Diese Datei ist nicht mehr verfügbar.",
     },
   };
   var INTL = { pt: "pt-PT", en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" };
@@ -762,7 +799,40 @@
       });
   }
 
+  // Ficheiro de uma resposta da equipa (imagem ou PDF, até 4 MB), com o token no cabeçalho como os outros pedidos
+  // (nunca no endereço). Erro com "code" (attachment_unavailable: apagado ao fim de 30 dias).
+  var FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+  var FILE_MAX = 4 * 1024 * 1024;
+  function requestFile(url) {
+    var headers = {};
+    if (state.session && state.session.token) headers.Authorization = "Bearer " + state.session.token;
+    if (cfg.identity) headers["X-LDO-Identity"] = identityHeader();
+    return fetch(API + url, { method: "GET", headers: headers, cache: "no-store", credentials: "same-origin" })
+      .catch(function () { throw new Error(t("err_network")); })
+      .then(function (r) {
+        if (!r.ok) {
+          return r.json().catch(function () { return {}; }).then(function (data) {
+            if (r.status === 401 && data && data.restart) { var message = errorText(data, 0); restart(message); throw new Error(message); }
+            var e = new Error(errorText(data, r.status));
+            e.code = data && typeof data.code === "string" ? data.code : "";
+            throw e;
+          });
+        }
+        return r.blob().then(function (blob) {
+          var type = String(blob.type || "").split(";")[0].trim().toLowerCase();
+          if (FILE_TYPES.indexOf(type) < 0 || blob.size > FILE_MAX) {
+            var e = new Error(t("err_attachment_unavailable"));
+            e.code = "attachment_unavailable";
+            throw e;
+          }
+          return blob;
+        });
+      });
+  }
+
   function restart(message) {
+    closeViewer();
+    dropFiles();
     state.session = null;
     state.messages = [];
     state.lastInserted = null;
@@ -1098,6 +1168,46 @@
   sheet.appendChild(sheetBox);
   panel.appendChild(sheet);
 
+  // Imagem da equipa em grande, dentro do chat (não noutro separador: o Safari do iPhone abre mal endereços blob:).
+  var viewer = el("div", { class: "viewer", role: "dialog", "aria-modal": "true", hidden: "" });
+  var viewerBar = el("div", { class: "viewer-bar" });
+  var viewerName = el("span", { class: "viewer-name" });
+  var viewerClose = el("button", { type: "button", class: "viewer-close", "aria-label": t("closeViewer") }, "×");
+  viewerBar.appendChild(viewerName);
+  viewerBar.appendChild(viewerClose);
+  var viewerImg = el("img", { alt: "" });
+  var viewerSave = el("a", { class: "secondary" });
+  viewer.appendChild(viewerBar);
+  viewer.appendChild(viewerImg);
+  viewer.appendChild(viewerSave);
+  panel.appendChild(viewer);
+  var viewing = null; // miniatura de onde se abriu (o foco volta para lá)
+  function openViewer(key, name, from) {
+    var c = files[key];
+    if (!c || typeof c !== "object") return;
+    viewerImg.setAttribute("src", c.url);
+    viewerImg.setAttribute("alt", name);
+    viewerName.textContent = name;
+    viewer.setAttribute("aria-label", name);
+    viewerSave.setAttribute("href", c.url);
+    viewerSave.setAttribute("download", name);
+    viewerSave.textContent = t("downloadFile", { name: name });
+    viewing = from;
+    viewer.hidden = false;
+    viewerClose.focus();
+  }
+  function closeViewer() {
+    if (!viewing) return;
+    var from = viewing;
+    viewing = null;
+    viewer.hidden = true;
+    viewerImg.removeAttribute("src");
+    viewerSave.removeAttribute("href");
+    if (from.isConnected) from.focus();
+    else focusInput();
+  }
+  viewerClose.addEventListener("click", closeViewer);
+
   var endedView = el("div", { class: "ended" });
   endedView.appendChild(el("strong", { class: "ended-title" }, t("thanks")));
   var endedText = el("p", {});
@@ -1300,6 +1410,114 @@
     return card;
   }
 
+  // Ficheiros das respostas da equipa: "<mensagem>:<posição>" → "loading", "none" (já não existe) ou { url, type }, com o
+  // endereço blob: na memória da página (nunca gravado no browser). Como nos produtos, o mesmo endereço mantém os nós da
+  // lista (renderMessages). As imagens chegam sozinhas, uma de cada vez, só com o chat aberto e à vista; um PDF, quando o
+  // cliente lhe toca. Uma falha de rede deixa o ficheiro por carregar: volta a tentar no desenho seguinte.
+  var files = {};
+  var fileQueue = Promise.resolve();
+  function fetchFile(m, f) {
+    var key = m.id + ":" + f.i;
+    files[key] = "loading";
+    return requestFile("/api/chat/attachments?m=" + encodeURIComponent(m.id) + "&i=" + f.i).then(function (blob) {
+      if (state.destroyed || files[key] !== "loading") return; // conversa recomeçada entretanto
+      files[key] = { url: URL.createObjectURL(blob), type: f.type };
+      renderMessages();
+    }, function (e) {
+      if (files[key] !== "loading") return;
+      if (e && e.code === "attachment_unavailable") { files[key] = "none"; renderMessages(); }
+      else delete files[key];
+    });
+  }
+  function queueImage(m, f) {
+    var key = m.id + ":" + f.i;
+    if (files[key] || !state.session || !state.open || document.hidden) return;
+    files[key] = "loading";
+    fileQueue = fileQueue
+      .then(function () { return files[key] === "loading" ? fetchFile(m, f) : null; })
+      .catch(function () { if (files[key] === "loading") delete files[key]; });
+  }
+  function dropFiles() {
+    Object.keys(files || {}).forEach(function (k) {
+      if (files[k] && typeof files[k] === "object") URL.revokeObjectURL(files[k].url);
+    });
+    files = {};
+  }
+  var sizeFmt = {};
+  function sizeLabel(bytes) {
+    var mb = bytes >= 1024 * 1024;
+    var n = mb ? bytes / (1024 * 1024) : Math.max(1, Math.round(bytes / 1024));
+    var text;
+    try {
+      sizeFmt[mb] = sizeFmt[mb] || new Intl.NumberFormat(INTL[LANG], { minimumFractionDigits: mb ? 1 : 0, maximumFractionDigits: mb ? 1 : 0 });
+      text = sizeFmt[mb].format(n);
+    } catch (e) { text = String(Math.round(n * 10) / 10); }
+    return mb ? t("sizeMB", { n: text }) : t("sizeKB", { n: text });
+  }
+  // Só os ficheiros válidos (posição 0 a 4, imagem ou PDF): nome só como texto.
+  function filesNode(m) {
+    var box = null;
+    (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 5).forEach(function (a) {
+      if (!a || typeof a.i !== "number" || a.i % 1 !== 0 || a.i < 0 || a.i > 4 || FILE_TYPES.indexOf(a.type) < 0) return;
+      if (typeof a.name !== "string" || typeof a.size !== "number") return;
+      var f = { i: a.i, type: a.type, size: a.size, name: a.name.trim().slice(0, 120) || "—" };
+      box = box || el("div", { class: "files" });
+      box.appendChild(fileNode(m, f));
+    });
+    return box;
+  }
+  function fileNode(m, f) {
+    var key = m.id + ":" + f.i;
+    if (files[key] === "none") {
+      var gone = el("span", { class: "file gone" });
+      var info = el("span", { class: "finfo" });
+      info.appendChild(el("span", { class: "fname" }, f.name));
+      info.appendChild(el("span", { class: "fmeta" }, t("err_attachment_unavailable")));
+      gone.appendChild(info);
+      return gone;
+    }
+    if (f.type !== "application/pdf") {
+      queueImage(m, f);
+      var c = files[key];
+      if (!c || typeof c !== "object") return el("span", { class: "file-img loading", role: "img", "aria-label": t("loadingFile") });
+      var thumb = el("button", { type: "button", class: "file-img", "aria-label": t("viewImage", { name: f.name }), title: f.name });
+      thumb.appendChild(el("img", { src: c.url, alt: "" }));
+      // O nó pode ser reaproveitado no desenho seguinte: o endereço lê-se no momento do toque.
+      thumb.addEventListener("click", function () { openViewer(key, f.name, thumb); });
+      return thumb;
+    }
+    var loading = files[key] === "loading";
+    var pdf = el("button", { type: "button", class: "file", title: t("downloadFile", { name: f.name }) });
+    if (loading) pdf.setAttribute("aria-busy", "true");
+    pdf.appendChild(el("span", { class: "ficon", "aria-hidden": "true" }, "📄"));
+    var text = el("span", { class: "finfo" });
+    text.appendChild(el("span", { class: "fname" }, f.name));
+    text.appendChild(el("span", { class: "fmeta" }, loading ? t("loadingFile") : "PDF · " + sizeLabel(f.size)));
+    pdf.appendChild(text);
+    pdf.addEventListener("click", function () { downloadPdf(m, f); });
+    return pdf;
+  }
+  // PDF: descarregado só agora; se o browser não deixar guardar depois da espera (Safari do iPhone), o segundo toque
+  // já tem o ficheiro.
+  function downloadPdf(m, f) {
+    var key = m.id + ":" + f.i;
+    var c = files[key];
+    if (c && typeof c === "object") return saveFile(c.url, f.name);
+    if (c || !state.session) return;
+    var done = fetchFile(m, f);
+    renderMessages();
+    done.then(function () {
+      var x = files[key];
+      if (x && typeof x === "object") saveFile(x.url, f.name);
+    });
+  }
+  function saveFile(url, name) {
+    var a = el("a", { href: url, download: name, hidden: "" });
+    root.appendChild(a);
+    a.click();
+    root.removeChild(a);
+  }
+
   // Pedido de avaliação: a pergunta e 5 estrelas (botões, com "1 de 5"… para leitores de ecrã); depois, o agradecimento.
   function surveyNode(m) {
     if (m.rated) return el("div", { class: "msg notice survey", "data-id": m.id, role: "note" }, t("surveyThanks"));
@@ -1323,8 +1541,12 @@
     if (m.from === "notice") return el("div", { class: "msg notice", "data-id": m.id, role: "note" }, noticeText(m));
     var bubble = el("div", { class: "msg " + (m.from === "visitor" ? "me" : "team") + (m.failed ? " failed" : ""), "data-id": m.id });
     if (m.from === "team") bubble.appendChild(el("span", { class: "who" }, BRAND + (m.author ? " · " + m.author : "")));
-    if (m.from === "team") bubble.appendChild(formatTeam(m.body || ""));
-    else {
+    if (m.from === "team") {
+      // Resposta só com ficheiros: sem parágrafo vazio.
+      if (m.body) bubble.appendChild(formatTeam(m.body));
+      var attached = filesNode(m);
+      if (attached) bubble.appendChild(attached);
+    } else {
       var p = el("p", {});
       p.appendChild(richText(m.body || ""));
       bubble.appendChild(p);
@@ -1416,6 +1638,7 @@
     setTimeout(focusInput, 30);
   }
   function close() {
+    closeViewer();
     state.open = false;
     writeStore(OPEN_KEY, null, "session");
     if (!state.session) dropVisit();
@@ -1440,13 +1663,18 @@
     if (e.key !== "Escape" || !state.open || e.isComposing) return;
     var inside = e.composedPath ? e.composedPath().indexOf(host) >= 0 : true;
     if (!inside) return;
+    if (viewing) { closeViewer(); return; }
     if (!sheet.hidden) { closeSheet(); focusInput(); return; }
     close();
   }
   function onVisibility() {
     if (!document.hidden && state.session) fetchMessages().catch(function () {}).then(schedule);
     else clearTimeout(state.timer);
-    if (!document.hidden && state.open) renderStatus();
+    if (!document.hidden && state.open) {
+      renderStatus();
+      // Imagens que ficaram por carregar com o separador escondido.
+      if (state.session) renderMessages();
+    }
   }
   // Ligações no tema para abrir o chat: <a href="#chat">, [data-ldo-chat] ou window.LdoChat.open().
   function onClick(e) {
@@ -1466,6 +1694,7 @@
   function destroy() {
     state.destroyed = true;
     clearTimeout(state.timer);
+    dropFiles();
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("visibilitychange", onVisibility);
     document.removeEventListener("click", onClick);
@@ -1532,6 +1761,15 @@
       ".product img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #fff; }",
       ".pinfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .pinfo strong { font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }",
       ".price { font-size: 13px; color: #8a6428; font-weight: 600; } .soldout { font-size: 11px; color: #a44b40; } .cta { font-size: 12px; color: #8a6428; text-decoration: underline; }",
+      // Ficheiros da equipa: miniaturas das imagens e PDF para descarregar.
+      ".files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }",
+      ".file-img { display: block; border: 0; padding: 0; border-radius: 8px; background: #f2f4ef; max-width: 100%; cursor: pointer; overflow: hidden; }",
+      ".file-img img { display: block; max-width: 100%; max-height: 220px; border-radius: 8px; }",
+      ".file-img.loading { width: 220px; height: 140px; cursor: default; }",
+      ".file { display: flex; gap: 8px; align-items: center; max-width: 100%; border: 1px solid #e6e9e3; border-radius: 10px; background: #fafbf8; color: #253531; padding: 8px; text-align: left; font: inherit; cursor: pointer; }",
+      ".ficon { font-size: 22px; line-height: 1; flex-shrink: 0; } .finfo { display: flex; flex-direction: column; min-width: 0; }",
+      ".fname { overflow-wrap: anywhere; font-weight: 600; font-size: 13px; } .fmeta { font-size: 11.5px; color: #78807c; }",
+      ".file.gone { opacity: .7; cursor: default; }",
       ".meta { display: block; font-size: 10.5px; opacity: .75; margin-top: 3px; text-align: right; }",
       ".retry { margin-left: 6px; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; font-size: 11px; }",
       ".typing { font-size: 12px; color: #78807c; font-style: italic; padding: 4px 12px; background: #fafbf8; }",
@@ -1546,6 +1784,14 @@
       ".sheet-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; cursor: pointer; }",
       ".sheet-check input { margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--c); flex-shrink: 0; }",
       ".secondary { border: 1px solid #d7dcd4; border-radius: 8px; padding: 10px; background: #fff; color: #253531; font-size: 14px; cursor: pointer; }",
+      // Imagem em grande por cima da conversa (também no telemóvel, com o chat em ecrã inteiro).
+      ".viewer { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: rgba(20,30,28,.92); color: #fff; }",
+      ".viewer-bar { display: flex; align-items: center; gap: 10px; }",
+      ".viewer-name { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }",
+      ".viewer-close { background: none; border: 0; color: #fff; font-size: 28px; line-height: 1; cursor: pointer; padding: 0 4px; }",
+      ".viewer img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }",
+      ".viewer .secondary { align-self: center; text-decoration: none; text-align: center; overflow-wrap: anywhere; }",
+      ".viewer button:focus-visible, .viewer a:focus-visible { outline-color: #fff; }",
       ".ended { padding: 28px 18px; display: flex; flex-direction: column; gap: 12px; text-align: center; }",
       ".ended-title { font-size: 17px; }",
       ".ended p { margin: 0; color: #4f5c55; }",
