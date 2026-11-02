@@ -1850,7 +1850,7 @@
     { "type": "header", "content": "Pagamento em prestações" },
     {
       "type": "paragraph",
-      "content": "Bloco compacto por baixo do preço com a Klarna (3x sem juros) e a seQura. O texto e os logótipos aparecem logo com a página. A TAEG de cada plano seQura com custos vem sempre da seQura. Textos vazios = texto da casa em PT, EN, ES, FR, DE e IT; um texto escrito aqui substitui em todas as línguas (traduza-o na app Translate & Adapt)."
+      "content": "Bloco compacto por baixo do preço com a Klarna (3x sem juros) e a seQura. O texto e os logótipos oficiais aparecem logo com a página. A TAEG de cada plano seQura com custos vem sempre da seQura e fica sempre à vista (DL 133/2009, art. 5.º); se a seQura não responder, a linha seQura não aparece. Textos vazios = texto da casa em PT, EN, ES, FR, DE e IT; um texto escrito aqui substitui em todas as línguas (traduza-o na app Translate & Adapt). Nos textos próprios não escreva valores, «desde … €/mês», «sem custos» nem «grátis» sem parecer jurídico: obrigam a mais informação legal."
     },
     { "type": "checkbox", "id": "inst_enabled", "label": "Mostrar pagamento em prestações", "default": true },
     {
@@ -1895,22 +1895,26 @@
     { "type": "text", "id": "inst_warning_text", "label": "Texto do aviso", "info": "Vazio = texto oficial em cada língua." },
     { "type": "header", "content": "Klarna — 3x sem juros" },
     { "type": "checkbox", "id": "inst_klarna", "label": "Mostrar Klarna", "default": true },
-    { "type": "text", "id": "inst_klarna_text", "label": "Texto Klarna", "info": "[valor] = preço ÷ 3, arredondado para baixo como a Klarna. Vazio = «3x [valor] sem juros». «Saber mais» abre o modal oficial da Klarna." },
+    {
+      "type": "select",
+      "id": "inst_klarna_mode",
+      "label": "Klarna: formato do texto",
+      "options": [
+        { "value": "simple", "label": "3x [valor] sem juros" },
+        { "value": "ccd", "label": "3x [valor] · TAN 0% · TAEG 0% · crédito [crédito]" }
+      ],
+      "default": "simple",
+      "info": "Segunda opção = Diretiva (UE) 2023/2225. Mudar para ela (e ligar o aviso acima) quando a lei portuguesa que transpõe a diretiva entrar em vigor."
+    },
+    { "type": "text", "id": "inst_klarna_text", "label": "Texto Klarna (próprio)", "info": "[valor] = preço ÷ 3, arredondado para baixo como a Klarna; [credito] = preço − 1.º pagamento. Vazio = texto da casa (formato acima). «Saber mais» abre o diálogo da loja com as condições da Klarna e o link para a página oficial. Sem valores além de [valor] nem «grátis» sem parecer jurídico." },
     { "type": "number", "id": "inst_klarna_min", "label": "Klarna: valor mínimo (€)", "default": 35 },
-    { "type": "number", "id": "inst_klarna_max", "label": "Klarna: valor máximo (€)", "default": 1000, "info": "Acima de 1000 € a Klarna só oferece «Paga depois». Limites medidos a 02-11-2026; confirmar no portal Klarna. Se a Klarna disser que um valor não tem 3 pagamentos, a linha sai sozinha." },
+    { "type": "number", "id": "inst_klarna_max", "label": "Klarna: valor máximo (€)", "default": 1000, "info": "Acima de 1000 € a Klarna só oferece «Paga depois». Limites medidos a 02-11-2026; confirmar no portal Klarna: a ficha usa só estes limites e não pergunta à Klarna." },
     { "type": "text", "id": "inst_klarna_countries", "label": "Klarna: países", "default": "PT, ES", "info": "Códigos de país separados por vírgulas. Só em euros." },
     { "type": "header", "content": "seQura — prestações" },
     { "type": "checkbox", "id": "inst_sequra", "label": "Mostrar seQura", "default": true },
     { "type": "number", "id": "inst_sequra_max_n", "label": "seQura: n.º máximo de prestações", "default": 12, "info": "Mostrado logo com a página; a seQura confirma o número quando responde. A conta tem hoje 3x (sem custos), 6x, 9x e 12x (com custos)." },
-    { "type": "text", "id": "inst_sequra_text", "label": "Texto seQura (com a Klarna por cima)", "info": "[n] = n.º máximo de prestações. Vazio = «Ou pague em até [n]x»." },
-    { "type": "text", "id": "inst_sequra_text_solo", "label": "Texto seQura (sozinha)", "info": "Usado quando a linha Klarna não aparece. Vazio = «Pague em até [n]x»." },
-    {
-      "type": "checkbox",
-      "id": "inst_sequra_taeg",
-      "label": "Mostrar a TAEG de cada plano seQura com custos",
-      "default": true,
-      "info": "DL 133/2009, art. 5.º, n.ºs 1 a 3: a publicidade a crédito indica a TAEG de cada modalidade, legível. Não desligar sem parecer jurídico."
-    },
+    { "type": "text", "id": "inst_sequra_text", "label": "Texto seQura (com a Klarna por cima)", "info": "[n] = n.º máximo de prestações. Vazio = «Ou pague em até [n]x». Sem valores, «desde … €/mês», «sem custos» nem «grátis» sem parecer jurídico." },
+    { "type": "text", "id": "inst_sequra_text_solo", "label": "Texto seQura (sozinha)", "info": "Usado quando a linha Klarna não aparece. Vazio = «Pague em até [n]x». As mesmas regras do texto acima." },
     {
       "type": "select",
       "id": "inst_sequra_logo",
