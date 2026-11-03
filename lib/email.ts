@@ -19,9 +19,10 @@ export function dashboardUrl() {
 }
 
 // status: estado HTTP quando o Resend recusa (ex.: 429, demasiados pedidos por segundo).
+// attachments: ficheiros em base64 (o Resend deduz o tipo pela extensão do nome; até 40 MB por email).
 export async function sendEmail(
   to: string[], subject: string, html: string,
-  opts: { from?: string; replyTo?: string; timeoutMs?: number; text?: string } = {},
+  opts: { from?: string; replyTo?: string; timeoutMs?: number; text?: string; attachments?: { filename: string; content: string }[] } = {},
 ): Promise<{ ok: boolean; detail: string; status?: number }> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { ok: false, detail: "RESEND_API_KEY por configurar." };
@@ -36,6 +37,7 @@ export async function sendEmail(
         from: opts.from || emailFrom(), to, subject, html,
         ...(opts.text ? { text: opts.text } : {}),
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
       }),
     });
     const body = (await r.json().catch(() => ({}))) as { id?: string; message?: string };

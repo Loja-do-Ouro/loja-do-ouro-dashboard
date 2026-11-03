@@ -33,6 +33,10 @@ const PT = {
   you: "Você",
   transfer: "A conversa foi transferida para {name}.",
   someoneElse: "outra pessoa da equipa",
+  // Ficheiros da equipa que não seguem em anexo no email (limite de 7 MB por email, ou já apagados). O chat só os mostra
+  // no browser em que o cliente falou connosco (o token fica nesse browser): sempre com a alternativa de responder.
+  fileInChat: "{name} (demasiado grande para este email: pode vê-lo no chat do site, no mesmo navegador em que falou connosco, ou responda e enviamo-lo de outra forma)",
+  fileMissing: "{name} (não seguiu neste email: responda e enviamo-lo de outra forma)",
 };
 export type SiteTexts = typeof PT;
 
@@ -65,6 +69,8 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "You",
     transfer: "The conversation was transferred to {name}.",
     someoneElse: "another team member",
+    fileInChat: "{name} (too large for this email: you can see it in the chat on our website, in the same browser you used to talk to us, or reply and we will send it another way)",
+    fileMissing: "{name} (not included in this email: reply and we will send it another way)",
   },
   es: {
     hello: "Hola, {name}:",
@@ -91,6 +97,8 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "Usted",
     transfer: "La conversación se ha transferido a {name}.",
     someoneElse: "otra persona del equipo",
+    fileInChat: "{name} (demasiado grande para este correo: puede verlo en el chat de la web, en el mismo navegador en el que habló con nosotros, o responda y se lo enviaremos de otra forma)",
+    fileMissing: "{name} (no se incluyó en este correo: responda y se lo enviaremos de otra forma)",
   },
   fr: {
     hello: "Bonjour {name},",
@@ -117,6 +125,8 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "Vous",
     transfer: "La conversation a été transférée à {name}.",
     someoneElse: "un autre membre de l'équipe",
+    fileInChat: "{name} (trop volumineux pour cet e-mail : vous pouvez le voir dans le chat du site, dans le navigateur utilisé pour nous écrire, ou répondez-nous et nous vous l’enverrons autrement)",
+    fileMissing: "{name} (non inclus dans cet e-mail : répondez-nous et nous vous l’enverrons autrement)",
   },
   de: {
     hello: "Hallo {name},",
@@ -143,6 +153,8 @@ export const SITE_TEXTS: Record<SiteLocale, SiteTexts> = {
     you: "Sie",
     transfer: "Der Chat wurde an {name} übergeben.",
     someoneElse: "eine andere Person aus dem Team",
+    fileInChat: "{name} (zu groß für diese E-Mail: Sie können die Datei im Chat auf unserer Website ansehen, im selben Browser, in dem Sie uns geschrieben haben, oder Sie antworten uns, dann senden wir sie Ihnen auf anderem Weg)",
+    fileMissing: "{name} (nicht in dieser E-Mail enthalten: Antworten Sie uns, dann senden wir sie Ihnen auf anderem Weg)",
   },
 };
 
@@ -203,10 +215,24 @@ function setup(v: Visitor, baseUrl: string, origin?: string | null) {
   };
 }
 
+// Ficheiro da equipa numa mensagem do email: em anexo ("attached"), só no chat por não caber no email ("chat") ou que
+// não seguiu (já apagado, ou depois de terminada a conversa, quando o chat já não o mostra: "missing").
+export type EmailFile = { name: string; status: "attached" | "chat" | "missing" };
+
+// Uma linha "📎 nome" por ficheiro, por baixo do texto da mensagem (sem texto, só as linhas: nunca uma citação vazia).
+// Os nomes não têm ligações: o dashboard tira "/" e ":" ao guardar o ficheiro.
+function withFiles(t: SiteTexts, body: string, files: EmailFile[] | undefined) {
+  const lines = (files || []).map((f) => `📎 ${f.status === "attached" ? f.name : fill(f.status === "chat" ? t.fileInChat : t.fileMissing, { name: f.name })}`).join("\n");
+  return body && lines ? `${body}\n\n${lines}` : body || lines;
+}
+
 // Aviso por email das respostas que o cliente ainda não viu (saiu do site). origin: SITE_CHAT_URL (só na Loja do Ouro).
-export function replyEmail(v: Visitor & { items: { body: string; author: string | null }[] }, baseUrl: string, origin?: string | null): Mail {
+export function replyEmail(v: Visitor & { items: { body: string; author: string | null; files?: EmailFile[] }[] }, baseUrl: string, origin?: string | null): Mail {
   const s = setup(v, baseUrl, origin);
-  const items = v.items.map((r) => ({ author: r.author, body: rebrandLinks(r.body, s.site, s.locale) }));
+  const items = v.items.map((r) => ({ author: r.author, body: withFiles(s.t, rebrandLinks(r.body, s.site, s.locale), r.files) }));
+  // Pré-visualização: o texto da primeira resposta ou, numa resposta só com ficheiros, o nome do primeiro.
+  const first = v.items[0];
+  const preview = (first && (first.body.trim() ? rebrandLinks(first.body, s.site, s.locale) : first.files?.[0]?.name)) || "";
   const many = items.length > 1;
   const who = (author: string | null) => (author ? `${author} · ${s.info.brand}` : s.info.brand);
   const intro = s.tx(many ? "replyIntroMany" : "replyIntroOne");
@@ -217,7 +243,7 @@ export function replyEmail(v: Visitor & { items: { body: string; author: string 
     eyebrow: s.tx("eyebrow"),
     title: s.tx(many ? "replyTitleMany" : "replyTitleOne"),
     // Cortado sem partir um emoji ao meio (metade de um emoji estraga o email).
-    preheader: cut((items[0]?.body || "").replace(/\s+/g, " "), 120),
+    preheader: cut(preview.replace(/\s+/g, " "), 120),
     body: emailParagraph(esc(s.hello)) + emailParagraph(esc(intro))
       + items.map((r) => emailQuote(who(r.author), r.body)).join("")
       + emailParagraph(esc(outro)),
@@ -230,6 +256,7 @@ export function replyEmail(v: Visitor & { items: { body: string; author: string 
 
 export type TranscriptMessage = {
   from: "visitor" | "team" | "notice"; author: string | null; body: string; at: string; kind?: string | null; to_first?: string | null;
+  files?: EmailFile[]; // ficheiros da equipa: em anexo ou que não seguiram ("attached" ou "missing")
 };
 
 // Cópia da conversa para o cliente que a terminou e a pediu.
@@ -245,7 +272,7 @@ export function transcriptEmail(v: Visitor & { messages: TranscriptMessage[] }, 
     : `${m.author ? `${m.author} · ` : ""}${s.info.brand} · ${when.format(new Date(m.at))}`;
   // Avisos antigos (sem kind) ficam com o texto que a BD enviou.
   const notice = (m: TranscriptMessage) => (m.kind === "transfer" ? transferNotice(s.locale, m.to_first) : m.body);
-  const body = (m: TranscriptMessage) => (m.from === "team" ? rebrandLinks(m.body, s.site, s.locale) : m.body);
+  const body = (m: TranscriptMessage) => withFiles(s.t, m.from === "team" ? rebrandLinks(m.body, s.site, s.locale) : m.body, m.files);
   const rows = v.messages.map((m) => m.from === "notice"
     ? emailParagraph(`<span style="color:#9a917f;font-size:13px">${esc(notice(m))}</span>`)
     : emailQuote(label(m), body(m), { links: m.from !== "visitor" })).join("");

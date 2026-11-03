@@ -39,7 +39,8 @@ const COMMENT_PROVIDER: Record<string, string> = { "metricool-facebook-comments"
 // Resposta pública ou nota interna. O servidor escolhe o adaptador pela conversa, nunca pelo pedido.
 // Uma nota interna nunca segue por um caminho de envio ao cliente: no Zendesk é um comentário
 // privado (public:false); nos outros canais fica só no dashboard.
-// Anexos: imagens (e PDF no Zendesk) carregados antes pela mesma pessoa nesta conversa; a BD confirma.
+// Anexos: imagens e PDF (Zendesk, email e chat do site) ou uma imagem (Facebook/Instagram), carregados antes pela
+// mesma pessoa nesta conversa; a BD confirma.
 // links (só respostas): a revisão da IA feita e a proposta da IA usada; registados à parte, nunca atrasam nem impedem o envio.
 export async function sendMessage(viewer: Viewer, conversationId: string, kind: "outbound" | "note", body: string, clientKey: string,
   uploads: string[], requestUrl: string, links: { review?: ReviewTag | null; aiDraftId?: string | null } = {}) {
@@ -110,7 +111,8 @@ export async function sendMessage(viewer: Viewer, conversationId: string, kind: 
       r = kind === "outbound"
         ? await metricoolComment(COMMENT_PROVIDER[begin.conversation.source_id], begin.conversation.external_id, begin.message.body)
         : { outcome: "failed", externalId: null, detail: "Nota interna: nunca é publicada." };
-    // Chat do site: a resposta fica guardada e o widget vai buscá-la (o dashboard é a fonte de verdade).
+    // Chat do site: a resposta fica guardada e o widget vai buscá-la (o dashboard é a fonte de verdade); os anexos
+    // ficam no dashboard e o widget lê-os em /api/chat/attachments.
     else if (begin.platform === "site") r = { outcome: "accepted", externalId: null, detail: null };
     else r = await whatsappSend();
   } catch (e) {

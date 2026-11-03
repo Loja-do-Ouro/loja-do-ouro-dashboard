@@ -2,6 +2,8 @@ import { serverRpc } from "@/lib/support/db";
 import { chatHandle, chatJson, checkOrigin, identityEmail, preflight, readJson, sendTranscript, visitorTokenHash, type Transcript } from "@/lib/support/site-chat";
 
 export const dynamic = "force-dynamic";
+// A cópia por email espera pelo Resend, com os ficheiros da equipa em anexo (até 30 s).
+export const maxDuration = 60;
 
 export function OPTIONS(request: Request) {
   return preflight(request);

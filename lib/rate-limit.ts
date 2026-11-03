@@ -28,3 +28,15 @@ export function recordFailure(key: string, now = Date.now()) {
 export function clearFailures(key: string) {
   failures.delete(key);
 }
+
+// Request limiter: true when the key already made max requests within windowMs (the request is not counted then).
+// Same in-memory caveat as above; use it on top of a limit in the database.
+const hits = new Map<string, number[]>();
+export function overLimit(key: string, max: number, windowMs: number, now = Date.now()) {
+  const list = (hits.get(key) || []).filter((t) => now - t < windowMs);
+  const over = list.length >= max;
+  if (!over) list.push(now);
+  hits.set(key, list);
+  if (hits.size > 10000) hits.delete(hits.keys().next().value!);
+  return over;
+}

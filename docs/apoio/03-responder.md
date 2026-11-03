@@ -1,7 +1,7 @@
 # Responder e notas internas
 <!-- resumo: Como escrever e enviar uma resposta ao cliente ou uma nota interna: destino, rascunhos, anexos, emojis, produtos da loja, formatação e limites de cada canal. -->
 <!-- termos: responder, resposta, enviar, mandar, escrever, reply, nota interna, nota, comentário privado, internal note, rascunho, draft, anexar, anexo, anexos, imagem, fotografia, foto, PDF, ficheiro, colar imagem, emoji, emojis, produto, link do produto, ligação, catálogo, formatação, negrito, lista, limite de caracteres, Ctrl+Enter, campo de resposta, composer, não consigo responder -->
-<!-- atualizado: 2026-10-30 -->
+<!-- atualizado: 2026-11-02 -->
 
 Por baixo das mensagens de cada conversa está o campo de resposta, com dois separadores: **Responder ao cliente** e **Nota interna**. Este artigo explica como escrever. O que acontece depois de carregar em Enviar (estados de entrega, falhas) está em [Envio e entrega](/apoio/documentacao/envio-e-entrega).
 
@@ -93,17 +93,19 @@ Carregue em **📎 Anexar** e escolha o ficheiro, ou cole uma imagem (Ctrl+V) no
 | Zendesk ligado | Até 5 imagens ou PDF | Até 5 imagens ou PDF (comentário privado) |
 | Facebook e Instagram | 1 imagem (JPEG ou PNG) por mensagem | Sem anexos |
 | Comentários | Sem anexos (só texto) | Sem anexos |
-| Chat do site | Sem anexos | Sem anexos |
+| Chat do site | Até 5 imagens ou PDF | Sem anexos |
 | WhatsApp e Zendesk desligado | — | Sem anexos |
+
+No chat do site o cliente vê as imagens em miniatura e os PDF como ficheiro para descarregar, durante 30 dias; se já saiu do site, recebe-os também em anexo no email (até 7 MB por email).
 
 Antes de enviar:
 
 - As fotografias (JPEG, PNG, WebP, HEIC) são reduzidas no próprio browser para no máximo 2048 píxeis. Isto **retira a localização e os outros dados escondidos (EXIF)** da fotografia.
-- Os PDF seguem como estão, até 4 MB, e só no email e no Zendesk.
+- Os PDF seguem como estão, até 4 MB, no email, no chat do site e no Zendesk.
 - Para retirar um anexo antes de enviar, carregue no **✕** ao lado dele.
 - Ao colar, se a área de transferência tiver texto e imagem (como acontece no Excel ou no Word), fica só o texto.
 
-Os ficheiros que envia ficam guardados no sistema até 30 dias, ou menos quando o anexo já fica guardado na própria plataforma (os que nunca chegaram a ser enviados, 1 dia). Mensagens de erro comuns: "PDF só no email e nos tickets Zendesk.", "PDF demasiado grande (máximo 4 MB).", "No máximo N anexo(s) nesta mensagem.", "O Facebook e o Instagram aceitam uma imagem por mensagem.", "Limite diário de anexos atingido.".
+Os ficheiros que envia ficam guardados no sistema até 30 dias, ou menos quando o anexo já fica guardado na própria plataforma (os que nunca chegaram a ser enviados, 1 dia; no chat do site, 30 dias: depois o cliente vê "Este ficheiro já não está disponível."). Mensagens de erro comuns: "PDF só no email, no chat do site e nos tickets Zendesk.", "PDF demasiado grande (máximo 4 MB).", "No máximo N anexo(s) nesta mensagem.", "O Facebook e o Instagram aceitam uma imagem por mensagem.", "Limite diário de anexos atingido.", "Espaço de anexos do chat do site cheio (cada ficheiro fica 30 dias). Tente mais tarde.".
 
 > **Atenção:** Antes de enviar uma imagem, veja se não mostra dados de outros clientes (por exemplo, uma fotografia de uma etiqueta de envio ou de um ecrã).
 
@@ -118,7 +120,7 @@ Carregue em **😊** para abrir o painel. Pode procurar ("Procurar emoji (ex.: o
 1. No separador de resposta, carregue em **🛍 Produto**.
 2. Escreva pelo menos duas letras em "Procurar produto, coleção ou página da loja online".
 3. Na lista (até 8 produtos, 4 coleções e 4 páginas publicadas), veja o tipo, o preço e se está esgotado.
-4. Carregue em **Inserir link** para pôr no texto o nome, o preço e a ligação, ou em **Link + foto** para juntar também a fotografia do produto como anexo (só nos canais que aceitam imagens e se ainda houver lugar para mais um anexo).
+4. Carregue em **Inserir link** para pôr no texto o nome, o preço e a ligação, ou em **Link + foto** para juntar também a fotografia do produto como anexo (só nos canais que aceitam imagens, exceto no chat do site, onde o cartão já mostra a foto, e se ainda houver lugar para mais um anexo).
 
 No chat do site, a ligação passa sozinha para o site e a língua do cliente, e o cliente vê um cartão com a foto e o preço. Na Gold Store Premium vai só a ligação (o cartão mostra o nome e o preço do próprio site).
 

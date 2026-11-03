@@ -197,6 +197,7 @@ test("Every error the visitor can see has a stable code for the widget to transl
     "Demasiadas conversas iniciadas. Tente novamente mais tarde.": "too_many_chats",
     "Enviou muitas mensagens seguidas. Aguarde um pouco.": "too_many_messages",
     "O chat está indisponível de momento.": "chat_unavailable",
+    "Este ficheiro já não está disponível.": "attachment_unavailable",
   };
   for (const [m, code] of Object.entries(expected)) assert.equal(site.errorCode(m), code, m);
   assert.equal(site.errorCode("Outra coisa qualquer."), "unknown");

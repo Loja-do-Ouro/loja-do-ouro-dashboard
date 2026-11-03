@@ -308,7 +308,7 @@ class FakeNode {
   removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter((x) => x !== fn); }
   dispatch(type) { for (const fn of this.listeners[type] || []) fn({ type, target: this, preventDefault() {} }); }
   click() { this.dispatch("click"); }
-  focus() {}
+  focus() { FakeNode.focused = this; }
   closest() { return null; }
   matches(sel) {
     let m;
@@ -326,15 +326,26 @@ class FakeNode {
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
 }
 
-// Servidor do chat falso: regista os pedidos (método, caminho, corpo e token).
-function fakeServer() {
+// Servidor do chat falso: regista os pedidos (método, caminho, parâmetros, corpo e token). messages: o que o GET das
+// mensagens devolve; files: os ficheiros de /api/chat/attachments ("<mensagem>:<posição>" → { type, bytes }, uma falha
+// { status, code } ou { offline: true } (sem rede); os outros respondem 404, como um ficheiro já apagado). O teste pode
+// mudar files entre pedidos.
+function fakeServer({ messages = [], files = {} } = {}) {
   const calls = [];
   const fetch = (url, opts = {}) => {
     const u = new URL(url, "https://www.lojadoouro.pt");
-    const call = { method: opts.method || "GET", path: u.pathname, body: opts.body ? JSON.parse(opts.body) : null, auth: (opts.headers || {}).Authorization || null };
+    const call = { method: opts.method || "GET", path: u.pathname, query: u.search, body: opts.body ? JSON.parse(opts.body) : null, auth: (opts.headers || {}).Authorization || null };
     calls.push(call);
+    if (call.path === "/api/chat/attachments") {
+      const f = files[`${u.searchParams.get("m")}:${u.searchParams.get("i")}`];
+      if (f && f.offline) return Promise.reject(new TypeError("Failed to fetch"));
+      if (f && f.status) return Promise.resolve({ ok: false, status: f.status, json: () => Promise.resolve({ error: "?", code: f.code }) });
+      return Promise.resolve(f
+        ? { ok: true, status: 200, blob: () => Promise.resolve(new Blob([f.bytes], { type: f.type })) }
+        : { ok: false, status: 404, json: () => Promise.resolve({ error: "Este ficheiro já não está disponível.", code: "attachment_unavailable" }) });
+    }
     const data = call.path === "/api/chat/start" ? { token: "tok-1", verified: null }
-      : call.path === "/api/chat/messages" && call.method === "GET" ? { messages: [], agent: null, typing: false } : { ok: true };
+      : call.path === "/api/chat/messages" && call.method === "GET" ? { messages, agent: null, typing: false } : { ok: true };
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) });
   };
   return { fetch, calls, context: () => calls.filter((c) => c.path === "/api/chat/context") };
@@ -342,19 +353,31 @@ function fakeServer() {
 const noServer = () => { throw new Error("pedido inesperado ao servidor"); };
 const flush = async () => { for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r)); };
 
-function openPage(b, { url = "https://www.lojadoouro.pt/", config = {}, fetch = noServer } = {}) {
+// IntersectionObserver falso (opção io de openPage): o teste diz que nó ficou perto do ecrã com show(nó).
+class FakeObserver {
+  constructor(cb, opts) { this.cb = cb; this.opts = opts; this.targets = new Set(); FakeObserver.last = this; }
+  observe(n) { this.targets.add(n); }
+  unobserve(n) { this.targets.delete(n); }
+  disconnect() { this.targets.clear(); }
+  show(n) { if (this.targets.has(n)) this.cb([{ target: n, isIntersecting: true }]); }
+}
+
+function openPage(b, { url = "https://www.lojadoouro.pt/", config = {}, fetch = noServer, io = false } = {}) {
   const u = new URL(url);
   const session = b.session;
   const location = { href: u.href, hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin };
   const body = new FakeNode("body");
   const head = new FakeNode("head");
+  const listeners = {};
   const document = {
     documentElement: { lang: "" }, body, head, title: "Página", hidden: false,
     getElementById: (id) => [...head.querySelectorAll("*"), ...body.querySelectorAll("*")].find((n) => n.id === id) || null,
     createElement: (tag) => new FakeNode(tag),
     createTextNode: (s) => new FakeNode("#text", String(s)),
     createDocumentFragment: () => new FakeNode("#document-fragment"),
-    addEventListener() {}, removeEventListener() {},
+    addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+    removeEventListener(type, fn) { listeners[type] = (listeners[type] || []).filter((x) => x !== fn); },
+    get activeElement() { return FakeNode.focused || body; },
     querySelector: () => null,
     get cookie() { return ""; },
     set cookie(v) { b.log.push(["cookie", "set", v]); },
@@ -364,6 +387,7 @@ function openPage(b, { url = "https://www.lojadoouro.pt/", config = {}, fetch = 
     get localStorage() { return b.local; },
     get sessionStorage() { return session; },
     matchMedia: () => ({ matches: false }),
+    ...(io ? { IntersectionObserver: FakeObserver } : {}),
   };
   const timers = [];
   const setTimeout = (fn, ms) => timers.push({ fn, ms: ms || 0, done: false });
@@ -378,6 +402,12 @@ function openPage(b, { url = "https://www.lojadoouro.pt/", config = {}, fetch = 
     isOpen() { return this.launcher.getAttribute("aria-expanded") === "true"; },
     // Corre os temporizadores pendentes mais curtos do que max ms (não as consultas periódicas ao servidor).
     runTimers(max) { for (const t of timers) if (!t.done && t.ms < max) { t.done = true; t.fn(); } },
+    // Tecla no documento (como no browser, o widget ouve o keydown no documento); devolve se o widget a travou.
+    key(key, opts = {}) {
+      let prevented = false;
+      for (const fn of listeners.keydown || []) fn({ key, shiftKey: false, ...opts, preventDefault() { prevented = true; } });
+      return prevented;
+    },
   };
 }
 const json = (s, k) => JSON.parse(s.getItem(k));
@@ -677,4 +707,320 @@ test("Chat widget: with an earlier conversation, a new visit stores nothing unti
   const after = srv.context().at(-1).body;
   assert.deepEqual([after.visitStartedAt, after.pages], [new Date(opened).toISOString(), 1]);
   assert.deepEqual(json(b.local, TOKEN_KEY), { token: "tok-1", name: "Ana", verifiedEmail: null, seenAt: "", visit: { start: opened, pages: 1, last: opened } });
+});
+
+// ---------------------------------------------------------------- ficheiros da equipa
+
+test("Chat widget: team files are shown from memory, only with the chat open (images at once, a PDF when tapped)", async () => {
+  const b = browser();
+  b.local.map.set(TOKEN_KEY, JSON.stringify({ token: "tok-1", name: "Ana", verifiedEmail: null, seenAt: "" }));
+  const MID = "6f1c2a4e-8b1d-4c3e-9a5f-0d7e2b6c1a90";
+  const OLD = "0b6e3f2a-1c4d-4e5f-8a9b-7c6d5e4f3a21";
+  const team = (id, body, attachments, at) => ({ id, from: "team", author: "Rita", key: null, body, created_at: at, inserted_at: at, attachments });
+  const srv = fakeServer({
+    messages: [
+      // Ficheiro já apagado (30 dias): 404 com o código.
+      team(OLD, "Segue a foto.", [{ i: 0, name: "antiga.png", type: "image/png", size: 99 }], "2026-10-29T09:00:00.000Z"),
+      // Resposta só com ficheiros (sem texto), mais um anexo inválido que o widget ignora.
+      team(MID, "", [
+        { i: 0, name: "foto.jpg", type: "image/jpeg", size: 1234 },
+        { i: 1, name: "certificado.pdf", type: "application/pdf", size: 200000 },
+        { i: 2, name: "pagina.html", type: "text/html", size: 10 },
+      ], "2026-10-30T09:00:00.000Z"),
+    ],
+    files: {
+      [`${MID}:0`]: { type: "image/jpeg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]) },
+      [`${MID}:1`]: { type: "application/pdf", bytes: "%PDF-1.4" },
+    },
+  });
+  const fileCalls = () => srv.calls.filter((c) => c.path === "/api/chat/attachments");
+  const bubble = (page, id) => page.panel.querySelectorAll(".msg").find((n) => n.getAttribute("data-id") === id);
+  const created = [], revoked = [];
+  const { createObjectURL, revokeObjectURL } = URL;
+  URL.createObjectURL = (blob) => { const u = createObjectURL(blob); created.push(u); return u; };
+  URL.revokeObjectURL = (u) => { revoked.push(u); revokeObjectURL(u); };
+  try {
+    // Chat fechado: as respostas chegam (aviso de mensagens novas), os ficheiros não.
+    const page = openPage(b, { fetch: srv.fetch });
+    await flush();
+    assert.ok(srv.calls.some((c) => c.path === "/api/chat/messages"));
+    assert.deepEqual(fileCalls(), []);
+
+    // Ao abrir o chat: só as imagens, uma de cada vez, com o token no cabeçalho (nunca no endereço).
+    b.log.length = 0;
+    page.launcher.click();
+    await flush();
+    assert.deepEqual(fileCalls().map((c) => c.query), [`?m=${OLD}&i=0`, `?m=${MID}&i=0`]);
+    assert.ok(fileCalls().every((c) => c.method === "GET" && c.auth === "Bearer tok-1" && !c.query.includes("tok-1")));
+    const msg = bubble(page, MID);
+    assert.equal(msg.querySelector(".txt"), null, "resposta só com ficheiros: sem texto vazio");
+    const thumb = msg.querySelector(".file-img");
+    assert.equal(thumb.nodeName, "BUTTON");
+    assert.equal(thumb.getAttribute("aria-label"), "Ver a imagem foto.jpg");
+    assert.match(thumb.querySelector("img").getAttribute("src"), /^blob:/);
+    assert.equal(msg.querySelectorAll(".file").length, 1, "o anexo HTML é ignorado");
+    const pdf = msg.querySelector(".file");
+    assert.match(pdf.textContent, /certificado\.pdf/);
+    assert.match(pdf.textContent, /PDF · 195 KB/);
+    // Ficheiro apagado: o nome e o aviso, na língua do cliente; o texto da resposta fica.
+    const old = bubble(page, OLD);
+    assert.match(old.querySelector(".gone").textContent, /antiga\.png.*Este ficheiro já não está disponível\./);
+    assert.ok(old.querySelector(".txt"));
+    assert.equal(old.querySelector("img"), null);
+
+    // O PDF só é descarregado quando o cliente lhe toca.
+    assert.ok(!fileCalls().some((c) => c.query.endsWith("&i=1")));
+    pdf.click();
+    await flush();
+    assert.deepEqual(fileCalls().map((c) => c.query).slice(2), [`?m=${MID}&i=1`]);
+    assert.equal(created.length, 2);
+
+    // A imagem abre em grande dentro do chat (não noutro separador) e fecha no ×.
+    bubble(page, MID).querySelector(".file-img").click();
+    const viewer = page.panel.querySelector(".viewer");
+    assert.equal(viewer.hidden, false);
+    assert.equal(viewer.querySelector("img").getAttribute("src"), created[0]);
+    assert.equal(viewer.querySelector("a").getAttribute("download"), "foto.jpg");
+    viewer.querySelector(".viewer-close").click();
+    assert.equal(viewer.hidden, true);
+
+    // Nada gravado no browser por causa dos ficheiros (só o que abrir o chat já grava).
+    assert.ok(b.log.every(([store, , key]) => (store === "session" && [OPEN_KEY, VISIT_KEY].includes(key)) || (store === "local" && key === TOKEN_KEY)),
+      JSON.stringify(b.log));
+    assert.ok(!b.log.some(([store]) => store === "cookie"));
+    // Novos desenhos não voltam a pedir os ficheiros.
+    const before = fileCalls().length;
+    page.launcher.click();
+    page.launcher.click();
+    await flush();
+    assert.equal(fileCalls().length, before);
+
+    // Ao sair, os endereços blob: são libertados.
+    page.window.LdoChat.destroy();
+    assert.deepEqual([...revoked].sort(), [...created].sort());
+  } finally {
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+  }
+});
+
+// Página com uma conversa guardada e as respostas da equipa indicadas (o chat ainda fechado).
+const teamReply = (id, body, attachments, at = "2026-10-30T09:00:00.000Z") => ({ id, from: "team", author: "Rita", key: null, body, created_at: at, inserted_at: at, attachments });
+function filesPage({ messages, files = {}, io = false }) {
+  const b = browser();
+  b.local.map.set(TOKEN_KEY, JSON.stringify({ token: "tok-1", name: "Ana", verifiedEmail: null, seenAt: "" }));
+  const srv = fakeServer({ messages, files });
+  const page = openPage(b, { fetch: srv.fetch, io });
+  return {
+    page, srv, files,
+    fileCalls: () => srv.calls.filter((c) => c.path === "/api/chat/attachments").map((c) => c.query),
+    bubble: (id) => page.panel.querySelectorAll(".msg").find((n) => n.getAttribute("data-id") === id),
+    errorText: () => { const e = page.panel.querySelector(".error"); return e.hidden ? "" : e.textContent; },
+  };
+}
+// Ligações de descarga criadas pelo widget (atributo download), sem descarregar nada.
+async function downloads(fn) {
+  const names = [];
+  const click = FakeNode.prototype.click;
+  FakeNode.prototype.click = function () {
+    if (this.nodeName === "A" && this.getAttribute("download") !== null) names.push(this.getAttribute("download"));
+    return click.call(this);
+  };
+  try { await fn(); } finally { FakeNode.prototype.click = click; }
+  return names;
+}
+const ID_A = "6f1c2a4e-8b1d-4c3e-9a5f-0d7e2b6c1a90";
+const ID_B = "0b6e3f2a-1c4d-4e5f-8a9b-7c6d5e4f3a21";
+const JPEG = { type: "image/jpeg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]) };
+const PDF = { type: "application/pdf", bytes: "%PDF-1.4" };
+// Miniaturas já carregadas de uma mensagem (o DOM falso só entende seletores simples).
+const thumbs = (msg) => msg.querySelectorAll(".file-img").map((n) => n.querySelector("img")).filter(Boolean);
+
+test("Chat widget: an image that fails (server, network or limit) offers a retry and is asked again later; it never stays loading", async () => {
+  const t = filesPage({
+    messages: [teamReply(ID_A, "Seguem as fotos.", [{ i: 0, name: "anel.jpg", type: "image/jpeg", size: 900 }])],
+    files: { [`${ID_A}:0`]: { status: 503, code: "chat_unavailable" } },
+  });
+  await flush();
+  t.page.launcher.click();
+  await flush();
+  assert.deepEqual(t.fileCalls(), [`?m=${ID_A}&i=0`]);
+  let msg = t.bubble(ID_A);
+  assert.equal(msg.querySelector(".file-wait"), null, "não fica em \"A carregar…\"");
+  const again = msg.querySelector(".file");
+  assert.equal(again.nodeName, "BUTTON");
+  assert.match(again.textContent, /anel\.jpg.*Tentar de novo/);
+  // Nova tentativa automática (5 s): continua a falhar (sem rede) e volta a mostrar o botão.
+  t.files[`${ID_A}:0`] = { offline: true };
+  t.page.runTimers(5001);
+  await flush();
+  assert.equal(t.fileCalls().length, 2);
+  assert.match(t.bubble(ID_A).querySelector(".file").textContent, /Tentar de novo/);
+  assert.equal(t.errorText(), "", "as imagens falham sem aviso (só o botão)");
+  // O cliente toca: desta vez chega.
+  t.files[`${ID_A}:0`] = JPEG;
+  t.bubble(ID_A).querySelector(".file").click();
+  await flush();
+  assert.equal(t.fileCalls().length, 3);
+  msg = t.bubble(ID_A);
+  assert.match(thumbs(msg)[0].getAttribute("src"), /^blob:/);
+  // Com a imagem já à vista, a tentativa automática que faltava não pede nada.
+  t.page.runTimers(100000);
+  await flush();
+  assert.equal(t.fileCalls().length, 3);
+  t.page.window.LdoChat.destroy();
+});
+
+test("Chat widget: a PDF that fails shows the error and can be tapped again", async () => {
+  const t = filesPage({
+    messages: [teamReply(ID_A, "", [{ i: 0, name: "fatura.pdf", type: "application/pdf", size: 20000 }])],
+    files: { [`${ID_A}:0`]: { offline: true } },
+  });
+  await flush();
+  t.page.launcher.click();
+  await flush();
+  assert.deepEqual(t.fileCalls(), []);
+  t.bubble(ID_A).querySelector(".file").click();
+  await flush();
+  const pdf = t.bubble(ID_A).querySelector(".file");
+  assert.equal(pdf.getAttribute("aria-busy"), null);
+  assert.match(pdf.textContent, /fatura\.pdf.*PDF · 20 KB/);
+  assert.equal(t.errorText(), "Sem ligação. Verifique a internet e tente novamente.");
+  // Limite de pedidos: o aviso próprio, traduzido.
+  t.files[`${ID_A}:0`] = { status: 429, code: "too_many_files" };
+  t.bubble(ID_A).querySelector(".file").click();
+  await flush();
+  assert.equal(t.errorText(), "Abriu muitos ficheiros seguidos. Aguarde um pouco e tente de novo.");
+  // Terceiro toque: chega e é guardado; o aviso desaparece.
+  t.files[`${ID_A}:0`] = PDF;
+  const saved = await downloads(async () => { t.bubble(ID_A).querySelector(".file").click(); await flush(); });
+  assert.deepEqual(saved, ["fatura.pdf"]);
+  assert.equal(t.errorText(), "");
+  assert.equal(t.fileCalls().length, 3);
+  t.page.window.LdoChat.destroy();
+});
+
+test("Chat widget: a file is saved with the extension of its real type, whatever the name", async () => {
+  const long = "A".repeat(115) + ".html.pdf"; // 124 caracteres, como os nomes guardados antes da correção
+  const t = filesPage({
+    messages: [teamReply(ID_A, "", [
+      { i: 0, name: long, type: "application/pdf", size: 10 },
+      { i: 1, name: "Certificado de garantia", type: "application/pdf", size: 10 },
+      { i: 2, name: "foto do anel", type: "image/jpeg", size: 10 },
+    ])],
+    files: { [`${ID_A}:0`]: PDF, [`${ID_A}:1`]: PDF, [`${ID_A}:2`]: JPEG },
+  });
+  await flush();
+  t.page.launcher.click();
+  await flush();
+  assert.equal(t.bubble(ID_A).querySelector(".file").querySelector(".fname").textContent, long, "o nome inteiro");
+  const saved = await downloads(async () => {
+    for (const i of [0, 1]) { t.bubble(ID_A).querySelectorAll(".file")[i].click(); await flush(); }
+  });
+  assert.deepEqual(saved, [long, "Certificado de garantia.pdf"]);
+  t.bubble(ID_A).querySelector(".file-img").click();
+  assert.equal(t.page.panel.querySelector(".viewer").querySelector("a").getAttribute("download"), "foto do anel.jpg");
+  t.page.window.LdoChat.destroy();
+});
+
+test("Chat widget: a loaded image swaps only its own node (the message is not announced again) and keeps its height", async () => {
+  const t = filesPage({
+    messages: [teamReply(ID_A, "Seguem as fotos do anel.", [
+      ...[0, 1, 2].map((i) => ({ i, name: `f${i}.jpg`, type: "image/jpeg", size: 10 })),
+      { i: 3, name: "fatura.pdf", type: "application/pdf", size: 10 },
+    ])],
+    files: { [`${ID_A}:0`]: JPEG, [`${ID_A}:1`]: JPEG, [`${ID_A}:2`]: JPEG, [`${ID_A}:3`]: PDF },
+  });
+  await flush();
+  t.page.launcher.click();
+  const before = t.bubble(ID_A);
+  const text = before.querySelector(".txt");
+  assert.equal(before.querySelectorAll(".file-wait").length, 3);
+  await flush();
+  assert.equal(t.bubble(ID_A), before, "a mesma mensagem (não um nó novo)");
+  assert.equal(before.querySelector(".txt"), text);
+  assert.equal(thumbs(before).length, 3);
+  // Um PDF tocado também só troca o seu nó, e o foco passa para o novo.
+  const pdf = before.querySelector(".file");
+  pdf.focus();
+  await downloads(async () => {
+    pdf.click();
+    const busy = before.querySelector(".file");
+    assert.notEqual(busy, pdf);
+    assert.equal(busy.getAttribute("aria-busy"), "true");
+    assert.equal(FakeNode.focused, busy);
+    await flush();
+  });
+  assert.equal(t.bubble(ID_A), before);
+  const css = t.page.host.querySelector("style").textContent;
+  assert.ok(css.includes(".file-img img { display: block; height: 160px;"), "miniatura com a altura do marcador");
+  assert.ok(css.includes(".file-img.loading { width: 220px; height: 160px;"));
+  t.page.window.LdoChat.destroy();
+});
+
+test("Chat widget: images are asked for only when they come near the visible part of the list", async () => {
+  const t = filesPage({
+    messages: [
+      teamReply(ID_B, "Antiga.", [{ i: 0, name: "antiga.jpg", type: "image/jpeg", size: 10 }], "2026-10-29T09:00:00.000Z"),
+      teamReply(ID_A, "Nova.", [{ i: 0, name: "nova.jpg", type: "image/jpeg", size: 10 }]),
+    ],
+    files: { [`${ID_A}:0`]: JPEG, [`${ID_B}:0`]: JPEG },
+    io: true,
+  });
+  await flush();
+  t.page.launcher.click();
+  await flush();
+  const io = FakeObserver.last;
+  assert.equal(io.opts.root, t.page.panel.querySelector(".messages"));
+  assert.equal(io.opts.rootMargin, "200px 0px");
+  assert.deepEqual(t.fileCalls(), [], "nada antes de ficar perto do ecrã");
+  assert.equal(io.targets.size, 2);
+  io.show(t.bubble(ID_A).querySelector(".file-wait"));
+  await flush();
+  assert.deepEqual(t.fileCalls(), [`?m=${ID_A}&i=0`]);
+  assert.equal(thumbs(t.bubble(ID_A)).length, 1);
+  assert.equal(io.targets.size, 1, "só a antiga continua vigiada");
+  io.show(t.bubble(ID_B).querySelector(".file-wait"));
+  await flush();
+  assert.deepEqual(t.fileCalls(), [`?m=${ID_A}&i=0`, `?m=${ID_B}&i=0`]);
+  t.page.window.LdoChat.destroy();
+});
+
+test("Chat widget: Tab stays inside the image viewer and the end-of-chat sheet", async () => {
+  const t = filesPage({
+    messages: [teamReply(ID_A, "Foto.", [{ i: 0, name: "anel.jpg", type: "image/jpeg", size: 10 }])],
+    files: { [`${ID_A}:0`]: JPEG },
+  });
+  await flush();
+  t.page.launcher.click();
+  await flush();
+  t.bubble(ID_A).querySelector(".file-img").click();
+  const viewer = t.page.panel.querySelector(".viewer");
+  const close = viewer.querySelector(".viewer-close"), save = viewer.querySelector("a");
+  assert.equal(FakeNode.focused, close);
+  // Do último (Descarregar) volta ao primeiro (Fechar), e ao contrário com Shift+Tab.
+  save.focus();
+  assert.equal(t.page.key("Tab"), true);
+  assert.equal(FakeNode.focused, close);
+  assert.equal(t.page.key("Tab", { shiftKey: true }), true);
+  assert.equal(FakeNode.focused, save);
+  // No meio, o browser segue sozinho.
+  close.focus();
+  assert.equal(t.page.key("Tab"), false);
+  t.page.key("Escape");
+  assert.equal(viewer.hidden, true);
+  // "Terminar a conversa?": entre a caixa da cópia, Terminar e Continuar a conversar.
+  t.page.panel.querySelector(".end").click();
+  const sheet = t.page.panel.querySelector(".sheet");
+  const [copy] = sheet.querySelectorAll("input");
+  const [, cancel] = sheet.querySelectorAll("button");
+  assert.equal(FakeNode.focused, cancel);
+  assert.equal(t.page.key("Tab"), true);
+  assert.equal(FakeNode.focused, copy);
+  assert.equal(t.page.key("Tab", { shiftKey: true }), true);
+  assert.equal(FakeNode.focused, cancel);
+  // Sem nada aberto por cima, o Tab é do browser.
+  t.page.key("Escape");
+  assert.equal(t.page.key("Tab"), false);
+  t.page.window.LdoChat.destroy();
 });

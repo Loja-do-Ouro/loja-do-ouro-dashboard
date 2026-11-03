@@ -3,7 +3,7 @@ import { serverRpc, sessionRpc } from "@/lib/support/db";
 import { handle, HttpError, supportViewer } from "@/lib/support/http";
 import { metricoolImage } from "@/lib/support/metricool";
 import { fetchMetaFile } from "@/lib/support/meta-media";
-import { isUuid, previewKind, sniffType } from "@/lib/support/rules";
+import { asciiName, isUuid, previewKind, sniffType } from "@/lib/support/rules";
 import { getUpload } from "@/lib/support/uploads";
 import { zendeskAttachment, zendeskOff } from "@/lib/support/zendesk";
 import { gmailAttachment, GmailError } from "@/lib/support/gmail";
@@ -24,10 +24,6 @@ type Detail = {
   conversation: { id: string; source_id: string; external_id: string };
   messages: { id: string; attachments: { name: string; type: string | null; ref: string }[] }[];
 };
-
-function asciiName(name: string) {
-  return (name || "anexo").normalize("NFKD").replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "anexo";
-}
 
 // Cabeçalhos por tipo real (confirmado pelos bytes, nunca só pelo declarado):
 // - imagens: em linha, num documento isolado (sandbox);

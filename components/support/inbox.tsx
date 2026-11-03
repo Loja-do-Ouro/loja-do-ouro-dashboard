@@ -644,6 +644,8 @@ export function SupportInbox({
   const zendeskLive = isZendesk && !zendeskOff;
   const isWhatsapp = c?.conversation.platform === "whatsapp";
   const isGmail = c?.conversation.platform === "gmail";
+  // Chat do site pela plataforma da conversa (os dados do visitante, em `site`, podem ainda não ter chegado).
+  const isSiteChat = c?.conversation.platform === "site";
   // Comentários das publicações: a resposta fica PÚBLICA por baixo da publicação.
   const commentChannel: CommentChannel | null = c && isCommentChannel(c.conversation.channel) ? c.conversation.channel : null;
   const isComment = !!commentChannel;
@@ -684,13 +686,17 @@ export function SupportInbox({
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
   const pendingHere = (selected && pending[slotOf(selected, mode)]) || [];
-  // Zendesk: até 5 anexos (imagens ou PDF). Email: até 5, só em respostas. Facebook/Instagram: uma imagem por mensagem, só em respostas.
-  // Comentários das publicações: só texto.
-  const maxAttachments = !c || isComment ? 0 : zendeskLive || (isGmail && mode === "reply") ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
+  // Zendesk: até 5 anexos (imagens ou PDF). Email e chat do site: até 5, só em respostas. Facebook/Instagram: uma imagem por
+  // mensagem, só em respostas. Comentários das publicações: só texto.
+  const maxAttachments = !c || isComment ? 0 : zendeskLive || ((isGmail || isSiteChat) && mode === "reply") ? 5 : c.conversation.platform === "metricool" && mode === "reply" ? 1 : 0;
   const maxChars = publicReply && commentChannel ? COMMENT_MAX_CHARS[commentChannel] : 20000;
   // Texto posto por código (proposta da IA, rascunho guardado) pode passar o limite: não se publica assim.
   const overLimit = publicReply && text.length > maxChars;
-  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : isComment ? "Os comentários levam só texto (sem anexos)." : c.conversation.platform === "site" ? "O chat do site ainda não aceita anexos. Formatação: linhas com \"- \" viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço." : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
+  // Chat do site com o email por confirmar (ou ainda sem os dados do visitante): se o cliente sair do site, os ficheiros
+  // seguem para o email que ele escreveu, que pode estar errado.
+  const siteUnconfirmed = isSiteChat && siteVisitor?.info?.verified !== true;
+  const UNCONFIRMED_FILES = "Email por confirmar: se o cliente sair do site, os ficheiros seguem para o email que ele escreveu. Não envie documentos com dados pessoais ou de encomendas.";
+  const attachHint = !c ? "" : isWhatsapp ? "WhatsApp por configurar." : isComment ? "Os comentários levam só texto (sem anexos)." : isSiteChat ? (mode === "reply" ? `Até 5 imagens ou PDF: o cliente vê-os no chat (30 dias) e, se já saiu do site, recebe-os também por email.${siteUnconfirmed ? ` ${UNCONFIRMED_FILES}` : ""} Formatação: linhas com "- " viram lista, **negrito**; com 🛍 Produto o cliente vê um cartão com foto e preço.` : "As notas internas deste canal não levam anexos.") : maxAttachments === 0 ? "As notas internas deste canal não levam anexos." : isZendesk || isGmail ? "Até 5 imagens ou PDF." : "Uma imagem (JPEG/PNG) por mensagem.";
 
   async function addFiles(files: FileList | File[]) {
     if (!selected) return;
@@ -711,7 +717,7 @@ export function SupportInbox({
     setSendError("");
     try {
       for (const f of list) {
-        if (f.type === "application/pdf" && !zendeskLive && !isGmail) throw new Error("PDF só no email e nos tickets Zendesk.");
+        if (f.type === "application/pdf" && !zendeskLive && !isGmail && !isSiteChat) throw new Error("PDF só no email, no chat do site e nos tickets Zendesk.");
         const blob = await prepareFile(f);
         const up = await uploadBlob(id, f.name, blob);
         const preview = up.type.startsWith("image/") ? URL.createObjectURL(blob) : null;
@@ -771,7 +777,8 @@ export function SupportInbox({
     const current = drafts[id]?.[mode] || "";
     setDraft(id, mode, current ? `${current.replace(/\s+$/, "")}\n\n${line}` : line);
     setShowCatalog(false);
-    if (withImage && item.photo && maxAttachments > (pending[slot] || []).length && !uploadingRef.current) {
+    // Chat do site: o cartão do produto já mostra a foto (sem anexo repetido).
+    if (withImage && !isSiteChat && item.photo && maxAttachments > (pending[slot] || []).length && !uploadingRef.current) {
       uploadingRef.current = true;
       setUploading(true);
       try {
@@ -1554,7 +1561,7 @@ export function SupportInbox({
                 ) : (
                   <>
                     {showCatalog && (
-                      <CatalogPicker canAttach={maxAttachments > pendingHere.length} onClose={() => setShowCatalog(false)} onInsert={insertCatalog} />
+                      <CatalogPicker canAttach={!isSiteChat && maxAttachments > pendingHere.length} onClose={() => setShowCatalog(false)} onInsert={insertCatalog} />
                     )}
                     <textarea
                       ref={composerText}
@@ -1614,6 +1621,8 @@ export function SupportInbox({
                         ))}
                       </ul>
                     )}
+                    {/* Ficheiros para um cliente do chat do site com o email por confirmar: o aviso fica à vista antes de enviar. */}
+                    {siteUnconfirmed && mode === "reply" && pendingHere.length > 0 && <p className="support-warning" role="note">{UNCONFIRMED_FILES}</p>}
                   </>
                 )}
                 </div>
@@ -1645,7 +1654,7 @@ export function SupportInbox({
                         type="file"
                         hidden
                         multiple={maxAttachments > 1}
-                        accept={isZendesk || isGmail ? "image/jpeg,image/png,image/webp,image/heic,application/pdf" : "image/jpeg,image/png,image/webp,image/heic"}
+                        accept={isZendesk || isGmail || isSiteChat ? "image/jpeg,image/png,image/webp,image/heic,application/pdf" : "image/jpeg,image/png,image/webp,image/heic"}
                         onChange={(e) => {
                           if (e.target.files) addFiles(e.target.files);
                           e.target.value = "";

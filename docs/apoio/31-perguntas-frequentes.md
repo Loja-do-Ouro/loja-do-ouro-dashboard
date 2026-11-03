@@ -1,7 +1,7 @@
 # Perguntas frequentes
 <!-- resumo: Respostas curtas às dúvidas mais comuns de quem começa no Apoio ao Cliente, com ligação para a explicação completa. -->
 <!-- termos: FAQ, perguntas frequentes, dúvidas, perguntas, dúvidas comuns, como faço, ajuda rápida, respostas rápidas -->
-<!-- atualizado: 2026-10-30 -->
+<!-- atualizado: 2026-11-02 -->
 
 ## Começar
 
@@ -40,12 +40,12 @@ Não. A assinatura, com o seu primeiro nome, é acrescentada automaticamente. Ve
 ### Como envio uma fotografia ou um PDF?
 <!-- perguntas: Como anexo um ficheiro? -->
 
-Com **📎 Anexar** ou colando a imagem no campo. Email e Zendesk: até 5 imagens ou PDF. Facebook e Instagram: 1 imagem. Chat do site e comentários: sem anexos. Ver [Responder](/apoio/documentacao/responder#anexar-imagens-e-pdf).
+Com **📎 Anexar** ou colando a imagem no campo. Email, chat do site e Zendesk: até 5 imagens ou PDF. Facebook e Instagram: 1 imagem. Comentários: sem anexos. Ver [Responder](/apoio/documentacao/responder#anexar-imagens-e-pdf).
 
 ### Como mando o link de um produto?
 <!-- perguntas: Como partilho um produto com o cliente? -->
 
-**🛍 Produto** → procurar → **Inserir link** (ou **Link + foto**). No chat do site o cliente vê um cartão com foto e preço. Ver [Responder](/apoio/documentacao/responder#inserir-um-produto-da-loja).
+**🛍 Produto** → procurar → **Inserir link** (ou **Link + foto**, fora do chat do site). No chat do site o cliente vê um cartão com foto e preço. Ver [Responder](/apoio/documentacao/responder#inserir-um-produto-da-loja).
 
 ### Os rascunhos ficam guardados?
 <!-- perguntas: Perco o texto se mudar de conversa? -->
