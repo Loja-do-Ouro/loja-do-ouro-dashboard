@@ -1,0 +1,61 @@
+{
+ "sections": {
+  "s": {
+   "type": "lod-natal-editorial",
+   "settings": {
+    "lado_imagem": "direita",
+    "imagem_alt": "",
+    "icone": "sapatinho",
+    "eyebrow": "Para o sapatinho",
+    "titulo": "Do tempo em que era o Menino Jesus que deixava a prenda no sapatinho.",
+    "estilo_titulo": "serif",
+    "texto": "<p>Até meados dos anos 80, as crianças portuguesas escreviam ao Menino Jesus e deixavam o sapatinho junto à chaminé — bem limpa, para Ele não sujar os pés. As prendas pequenas são, tantas vezes, as que mais se guardam.</p>",
+    "sabia_titulo": "Sabia que?",
+    "sabia": "",
+    "produtos": [
+     "fio-nossa-senhora-de-fatima-em-prata",
+     "brincos-contas-de-viana-em-prata-dourada-1cm",
+     "fio-cora-o-em-prata-dourada-com-zirconias",
+     "brincos-amor-com-fe-em-prata-dourada-1-7cm"
+    ],
+    "produtos_max": 4,
+    "produtos_estilo": "grelha",
+    "botao1_texto": "",
+    "botao2_texto": "",
+    "fundo": "papel",
+    "mostrar_no_telemovel": true
+   },
+   "blocks": {
+    "chip_ate_50": {
+     "type": "chip",
+     "settings": {
+      "texto": "Prendas até 50 €",
+      "url": "/collections/mulher?filter.v.price.lte=50&sort_by=best-selling"
+     }
+    },
+    "chip_pequenos": {
+     "type": "chip",
+     "settings": {
+      "texto": "Para os mais pequenos",
+      "url": "/collections/crianca-natal"
+     }
+    },
+    "chip_medalhas": {
+     "type": "chip",
+     "settings": {
+      "texto": "Medalhas em ouro",
+      "url": "/collections/medalhas-crianca-ouro"
+     }
+    }
+   },
+   "block_order": [
+    "chip_ate_50",
+    "chip_pequenos",
+    "chip_medalhas"
+   ]
+  }
+ },
+ "order": [
+  "s"
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "sections": {
+  "s": {
+   "type": "lod-natal-boas-festas",
+   "settings": {
+    "titulo": "Boas Festas",
+    "texto": "De todos nós, nas 13 lojas Loja do Ouro.",
+    "mostrar_coracao": true,
+    "mostrar_fio": true,
+    "mostrar_no_telemovel": true
+   },
+   "blocks": {},
+   "block_order": []
+  }
+ },
+ "order": [
+  "s"
+ ]
+}

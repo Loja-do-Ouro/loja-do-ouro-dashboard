@@ -1,0 +1,109 @@
+{
+ "sections": {
+  "s": {
+   "type": "lod-natal-dicionario",
+   "settings": {
+    "eyebrow": "Dicionário do Ouro Português",
+    "titulo": "As palavras do nosso ouro.",
+    "texto": "Os nomes das peças que as nossas avós usavam — e que continuam a passar de mão em mão.",
+    "azulejo": false,
+    "mostrar_no_telemovel": true
+   },
+   "blocks": {
+    "termo_coracao": {
+     "type": "termo",
+     "settings": {
+      "icone": "coracao",
+      "termo": "Coração de Viana",
+      "definicao": "Símbolo de devoção ao Sagrado Coração de Jesus. Conta a tradição que nasceu de um pedido de D. Maria I.",
+      "link_texto": "Ver peças",
+      "link_url": "/collections/coracoes-de-viana"
+     }
+    },
+    "termo_filigrana": {
+     "type": "termo",
+     "settings": {
+      "icone": "filigrana",
+      "termo": "Filigrana",
+      "definicao": "Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais.",
+      "link_texto": "Ver peças",
+      "link_url": "/collections/filigrana"
+     }
+    },
+    "termo_enchedeira": {
+     "type": "termo",
+     "settings": {
+      "icone": "enchedeira",
+      "termo": "Enchedeira",
+      "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana.",
+      "link_texto": "Ver peças",
+      "link_url": "/collections/tradicao-filigrana-prata"
+     }
+    },
+    "termo_rainha": {
+     "type": "termo",
+     "settings": {
+      "icone": "rainha",
+      "termo": "Brincos à rainha",
+      "definicao": "Diz-se que surgiram no tempo de D. Maria I e ganharam o nome com D. Maria II, a quem as raparigas de Viana ofereceram um par em 1852. Ainda hoje são usados por noivas.",
+      "link_texto": "Ver peças",
+      "link_url": "/search?q=brincos+rainha&type=product"
+     }
+    },
+    "termo_arrecadas": {
+     "type": "termo",
+     "settings": {
+      "icone": "arrecadas",
+      "termo": "Arrecadas",
+      "definicao": "Brincos tradicionais do ouro do Minho, com antepassados nas arrecadas de ouro da Idade do Ferro.",
+      "link_texto": "Ver peças",
+      "link_url": "/search?q=arrecadas&type=product"
+     }
+    },
+    "termo_contas": {
+     "type": "termo",
+     "settings": {
+      "icone": "contas",
+      "termo": "Contas de Viana",
+      "definicao": "Contas de ouro, uma das mais antigas tradições do Minho.",
+      "link_texto": "Ver peças",
+      "link_url": "/collections/contas-de-viana"
+     }
+    },
+    "termo_libra": {
+     "type": "termo",
+     "settings": {
+      "icone": "libra",
+      "termo": "Libra",
+      "definicao": "Moeda de ouro que em Portugal se oferece e se guarda; usa-se também com aro, ao peito.",
+      "link_texto": "Ver peças",
+      "link_url": "/collections/libras-com-aro"
+     }
+    },
+    "termo_ouro_portugues": {
+     "type": "termo",
+     "settings": {
+      "icone": "ouro-portugues",
+      "termo": "Ouro português",
+      "definicao": "Liga de 800 partes de ouro fino por mil, conhecida como 19,2 quilates, contrastada pela INCM.",
+      "link_texto": "Ver peças",
+      "link_url": "/collections/ouro"
+     }
+    }
+   },
+   "block_order": [
+    "termo_coracao",
+    "termo_filigrana",
+    "termo_enchedeira",
+    "termo_rainha",
+    "termo_arrecadas",
+    "termo_contas",
+    "termo_libra",
+    "termo_ouro_portugues"
+   ]
+  }
+ },
+ "order": [
+  "s"
+ ]
+}

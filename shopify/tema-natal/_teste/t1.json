@@ -1,0 +1,130 @@
+{
+ "sections": {
+  "s": {
+   "type": "lod-natal-estrela",
+   "settings": {
+    "eyebrow": "Guia de prendas",
+    "titulo": "Siga a estrela.",
+    "texto": "Três escolhas e mostramos-lhe as peças certas — com prazo de entrega.",
+    "ajuda": "Prefere ajuda de uma pessoa?",
+    "ajuda_link": "Fale connosco por WhatsApp",
+    "ajuda_mensagem": "Olá! Estou a escolher uma prenda de Natal e gostava de ajuda.",
+    "titulo_resultados": "A estrela parou aqui.",
+    "colecao_vale": "voucher-prenda",
+    "ancora": "siga-a-estrela",
+    "mostrar_no_telemovel": true
+   },
+   "blocks": {
+    "para_ela": {
+     "type": "destinatario",
+     "settings": {
+      "label": "Para ela",
+      "chave": "ela",
+      "resumo": "para ela",
+      "descricao": "Brincos, fios, pulseiras e anéis",
+      "destaque": true,
+      "colecao": "para-ela-natal",
+      "alternativa": "mulher",
+      "saltar_metal": false,
+      "aviso": ""
+     }
+    },
+    "para_ele": {
+     "type": "destinatario",
+     "settings": {
+      "label": "Para ele",
+      "chave": "ele",
+      "resumo": "para ele",
+      "descricao": "Fios, pulseiras, anéis e relógios",
+      "destaque": true,
+      "colecao": "homem",
+      "alternativa": "aneis-homem",
+      "saltar_metal": false,
+      "aviso": ""
+     }
+    },
+    "para_mae": {
+     "type": "destinatario",
+     "settings": {
+      "label": "Para a mãe",
+      "chave": "mae",
+      "resumo": "para a mãe",
+      "descricao": "",
+      "destaque": false,
+      "colecao": "para-a-mae-natal",
+      "alternativa": "mulher",
+      "saltar_metal": false,
+      "aviso": ""
+     }
+    },
+    "para_avo": {
+     "type": "destinatario",
+     "settings": {
+      "label": "Para a avó",
+      "chave": "avo",
+      "resumo": "para a avó",
+      "descricao": "",
+      "destaque": false,
+      "colecao": "tradicao-ouro",
+      "alternativa": "tradicao-prata-ouro-filigrana-viana",
+      "saltar_metal": false,
+      "aviso": ""
+     }
+    },
+    "pequenos": {
+     "type": "destinatario",
+     "settings": {
+      "label": "Para os mais pequenos",
+      "chave": "pequenos",
+      "resumo": "para os mais pequenos",
+      "descricao": "",
+      "destaque": false,
+      "colecao": "crianca-natal",
+      "alternativa": "crianca",
+      "saltar_metal": false,
+      "aviso": ""
+     }
+    },
+    "batizado": {
+     "type": "destinatario",
+     "settings": {
+      "label": "Batizado e afilhados",
+      "chave": "batizado",
+      "resumo": "para batizados e afilhados",
+      "descricao": "",
+      "destaque": false,
+      "colecao": "batizados",
+      "alternativa": "medalhas-crianca-ouro",
+      "saltar_metal": false,
+      "aviso": ""
+     }
+    },
+    "guardar": {
+     "type": "destinatario",
+     "settings": {
+      "label": "Para guardar",
+      "chave": "guardar",
+      "resumo": "para guardar",
+      "descricao": "",
+      "destaque": false,
+      "colecao": "libras-com-aro",
+      "saltar_metal": true,
+      "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento."
+     }
+    }
+   },
+   "block_order": [
+    "para_ela",
+    "para_ele",
+    "para_mae",
+    "para_avo",
+    "pequenos",
+    "batizado",
+    "guardar"
+   ]
+  }
+ },
+ "order": [
+  "s"
+ ]
+}

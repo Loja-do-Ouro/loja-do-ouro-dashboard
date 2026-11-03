@@ -1,0 +1,77 @@
+{
+ "sections": {
+  "s": {
+   "type": "lod-natal-tres-presentes",
+   "settings": {
+    "eyebrow": "Ouro, incenso e mirra",
+    "titulo": "Três presentes. Um Natal inteiro.",
+    "lead": "Conta o Evangelho de São Mateus que os Magos ofereceram ouro, incenso e mirra. Nós cuidamos do Natal da mesma maneira.",
+    "azulejo": true,
+    "embrulho_titulo": "Embrulho e mensagem",
+    "embrulho_1": "saco-prenda",
+    "embrulho_1_texto": "",
+    "embrulho_2": "wrap",
+    "embrulho_2_texto": "",
+    "embrulho_3": "envie-uma-mensagem",
+    "embrulho_3_texto": "",
+    "embrulho_nota": "Escolha no carrinho, antes de finalizar a encomenda. Também podemos enviar diretamente para quem recebe: indique essa morada no checkout.",
+    "mostrar_no_telemovel": true
+   },
+   "blocks": {
+    "presente_ouro": {
+     "type": "presente",
+     "settings": {
+      "icone": "ouro",
+      "numeral": "I",
+      "eyebrow": "Ouro",
+      "titulo": "Escolher",
+      "texto": "O primeiro dos três presentes, digno de um rei. Joias em ouro português de 19,2 quilates, contrastadas, para quem mais gosta.",
+      "texto_trocas": "",
+      "imagem_alt": "",
+      "link_texto": "Ver ouro tradicional",
+      "link_url": "/collections/tradicao-ouro",
+      "abre_embrulho": false
+     }
+    },
+    "presente_incenso": {
+     "type": "presente",
+     "settings": {
+      "icone": "incenso",
+      "numeral": "II",
+      "eyebrow": "Incenso",
+      "titulo": "Embrulhar",
+      "texto": "Saco prenda, Pack Premium e uma mensagem escrita por si — escolha no carrinho. Também enviamos diretamente para quem recebe.",
+      "texto_trocas": "",
+      "imagem_alt": "",
+      "link_texto": "Ver opções de embrulho",
+      "link_url": "/cart",
+      "abre_embrulho": true
+     }
+    },
+    "presente_mirra": {
+     "type": "presente",
+     "settings": {
+      "icone": "mirra",
+      "numeral": "III",
+      "eyebrow": "Mirra",
+      "titulo": "Cuidar",
+      "texto": "Apoio por WhatsApp e 13 lojas para o que precisar. Todas as peças têm a garantia legal de 3 anos.",
+      "texto_trocas": "Trocas de Natal até {trocas}, apoio por WhatsApp e 13 lojas para o que precisar. Todas as peças têm a garantia legal de 3 anos.",
+      "imagem_alt": "",
+      "link_texto": "Encontrar uma loja",
+      "link_url": "/pages/agencias",
+      "abre_embrulho": false
+     }
+    }
+   },
+   "block_order": [
+    "presente_ouro",
+    "presente_incenso",
+    "presente_mirra"
+   ]
+  }
+ },
+ "order": [
+  "s"
+ ]
+}
