@@ -1,0 +1,1954 @@
+{%- comment -%}
+  LOJA DO OURO — FICHA DE PRODUTO PREMIUM / v1
+  Depende de: snippets/lod-product-copy.liquid e snippets/lod-product-facts.liquid
+  Pagamento em prestações (Klarna + seQura): snippets/lod-installments.liquid, logo a seguir ao preço.
+  Ao mudar de variante a ficha emite o evento 'lodp:variant-change' (detail.variant, com "cents").
+
+  TEXTOS (t[n]):
+  0 início | 1 peça única | 2 novidade | 3 usado premium | 4 IVA | 5 peso | 6 tamanho | 7 toque | 8 metal
+  9 pedras | 10 contraste | 11 referência | 12 adicionar | 13 esgotado | 14 indisponível | 15 adicionado
+  16 guia de tamanhos | 17 última unidade | 18 em stock | 19-27 serviços | 28-33 consultoria
+  34-43 acordeões | 44 avaliações | 45-46 mensagens WhatsApp | 47-55 assinatura | 56-59 galeria
+  60 quantidade | 61 nota usado | 62-63 partilhar | 64-69 metais | 70 esgotado (contacto) | 71 INCM | 72-73 aria
+{%- endcomment -%}
+
+{%- liquid
+  assign v = product.selected_or_first_available_variant
+  assign lodp_lang = localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+  assign lodp_lang = lodp_lang | downcase | slice: 0, 2
+  assign lodp_unit = 'K'
+  assign lodp_dec = ','
+  if lodp_lang == 'pt'
+    assign lodp_unit = 'kl'
+  elsif lodp_lang == 'en'
+    assign lodp_dec = '.'
+  endif
+
+  capture lodp_raw
+    render 'lod-product-copy'
+  endcapture
+  assign t = lodp_raw | strip | split: '~~'
+
+  capture lodp_facts_raw
+    render 'lod-product-facts', p: product, v: v, t: t, unit: lodp_unit, dec: lodp_dec
+  endcapture
+  assign f = lodp_facts_raw | strip | split: '¦'
+  assign lodp_title = f[0] | default: product.title
+  assign lodp_collection = collection | default: product.collections.first
+  assign lodp_collection = blank
+  assign lodp_skip_collections = ',all,all-copy,all-copy-1,frontpage,novidades,destaques,spently_products,'
+  assign lodp_try_handle = collection.handle | prepend: ',' | append: ','
+  if collection != blank
+    unless lodp_skip_collections contains lodp_try_handle
+      assign lodp_collection = collection
+    endunless
+  endif
+  if lodp_collection == blank
+    for product_collection in product.collections
+      assign lodp_try_handle = product_collection.handle | prepend: ',' | append: ','
+      unless lodp_skip_collections contains lodp_try_handle
+        assign lodp_collection = product_collection
+        break
+      endunless
+    endfor
+  endif
+  assign product_form_id = 'LODProductForm-' | append: section.id
+
+  assign lodp_purity = f[2]
+  if f[3] != blank
+    assign lodp_purity = lodp_purity | append: ' ' | append: f[3]
+  endif
+  if f[4] != blank
+    assign lodp_purity = lodp_purity | append: ' · ' | append: f[4] | append: '‰'
+  endif
+
+  comment ----- Certificado de autenticidade: só peças em ouro ou prata (não relógios nem aço) -----
+  endcomment
+  assign lodp_precious = false
+  if f[2] != blank and f[2] != t[68]
+    assign lodp_precious = true
+  endif
+
+  assign lodp_size_guide = section.settings.size_guide_url
+  if lodp_size_guide == blank
+    assign lodp_size_guide = pages['guia-de-tamanhos'].url | default: '/pages/guia-de-tamanhos'
+  endif
+
+  assign lodp_wa_number = section.settings.whatsapp_number | remove: ' ' | remove: '+'
+  assign lodp_product_link = request.origin | append: product.url
+  assign lodp_wa_msg = t[45] | append: ' ' | append: lodp_title | append: ' — ' | append: lodp_product_link
+  assign lodp_wa_video = t[46] | append: ' ' | append: lodp_title | append: ' — ' | append: lodp_product_link
+  assign lodp_phone_link = section.settings.phone | remove: ' '
+
+  assign rating_value = blank
+  assign rating_count = 0
+  if product.metafields.reviews.rating.value != blank
+    assign rating_value = product.metafields.reviews.rating.value.rating | round: 1
+    assign rating_count = product.metafields.reviews.rating_count.value | default: 0
+  elsif product.metafields.loox.num_reviews.value > 0
+    assign rating_value = product.metafields.loox.avg_rating.value | round: 1
+    assign rating_count = product.metafields.loox.num_reviews.value
+  endif
+
+  assign media_count = product.media.size
+  assign rest_count = media_count | minus: 1 | modulo: 2
+-%}
+
+<style>
+  /* LOJA DO OURO — FICHA DE PRODUTO PREMIUM / v1 */
+  .lodp {
+    --ink: #0b0b09;
+    --ink-2: #15130f;
+    --gold: #bc914c;
+    --gold-l: #e5c98e;
+    --ivory: #f7f3ec;
+    --paper: #fffdfa;
+    --text: #292720;
+    --muted: #746e64;
+    --line: rgba(188, 145, 76, .27);
+    --hair: rgba(11, 11, 9, .1);
+    --media-bg: {{ section.settings.media_bg }};
+    position: relative;
+    color: var(--text);
+    background: {{ section.settings.background }};
+    font-family: var(--font-body-family, Arial, sans-serif);
+    -webkit-font-smoothing: antialiased;
+  }
+  .lodp *, .lodp *::before, .lodp *::after { box-sizing: border-box; }
+  .lodp a { text-decoration: none; }
+  .lodp__shell {
+    width: min(calc(100% - 56px), 1440px);
+    margin-inline: auto;
+    padding: {{ section.settings.padding_top }}px 0 {{ section.settings.padding_bottom }}px;
+  }
+  .lodp__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.28fr) minmax(360px, .72fr);
+    gap: clamp(36px, 5vw, 88px);
+    align-items: start;
+  }
+
+  /* ---------- Gallery ---------- */
+  .lodp__gallery {
+    position: sticky;
+    top: var(--lodp-top-gallery, {{ section.settings.sticky_offset }}px);
+  }
+  .lodp__track {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lodp__slide { position: relative; margin: 0; }
+  .lodp__slide--wide { grid-column: 1 / -1; }
+  .lodp__frame {
+    position: relative;
+    width: 100%;
+    display: block;
+    aspect-ratio: 1;
+    overflow: hidden;
+    padding: 0;
+    background: var(--media-bg);
+    border: 0;
+    border-radius: 2px;
+    cursor: zoom-in;
+  }
+  .lodp__frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid transparent;
+    pointer-events: none;
+    transition: border-color .35s ease;
+  }
+  .lodp__frame:hover::after { border-color: var(--line); }
+  .lodp__frame img,
+  .lodp__frame video,
+  .lodp__frame iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: {{ section.settings.media_fit }};
+    border: 0;
+    transition: transform 1.2s cubic-bezier(.2, .65, .25, 1);
+  }
+  .lodp__frame:hover img { transform: scale(1.025); }
+  .lodp__zoom-hint {
+    position: absolute;
+    z-index: 2;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+    background: rgba(255, 253, 250, .9);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    opacity: 0;
+    transform: scale(.9);
+    transition: opacity .3s ease, transform .3s ease;
+    backdrop-filter: blur(8px);
+  }
+  .lodp__frame:hover .lodp__zoom-hint { opacity: 1; transform: none; }
+  .lodp__zoom-hint svg,
+  .lodp svg.lodp__i {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.35;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .lodp__zoom-hint svg { width: 17px; height: 17px; }
+  .lodp__gallery-badges {
+    position: absolute;
+    z-index: 3;
+    top: 18px;
+    left: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+    pointer-events: none;
+  }
+  .lodp__badge {
+    padding: 8px 12px 7px;
+    color: var(--ink);
+    background: rgba(255, 253, 250, .94);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 8.5px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .lodp__badge--dark { color: #f8f3eb; background: rgba(11, 11, 9, .92); border-color: rgba(229, 201, 142, .35); }
+  .lodp__badge--dark::before {
+    content: "";
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    margin: 0 8px 1px 0;
+    border: 1px solid var(--gold-l);
+    transform: rotate(45deg);
+  }
+  .lodp__counter { display: none; }
+
+  /* ---------- Info column ---------- */
+  .lodp__info {
+    position: sticky;
+    top: var(--lodp-top-info, {{ section.settings.sticky_offset }}px);
+    padding-top: 6px;
+  }
+  .lodp__crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 26px;
+    padding: 0;
+    list-style: none;
+    color: #918574;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+  }
+  .lodp__crumbs li { display: inline-flex; align-items: center; gap: 10px; margin: 0; }
+  .lodp__crumbs li + li::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border: 1px solid var(--gold);
+    transform: rotate(45deg);
+  }
+  .lodp__crumbs a { color: inherit; transition: color .2s ease; }
+  .lodp__crumbs a:hover { color: var(--gold); }
+
+  .lodp__eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin: 0 0 16px !important;
+    color: var(--gold) !important;
+    font-size: 9.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.3 !important;
+    letter-spacing: .22em !important;
+    text-transform: uppercase !important;
+  }
+  .lodp__eyebrow::before { content: ""; width: 34px; height: 1px; flex: 0 0 34px; background: var(--gold); }
+  .lodp__title {
+    margin: 0 0 14px !important;
+    color: var(--ink) !important;
+    font-family: var(--font-heading-family, Georgia, serif) !important;
+    font-size: clamp(30px, 2.7vw, 46px) !important;
+    font-weight: 400 !important;
+    line-height: 1.06 !important;
+    letter-spacing: -.03em !important;
+    text-wrap: balance;
+  }
+    .lodp__ref {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin: -2px 0 0;
+    color: #918574;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+  }
+  .lodp__ref[hidden] { display: none; }
+  .lodp__ref-value { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: none; font-variant-numeric: tabular-nums; }
+
+  .lodp__rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: .03em;
+  }
+  .lodp__rating span:first-child { color: var(--gold); letter-spacing: .1em; }
+  .lodp__rating:hover { color: var(--ink); }
+
+  .lodp__price-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 14px;
+    margin: 22px 0 4px;
+  }
+  .lodp__price { color: var(--ink); font-size: clamp(24px, 2vw, 30px); font-weight: 500; letter-spacing: -.01em; line-height: 1.1; }
+  .lodp__compare { color: var(--muted); font-size: 15px; }
+  .lodp__compare:empty { display: none; }
+  .lodp__tax { color: #918574; font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  .lodp__installments { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .lodp__installments:empty { display: none; }
+
+  .lodp__tiles {
+    display: grid;
+    grid-template-columns: repeat(var(--tiles, 3), minmax(0, 1fr));
+    margin: 26px 0 0;
+    padding: 0;
+    list-style: none;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .lodp__tile {
+    margin: 0;
+    padding: 16px 16px 15px;
+    border-right: 1px solid var(--line);
+  }
+  .lodp__tile:last-child { border-right: 0; }
+  .lodp__tile small {
+    display: block;
+    margin-bottom: 7px;
+    color: #918574;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .lodp__tile strong {
+    display: block;
+    color: var(--ink);
+    font-family: var(--font-heading-family, Georgia, serif);
+    font-size: 19px;
+    font-weight: 400;
+    line-height: 1.1;
+  }
+  .lodp__used-note {
+    display: flex;
+    gap: 11px;
+    margin: 14px 0 0 !important;
+    color: var(--muted) !important;
+    font-size: 11.5px !important;
+    line-height: 1.6 !important;
+  }
+  .lodp__used-note::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    margin-top: 6px;
+    border: 1px solid var(--gold);
+    transform: rotate(45deg);
+  }
+
+  /* ---------- Form ---------- */
+  .lodp__form { margin-top: 28px; }
+  .lodp__option { margin: 0 0 22px; padding: 0; border: 0; min-width: 0; }
+  .lodp__option-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .lodp__option legend {
+    float: left;
+    padding: 0;
+    color: var(--ink);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .lodp__option legend span { margin-left: 8px; color: var(--muted); font-weight: 500; letter-spacing: .06em; text-transform: none; font-size: 12px; }
+  .lodp__guide {
+    color: var(--muted) !important;
+    font-size: 11px;
+    text-decoration: underline !important;
+    text-underline-offset: 4px;
+    text-decoration-color: var(--line) !important;
+  }
+  .lodp__guide:hover { color: var(--gold) !important; }
+  .lodp__values { clear: both; display: flex; flex-wrap: wrap; gap: 8px; }
+  .lodp__value input { position: absolute; opacity: 0; pointer-events: none; }
+  .lodp__value label {
+    min-width: 52px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--hair);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+    letter-spacing: .02em;
+    transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+  }
+  .lodp__value label:hover { border-color: var(--gold); }
+  .lodp__value input:checked + label { color: #f8f3eb; background: var(--ink); border-color: var(--ink); }
+  .lodp__value input:focus-visible + label { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .lodp__value.is-unavailable label { color: #b3ada4; text-decoration: line-through; text-decoration-color: rgba(11, 11, 9, .3); }
+  .lodp__value.is-unavailable input:checked + label { color: #d9d3c9; }
+
+  .lodp__qty {
+    display: inline-flex;
+    align-items: center;
+    height: 56px;
+    margin-bottom: 14px;
+    border: 1px solid var(--hair);
+    border-radius: 999px;
+  }
+  .lodp__qty button {
+    width: 48px;
+    height: 100%;
+    color: var(--ink);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-size: 18px;
+  }
+  .lodp__qty input {
+    width: 44px;
+    height: 100%;
+    color: var(--ink);
+    background: none;
+    border: 0;
+    text-align: center;
+    font-size: 14px;
+    -moz-appearance: textfield;
+  }
+  .lodp__qty input::-webkit-inner-spin-button,
+  .lodp__qty input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+  .lodp__submit {
+    position: relative;
+    width: 100%;
+    min-height: 60px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 0 28px;
+    overflow: hidden;
+    color: #f8f3eb;
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    transition: color .35s ease, background-color .35s ease, border-color .35s ease;
+  }
+  .lodp__submit::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(229, 201, 142, .35) 50%, transparent 70%);
+    transform: translateX(-100%);
+    transition: transform .9s ease;
+  }
+  .lodp__submit:hover:not(:disabled)::before { transform: translateX(100%); }
+  .lodp__submit:hover:not(:disabled) { color: #17130c; background: var(--gold-l); border-color: var(--gold-l); }
+  .lodp__submit:disabled { cursor: not-allowed; color: #8f877b; background: #ece7df; border-color: #ece7df; }
+  .lodp__submit.is-loading { pointer-events: none; opacity: .7; }
+  .lodp__submit.is-added { color: #17130c; background: var(--gold-l); border-color: var(--gold-l); }
+  .lodp__submit svg { width: 18px; height: 18px; position: relative; }
+  .lodp__submit span { position: relative; }
+  .lodp__dynamic { margin-top: 10px; }
+  .lodp__dynamic .shopify-payment-button__button { min-height: 56px; border-radius: 999px !important; overflow: hidden; }
+  .lodp__dynamic .shopify-payment-button__more-options { color: var(--muted); font-size: 11px; }
+  .lodp__error {
+    margin: 12px 0 0 !important;
+    padding: 12px 16px;
+    color: #7a2e1d !important;
+    background: #fbefe9;
+    border-radius: 10px;
+    font-size: 12px !important;
+  }
+  .lodp__error[hidden] { display: none; }
+  .lodp__stock {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0 0 !important;
+    color: var(--muted) !important;
+    font-size: 11.5px !important;
+    letter-spacing: .02em;
+  }
+  .lodp__stock i {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    background: #6f9a62;
+    border-radius: 50%;
+  }
+  .lodp__stock i::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    opacity: .35;
+    animation: lodp-pulse 2.2s ease-out infinite;
+  }
+  .lodp__stock[data-state="unique"] i { background: var(--gold); color: var(--gold); }
+  .lodp__stock[data-state="unique"] { color: var(--ink) !important; font-weight: 600; }
+  .lodp__stock[data-state="soldout"] i { background: #b3ada4; }
+  .lodp__stock[data-state="soldout"] i::after { display: none; }
+  .lodp__stock a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+  @keyframes lodp-pulse { from { transform: scale(.6); opacity: .6; } to { transform: scale(1.6); opacity: 0; } }
+
+  .lodp__apps:empty { display: none; }
+  .lodp__apps { margin-top: 18px; }
+
+  /* ---------- Services ---------- */
+  .lodp__services {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin: 30px 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+  .lodp__service {
+    margin: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .lodp__service:nth-child(odd) { border-right: 1px solid var(--line); }
+  .lodp__service > * {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 16px 14px 16px 0;
+    color: var(--ink);
+  }
+  .lodp__service:nth-child(even) > * { padding-left: 16px; }
+  .lodp__service-icon {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    display: grid;
+    place-items: center;
+    color: var(--gold);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    transition: background-color .25s ease, color .25s ease;
+  }
+  .lodp__service-icon svg { width: 16px; height: 16px; }
+  .lodp__service a:hover .lodp__service-icon { color: #17130c; background: var(--gold-l); border-color: var(--gold-l); }
+  .lodp__service strong { display: block; margin-bottom: 3px; font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .lodp__service small { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
+
+  /* ---------- Concierge ---------- */
+  .lodp__concierge {
+    position: relative;
+    margin-top: 28px;
+    padding: 26px 26px 22px;
+    overflow: hidden;
+    color: #f3ebdf;
+    background:
+      radial-gradient(circle at 92% 0%, rgba(188, 145, 76, .28), transparent 16rem),
+      linear-gradient(140deg, #080908, #15130f);
+    border-radius: 18px;
+  }
+  .lodp__concierge::after {
+    content: "";
+    position: absolute;
+    width: 220px;
+    height: 220px;
+    top: -120px;
+    right: -70px;
+    border: 1px solid rgba(229, 201, 142, .12);
+    border-radius: 50%;
+    box-shadow: 0 0 0 30px rgba(229, 201, 142, .025);
+    pointer-events: none;
+  }
+  .lodp__concierge-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin: 0 0 10px !important;
+    color: var(--gold-l) !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    letter-spacing: .22em !important;
+    text-transform: uppercase !important;
+  }
+  .lodp__concierge-eyebrow::before { content: ""; width: 24px; height: 1px; background: var(--gold); }
+  .lodp__concierge p.lodp__concierge-copy {
+    max-width: 420px;
+    margin: 0 0 18px !important;
+    color: #c4bcae !important;
+    font-family: var(--font-heading-family, Georgia, serif);
+    font-size: 17px !important;
+    line-height: 1.45 !important;
+  }
+  .lodp__concierge-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 9px; }
+  .lodp__pill {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 18px;
+    color: #17130c !important;
+    background: var(--gold-l);
+    border: 1px solid var(--gold-l);
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    transition: transform .25s ease, background-color .25s ease, color .25s ease;
+  }
+  .lodp__pill svg { width: 15px; height: 15px; }
+  .lodp__pill:hover { transform: translateY(-2px); background: #f1d8a4; }
+  .lodp__pill--ghost { color: #f3ebdf !important; background: transparent; border-color: rgba(229, 201, 142, .35); }
+  .lodp__pill--ghost:hover { color: #17130c !important; background: var(--gold-l); }
+  .lodp__concierge-links {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(229, 201, 142, .15);
+  }
+  .lodp__concierge-links a {
+    color: #b9b0a2 !important;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+  }
+  .lodp__concierge-links a:hover { color: var(--gold-l) !important; }
+
+  /* ---------- Accordions ---------- */
+  .lodp__accordions { margin-top: 30px; border-top: 1px solid var(--hair); }
+  .lodp__acc { border-bottom: 1px solid var(--hair); }
+  .lodp__acc summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 0;
+    color: var(--ink);
+    cursor: pointer;
+    list-style: none;
+    font-family: var(--font-heading-family, Georgia, serif);
+    font-size: 18px;
+    line-height: 1.25;
+  }
+  .lodp__acc summary::-webkit-details-marker { display: none; }
+  .lodp__plus {
+    position: relative;
+    width: 27px;
+    height: 27px;
+    flex: 0 0 27px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+  }
+  .lodp__plus::before,
+  .lodp__plus::after {
+    content: "";
+    position: absolute;
+    top: 12px;
+    left: 8px;
+    right: 8px;
+    height: 1px;
+    background: var(--gold);
+    transition: transform .25s ease;
+  }
+  .lodp__plus::after { transform: rotate(90deg); }
+  .lodp__acc[open] .lodp__plus::after { transform: none; }
+  .lodp__acc-body {
+    padding: 0 0 24px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .lodp__acc-body > * { margin-top: 0; }
+  .lodp__acc-body p { margin: 0 0 12px; }
+  .lodp__acc-body strong { color: var(--text); }
+  .lodp__acc-body a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
+  .lodp__acc-links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; }
+  .lodp__acc-links a { font-size: 9.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; text-decoration: none; }
+  .lodp__specs { width: 100%; border-collapse: collapse; }
+  .lodp__specs th,
+  .lodp__specs td {
+    padding: 11px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 12.5px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .lodp__specs tr:last-child th,
+  .lodp__specs tr:last-child td { border-bottom: 0; }
+  .lodp__specs th { width: 40%; color: #918574; font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+  .lodp__specs td { color: var(--ink); }
+  .lodp__hallmark {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--ivory);
+    border-radius: 12px;
+  }
+  .lodp__hallmark b {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    display: grid;
+    place-items: center;
+    color: var(--gold);
+    border: 1px solid var(--line);
+    transform: rotate(45deg);
+    font: 400 12px Georgia, serif;
+  }
+  .lodp__hallmark b span { transform: rotate(-45deg); }
+  .lodp__hallmark p { margin: 0 !important; color: var(--text) !important; font-size: 12px !important; line-height: 1.5 !important; }
+
+  .lodp__share {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 22px;
+    padding: 0;
+    color: var(--muted);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+  }
+  .lodp__share svg { width: 15px; height: 15px; }
+  .lodp__share:hover { color: var(--ink); }
+
+  /* ---------- Signature band ---------- */
+  .lodp__signature {
+    position: relative;
+    overflow: hidden;
+    color: #fff;
+    background:
+      radial-gradient(circle at 85% 20%, rgba(188, 145, 76, .2), transparent 28rem),
+      linear-gradient(140deg, #080908, #11100d 58%, #18130c);
+    border-top: 1px solid rgba(188, 145, 76, .4);
+  }
+  .lodp__signature-inner {
+    width: min(calc(100% - 56px), 1440px);
+    margin-inline: auto;
+    padding: clamp(56px, 7vw, 92px) 0;
+  }
+  .lodp__signature-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin: 0 0 34px !important;
+    color: var(--gold-l) !important;
+    font-size: 9.5px !important;
+    font-weight: 700 !important;
+    letter-spacing: .22em !important;
+    text-transform: uppercase !important;
+  }
+  .lodp__signature-eyebrow::before { content: ""; width: 34px; height: 1px; background: var(--gold); }
+  .lodp__pillars {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-block: 1px solid rgba(229, 201, 142, .18);
+  }
+  .lodp__pillar { margin: 0; padding: 30px 26px 32px; border-right: 1px solid rgba(229, 201, 142, .18); }
+  .lodp__pillar:first-child { padding-left: 0; }
+  .lodp__pillar:last-child { border-right: 0; }
+  .lodp__pillar b { display: block; margin-bottom: 28px; color: var(--gold-l); font: 400 22px Georgia, serif; }
+  .lodp__pillar h3 { margin: 0 0 9px !important; color: #f7f1e7 !important; font: 400 20px/1.2 var(--font-heading-family, Georgia, serif) !important; }
+  .lodp__pillar p { margin: 0 !important; color: #aaa194 !important; font-size: 12px !important; line-height: 1.7 !important; }
+
+  /* ---------- Sticky bar (mobile) ---------- */
+  .lodp__bar {
+    position: fixed;
+    z-index: 40;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(255, 253, 250, .96);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -12px 34px rgba(11, 11, 9, .08);
+    transform: translateY(110%);
+    transition: transform .35s ease;
+    backdrop-filter: blur(12px);
+  }
+  .lodp__bar.is-visible { transform: none; }
+  .lodp__bar-info { min-width: 0; flex: 1 1 auto; }
+  .lodp__bar-info strong {
+    display: block;
+    overflow: hidden;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .lodp__bar-info span { color: var(--ink); font-size: 14px; font-weight: 600; }
+  .lodp__bar .lodp__submit { width: auto; min-height: 48px; flex: 0 0 auto; padding: 0 20px; font-size: 9px; letter-spacing: .15em; }
+
+  /* ---------- Lightbox ---------- */
+  .lodp__lightbox {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    margin: 0;
+    padding: 0;
+    color: #f3ebdf;
+    background: #0b0b09;
+    border: 0;
+  }
+  .lodp__lightbox::backdrop { background: rgba(11, 11, 9, .9); }
+  .lodp__lightbox[open] { display: flex; flex-direction: column; }
+  .lodp__lb-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .2em;
+  }
+  .lodp__lb-top span { color: var(--gold-l); }
+  .lodp__lb-btn {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    color: #f3ebdf;
+    background: transparent;
+    border: 1px solid rgba(229, 201, 142, .3);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color .2s ease, color .2s ease;
+  }
+  .lodp__lb-btn:hover { color: #17130c; background: var(--gold-l); }
+  .lodp__lb-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .lodp__lb-track {
+    flex: 1 1 auto;
+    display: flex;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    list-style: none;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .lodp__lb-track::-webkit-scrollbar { display: none; }
+  .lodp__lb-slide {
+    flex: 0 0 100%;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    overflow: hidden;
+    scroll-snap-align: center;
+  }
+  .lodp__lb-slide img {
+    max-width: min(92vw, 1400px);
+    max-height: calc(100vh - 170px);
+    width: auto;
+    height: auto;
+    background: var(--media-bg);
+    cursor: zoom-in;
+    transition: transform .35s ease;
+  }
+  .lodp__lb-slide.is-zoomed img { transform: scale(2.2); cursor: zoom-out; }
+  .lodp__lb-nav { display: flex; justify-content: center; gap: 10px; padding: 16px 0 24px; }
+
+  .lodp a:focus-visible,
+  .lodp button:focus-visible,
+  .lodp summary:focus-visible { outline: 2px solid var(--gold) !important; outline-offset: 3px; }
+  .lodp__sr {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    white-space: nowrap !important;
+  }
+
+  @media (max-width: 1100px) {
+    .lodp__grid { grid-template-columns: minmax(0, 1.1fr) minmax(330px, .9fr); gap: 40px; }
+    .lodp__services { grid-template-columns: 1fr; }
+    .lodp__service:nth-child(odd) { border-right: 0; }
+    .lodp__service:nth-child(even) > * { padding-left: 0; }
+    .lodp__pillars { grid-template-columns: 1fr 1fr; }
+    .lodp__pillar:nth-child(2) { border-right: 0; }
+    .lodp__pillar:nth-child(-n+2) { border-bottom: 1px solid rgba(229, 201, 142, .18); }
+    .lodp__pillar:nth-child(3) { padding-left: 0; }
+  }
+
+  @media (max-width: 849px) {
+    .lodp__shell { width: 100%; padding-top: 0; }
+    .lodp__grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .lodp__gallery { position: relative; top: auto; }
+    .lodp__track {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .lodp__track::-webkit-scrollbar { display: none; }
+    .lodp__slide { flex: 0 0 100%; scroll-snap-align: start; }
+    .lodp__frame { border-radius: 0; }
+    .lodp__zoom-hint { display: none; }
+    .lodp__gallery-badges { top: 14px; left: 14px; }
+    .lodp__counter {
+      position: absolute;
+      z-index: 3;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--ink);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      pointer-events: none;
+    }
+    .lodp__counter-bar { position: relative; flex: 1 1 auto; height: 1px; background: rgba(11, 11, 9, .15); overflow: hidden; }
+    .lodp__counter-bar i { position: absolute; inset: 0; background: var(--gold); transform-origin: left; transform: scaleX(var(--p, 0)); transition: transform .3s ease; }
+    .lodp__info { position: static; width: calc(100% - 34px); margin-inline: auto; padding-top: 22px; }
+    .lodp__crumbs { margin-bottom: 18px; }
+    .lodp__title { font-size: clamp(28px, 8.4vw, 38px) !important; }
+    .lodp__tile { padding: 13px 12px; }
+    .lodp__tile strong { font-size: 16px; }
+    .lodp__bar { display: flex; }
+    .lodp__signature-inner { width: calc(100% - 34px); }
+  }
+
+  @media (max-width: 560px) {
+    .lodp__pillars { grid-template-columns: 1fr; }
+    .lodp__pillar { padding: 24px 0 !important; border-right: 0 !important; border-bottom: 1px solid rgba(229, 201, 142, .18); }
+    .lodp__pillar:last-child { border-bottom: 0; }
+    .lodp__pillar b { margin-bottom: 14px; }
+    .lodp__concierge { padding: 22px 20px 18px; }
+    .lodp__pill { flex: 1 1 100%; justify-content: center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lodp *, .lodp *::before, .lodp *::after { animation: none !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<section
+  id="LODProduct-{{ section.id }}"
+  class="lodp"
+  lang="{{ localization.language.iso_code | escape }}"
+  data-lodp
+  data-product-url="{{ product.url }}"
+  data-t-add="{{ t[12] | escape }}"
+  data-t-soldout="{{ t[13] | escape }}"
+  data-t-unavailable="{{ t[14] | escape }}"
+  data-t-added="{{ t[15] | escape }}"
+  data-t-unique="{{ t[17] | escape }}"
+  data-t-instock="{{ t[18] | escape }}"
+  data-t-copied="{{ t[63] | escape }}"
+>
+  <div class="lodp__shell">
+    <div class="lodp__grid">
+
+      {%- comment -%} ===== GALERIA ===== {%- endcomment -%}
+      <div class="lodp__gallery" data-lodp-gallery aria-label="{{ t[72] | escape }}">
+        <span class="lodp__gallery-badges">
+          {%- if f[9] == '1' -%}<span class="lodp__badge">{{ t[2] }}</span>{%- endif -%}
+        </span>
+
+        <ul class="lodp__track" data-lodp-track>
+          {%- for media in product.media -%}
+            <li
+              class="lodp__slide{% if forloop.first or forloop.last and rest_count == 1 %} lodp__slide--wide{% endif %}"
+              data-media-id="{{ media.id }}"
+              data-index="{{ forloop.index0 }}"
+            >
+              {%- case media.media_type -%}
+                {%- when 'video' -%}
+                  <div class="lodp__frame">
+                    {{ media | video_tag: autoplay: true, loop: true, muted: true, controls: false, playsinline: true, image_size: '1200x' }}
+                  </div>
+                {%- when 'external_video' -%}
+                  <div class="lodp__frame">
+                    {{ media | external_video_tag: loading: 'lazy' }}
+                  </div>
+                {%- else -%}
+                  <button
+                    class="lodp__frame"
+                    type="button"
+                    data-lodp-open="{{ forloop.index0 }}"
+                    aria-label="{{ t[56] | escape }} {{ forloop.index }}"
+                  >
+                    {%- liquid
+                      assign media_loading = 'lazy'
+                      assign media_priority = 'auto'
+                      if forloop.first
+                        assign media_loading = 'eager'
+                        assign media_priority = 'high'
+                      endif
+                    -%}
+                    {{
+                      media.preview_image
+                      | image_url: width: 1600
+                      | image_tag:
+                        loading: media_loading,
+                        fetchpriority: media_priority,
+                        widths: '480, 720, 960, 1200, 1600',
+                        sizes: '(min-width: 850px) 58vw, 100vw',
+                        alt: media.alt | default: lodp_title
+                    }}
+                    <span class="lodp__zoom-hint" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4M11 8.5v5M8.5 11h5"/></svg>
+                    </span>
+                  </button>
+              {%- endcase -%}
+            </li>
+          {%- else -%}
+            <li class="lodp__slide lodp__slide--wide">
+              <div class="lodp__frame">{{ 'product-1' | placeholder_svg_tag }}</div>
+            </li>
+          {%- endfor -%}
+        </ul>
+
+        {%- if media_count > 1 -%}
+          <div class="lodp__counter" aria-hidden="true">
+            <span data-lodp-count>01</span>
+            <span class="lodp__counter-bar"><i data-lodp-progress style="--p: {{ 1.0 | divided_by: media_count }}"></i></span>
+            <span>{% if media_count < 10 %}0{% endif %}{{ media_count }}</span>
+          </div>
+        {%- endif -%}
+      </div>
+
+      {%- comment -%} ===== INFORMAÇÃO ===== {%- endcomment -%}
+      <div class="lodp__info">
+        <ol class="lodp__crumbs">
+          <li><a href="{{ routes.root_url }}">{{ t[0] | escape }}</a></li>
+          {%- if lodp_collection != blank -%}
+            <li><a href="{{ lodp_collection.url }}">{{ lodp_collection.title | escape }}</a></li>
+          {%- endif -%}
+        </ol>
+
+        {%- if lodp_purity != blank -%}
+          <p class="lodp__eyebrow">{{ lodp_purity | escape }}</p>
+        {%- endif -%}
+
+        <h1 class="lodp__title">{{ lodp_title | escape }}</h1>
+        <div class="lodp__ref"{% if v.sku == blank %} hidden{% endif %} data-lodp-ref-wrap>
+          <span>{{ t[11] }}</span>
+          <span class="lodp__ref-value" translate="no" data-lodp-ref>{{ v.sku | escape }}</span>
+        </div>
+        {%- if rating_value != blank and rating_count > 0 -%}
+          <a class="lodp__rating" href="#looxReviews">
+            <span aria-hidden="true">★★★★★</span>
+            <span>{{ rating_value }} · {{ rating_count }} {{ t[44] }}</span>
+          </a>
+        {%- endif -%}
+
+        <div class="lodp__price-row">
+          <span class="lodp__price" data-lodp-price>{{ v.price | money }}</span>
+          <s class="lodp__compare" data-lodp-compare>{% if v.compare_at_price > v.price %}{{ v.compare_at_price | money }}{% endif %}</s>
+          <span class="lodp__tax">{{ t[4] }}</span>
+        </div>
+
+        {%- comment -%} ===== PAGAMENTO EM PRESTAÇÕES (Klarna + seQura) ===== {%- endcomment -%}
+        {%- if section.settings.inst_enabled -%}
+          {%- render 'lod-installments', product: product, variant: v, s: section.settings, sid: section.id, lang: lodp_lang -%}
+        {%- endif -%}
+
+        {%- comment -%} ===== NATAL 2026 · prazo de entrega, gravação e embrulho (só em português) ===== {%- endcomment -%}
+        {%- if lodp_lang == 'pt' -%}
+          {%- render 'lod-natal-pdp', product: product -%}
+        {%- endif -%}
+
+        {%- liquid
+          assign tile_count = 0
+          if f[5] != blank
+            assign tile_count = tile_count | plus: 1
+          endif
+          if f[4] != blank
+            assign tile_count = tile_count | plus: 1
+          endif
+          if f[1] != blank
+            assign tile_count = tile_count | plus: 1
+          elsif f[2] != blank
+            assign tile_count = tile_count | plus: 1
+          endif
+        -%}
+        {%- if tile_count > 0 -%}
+          <ul class="lodp__tiles" style="--tiles: {{ tile_count }}" aria-label="{{ t[73] | escape }}">
+            {%- if f[5] != blank -%}<li class="lodp__tile"><small>{{ t[5] }}</small><strong>{{ f[5] }}</strong></li>{%- endif -%}
+            {%- if f[4] != blank -%}<li class="lodp__tile"><small>{{ t[7] }}</small><strong>{{ f[4] }}‰</strong></li>{%- endif -%}
+            {%- if f[1] != blank -%}
+              <li class="lodp__tile"><small>{{ t[6] }}</small><strong>{{ f[1] | escape }}</strong></li>
+            {%- elsif f[2] != blank -%}
+              <li class="lodp__tile"><small>{{ t[8] }}</small><strong>{{ f[2] }}</strong></li>
+            {%- endif -%}
+          </ul>
+        {%- endif -%}
+
+        {%- if f[6] == '1' -%}
+          <p class="lodp__used-note">{{ t[61] }}</p>
+        {%- endif -%}
+
+        {%- comment -%} ===== COMPRA ===== {%- endcomment -%}
+        {%- form 'product', product, id: product_form_id, class: 'lodp__form', novalidate: 'novalidate', data-type: 'add-to-cart-form' -%}
+          <input type="hidden" name="id" value="{{ v.id }}" data-lodp-id>
+
+          {%- unless product.has_only_default_variant -%}
+            {%- for option in product.options_with_values -%}
+              {%- assign option_index = forloop.index0 -%}
+              <fieldset class="lodp__option" data-lodp-option="{{ option_index }}">
+                <div class="lodp__option-head">
+                  <legend>{{ option.name | escape }} <span data-lodp-option-value>{{ option.selected_value | escape }}</span></legend>
+                  {%- liquid
+                    assign option_down = option.name | downcase
+                    assign is_size_option = false
+                    if option_down contains 'tama' or option_down contains 'size' or option_down contains 'talla' or option_down contains 'taille' or option_down contains 'größe' or option_down contains 'misura'
+                      assign is_size_option = true
+                    endif
+                  -%}
+                  {%- if is_size_option -%}
+                    <a class="lodp__guide" href="{{ lodp_size_guide }}">{{ t[16] }}</a>
+                  {%- endif -%}
+                </div>
+                <div class="lodp__values">
+                  {%- for value in option.values -%}
+                    <div class="lodp__value">
+                      <input
+                        type="radio"
+                        id="LODOpt-{{ section.id }}-{{ option_index }}-{{ forloop.index0 }}"
+                        name="lodp-option-{{ option_index }}"
+                        value="{{ value | escape }}"
+                        {% if option.selected_value == value %}checked{% endif %}
+                      >
+                      <label for="LODOpt-{{ section.id }}-{{ option_index }}-{{ forloop.index0 }}">{{ value | escape }}</label>
+                    </div>
+                  {%- endfor -%}
+                </div>
+              </fieldset>
+            {%- endfor -%}
+          {%- endunless -%}
+
+          {%- for block in section.blocks -%}
+            {%- case block.type -%}
+              {%- when 'size_guide' -%}
+                <div {{ block.shopify_attributes }}>{% render 'latitid-size-guide', size_guide_text: block.settings.size_guide_text %}</div>
+              {%- when 'model_picker' -%}
+                {%- liquid
+                  assign mp_namespace = block.settings.variant_list | split: '.' | first
+                  assign mp_key = block.settings.variant_list | split: '.' | last
+                -%}
+                {%- if product.metafields[mp_namespace][mp_key] != blank -%}
+                  <div {{ block.shopify_attributes }}>
+                    {% render 'scx_snippet_variant-picker', product_variant: product.metafields[mp_namespace][mp_key], product_single: product, mobile: false, class: 'product-page' %}
+                  </div>
+                {%- endif -%}
+            {%- endcase -%}
+          {%- endfor -%}
+
+          {%- if section.settings.show_quantity and f[7] != '1' -%}
+            <div class="lodp__qty" data-lodp-qty>
+              <button type="button" data-step="-1" aria-label="−">−</button>
+              <input type="number" name="quantity" value="1" min="1" aria-label="{{ t[60] | escape }}">
+              <button type="button" data-step="1" aria-label="+">+</button>
+            </div>
+          {%- endif -%}
+
+          <button
+            class="lodp__submit"
+            type="submit"
+            name="add"
+            data-lodp-submit
+            {% unless v.available %}disabled{% endunless %}
+          >
+            <svg class="lodp__i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>
+            <span data-lodp-submit-label>{% if v.available %}{{ t[12] }}{% else %}{{ t[13] }}{% endif %}</span>
+          </button>
+
+          {%- if section.settings.show_dynamic_checkout -%}
+            <div class="lodp__dynamic">{{ form | payment_button }}</div>
+          {%- endif -%}
+
+          <div class="lodp__installments">{{ form | payment_terms }}</div>
+          <p class="lodp__error" role="alert" data-lodp-error hidden></p>
+        {%- endform -%}
+
+        {%- liquid
+          assign stock_state = 'instock'
+          assign stock_text = t[18]
+          if v.available == false
+            assign stock_state = 'soldout'
+          elsif f[7] == '1'
+            assign stock_state = 'unique'
+            assign stock_text = t[17]
+          endif
+        -%}
+        <p class="lodp__stock" data-state="{{ stock_state }}" data-lodp-stock role="status">
+          <i aria-hidden="true"></i>
+          <span data-lodp-stock-text>
+            {%- if stock_state == 'soldout' -%}
+              <a href="https://wa.me/{{ lodp_wa_number }}?text={{ lodp_wa_msg | url_encode }}" target="_blank" rel="noopener">{{ t[70] }}</a>
+            {%- else -%}
+              {{ stock_text }}
+            {%- endif -%}
+          </span>
+        </p>
+
+        <div class="lodp__apps">
+          {%- for block in section.blocks -%}
+            {%- case block.type -%}
+              {%- when '@app' -%}
+                {% render block %}
+              {%- when 'custom_liquid' -%}
+                <div {{ block.shopify_attributes }}>{{ block.settings.custom_liquid }}</div>
+            {%- endcase -%}
+          {%- endfor -%}
+        </div>
+
+        {%- comment -%} ===== SERVIÇOS ===== {%- endcomment -%}
+        {%- if section.settings.show_services -%}
+          <ul class="lodp__services">
+            {%- if lodp_precious -%}
+            <li class="lodp__service">
+              <a href="{{ pages['certificacao-das-pecas'].url | default: '/pages/certificacao-das-pecas' }}">
+                <span class="lodp__service-icon"><svg class="lodp__i" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><circle cx="12" cy="9" r="2.6"/><path d="M8.6 14 7.5 21l4.5-2.2 4.5 2.2-1.1-7"/></svg></span>
+                <span><strong>{{ t[19] }}</strong><small>{{ t[20] }}</small></span>
+              </a>
+            </li>
+            {%- endif -%}
+            <li class="lodp__service">
+              <a href="{{ pages['garantia-assistencia-pos-venda'].url | default: '/pages/garantia-assistencia-pos-venda' }}">
+                <span class="lodp__service-icon"><svg class="lodp__i" viewBox="0 0 24 24"><path d="M12 3 5 5.8v5.4c0 4.4 2.9 8.2 7 9.8 4.1-1.6 7-5.4 7-9.8V5.8L12 3Z"/><path d="m9.2 12 1.9 1.9 3.8-3.8"/></svg></span>
+                <span><strong>{{ t[21] }}</strong><small>{{ t[22] }}</small></span>
+              </a>
+            </li>
+            <li class="lodp__service">
+              <a href="{{ pages['portes-e-pagamentos'].url | default: '/pages/portes-e-pagamentos' }}">
+                <span class="lodp__service-icon"><svg class="lodp__i" viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg></span>
+                <span><strong>{% if f[11] == '1' %}{{ t[23] }}{% else %}{{ t[24] }}{% endif %}</strong><small>{{ t[25] }}</small></span>
+              </a>
+            </li>
+            <li class="lodp__service">
+              <div>
+                <span class="lodp__service-icon"><svg class="lodp__i" viewBox="0 0 24 24"><path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7c-1.5-3-5-3.5-5-1.2C7 7 9.5 7 12 7Zm0 0c1.5-3 5-3.5 5-1.2C17 7 14.5 7 12 7Z"/></svg></span>
+                <span><strong>{{ t[26] }}</strong><small>{{ t[27] }}</small></span>
+              </div>
+            </li>
+          </ul>
+        {%- endif -%}
+
+        {%- comment -%} ===== CONSULTORIA PRIVADA ===== {%- endcomment -%}
+        {%- if section.settings.show_concierge and lodp_wa_number != blank -%}
+          <aside class="lodp__concierge">
+            <p class="lodp__concierge-eyebrow">{{ t[28] }}</p>
+            <p class="lodp__concierge-copy">{{ t[29] }}</p>
+            <div class="lodp__concierge-actions">
+              <a class="lodp__pill" href="https://wa.me/{{ lodp_wa_number }}?text={{ lodp_wa_msg | url_encode }}" target="_blank" rel="noopener">
+                <svg class="lodp__i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.6a8 8 0 0 1-11.8 7L4 20l1.4-4.1A8 8 0 1 1 20 11.6Z"/></svg>{{ t[30] }}
+              </a>
+              <a class="lodp__pill lodp__pill--ghost" href="https://wa.me/{{ lodp_wa_number }}?text={{ lodp_wa_video | url_encode }}" target="_blank" rel="noopener">
+                <svg class="lodp__i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>{{ t[31] }}
+              </a>
+            </div>
+            <div class="lodp__concierge-links">
+              {%- if lodp_phone_link != blank -%}
+                <a href="tel:{{ lodp_phone_link }}">{{ t[32] }} · {{ section.settings.phone | escape }}</a>
+              {%- endif -%}
+              <a href="{{ pages['agencias'].url | default: '/pages/agencias' }}">{{ t[33] }} →</a>
+            </div>
+          </aside>
+        {%- endif -%}
+
+        {%- comment -%} ===== ACORDEÕES ===== {%- endcomment -%}
+        <div class="lodp__accordions">
+          {%- if product.description != blank -%}
+            <details class="lodp__acc" open>
+              <summary>{{ t[34] }}<i class="lodp__plus" aria-hidden="true"></i></summary>
+              <div class="lodp__acc-body">{{ product.description }}</div>
+            </details>
+          {%- endif -%}
+
+          <details class="lodp__acc">
+            <summary>{{ t[35] }}<i class="lodp__plus" aria-hidden="true"></i></summary>
+            <div class="lodp__acc-body">
+              <table class="lodp__specs">
+                <tbody>
+                  {%- if f[2] != blank -%}<tr><th scope="row">{{ t[8] }}</th><td>{{ f[2] }}</td></tr>{%- endif -%}
+                  {%- if f[4] != blank -%}<tr><th scope="row">{{ t[7] }}</th><td>{% if f[3] != blank %}{{ f[3] }} · {% endif %}{{ f[4] }}‰</td></tr>{%- endif -%}
+                  {%- if f[5] != blank -%}<tr><th scope="row">{{ t[5] }}</th><td>{{ f[5] }}</td></tr>{%- endif -%}
+                  {%- if f[1] != blank -%}<tr><th scope="row">{{ t[6] }}</th><td>{{ f[1] | escape }}</td></tr>{%- endif -%}
+                  {%- if f[10] != blank -%}<tr><th scope="row">{{ t[9] }}</th><td>{{ f[10] | escape }}</td></tr>{%- endif -%}
+                  {%- if f[8] != blank -%}<tr><th scope="row">{{ t[10] }}</th><td>{{ f[8] }} ({{ f[4] }})</td></tr>{%- endif -%}
+                  <tr{% if v.sku == blank %} hidden{% endif %} data-lodp-sku-row><th scope="row">{{ t[11] }}</th><td data-lodp-sku>{{ v.sku | escape }}</td></tr>
+                </tbody>
+              </table>
+              {%- if f[8] != blank -%}
+                <div class="lodp__hallmark">
+                  <b aria-hidden="true"><span>{{ f[4] }}</span></b>
+                  <p><strong>{{ f[8] }}</strong> — {{ t[71] }}</p>
+                </div>
+              {%- endif -%}
+            </div>
+          </details>
+
+          {%- if lodp_precious -%}
+          <details class="lodp__acc">
+            <summary>{{ t[36] }}<i class="lodp__plus" aria-hidden="true"></i></summary>
+            <div class="lodp__acc-body">
+              <p>{{ t[37] }}</p>
+              <div class="lodp__acc-links">
+                <a href="{{ pages['certificacao-das-pecas'].url | default: '/pages/certificacao-das-pecas' }}">{{ t[19] }} →</a>
+                <a href="{{ pages['marcas-legais'].url | default: '/pages/marcas-legais' }}">{{ t[10] }} →</a>
+              </div>
+            </div>
+          </details>
+          {%- endif -%}
+
+          <details class="lodp__acc">
+            <summary>{{ t[38] }}<i class="lodp__plus" aria-hidden="true"></i></summary>
+            <div class="lodp__acc-body">
+              <p>{{ t[39] }}</p>
+              <div class="lodp__acc-links">
+                <a href="{{ pages['portes-e-pagamentos'].url | default: '/pages/portes-e-pagamentos' }}">{{ t[40] }} →</a>
+                <a href="{{ pages['devolucoes'].url | default: '/pages/devolucoes' }}">{{ t[41] }} →</a>
+              </div>
+            </div>
+          </details>
+
+          <details class="lodp__acc">
+            <summary>{{ t[42] }}<i class="lodp__plus" aria-hidden="true"></i></summary>
+            <div class="lodp__acc-body"><p>{{ t[43] }}</p></div>
+          </details>
+        </div>
+
+        <button class="lodp__share" type="button" data-lodp-share data-title="{{ lodp_title | escape }}">
+          <svg class="lodp__i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="m8.2 10.8 7.6-4.1M8.2 13.2l7.6 4.1"/></svg>
+          <span data-lodp-share-label>{{ t[62] }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {%- comment -%} ===== ASSINATURA ===== {%- endcomment -%}
+  {%- if section.settings.show_signature -%}
+    <div class="lodp__signature">
+      <div class="lodp__signature-inner">
+        <p class="lodp__signature-eyebrow">{{ t[47] }}</p>
+        <ul class="lodp__pillars">
+          <li class="lodp__pillar"><b>01</b><h3>{{ t[48] }}</h3><p>{{ t[49] }}</p></li>
+          <li class="lodp__pillar"><b>02</b><h3>{{ t[50] }}</h3><p>{{ t[51] }}</p></li>
+          <li class="lodp__pillar"><b>03</b><h3>{{ t[52] }}</h3><p>{{ t[53] }}</p></li>
+          <li class="lodp__pillar"><b>04</b><h3>{{ t[54] }}</h3><p>{{ t[55] }}</p></li>
+        </ul>
+      </div>
+    </div>
+  {%- endif -%}
+
+  {%- comment -%} ===== BARRA FIXA (TELEMÓVEL) ===== {%- endcomment -%}
+  {%- if section.settings.show_sticky_bar -%}
+    <div class="lodp__bar" data-lodp-bar aria-hidden="true">
+      <div class="lodp__bar-info">
+        <strong>{{ lodp_title | escape }}</strong>
+        <span data-lodp-bar-price>{{ v.price | money }}</span>
+      </div>
+      <button class="lodp__submit" type="button" data-lodp-bar-submit tabindex="-1" {% unless v.available %}disabled{% endunless %}>
+        <span data-lodp-bar-label>{% if v.available %}{{ t[12] }}{% else %}{{ t[13] }}{% endif %}</span>
+      </button>
+    </div>
+  {%- endif -%}
+
+  {%- comment -%} ===== LIGHTBOX ===== {%- endcomment -%}
+  {%- if media_count > 0 -%}
+    <dialog class="lodp__lightbox" data-lodp-lightbox aria-label="{{ t[72] | escape }}">
+      <div class="lodp__lb-top">
+        <span data-lodp-lb-count>01 / {% if media_count < 10 %}0{% endif %}{{ media_count }}</span>
+        <button class="lodp__lb-btn" type="button" data-lodp-lb-close aria-label="{{ t[57] | escape }}">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <ul class="lodp__lb-track" data-lodp-lb-track>
+        {%- for media in product.media -%}
+          <li class="lodp__lb-slide">
+            {{
+              media.preview_image
+              | image_url: width: 2400
+              | image_tag: loading: 'lazy', widths: '1200, 1800, 2400', sizes: '92vw', alt: media.alt | default: lodp_title
+            }}
+          </li>
+        {%- endfor -%}
+      </ul>
+      {%- if media_count > 1 -%}
+        <div class="lodp__lb-nav">
+          <button class="lodp__lb-btn" type="button" data-lodp-lb-step="-1" aria-label="{{ t[58] | escape }}">
+            <svg viewBox="0 0 24 24"><path d="M19 12H6M10 7l-5 5 5 5"/></svg>
+          </button>
+          <button class="lodp__lb-btn" type="button" data-lodp-lb-step="1" aria-label="{{ t[59] | escape }}">
+            <svg viewBox="0 0 24 24"><path d="M5 12h13M14 7l5 5-5 5"/></svg>
+          </button>
+        </div>
+      {%- endif -%}
+    </dialog>
+  {%- endif -%}
+
+  <script type="application/json" data-lodp-variants>
+    [
+      {%- for variant in product.variants -%}
+        {
+          "id": {{ variant.id }},
+          "options": {{ variant.options | json }},
+          "available": {{ variant.available | json }},
+          "price": {{ variant.price | money | json }},
+          "cents": {{ variant.price | json }},
+          "compare": {% if variant.compare_at_price > variant.price %}{{ variant.compare_at_price | money | json }}{% else %}""{% endif %},
+          "media": {{ variant.featured_media.id | default: 0 }},
+          "sku": {{ variant.sku | json }},
+          "unique": {% if variant.inventory_management == 'shopify' and variant.inventory_quantity == 1 %}true{% else %}false{% endif %}
+        }{% unless forloop.last %},{% endunless %}
+      {%- endfor -%}
+    ]
+  </script>
+
+  <script type="application/ld+json">
+    {{ product | structured_data }}
+  </script>
+</section>
+
+<script>
+  (function () {
+    function initProduct(root) {
+      if (!root || root.dataset.lodpReady === 'true') return;
+      root.dataset.lodpReady = 'true';
+
+      var data = root.dataset;
+      var variants = [];
+      try { variants = JSON.parse(root.querySelector('[data-lodp-variants]').textContent); } catch (e) {}
+
+      var form = root.querySelector('form.lodp__form');
+      var idInput = root.querySelector('[data-lodp-id]');
+      var submit = root.querySelector('[data-lodp-submit]');
+      var submitLabel = root.querySelector('[data-lodp-submit-label]');
+      var priceEl = root.querySelector('[data-lodp-price]');
+      var compareEl = root.querySelector('[data-lodp-compare]');
+      var stockEl = root.querySelector('[data-lodp-stock]');
+      var stockText = root.querySelector('[data-lodp-stock-text]');
+      var errorEl = root.querySelector('[data-lodp-error]');
+      var skuEl = root.querySelector('[data-lodp-sku]');
+      var skuRow = root.querySelector('[data-lodp-sku-row]');
+      var bar = root.querySelector('[data-lodp-bar]');
+      var barPrice = root.querySelector('[data-lodp-bar-price]');
+      var barLabel = root.querySelector('[data-lodp-bar-label]');
+      var barSubmit = root.querySelector('[data-lodp-bar-submit]');
+      var fieldsets = Array.prototype.slice.call(root.querySelectorAll('[data-lodp-option]'));
+      var track = root.querySelector('[data-lodp-track]');
+      var slides = track ? Array.prototype.slice.call(track.children) : [];
+
+      /* ----- Smart sticky: a coluna mais curta acompanha o scroll e larga no fim ----- */
+      var galleryCol = root.querySelector('[data-lodp-gallery]');
+      var infoCol = root.querySelector('.lodp__info');
+      var stickyOffset = {{ section.settings.sticky_offset | json }};
+      function fitSticky() {
+        var vh = window.innerHeight;
+        [[galleryCol, '--lodp-top-gallery'], [infoCol, '--lodp-top-info']].forEach(function (pair) {
+          if (!pair[0]) return;
+          var h = pair[0].offsetHeight;
+          var top = h + stickyOffset > vh ? vh - h - 24 : stickyOffset;
+          root.style.setProperty(pair[1], top + 'px');
+        });
+      }
+      if ('ResizeObserver' in window) {
+        var ro = new ResizeObserver(fitSticky);
+        if (galleryCol) ro.observe(galleryCol);
+        if (infoCol) ro.observe(infoCol);
+      }
+      window.addEventListener('resize', fitSticky, { passive: true });
+      fitSticky();
+
+      /* ----- Gallery (mobile counter) ----- */
+      var countEl = root.querySelector('[data-lodp-count]');
+      var progressEl = root.querySelector('[data-lodp-progress]');
+      function pad(n) { return n < 10 ? '0' + n : String(n); }
+      if (track && countEl) {
+        track.addEventListener('scroll', function () {
+          var index = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+          countEl.textContent = pad(index + 1);
+          if (progressEl) progressEl.style.setProperty('--p', (index + 1) / slides.length);
+        }, { passive: true });
+      }
+      function showMedia(mediaId) {
+        if (!mediaId || !track) return;
+        var target = track.querySelector('[data-media-id="' + mediaId + '"]');
+        if (!target) return;
+        if (window.matchMedia('(max-width: 849px)').matches) {
+          track.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+        }
+      }
+
+      /* ----- Lightbox ----- */
+      var lightbox = root.querySelector('[data-lodp-lightbox]');
+      var lbTrack = root.querySelector('[data-lodp-lb-track]');
+      var lbCount = root.querySelector('[data-lodp-lb-count]');
+      function lbIndex() { return Math.round(lbTrack.scrollLeft / Math.max(1, lbTrack.clientWidth)); }
+      function lbGo(index) {
+        var total = lbTrack.children.length;
+        index = (index + total) % total;
+        Array.prototype.forEach.call(lbTrack.children, function (s) { s.classList.remove('is-zoomed'); });
+        lbTrack.scrollTo({ left: index * lbTrack.clientWidth, behavior: 'smooth' });
+      }
+      if (lightbox && lbTrack) {
+        root.querySelectorAll('[data-lodp-open]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var start = Number(button.dataset.lodpOpen);
+            lightbox.showModal();
+            document.documentElement.style.overflow = 'hidden';
+            requestAnimationFrame(function () {
+              lbTrack.style.scrollSnapType = 'none';
+              lbTrack.scrollLeft = start * lbTrack.clientWidth;
+              lbTrack.style.scrollSnapType = '';
+              if (lbCount) lbCount.textContent = pad(start + 1) + ' / ' + pad(lbTrack.children.length);
+            });
+          });
+        });
+        lightbox.addEventListener('close', function () { document.documentElement.style.overflow = ''; });
+        root.querySelector('[data-lodp-lb-close]').addEventListener('click', function () { lightbox.close(); });
+        root.querySelectorAll('[data-lodp-lb-step]').forEach(function (b) {
+          b.addEventListener('click', function () { lbGo(lbIndex() + Number(b.dataset.lodpLbStep)); });
+        });
+        lightbox.addEventListener('keydown', function (e) {
+          if (e.key === 'ArrowRight') lbGo(lbIndex() + 1);
+          if (e.key === 'ArrowLeft') lbGo(lbIndex() - 1);
+        });
+        lbTrack.addEventListener('scroll', function () {
+          if (lbCount) lbCount.textContent = pad(lbIndex() + 1) + ' / ' + pad(lbTrack.children.length);
+        }, { passive: true });
+        lbTrack.addEventListener('click', function (e) {
+          var slide = e.target.closest('.lodp__lb-slide');
+          var img = e.target.closest('img');
+          if (!slide || !img) return;
+          var rect = img.getBoundingClientRect();
+          img.style.transformOrigin = ((e.clientX - rect.left) / rect.width * 100) + '% ' + ((e.clientY - rect.top) / rect.height * 100) + '%';
+          slide.classList.toggle('is-zoomed');
+        });
+        lbTrack.addEventListener('mousemove', function (e) {
+          var slide = e.target.closest('.lodp__lb-slide.is-zoomed');
+          if (!slide) return;
+          var img = slide.querySelector('img');
+          var rect = slide.getBoundingClientRect();
+          img.style.transformOrigin = ((e.clientX - rect.left) / rect.width * 100) + '% ' + ((e.clientY - rect.top) / rect.height * 100) + '%';
+        });
+      }
+
+      /* ----- Variants ----- */
+      function selectedOptions() {
+        return fieldsets.map(function (fs) {
+          var checked = fs.querySelector('input:checked');
+          return checked ? checked.value : null;
+        });
+      }
+      function findVariant(options) {
+        return variants.find(function (variant) {
+          return variant.options.every(function (value, i) { return value === options[i]; });
+        });
+      }
+      function setButtons(enabled, label) {
+        [submit, barSubmit].forEach(function (b) { if (b) b.disabled = !enabled; });
+        if (submitLabel) submitLabel.textContent = label;
+        if (barLabel) barLabel.textContent = label;
+      }
+      function updateAvailability(options) {
+        fieldsets.forEach(function (fs, position) {
+          fs.querySelectorAll('input').forEach(function (input) {
+            var test = options.slice();
+            test[position] = input.value;
+            var match = findVariant(test);
+            input.parentElement.classList.toggle('is-unavailable', !match || !match.available);
+          });
+          var label = fs.querySelector('[data-lodp-option-value]');
+          if (label) label.textContent = options[position] || '';
+        });
+      }
+      function onOptionChange() {
+        var options = selectedOptions();
+        var variant = findVariant(options);
+        updateAvailability(options);
+        if (errorEl) errorEl.hidden = true;
+
+        if (!variant) {
+          setButtons(false, data.tUnavailable);
+          return;
+        }
+        idInput.value = variant.id;
+        priceEl.textContent = variant.price;
+        compareEl.textContent = variant.compare || '';
+        if (barPrice) barPrice.textContent = variant.price;
+        setButtons(variant.available, variant.available ? data.tAdd : data.tSoldout);
+
+        if (skuEl) {
+          skuEl.textContent = variant.sku || '';
+          skuRow.hidden = !variant.sku;
+        }
+          var refWrap = root.querySelector('[data-lodp-ref-wrap]');
+        if (refWrap) {
+          refWrap.querySelector('[data-lodp-ref]').textContent = variant.sku || '';
+          refWrap.hidden = !variant.sku;
+        }
+        if (stockEl && stockText) {
+          var state = !variant.available ? 'soldout' : (variant.unique ? 'unique' : 'instock');
+          stockEl.dataset.state = state;
+          stockText.textContent = state === 'soldout' ? data.tSoldout : (state === 'unique' ? data.tUnique : data.tInstock);
+        }
+        showMedia(variant.media);
+
+        var url = new URL(window.location.href);
+        url.searchParams.set('variant', variant.id);
+        window.history.replaceState({}, '', url.toString());
+
+        /* Avisa os componentes da ficha (ex.: pagamento em prestações) depois de o URL já ter ?variant= */
+        root.dispatchEvent(new CustomEvent('lodp:variant-change', { detail: { variant: variant } }));
+      }
+      fieldsets.forEach(function (fs) { fs.addEventListener('change', onOptionChange); });
+      if (fieldsets.length) updateAvailability(selectedOptions());
+
+      /* ----- Quantity ----- */
+      root.querySelectorAll('[data-lodp-qty] [data-step]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var input = b.parentElement.querySelector('input');
+          input.value = Math.max(1, (parseInt(input.value, 10) || 1) + Number(b.dataset.step));
+        });
+      });
+
+      /* ----- Add to cart ----- */
+      if (form) {
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          if (!submit || submit.disabled) return;
+
+          var cart = document.querySelector('cart-drawer') || document.querySelector('cart-notification');
+          var formData = new FormData(form);
+          if (cart && typeof cart.getSectionsToRender === 'function') {
+            formData.append('sections', cart.getSectionsToRender().map(function (s) { return s.id; }).join(','));
+            formData.append('sections_url', window.location.pathname);
+            if (typeof cart.setActiveElement === 'function') cart.setActiveElement(document.activeElement);
+          }
+          var addUrl = (window.routes && window.routes.cart_add_url) || ((window.Shopify && Shopify.routes && Shopify.routes.root) || '/') + 'cart/add';
+
+          submit.classList.add('is-loading');
+          if (errorEl) errorEl.hidden = true;
+
+          fetch(addUrl, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/javascript' },
+            body: formData
+          })
+            .then(function (response) { return response.json(); })
+            .then(function (response) {
+              if (response.status) {
+                if (errorEl) {
+                  errorEl.textContent = response.description || response.message;
+                  errorEl.hidden = false;
+                }
+                return;
+              }
+              if (!cart || typeof cart.renderContents !== 'function') {
+                window.location = (window.routes && window.routes.cart_url) || '/cart';
+                return;
+              }
+              if (cart.classList.contains('is-empty')) cart.classList.remove('is-empty');
+              cart.renderContents(response);
+              if (window.publish && window.PUB_SUB_EVENTS) {
+                publish(PUB_SUB_EVENTS.cartUpdate, { source: 'lod-main-product', productVariantId: idInput.value, cartData: response });
+              }
+              submit.classList.add('is-added');
+              if (submitLabel) submitLabel.textContent = data.tAdded;
+              setTimeout(function () {
+                submit.classList.remove('is-added');
+                if (submitLabel) submitLabel.textContent = data.tAdd;
+              }, 2400);
+            })
+            .catch(function () { form.submit(); })
+            .finally(function () { submit.classList.remove('is-loading'); });
+        });
+      }
+
+      /* ----- Sticky bar ----- */
+      if (bar && submit && 'IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries) {
+          var entry = entries[0];
+          var passed = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+          bar.classList.toggle('is-visible', passed);
+          bar.setAttribute('aria-hidden', passed ? 'false' : 'true');
+          if (barSubmit) barSubmit.tabIndex = passed ? 0 : -1;
+        }).observe(submit);
+        if (barSubmit) barSubmit.addEventListener('click', function () {
+          if (form.requestSubmit) form.requestSubmit(submit); else submit.click();
+        });
+      }
+
+      /* ----- Share ----- */
+      var share = root.querySelector('[data-lodp-share]');
+      if (share) {
+        share.addEventListener('click', function () {
+          var url = window.location.href;
+          if (navigator.share) {
+            navigator.share({ title: share.dataset.title, url: url }).catch(function () {});
+          } else if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(function () {
+              var label = share.querySelector('[data-lodp-share-label]');
+              var original = label.textContent;
+              label.textContent = data.tCopied;
+              setTimeout(function () { label.textContent = original; }, 2000);
+            });
+          }
+        });
+      }
+    }
+
+    function initAll(scope) {
+      (scope || document).querySelectorAll('[data-lodp]').forEach(initProduct);
+    }
+    initAll(document);
+    document.addEventListener('shopify:section:load', function (event) { initAll(event.target); });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "LOD — Ficha de produto",
+  "tag": "div",
+  "class": "section section-lod-main-product",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "blocks": [
+    { "type": "@app" },
+    {
+      "type": "size_guide",
+      "name": "Guia de tamanhos",
+      "limit": 1,
+      "settings": [
+        { "type": "text", "id": "size_guide_text", "label": "Texto", "default": "Guia de tamanhos" }
+      ]
+    },
+    {
+      "type": "model_picker",
+      "name": "Seletor de modelos (SCX)",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "text",
+          "id": "variant_list",
+          "label": "Metacampo das variações de modelo",
+          "default": "descriptors.model_variations"
+        }
+      ]
+    },
+    {
+      "type": "custom_liquid",
+      "name": "Liquid personalizado",
+      "settings": [
+        { "type": "liquid", "id": "custom_liquid", "label": "Código Liquid" }
+      ]
+    }
+  ],
+  "settings": [
+    { "type": "header", "content": "Galeria" },
+    {
+      "type": "select",
+      "id": "media_fit",
+      "label": "Ajuste das imagens",
+      "options": [
+        { "value": "contain", "label": "Mostrar a peça inteira" },
+        { "value": "cover", "label": "Preencher o quadrado" }
+      ],
+      "default": "contain"
+    },
+    { "type": "color", "id": "media_bg", "label": "Fundo das imagens", "default": "#FFFFFF" },
+    { "type": "color", "id": "background", "label": "Fundo da secção", "default": "#FFFFFF" },
+    { "type": "header", "content": "Compra" },
+    { "type": "checkbox", "id": "show_quantity", "label": "Mostrar seletor de quantidade", "info": "Nunca aparece em peças únicas.", "default": false },
+    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Mostrar botões de pagamento rápido", "default": true },
+    { "type": "url", "id": "size_guide_url", "label": "Página do guia de tamanhos", "info": "Vazio = /pages/guia-de-tamanhos" },
+    { "type": "checkbox", "id": "show_sticky_bar", "label": "Barra de compra fixa no telemóvel", "default": true },
+    {
+      "type": "range",
+      "id": "sticky_offset",
+      "label": "Distância do topo (coluna fixa)",
+      "min": 0,
+      "max": 200,
+      "step": 4,
+      "unit": "px",
+      "default": 120
+    },
+    { "type": "header", "content": "Pagamento em prestações" },
+    {
+      "type": "paragraph",
+      "content": "Klarna (3x sem juros) e seQura por baixo do preço. A TAEG de cada plano seQura com custos vem da seQura e fica sempre à vista; sem resposta da seQura, a linha seQura não aparece. Textos vazios = texto da casa em 6 línguas. Textos próprios: sem valores, «sem custos» nem «grátis» sem parecer jurídico."
+    },
+    { "type": "checkbox", "id": "inst_enabled", "label": "Mostrar pagamento em prestações", "default": true },
+    {
+      "type": "select",
+      "id": "inst_order",
+      "label": "Ordem das linhas",
+      "options": [
+        { "value": "klarna", "label": "Klarna primeiro" },
+        { "value": "sequra", "label": "seQura primeiro" }
+      ],
+      "default": "klarna"
+    },
+    { "type": "text", "id": "inst_label", "label": "Título do bloco", "info": "Vazio = «Pagamento em prestações». No telemóvel o título fica só para leitores de ecrã." },
+    {
+      "type": "text",
+      "id": "inst_excluded_collections",
+      "label": "Coleções sem prestações",
+      "default": "moedas-de-investimento",
+      "info": "Identificadores (handles) separados por vírgulas. Por omissão a coleção «Investimento» (libras, moedas e barras de ouro de investimento)."
+    },
+    {
+      "type": "text",
+      "id": "inst_excluded_tags",
+      "label": "Etiquetas sem prestações",
+      "default": "voucher, ouro-investimento, sem-prestacoes",
+      "info": "Separadas por vírgulas. Os cartões-oferta Shopify ficam sempre de fora."
+    },
+    {
+      "type": "text",
+      "id": "inst_excluded_types",
+      "label": "Tipos de produto sem prestações",
+      "default": "Voucher, Gift, Gift Message, wrapin",
+      "info": "Separados por vírgulas (tipo de produto da Shopify)."
+    },
+    {
+      "type": "checkbox",
+      "id": "inst_warning",
+      "label": "Mostrar aviso «Atenção! Pedir dinheiro emprestado custa dinheiro.»",
+      "default": false,
+      "info": "Diretiva (UE) 2023/2225, aplicável a partir de 20-11-2026. Ligar nessa data ou quando a lei portuguesa for publicada."
+    },
+    { "type": "text", "id": "inst_warning_text", "label": "Texto do aviso", "info": "Vazio = texto oficial em cada língua." },
+    { "type": "header", "content": "Klarna — 3x sem juros" },
+    { "type": "checkbox", "id": "inst_klarna", "label": "Mostrar Klarna", "default": true },
+    {
+      "type": "select",
+      "id": "inst_klarna_mode",
+      "label": "Klarna: formato do texto",
+      "options": [
+        { "value": "simple", "label": "3x [valor] sem juros" },
+        { "value": "ccd", "label": "Com TAN, TAEG e crédito (Diretiva)" }
+      ],
+      "default": "simple",
+      "info": "Diretiva (UE) 2023/2225: mudar para a 2.ª opção (e ligar o aviso) quando a lei portuguesa entrar em vigor."
+    },
+    { "type": "text", "id": "inst_klarna_text", "label": "Texto Klarna (próprio)", "info": "[valor] = preço ÷ 3 (para baixo, como a Klarna); [credito] = preço − 1.º pagamento. Vazio = texto da casa. «Saber mais» abre o diálogo da loja com link para a Klarna." },
+    { "type": "number", "id": "inst_klarna_min", "label": "Klarna: valor mínimo (€)", "default": 35 },
+    { "type": "number", "id": "inst_klarna_max", "label": "Klarna: valor máximo (€)", "default": 1000, "info": "Acima de 1000 € a Klarna só tem «Paga depois». Medido a 02-11-2026; confirmar no portal Klarna (a ficha usa só estes limites)." },
+    { "type": "text", "id": "inst_klarna_countries", "label": "Klarna: países", "default": "PT, ES", "info": "Códigos de país separados por vírgulas. Só em euros." },
+    { "type": "header", "content": "seQura — prestações" },
+    { "type": "checkbox", "id": "inst_sequra", "label": "Mostrar seQura", "default": true },
+    { "type": "number", "id": "inst_sequra_max_n", "label": "seQura: n.º máximo de prestações", "default": 12, "info": "Mostrado logo com a página; a seQura confirma o número quando responde. A conta tem hoje 3x (sem custos), 6x, 9x e 12x (com custos)." },
+    { "type": "text", "id": "inst_sequra_text", "label": "Texto seQura (com a Klarna por cima)", "info": "[n] = n.º máximo de prestações. Vazio = «Ou pague em até [n]x». Sem valores nem «sem custos» sem parecer jurídico." },
+    { "type": "text", "id": "inst_sequra_text_solo", "label": "Texto seQura (sozinha)", "info": "Sem a linha Klarna. Vazio = «Pague em até [n]x»." },
+    {
+      "type": "select",
+      "id": "inst_sequra_logo",
+      "label": "Logótipo seQura",
+      "options": [
+        { "value": "color", "label": "Standard (verde-água)" },
+        { "value": "black", "label": "Preto" }
+      ],
+      "default": "color"
+    },
+    { "type": "textarea", "id": "inst_sequra_lender", "label": "Mutuante e intermediário de crédito (no «Saber mais»)", "info": "Vazio = SVEA Bank AB e Lendismart Unipessoal Lda (BdP n.º 0006212), como no pop-up oficial. Confirmar com a seQura." },
+    { "type": "number", "id": "inst_sequra_min", "label": "seQura: valor mínimo (€)", "default": 50 },
+    { "type": "number", "id": "inst_sequra_max", "label": "seQura: valor máximo (€)", "default": 3000, "info": "Máximo financiado pela seQura. Acima disto o excedente vai na 1.ª prestação." },
+    { "type": "text", "id": "inst_sequra_countries", "label": "seQura: países", "default": "PT", "info": "A conta seQura só está ativa para Portugal." },
+    { "type": "text", "id": "inst_sequra_product", "label": "seQura: código do produto", "default": "pp3", "info": "Só mudar se a seQura ativar outro produto (ex.: campanha 10x)." },
+    { "type": "text", "id": "inst_sequra_merchant", "label": "seQura: referência do comerciante", "default": "lojadoouro_sv_pt", "info": "Igual à da app seQura. Com a referência e a chave, a ficha pede a biblioteca seQura logo no início (mais rápido). Vazio = esperar pela app seQura." },
+    { "type": "text", "id": "inst_sequra_asset_key", "label": "seQura: chave pública (assetKey)", "default": "H2V0Emas_e", "info": "Chave pública que a app seQura já publica no site. Se a seQura a mudar, atualizar aqui ou deixar vazio." },
+    { "type": "header", "content": "Serviço premium" },
+    { "type": "checkbox", "id": "show_services", "label": "Mostrar serviços (certificado, garantia, envio, oferta)", "default": true },
+    { "type": "checkbox", "id": "show_concierge", "label": "Mostrar consultoria privada", "default": true },
+    { "type": "text", "id": "whatsapp_number", "label": "Número WhatsApp", "info": "Com indicativo, sem espaços. Ex.: 351910508303", "default": "351910508303" },
+    { "type": "text", "id": "phone", "label": "Telefone", "default": "+351 244 835 486" },
+    { "type": "checkbox", "id": "show_signature", "label": "Mostrar faixa \"A assinatura\"", "default": true },
+    { "type": "header", "content": "Espaçamento" },
+    { "type": "range", "id": "padding_top", "label": "Espaço superior", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 32 },
+    { "type": "range", "id": "padding_bottom", "label": "Espaço inferior", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 72 }
+  ],
+  "presets": [
+    { "name": "LOD — Ficha de produto" }
+  ]
+}
+{% endschema %}

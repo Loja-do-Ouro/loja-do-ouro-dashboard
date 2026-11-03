@@ -1,0 +1,39 @@
+{%- comment -%}
+  Natal 2026 — escreve uma data das definições em português.
+  {%- render 'lod-natal-data', valor: settings.natal_limite_continente, formato: 'longo' -%}
+  formato: longo  → sexta, 18 de dezembro
+           curto  → 18 de dezembro
+           abrev  → 18 dez.
+           hora   → 24 de dezembro, 13h
+           ano    → 15 de janeiro de 2027
+{%- endcomment -%}
+{%- liquid
+  if valor == blank
+    break
+  endif
+  assign dias = 'domingo,segunda,terça,quarta,quinta,sexta,sábado' | split: ','
+  assign meses = ',janeiro,fevereiro,março,abril,maio,junho,julho,agosto,setembro,outubro,novembro,dezembro' | split: ','
+  assign mabr = ',jan.,fev.,mar.,abr.,mai.,jun.,jul.,ago.,set.,out.,nov.,dez.' | split: ','
+  assign w = valor | date: '%w' | plus: 0
+  assign d = valor | date: '%-d'
+  assign m = valor | date: '%-m' | plus: 0
+  assign h = valor | date: '%-H'
+  assign mi = valor | date: '%M'
+  case formato
+    when 'longo'
+      echo dias[w] | append: ', ' | append: d | append: ' de ' | append: meses[m]
+    when 'abrev'
+      echo d | append: ' ' | append: mabr[m]
+    when 'hora'
+      assign hh = h | append: 'h'
+      if mi != '00'
+        assign hh = h | append: 'h' | append: mi
+      endif
+      echo d | append: ' de ' | append: meses[m] | append: ', ' | append: hh
+    when 'ano'
+      assign ano = valor | date: '%Y'
+      echo d | append: ' de ' | append: meses[m] | append: ' de ' | append: ano
+    else
+      echo d | append: ' de ' | append: meses[m]
+  endcase
+-%}

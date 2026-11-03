@@ -1,0 +1,336 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — banner principal.
+  Fotografia + cartão em vidro (estilo do banner «O universo do ouro»), com a mensagem de cada fase.
+  Esquemas: «foto-esquerda» (a foto ocupa ~2/3 e o cartão fica sobre a continuação desfocada da foto;
+  não tapa ninguém) e «foto-inteira» (foto a toda a largura e cartão por cima, como no banner do ouro).
+  Uma mensagem por fase (blocos); o servidor escolhe a fase e o navegador confirma-a com window.LOD_NATAL.
+{%- endcomment -%}
+{%- liquid
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+  assign mostrar = true
+  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
+    assign mostrar = false
+  endif
+  if request.design_mode
+    assign mostrar = true
+  endif
+
+  capture d_cont
+    render 'lod-natal-data', valor: settings.natal_limite_continente, formato: 'longo'
+  endcapture
+  capture d_loja
+    render 'lod-natal-data', valor: settings.natal_limite_loja, formato: 'hora'
+  endcapture
+  capture d_reis
+    render 'lod-natal-data', valor: settings.natal_limite_reis, formato: 'longo'
+  endcapture
+  capture d_retoma
+    render 'lod-natal-data', valor: settings.natal_retoma_envios, formato: 'longo'
+  endcapture
+  capture d_trocas
+    render 'lod-natal-data', valor: settings.natal_trocas_ate, formato: 'curto'
+  endcapture
+  capture d_gravacao
+    render 'lod-natal-data', valor: settings.natal_limite_gravacao, formato: 'longo'
+  endcapture
+  assign wa = settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+'
+
+  assign img_d = section.settings.imagem
+  assign img_m = section.settings.imagem_telemovel | default: section.settings.imagem
+  assign esquema = section.settings.esquema
+  assign tag_titulo = 'h2'
+  if section.settings.titulo_h1
+    assign tag_titulo = 'h1'
+  endif
+
+  assign fase_mostrada = lnat_fase
+  assign tem_fase = false
+  for block in section.blocks
+    if block.settings.fase == lnat_fase
+      assign tem_fase = true
+    endif
+  endfor
+  unless tem_fase
+    assign fase_mostrada = section.blocks.first.settings.fase
+  endunless
+-%}
+{%- if mostrar -%}
+<section
+  class="lnat lnat-hero lnat-hero--{{ esquema }} lnat-hero--cartao-{{ section.settings.lado_cartao }}{% unless section.settings.mostrar_no_telemovel %} lnat-hero--sem-tel{% endunless %}"
+  id="lnat-hero-{{ section.id }}"
+  data-fase-servidor="{{ lnat_fase }}"
+  style="--lnat-hero-x: {{ section.settings.foco_x }}%; --lnat-hero-y: {{ section.settings.foco_y }}%; --lnat-hero-ym: {{ section.settings.foco_y_tel }}%;"
+>
+  {%- if request.design_mode and lnat_fase == 'antes' -%}
+    <p class="lnat-hero__aviso-editor">Pré-visualização no editor: no site esta secção aparece a partir de {% render 'lod-natal-data', valor: settings.natal_inicio, formato: 'curto' %}. Fase simulada: {{ fase_mostrada }}.</p>
+  {%- endif -%}
+
+  <div class="lnat-hero__palco">
+    {%- if img_d -%}
+      <div class="lnat-hero__desfoque" aria-hidden="true">
+        {{ img_d | image_url: width: 480 | image_tag: loading: 'eager', alt: '', class: 'lnat-hero__desfoque-img' }}
+      </div>
+      <div class="lnat-hero__foto">
+        <picture>
+          {%- if img_m -%}
+            <source media="(max-width: 749px)" srcset="{{ img_m | image_url: width: 560 }} 560w, {{ img_m | image_url: width: 750 }} 750w, {{ img_m | image_url: width: 1000 }} 1000w" sizes="100vw">
+          {%- endif -%}
+          {{ img_d | image_url: width: 1800 | image_tag: loading: 'eager', fetchpriority: 'high', widths: '960, 1200, 1500, 1800', sizes: '(min-width: 750px) 70vw, 100vw', alt: section.settings.alt | escape, class: 'lnat-hero__foto-img' }}
+        </picture>
+      </div>
+    {%- else -%}
+      <div class="lnat-hero__foto lnat-hero__foto--vazia lnat-azulejo-escuro">
+        {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 220, traco: 0.8 -%}
+      </div>
+    {%- endif -%}
+    <div class="lnat-hero__veu" aria-hidden="true"></div>
+
+    <div class="lnat-hero__interior">
+      <div class="lnat-hero__cartao">
+        {%- if section.settings.mostrar_estrela -%}
+          <span class="lnat-hero__estrela">{%- render 'lod-natal-icon', nome: 'estrela', tamanho: 52, traco: 1.4 -%}</span>
+        {%- endif -%}
+
+        {%- for block in section.blocks -%}
+          {%- liquid
+            assign b = block.settings
+            assign chip = b.chip | replace: '{continente}', d_cont | replace: '{loja}', d_loja | replace: '{reis}', d_reis | replace: '{retoma}', d_retoma | replace: '{trocas}', d_trocas | replace: '{gravacao}', d_gravacao | replace: '{contagem}', '<span class="lnat-hero__falta" data-lnat-falta="continente">—</span>'
+            assign texto = b.texto | replace: '{continente}', d_cont | replace: '{loja}', d_loja | replace: '{reis}', d_reis | replace: '{retoma}', d_retoma | replace: '{trocas}', d_trocas | replace: '{gravacao}', d_gravacao
+            assign id_titulo = 'lnat-hero-t-' | append: block.id
+          -%}
+          <div class="lnat-hero__fase" data-fase="{{ b.fase }}" {{ block.shopify_attributes }}{% unless b.fase == fase_mostrada %} hidden{% endunless %}>
+            {%- if b.eyebrow != blank -%}<p class="lnat-hero__eb"><span aria-hidden="true"></span>{{ b.eyebrow }}</p>{%- endif -%}
+            <{{ tag_titulo }} class="lnat-hero__titulo" id="{{ id_titulo }}">{{ b.titulo }}</{{ tag_titulo }}>
+            {%- if texto != blank -%}<p class="lnat-hero__texto">{{ texto }}</p>{%- endif -%}
+            {%- if chip != blank -%}
+              <p class="lnat-hero__chip">{%- render 'lod-natal-icon', nome: 'sapatinho', tamanho: 20, traco: 2 -%}<span>{{ chip }}</span></p>
+            {%- endif -%}
+            {%- if b.botao1_texto != blank or b.botao2_texto != blank -%}
+              <div class="lnat-hero__btns">
+                {%- if b.botao1_texto != blank -%}
+                  {%- liquid
+                    assign url1 = b.botao1_url | default: '#siga-a-estrela'
+                    if b.botao1_whatsapp
+                      assign msg = b.mensagem_whatsapp | url_encode
+                      assign url1 = 'https://wa.me/' | append: wa | append: '?text=' | append: msg
+                    endif
+                  -%}
+                  <a class="lnat-hero__btn lnat-hero__btn--ouro" href="{{ url1 }}"{% if b.botao1_whatsapp %} target="_blank" rel="noopener"{% endif %}>
+                    {%- if b.botao1_whatsapp -%}{%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}{%- endif -%}
+                    <span>{{ b.botao1_texto }}</span>{%- render 'lod-natal-icon', nome: 'seta', tamanho: 18 -%}
+                  </a>
+                {%- endif -%}
+                {%- if b.botao2_texto != blank -%}
+                  <a class="lnat-hero__btn lnat-hero__btn--vidro" href="{{ b.botao2_url | default: '#prazos' }}"><span>{{ b.botao2_texto }}</span></a>
+                {%- endif -%}
+              </div>
+            {%- endif -%}
+          </div>
+        {%- endfor -%}
+
+        {%- if section.settings.assinatura != blank -%}
+          <p class="lnat-hero__assinatura"><span aria-hidden="true">◇</span>{{ section.settings.assinatura }}</p>
+        {%- endif -%}
+      </div>
+    </div>
+
+    {%- if section.settings.marca_lateral != blank -%}
+      <div class="lnat-hero__lateral" aria-hidden="true">{{ section.settings.marca_lateral }}</div>
+    {%- endif -%}
+  </div>
+
+  {%- assign linhas = section.settings.faixa | newline_to_br | split: '<br />' -%}
+  {%- if section.settings.faixa != blank -%}
+    <div class="lnat-hero__faixa">
+      <ul class="lnat-hero__faixa-lista" role="list">
+        {%- for l in linhas -%}
+          {%- assign l2 = l | strip -%}
+          {%- if l2 != blank -%}<li>{{ l2 }}</li>{%- endif -%}
+        {%- endfor -%}
+      </ul>
+    </div>
+  {%- endif -%}
+</section>
+
+<style>
+  .lnat-hero{--hero-h:clamp(620px,48vw,780px);--foto-w:66%;background:var(--lnat-verde-2);color:var(--lnat-papel);overflow:hidden;isolation:isolate}
+  .lnat-hero__aviso-editor{margin:0;padding:8px 16px;background:#fff3cd;color:#3d2f00;font-size:13px}
+  .lnat-hero__palco{position:relative;min-height:var(--hero-h)}
+  .lnat-hero__desfoque{position:absolute;inset:0;overflow:hidden;z-index:0}
+  .lnat-hero__desfoque-img{width:100%;height:100%;object-fit:cover;object-position:var(--lnat-hero-x) var(--lnat-hero-y);filter:blur(34px) saturate(1.05);transform:scale(1.18)}
+  .lnat-hero__foto{position:absolute;top:0;bottom:0;left:0;width:var(--foto-w);z-index:1}
+  .lnat-hero__foto picture,.lnat-hero__foto-img{display:block;width:100%;height:100%}
+  .lnat-hero__foto-img{object-fit:cover;object-position:var(--lnat-hero-x) var(--lnat-hero-y);transform:scale(1.005);transition:transform 8s cubic-bezier(.2,.65,.25,1)}
+  .lnat-hero--foto-esquerda .lnat-hero__foto{-webkit-mask-image:linear-gradient(90deg,#000 0,#000 80%,transparent 100%);mask-image:linear-gradient(90deg,#000 0,#000 80%,transparent 100%)}
+  .lnat-hero--foto-esquerda.lnat-hero--cartao-esquerda .lnat-hero__foto{left:auto;right:0;-webkit-mask-image:linear-gradient(270deg,#000 0,#000 80%,transparent 100%);mask-image:linear-gradient(270deg,#000 0,#000 80%,transparent 100%)}
+  .lnat-hero--foto-inteira .lnat-hero__foto{width:100%}
+  .lnat-hero--foto-inteira .lnat-hero__desfoque{display:none}
+  .lnat-hero__foto--vazia{display:flex;align-items:center;justify-content:center;color:var(--lnat-ouro);background-color:var(--lnat-verde)}
+  @media (hover:hover){.lnat-hero:hover .lnat-hero__foto-img{transform:scale(1.03)}}
+  .lnat-hero__veu{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(90deg,rgba(12,39,29,0) 0%,rgba(12,39,29,0) 52%,rgba(12,39,29,.42) 72%,rgba(12,39,29,.62) 100%),linear-gradient(180deg,rgba(8,6,5,0) 60%,rgba(8,6,5,.22) 100%)}
+  .lnat-hero--cartao-esquerda .lnat-hero__veu{background:linear-gradient(270deg,rgba(12,39,29,0) 0%,rgba(12,39,29,0) 52%,rgba(12,39,29,.42) 72%,rgba(12,39,29,.62) 100%),linear-gradient(180deg,rgba(8,6,5,0) 60%,rgba(8,6,5,.22) 100%)}
+  .lnat-hero__interior{position:relative;z-index:3;width:min(92%,1600px);min-height:var(--hero-h);margin:0 auto;display:flex;align-items:center;justify-content:flex-end;padding:40px 0}
+  .lnat-hero--cartao-esquerda .lnat-hero__interior{justify-content:flex-start}
+  .lnat-hero__cartao{position:relative;width:min(520px,38%);padding:clamp(28px,3vw,44px);border-radius:28px;background:linear-gradient(160deg,rgba(16,50,38,.80) 0%,rgba(16,50,38,.68) 50%,rgba(12,39,29,.58) 100%);border:1px solid rgba(229,201,142,.24);box-shadow:0 24px 64px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+  .lnat-hero__estrela{display:block;color:var(--lnat-ouro);margin-bottom:18px}
+  .lnat-hero__eb{display:inline-flex;align-items:center;gap:14px;margin:0 0 16px;font:600 11.5px/1.2 var(--lnat-sans);letter-spacing:.24em;text-transform:uppercase;color:var(--lnat-ouro-claro)}
+  .lnat-hero__eb span{display:block;width:38px;height:1px;background:linear-gradient(90deg,var(--lnat-ouro-velho),var(--lnat-ouro-claro))}
+  .lnat-hero__titulo{margin:0;font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:clamp(44px,4.4vw,68px);line-height:1.02;letter-spacing:-.01em;color:#fff;text-wrap:balance;text-shadow:0 8px 24px rgba(0,0,0,.15)}
+  .lnat-hero__texto{margin:20px 0 0;max-width:440px;font-size:clamp(15.5px,1.1vw,17.5px);line-height:1.62;font-weight:400;color:rgba(255,253,250,.88)}
+  .lnat-hero__chip{display:flex;align-items:flex-start;gap:10px;margin:22px 0 0;padding:11px 14px;background:var(--lnat-vermelho);box-shadow:inset 0 0 0 1px rgba(229,201,142,.32);border-radius:12px;color:var(--lnat-papel);font-size:14.5px;line-height:21px}
+  .lnat-hero__chip svg{color:var(--lnat-ouro-claro);margin-top:1px}
+  .lnat-hero__chip b,.lnat-hero__chip strong{font-weight:600;color:#fff}
+  .lnat-hero__falta{font-family:var(--lnat-cond);font-size:16px;letter-spacing:.04em;font-variant-numeric:tabular-nums;color:var(--lnat-ouro-claro)}
+  .lnat-hero__btns{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+  .lnat-hero__btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:54px;padding:0 26px;border-radius:999px;font:600 12px/1 var(--lnat-sans);letter-spacing:.16em;text-transform:uppercase;text-decoration:none!important;transition:transform .35s ease,background .35s ease,border-color .35s ease,color .35s ease}
+  .lnat-hero__btn svg{transition:transform .35s ease}
+  .lnat-hero__btn:hover{transform:translateY(-2px)}
+  .lnat-hero__btn:hover svg:last-child{transform:translateX(4px)}
+  .lnat-hero__btn--ouro{background:linear-gradient(135deg,#d4a45f 0%,#b98747 100%);color:var(--lnat-tinta)!important;border:1px solid #d4a45f;box-shadow:0 12px 30px rgba(0,0,0,.18)}
+  .lnat-hero__btn--vidro{border:1px solid rgba(229,201,142,.55);background:linear-gradient(135deg,rgba(197,154,87,.16),rgba(197,154,87,.06));color:#fff!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .lnat-hero__btn--vidro:hover{background:rgba(229,201,142,.18)}
+  .lnat-hero__btn:focus-visible{outline:2px solid var(--lnat-ouro-claro);outline-offset:3px}
+  .lnat-hero__assinatura{display:flex;align-items:center;gap:9px;margin:22px 0 0;font:500 9.5px/1 var(--lnat-sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(255,253,250,.55)}
+  .lnat-hero__assinatura span{color:var(--lnat-ouro-claro);font-size:15px}
+  .lnat-hero__lateral{position:absolute;z-index:3;right:24px;bottom:36px;writing-mode:vertical-rl;transform:rotate(180deg);font:500 8.5px/1 var(--lnat-sans);letter-spacing:.3em;text-transform:uppercase;color:rgba(255,253,250,.4)}
+  .lnat-hero__faixa{position:relative;z-index:4;background:var(--lnat-tinta);border-top:1px solid rgba(229,201,142,.18)}
+  .lnat-hero__faixa-lista{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 0;margin:0 auto;padding:15px var(--lnat-gutter);list-style:none;max-width:1600px}
+  .lnat-hero__faixa-lista li{display:flex;align-items:center;font:500 12.5px/1.4 var(--lnat-sans);letter-spacing:.06em;color:rgba(255,253,250,.82)}
+  .lnat-hero__faixa-lista li+li::before{content:"";width:5px;height:5px;margin:0 18px;transform:rotate(45deg);background:var(--lnat-ouro)}
+  @media screen and (max-width:1080px){
+    .lnat-hero{--hero-h:640px;--foto-w:60%}
+    .lnat-hero__cartao{width:min(470px,46%)}
+    .lnat-hero__titulo{font-size:clamp(40px,5.2vw,58px)}
+  }
+  @media screen and (max-width:749px){
+    .lnat-hero--sem-tel{display:none}
+    .lnat-hero__palco{min-height:0;display:flex;flex-direction:column}
+    .lnat-hero__desfoque{display:none}
+    .lnat-hero__foto,.lnat-hero--foto-esquerda .lnat-hero__foto,.lnat-hero--foto-esquerda.lnat-hero--cartao-esquerda .lnat-hero__foto{position:relative;width:100%;height:auto;aspect-ratio:4/5;-webkit-mask-image:none;mask-image:none;left:0;right:auto}
+    .lnat-hero__foto-img{object-position:center var(--lnat-hero-ym);transform:none!important}
+    .lnat-hero__veu,.lnat-hero--cartao-esquerda .lnat-hero__veu{bottom:auto;height:calc(100vw * 1.25);background:linear-gradient(180deg,rgba(12,39,29,0) 0%,rgba(12,39,29,0) 62%,rgba(12,39,29,.55) 88%,rgba(12,39,29,.9) 100%)}
+    .lnat-hero__interior{width:100%;min-height:0;padding:0 10px 14px;margin-top:-96px;display:block}
+    .lnat-hero__cartao{width:100%;padding:22px 18px 20px;border-radius:22px;background:linear-gradient(180deg,rgba(16,50,38,.80) 0%,rgba(16,50,38,.95) 40%,rgba(12,39,29,.98) 100%)}
+    .lnat-hero__estrela{margin-bottom:12px}
+    .lnat-hero__estrela svg{width:40px;height:40px}
+    .lnat-hero__eb{font-size:10px;letter-spacing:.2em;margin-bottom:10px}
+    .lnat-hero__eb span{width:26px}
+    .lnat-hero__titulo{font-size:clamp(34px,10vw,42px);line-height:1.04}
+    .lnat-hero__texto{margin-top:14px;font-size:15px;line-height:1.55}
+    .lnat-hero__chip{margin-top:16px;font-size:14px;line-height:20px}
+    .lnat-hero__btns{margin-top:18px;flex-direction:column;gap:10px}
+    .lnat-hero__btn{width:100%;min-height:52px;font-size:11.5px;letter-spacing:.13em}
+    .lnat-hero__assinatura{margin-top:16px}
+    .lnat-hero__lateral{display:none}
+    .lnat-hero__faixa-lista{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:13px 16px}
+    .lnat-hero__faixa-lista::-webkit-scrollbar{display:none}
+    .lnat-hero__faixa-lista li{flex:0 0 auto;scroll-snap-align:start;font-size:12px}
+  }
+  @media (prefers-reduced-motion:reduce){.lnat-hero__foto-img{transition:none;transform:none!important}}
+</style>
+
+<script>
+(function(){
+  var raiz = document.getElementById('lnat-hero-{{ section.id }}');
+  if (!raiz || raiz.dataset.lnatPronto) return;
+  raiz.dataset.lnatPronto = '1';
+  var N = window.LOD_NATAL;
+  if (!N) return;
+  var editor = {{ request.design_mode | json }};
+  var fase = N.fase();
+  if (!editor && (fase === 'off' || fase === 'antes' || fase === 'fim')) { raiz.hidden = true; return; }
+  var fases = raiz.querySelectorAll('.lnat-hero__fase');
+  var alvo = null;
+  fases.forEach(function(el){ if (el.dataset.fase === fase) alvo = el; });
+  if (alvo) fases.forEach(function(el){ el.hidden = el !== alvo; });
+  var faltas = raiz.querySelectorAll('[data-lnat-falta]');
+  function contar(){
+    faltas.forEach(function(el){
+      var chave = el.getAttribute('data-lnat-falta');
+      var f = N.falta(N.d[chave]);
+      el.textContent = f.ms <= 0 ? 'hoje' : (f.d > 0 ? f.d + ' d ' : '') + f.h + ' h ' + f.m + ' min';
+    });
+  }
+  if (faltas.length) { contar(); setInterval(contar, 30000); }
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Banner principal",
+  "tag": "div",
+  "class": "lnat-hero-secao",
+  "max_blocks": 8,
+  "settings": [
+    { "type": "header", "content": "Fotografia" },
+    { "type": "image_picker", "id": "imagem", "label": "Imagem (computador)" },
+    { "type": "image_picker", "id": "imagem_telemovel", "label": "Imagem (telemóvel)", "info": "Vertical. Se ficar vazia, usa a do computador." },
+    { "type": "text", "id": "alt", "label": "Descrição da imagem (acessibilidade)", "default": "Três mulheres de diferentes gerações, de fato creme, com joias em ouro, junto a uma árvore de Natal." },
+    {
+      "type": "select", "id": "esquema", "label": "Esquema",
+      "options": [
+        { "value": "foto-esquerda", "label": "Foto ao lado do cartão (não tapa as pessoas)" },
+        { "value": "foto-inteira", "label": "Foto a toda a largura, cartão por cima" }
+      ],
+      "default": "foto-esquerda"
+    },
+    {
+      "type": "select", "id": "lado_cartao", "label": "Lado do cartão",
+      "options": [ { "value": "direita", "label": "Direita" }, { "value": "esquerda", "label": "Esquerda" } ],
+      "default": "direita"
+    },
+    { "type": "range", "id": "foco_x", "min": 0, "max": 100, "step": 1, "unit": "%", "label": "Ponto de foco horizontal (computador)", "info": "100% corta mais do lado esquerdo da foto (onde está a placa).", "default": 100 },
+    { "type": "range", "id": "foco_y", "min": 0, "max": 100, "step": 1, "unit": "%", "label": "Ponto de foco vertical (computador)", "default": 30 },
+    { "type": "range", "id": "foco_y_tel", "min": 0, "max": 100, "step": 1, "unit": "%", "label": "Ponto de foco vertical (telemóvel)", "default": 20 },
+    { "type": "header", "content": "Cartão" },
+    { "type": "checkbox", "id": "mostrar_estrela", "label": "Mostrar estrela de filigrana", "default": true },
+    { "type": "checkbox", "id": "titulo_h1", "label": "Título como H1 (título principal da página)", "default": true },
+    { "type": "text", "id": "assinatura", "label": "Assinatura pequena", "default": "Seleção Loja do Ouro" },
+    { "type": "text", "id": "marca_lateral", "label": "Texto vertical (computador)", "default": "Loja do Ouro · Natal 2026" },
+    { "type": "textarea", "id": "faixa", "label": "Faixa de baixo (uma frase por linha)", "default": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\nGarantia legal de 3 anos\n13 lojas em Portugal, levantamento com marcação" },
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true },
+    { "type": "paragraph", "content": "Nos textos pode usar {continente}, {loja}, {reis}, {retoma}, {trocas}, {gravacao} (datas das definições do tema › Natal 2026) e {contagem} (tempo que falta para o prazo do continente)." }
+  ],
+  "blocks": [
+    {
+      "type": "fase",
+      "name": "Mensagem de uma fase",
+      "settings": [
+        {
+          "type": "select", "id": "fase", "label": "Fase",
+          "options": [
+            { "value": "ouro", "label": "1 · Ouro — escolher (1–13 dez)" },
+            { "value": "incenso", "label": "2 · Incenso — a tempo (14 dez → prazo do continente)" },
+            { "value": "ultima", "label": "3 · Última hora (até 24 dez, 13h)" },
+            { "value": "consoada", "label": "Consoada (24–25 dez)" },
+            { "value": "mirra", "label": "4 · Mirra — dos Reis (26 dez – 6 jan)" }
+          ],
+          "default": "ouro"
+        },
+        { "type": "text", "id": "eyebrow", "label": "Texto pequeno por cima", "default": "Natal 2026 · Ouro de Reis" },
+        { "type": "text", "id": "titulo", "label": "Título", "default": "O primeiro presente de Natal foi ouro." },
+        { "type": "inline_richtext", "id": "texto", "label": "Texto" },
+        { "type": "inline_richtext", "id": "chip", "label": "Faixa vermelha (prazo)" },
+        { "type": "text", "id": "botao1_texto", "label": "Botão principal" },
+        { "type": "url", "id": "botao1_url", "label": "Ligação do botão principal" },
+        { "type": "checkbox", "id": "botao1_whatsapp", "label": "Botão principal abre o WhatsApp", "default": false },
+        { "type": "text", "id": "mensagem_whatsapp", "label": "Mensagem pré-escrita do WhatsApp", "default": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas." },
+        { "type": "text", "id": "botao2_texto", "label": "Botão secundário" },
+        { "type": "url", "id": "botao2_url", "label": "Ligação do botão secundário" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Natal · Banner principal",
+      "blocks": [
+        { "type": "fase", "settings": { "fase": "ouro", "eyebrow": "Natal 2026 · Ouro de Reis", "titulo": "O primeiro presente de Natal foi ouro.", "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família.", "chip": "Chega antes do Natal: encomende até <b>{continente}</b> · Portugal continental", "botao1_texto": "Encontrar a prenda", "botao2_texto": "Corações de Viana" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

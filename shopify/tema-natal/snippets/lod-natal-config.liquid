@@ -1,0 +1,165 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — base comum (renderizado uma vez no <head> de layout/theme.liquid).
+  Cores, letra de acento (biblioteca de letras da Shopify, sem Google Fonts), classes partilhadas
+  e o motor de datas window.LOD_NATAL (hora de Lisboa).
+{%- endcomment -%}
+{%- liquid
+  assign lnat_fonte = settings.natal_fonte_acento
+  if lnat_fonte
+    assign lnat_fonte_it = lnat_fonte | font_modify: 'style', 'italic'
+  endif
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_sim = ''
+  if settings.natal_data_simulada != blank and theme.role != 'main'
+    assign lnat_sim = settings.natal_data_simulada | strip
+  endif
+-%}
+<style>
+  {%- if lnat_fonte -%}
+    {{ lnat_fonte | font_face: font_display: 'swap' }}
+    {%- if lnat_fonte_it -%}{{ lnat_fonte_it | font_face: font_display: 'swap' }}{%- endif -%}
+  {%- endif -%}
+  :root{
+    --lnat-tinta:#0b0b09;--lnat-verde:#103226;--lnat-verde-2:#0c271d;--lnat-ouro:#bc914c;--lnat-ouro-claro:#e5c98e;--lnat-ouro-velho:#7d5a22;
+    --lnat-papel:#fffdfa;--lnat-linho:#f6efe2;--lnat-texto:#292720;--lnat-cinza:#746e64;--lnat-cinza-linho:#6b655b;--lnat-cinza-noite:#a39b8e;
+    --lnat-linha:#e3d9c6;--lnat-vermelho:#70120f;
+    --lnat-serif:{% if lnat_fonte %}{{ lnat_fonte.family }},{% endif %}'Cormorant',Georgia,serif;
+    --lnat-sans:var(--font-body-family,'Work Sans'),system-ui,sans-serif;
+    --lnat-cond:var(--font-heading-family,'Oswald'),'Arial Narrow',sans-serif;
+    --lnat-gutter:clamp(16px,5.5vw,80px);
+    --lnat-sec:clamp(56px,7.8vw,112px);
+  }
+  .lnat{font-family:var(--lnat-sans);color:var(--lnat-texto);-webkit-font-smoothing:antialiased;position:relative}
+  .lnat *,.lnat *::before,.lnat *::after{box-sizing:border-box}
+  .lnat[hidden],.lnat [hidden]{display:none!important}
+  .lnat-wrap{width:100%;max-width:calc(1280px + 2 * var(--lnat-gutter));margin:0 auto;padding:0 var(--lnat-gutter)}
+  .lnat-sec{padding:var(--lnat-sec) 0}
+  .lnat-bg-papel{background:var(--lnat-papel)}
+  .lnat-bg-linho{background:var(--lnat-linho)}
+  .lnat-bg-tinta{background:var(--lnat-tinta);color:var(--lnat-papel)}
+  .lnat-bg-verde{background:var(--lnat-verde);color:var(--lnat-papel)}
+  .lnat-azulejo-linho{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' fill='none' stroke='%237d5a22' stroke-opacity='.09' stroke-width='1'%3E%3Cpath d='M32 0A32 32 0 0 1 0 32M32 0A32 32 0 0 0 64 32M0 32A32 32 0 0 1 32 64M64 32A32 32 0 0 0 32 64M8 0A8 8 0 0 1 0 8M56 0A8 8 0 0 0 64 8M0 56A8 8 0 0 1 8 64M64 56A8 8 0 0 0 56 64M32 26C29 22 29 18 32 14C35 18 35 22 32 26M32 38C29 42 29 46 32 50C35 46 35 42 32 38M26 32C22 29 18 29 14 32C18 35 22 35 26 32M38 32C42 29 46 29 50 32C46 35 42 35 38 32'/%3E%3C/svg%3E")}
+  .lnat-azulejo-escuro{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' fill='none' stroke='%23e5c98e' stroke-opacity='.08' stroke-width='1'%3E%3Cpath d='M32 0A32 32 0 0 1 0 32M32 0A32 32 0 0 0 64 32M0 32A32 32 0 0 1 32 64M64 32A32 32 0 0 0 32 64M8 0A8 8 0 0 1 0 8M56 0A8 8 0 0 0 64 8M0 56A8 8 0 0 1 8 64M64 56A8 8 0 0 0 56 64M32 26C29 22 29 18 32 14C35 18 35 22 32 26M32 38C29 42 29 46 32 50C35 46 35 42 32 38M26 32C22 29 18 29 14 32C18 35 22 35 26 32M38 32C42 29 46 29 50 32C46 35 42 35 38 32'/%3E%3C/svg%3E")}
+  .lnat-eb{display:inline-flex;align-items:center;gap:12px;margin:0;font:500 12px/16px var(--lnat-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--lnat-ouro-velho)}
+  .lnat-eb::before{content:"";width:28px;height:1px;background:currentColor;opacity:.8}
+  .lnat-eb--simples::before{display:none}
+  .lnat-bg-tinta .lnat-eb,.lnat-bg-verde .lnat-eb{color:var(--lnat-ouro-claro)}
+  .lnat-h1{margin:0;font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:clamp(36px,4.6vw,64px);line-height:1.06;letter-spacing:-.01em;text-wrap:balance}
+  .lnat-h2{margin:0;font-family:var(--lnat-cond);font-weight:400;font-size:clamp(28px,3.1vw,44px);line-height:1.1;letter-spacing:.04em;text-transform:uppercase;text-wrap:balance}
+  .lnat-h2--serif{font-family:var(--lnat-serif);font-style:italic;font-weight:500;text-transform:none;letter-spacing:0;font-size:clamp(28px,2.8vw,40px)}
+  .lnat-h3{margin:0;font-family:var(--lnat-cond);font-weight:400;font-size:clamp(19px,1.6vw,22px);line-height:1.25;letter-spacing:.04em;text-transform:uppercase}
+  .lnat-cg{font-family:var(--lnat-serif);font-style:italic;font-weight:500}
+  .lnat-lead{margin:0;font-size:clamp(17px,1.25vw,18px);line-height:1.65}
+  .lnat-txt{margin:0;font-size:16px;line-height:26px}
+  .lnat-peq{margin:0;font-size:13px;line-height:20px;color:var(--lnat-cinza)}
+  .lnat-bg-linho .lnat-peq{color:var(--lnat-cinza-linho)}
+  .lnat-bg-tinta .lnat-peq,.lnat-bg-verde .lnat-peq{color:var(--lnat-cinza-noite)}
+  .lnat-btns{display:flex;flex-wrap:wrap;gap:12px}
+  .lnat-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 28px;border:1px solid transparent;border-radius:0;font:500 13px/1.2 var(--lnat-sans);letter-spacing:.12em;text-transform:uppercase;text-decoration:none!important;cursor:pointer;transition:background .25s,color .25s,border-color .25s;text-align:center}
+  .lnat-btn--tinta{background:var(--lnat-tinta);color:var(--lnat-papel)!important}
+  .lnat-btn--tinta:hover{background:var(--lnat-ouro-velho)}
+  .lnat-btn--contorno{border-color:var(--lnat-tinta);color:var(--lnat-tinta)!important;background:transparent}
+  .lnat-btn--contorno:hover{background:var(--lnat-tinta);color:var(--lnat-papel)!important}
+  .lnat-btn--ouro{background:var(--lnat-ouro);color:var(--lnat-tinta)!important}
+  .lnat-btn--ouro:hover{background:var(--lnat-ouro-claro)}
+  .lnat-btn--claro{border-color:var(--lnat-ouro-claro);color:var(--lnat-ouro-claro)!important;background:transparent}
+  .lnat-btn--claro:hover{background:var(--lnat-ouro-claro);color:var(--lnat-tinta)!important}
+  .lnat-link{color:var(--lnat-ouro-velho)!important;font-weight:500;text-decoration:underline;text-decoration-color:var(--lnat-ouro);text-underline-offset:4px}
+  .lnat-bg-tinta .lnat-link,.lnat-bg-verde .lnat-link{color:var(--lnat-ouro-claro)!important}
+  .lnat a:focus-visible,.lnat button:focus-visible,.lnat [tabindex]:focus-visible,.lnat input:focus-visible+label{outline:2px solid var(--lnat-ouro-velho);outline-offset:3px}
+  .lnat-bg-tinta a:focus-visible,.lnat-bg-tinta button:focus-visible,.lnat-bg-verde a:focus-visible,.lnat-bg-verde button:focus-visible{outline-color:var(--lnat-ouro-claro)}
+  .lnat-chip{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;background:var(--lnat-vermelho);color:var(--lnat-papel);font-size:14px;line-height:20px}
+  .lnat-chip b{font-weight:600;color:#fff}
+  .lnat-fio{display:block;color:var(--lnat-ouro);margin:0 auto}
+  .lnat-ico{display:inline-block;flex:0 0 auto;vertical-align:middle}
+  .lnat-sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  .lnat-card{display:flex;flex-direction:column;gap:8px;color:var(--lnat-texto)!important;text-decoration:none!important;min-width:0}
+  .lnat-card__img{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;background:var(--lnat-linho);overflow:hidden;color:var(--lnat-ouro)}
+  .lnat-card__img img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+  .lnat-card:hover .lnat-card__img img{transform:scale(1.04)}
+  .lnat-card__tag{position:absolute;left:8px;top:8px;background:var(--lnat-papel);color:var(--lnat-texto);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px}
+  .lnat-card__titulo{font-size:14px;line-height:20px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .lnat-card__preco{font-weight:600;font-size:15px;font-variant-numeric:tabular-nums}
+  .lnat-bg-tinta .lnat-card,.lnat-bg-verde .lnat-card{color:var(--lnat-papel)!important}
+  .lnat-sim{position:fixed;left:12px;bottom:12px;z-index:2147483000;background:#0b0b09;color:#e5c98e;font:500 12px/1.3 system-ui,sans-serif;padding:8px 10px;border:1px solid #bc914c;max-width:260px;pointer-events:none}
+  @media (prefers-reduced-motion:reduce){.lnat *,.lnat *::before,.lnat *::after{animation:none!important;transition:none!important}}
+</style>
+<script>
+(function(){
+  if (window.LOD_NATAL) return;
+  var D = {
+    inicio: {{ settings.natal_inicio | default: '2026-12-01 00:00' | json }},
+    fase2: {{ settings.natal_fase2_inicio | default: '2026-12-14 00:00' | json }},
+    acores: {{ settings.natal_limite_acores | default: '2026-12-04 23:59' | json }},
+    madeira: {{ settings.natal_limite_madeira | default: '2026-12-11 23:59' | json }},
+    gravacao: {{ settings.natal_limite_gravacao | default: '2026-12-16 23:59' | json }},
+    continente: {{ settings.natal_limite_continente | default: '2026-12-18 23:59' | json }},
+    loja: {{ settings.natal_limite_loja | default: '2026-12-24 13:00' | json }},
+    festas: {{ settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | json }},
+    retoma: {{ settings.natal_retoma_envios | default: '2026-12-28' | json }},
+    reis: {{ settings.natal_limite_reis | default: '2026-12-30 23:59' | json }},
+    fim: {{ settings.natal_fim | default: '2027-01-06 23:59' | json }},
+    trocas: {{ settings.natal_trocas_ate | default: '2027-01-15' | json }}
+  };
+  var publicado = !!(window.Shopify && Shopify.theme && Shopify.theme.role === 'main') && !(window.Shopify && Shopify.designMode);
+  var sim = null;
+  if (!publicado) {
+    try { sim = new URLSearchParams(location.search).get('natal_data'); } catch (e) {}
+    if (!sim) sim = {{ lnat_sim | json }} || null;
+  }
+  // Data/hora de Lisboa ("AAAA-MM-DD HH:MM") -> instante real.
+  function lx(s){
+    if (!s) return null;
+    var m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/);
+    if (!m) return null;
+    var utc = Date.UTC(+m[1], +m[2]-1, +m[3], m[4]?+m[4]:0, m[5]?+m[5]:0);
+    var off = 0;
+    try {
+      var p = new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Lisbon',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(utc));
+      var o = {}; p.forEach(function(x){ o[x.type] = x.value; });
+      off = Date.UTC(+o.year, +o.month-1, +o.day, +o.hour % 24, +o.minute) - utc;
+    } catch (e) {}
+    return new Date(utc - off);
+  }
+  var simData = sim ? lx(sim.length === 10 ? sim + ' 10:00' : sim) : null;
+  function agora(){ return simData ? new Date(simData.getTime()) : new Date(); }
+  function hoje(){
+    try { return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Lisbon'}).format(agora()); }
+    catch (e) { return agora().toISOString().slice(0,10); }
+  }
+  function fase(){
+    {%- if settings.natal_ativo == false %} return 'off';{% endif %}
+    var t = agora().getTime();
+    if (t < lx(D.inicio)) return 'antes';
+    if (t < lx(D.fase2)) return 'ouro';
+    if (t <= lx(D.continente).getTime() + 59999) return 'incenso';
+    if (t < lx(D.loja)) return 'ultima';
+    if (t <= lx(D.festas).getTime() + 59999) return 'consoada';
+    if (t <= lx(D.fim).getTime() + 59999) return 'mirra';
+    return 'fim';
+  }
+  function passou(s){ var d = lx(s); return d ? agora().getTime() > d.getTime() + 59999 : false; }
+  function falta(s){
+    var ms = Math.max(0, lx(s).getTime() + 60000 - agora().getTime());
+    var m = Math.floor(ms / 60000);
+    return { d: Math.floor(m / 1440), h: Math.floor(m % 1440 / 60), m: m % 60, ms: ms };
+  }
+  window.LOD_NATAL = {
+    d: D, lx: lx, agora: agora, hoje: hoje, fase: fase, passou: passou, falta: falta,
+    simulada: !!simData, publicado: publicado,
+    wa: {{ settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+' | json }},
+    faseServidor: {{ lnat_fase | strip | json }}
+  };
+  document.documentElement.setAttribute('data-natal-fase', fase());
+  if (simData) {
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.className = 'lnat-sim';
+      b.textContent = 'Pré-visualização do Natal · data simulada: ' + sim + ' (fase: ' + fase() + ')';
+      document.body.appendChild(b);
+    });
+  }
+})();
+</script>

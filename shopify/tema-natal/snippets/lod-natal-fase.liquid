@@ -1,0 +1,41 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — fase da campanha (hora de Lisboa).
+  Uso: {%- capture lnat_fase -%}{%- render 'lod-natal-fase' -%}{%- endcapture -%}
+  Devolve: off | antes | ouro | incenso | ultima | consoada | mirra | fim
+  A data simulada (definições do tema › Natal 2026) só conta fora do tema publicado;
+  o JavaScript (window.LOD_NATAL) volta a calcular a fase no navegador.
+{%- endcomment -%}
+{%- liquid
+  assign agora = 'now' | date: '%Y%m%d%H%M' | plus: 0
+  if settings.natal_data_simulada != blank and theme.role != 'main'
+    assign simulada = settings.natal_data_simulada | strip
+    if simulada.size == 10
+      assign simulada = simulada | append: ' 10:00'
+    endif
+    assign agora = simulada | date: '%Y%m%d%H%M' | plus: 0
+  endif
+  assign t_inicio = settings.natal_inicio | date: '%Y%m%d%H%M' | plus: 0
+  assign t_fase2 = settings.natal_fase2_inicio | date: '%Y%m%d%H%M' | plus: 0
+  assign t_cont = settings.natal_limite_continente | date: '%Y%m%d%H%M' | plus: 0
+  assign t_loja = settings.natal_limite_loja | date: '%Y%m%d%H%M' | plus: 0
+  assign t_festas = settings.natal_boas_festas_fim | date: '%Y%m%d%H%M' | plus: 0
+  assign t_fim = settings.natal_fim | date: '%Y%m%d%H%M' | plus: 0
+
+  if settings.natal_ativo == false
+    echo 'off'
+  elsif agora < t_inicio
+    echo 'antes'
+  elsif agora < t_fase2
+    echo 'ouro'
+  elsif agora <= t_cont
+    echo 'incenso'
+  elsif agora < t_loja
+    echo 'ultima'
+  elsif agora <= t_festas
+    echo 'consoada'
+  elsif agora <= t_fim
+    echo 'mirra'
+  else
+    echo 'fim'
+  endif
+-%}

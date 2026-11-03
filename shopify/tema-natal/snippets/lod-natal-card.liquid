@@ -1,0 +1,32 @@
+{%- comment -%}
+  Natal 2026 — cartão de produto (sem selos de desconto).
+  {%- render 'lod-natal-card', product: p, largura: 480, carregar: 'lazy', classe: '' -%}
+  Atributos para filtros: data-preco (cêntimos), data-metal (ouro|prata|outro), data-disponivel.
+  Estilos em lod-natal-config (.lnat-card).
+{%- endcomment -%}
+{%- liquid
+  if product == blank
+    break
+  endif
+  assign w = largura | default: 480
+  assign metal = 'outro'
+  assign tipo = product.type | downcase
+  if tipo == 'ouro'
+    assign metal = 'ouro'
+  elsif tipo == 'prata'
+    assign metal = 'prata'
+  endif
+  assign img = product.featured_media
+-%}
+<a class="lnat-card {{ classe }}" href="{{ product.url }}" data-preco="{{ product.price }}" data-metal="{{ metal }}" data-disponivel="{{ product.available }}">
+  <span class="lnat-card__img">
+    {%- if img -%}
+      {{ img | image_url: width: w | image_tag: loading: carregar, widths: '240, 360, 480, 600', sizes: '(min-width: 990px) 25vw, 50vw', alt: product.title | escape }}
+    {%- else -%}
+      {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 48 -%}
+    {%- endif -%}
+    {%- unless product.available -%}<span class="lnat-card__tag">Esgotado</span>{%- endunless -%}
+  </span>
+  <span class="lnat-card__titulo">{{ product.title }}</span>
+  <span class="lnat-card__preco">{%- if product.price_varies -%}Desde {% endif -%}{{ product.price | money }}</span>
+</a>
