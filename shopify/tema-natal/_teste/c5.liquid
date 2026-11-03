@@ -1,0 +1,246 @@
+<div>t</div>
+{% schema %}
+{
+ "name": "Natal · Banner principal",
+ "max_blocks": 8,
+ "settings": [
+  {
+   "type": "header",
+   "content": "Fotografia"
+  },
+  {
+   "type": "image_picker",
+   "id": "imagem",
+   "label": "Imagem (computador)"
+  },
+  {
+   "type": "image_picker",
+   "id": "imagem_telemovel",
+   "label": "Imagem (telemóvel)",
+   "info": "Vertical. Se ficar vazia, usa a do computador."
+  },
+  {
+   "type": "text",
+   "id": "alt",
+   "label": "Descrição da imagem (acessibilidade)",
+   "default": "Três mulheres de diferentes gerações, de fato creme, com joias em ouro, junto a uma árvore de Natal."
+  },
+  {
+   "type": "select",
+   "id": "esquema",
+   "label": "Esquema",
+   "options": [
+    {
+     "value": "foto-esquerda",
+     "label": "Foto ao lado do cartão (não tapa as pessoas)"
+    },
+    {
+     "value": "foto-inteira",
+     "label": "Foto a toda a largura, cartão por cima"
+    }
+   ],
+   "default": "foto-esquerda"
+  },
+  {
+   "type": "select",
+   "id": "lado_cartao",
+   "label": "Lado do cartão",
+   "options": [
+    {
+     "value": "direita",
+     "label": "Direita"
+    },
+    {
+     "value": "esquerda",
+     "label": "Esquerda"
+    }
+   ],
+   "default": "direita"
+  },
+  {
+   "type": "range",
+   "id": "foco_x",
+   "min": 0,
+   "max": 100,
+   "step": 1,
+   "unit": "%",
+   "label": "Ponto de foco horizontal (computador)",
+   "info": "100% corta mais do lado esquerdo da foto (onde está a placa).",
+   "default": 100
+  },
+  {
+   "type": "range",
+   "id": "foco_y",
+   "min": 0,
+   "max": 100,
+   "step": 1,
+   "unit": "%",
+   "label": "Ponto de foco vertical (computador)",
+   "default": 30
+  },
+  {
+   "type": "range",
+   "id": "foco_y_tel",
+   "min": 0,
+   "max": 100,
+   "step": 1,
+   "unit": "%",
+   "label": "Ponto de foco vertical (telemóvel)",
+   "default": 20
+  },
+  {
+   "type": "header",
+   "content": "Cartão"
+  },
+  {
+   "type": "checkbox",
+   "id": "mostrar_estrela",
+   "label": "Mostrar estrela de filigrana",
+   "default": true
+  },
+  {
+   "type": "checkbox",
+   "id": "titulo_h1",
+   "label": "Título como H1 (título principal da página)",
+   "default": true
+  },
+  {
+   "type": "text",
+   "id": "assinatura",
+   "label": "Assinatura pequena",
+   "default": "Seleção Loja do Ouro"
+  },
+  {
+   "type": "text",
+   "id": "marca_lateral",
+   "label": "Texto vertical (computador)",
+   "default": "Loja do Ouro · Natal 2026"
+  },
+  {
+   "type": "textarea",
+   "id": "faixa",
+   "label": "Faixa de baixo (uma frase por linha)",
+   "default": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\nGarantia legal de 3 anos\n13 lojas em Portugal, levantamento com marcação"
+  },
+  {
+   "type": "checkbox",
+   "id": "mostrar_no_telemovel",
+   "label": "Mostrar no telemóvel",
+   "default": true
+  },
+  {
+   "type": "paragraph",
+   "content": "Nos textos pode usar {continente}, {loja}, {reis}, {retoma}, {trocas}, {gravacao} (datas das definições do tema › Natal 2026) e {contagem} (tempo que falta para o prazo do continente)."
+  }
+ ],
+ "blocks": [
+  {
+   "type": "fase",
+   "name": "Mensagem de uma fase",
+   "settings": [
+    {
+     "type": "select",
+     "id": "fase",
+     "label": "Fase",
+     "options": [
+      {
+       "value": "ouro",
+       "label": "1 · Ouro — escolher (1–13 dez)"
+      },
+      {
+       "value": "incenso",
+       "label": "2 · Incenso — a tempo (14 dez → prazo do continente)"
+      },
+      {
+       "value": "ultima",
+       "label": "3 · Última hora (até 24 dez, 13h)"
+      },
+      {
+       "value": "consoada",
+       "label": "Consoada (24–25 dez)"
+      },
+      {
+       "value": "mirra",
+       "label": "4 · Mirra — dos Reis (26 dez – 6 jan)"
+      }
+     ],
+     "default": "ouro"
+    },
+    {
+     "type": "text",
+     "id": "eyebrow",
+     "label": "Texto pequeno por cima",
+     "default": "Natal 2026 · Ouro de Reis"
+    },
+    {
+     "type": "text",
+     "id": "titulo",
+     "label": "Título",
+     "default": "O primeiro presente de Natal foi ouro."
+    },
+    {
+     "type": "inline_richtext",
+     "id": "texto",
+     "label": "Texto"
+    },
+    {
+     "type": "inline_richtext",
+     "id": "chip",
+     "label": "Faixa vermelha (prazo)"
+    },
+    {
+     "type": "text",
+     "id": "botao1_texto",
+     "label": "Botão principal"
+    },
+    {
+     "type": "url",
+     "id": "botao1_url",
+     "label": "Ligação do botão principal"
+    },
+    {
+     "type": "checkbox",
+     "id": "botao1_whatsapp",
+     "label": "Botão principal abre o WhatsApp",
+     "default": false
+    },
+    {
+     "type": "text",
+     "id": "mensagem_whatsapp",
+     "label": "Mensagem pré-escrita do WhatsApp",
+     "default": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas."
+    },
+    {
+     "type": "text",
+     "id": "botao2_texto",
+     "label": "Botão secundário"
+    },
+    {
+     "type": "url",
+     "id": "botao2_url",
+     "label": "Ligação do botão secundário"
+    }
+   ]
+  }
+ ],
+ "presets": [
+  {
+   "name": "Natal · Banner principal",
+   "blocks": [
+    {
+     "type": "fase",
+     "settings": {
+      "fase": "ouro",
+      "eyebrow": "Natal 2026 · Ouro de Reis",
+      "titulo": "O primeiro presente de Natal foi ouro.",
+      "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família.",
+      "chip": "Chega antes do Natal: encomende até <b>{continente}</b> · Portugal continental",
+      "botao1_texto": "Encontrar a prenda",
+      "botao2_texto": "Corações de Viana"
+     }
+    }
+   ]
+  }
+ ]
+}
+{% endschema %}
