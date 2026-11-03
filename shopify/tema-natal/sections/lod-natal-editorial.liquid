@@ -4,8 +4,9 @@
   Imagem vazia: mostra o motivo do ícone em grande sobre linho com azulejo.
   Produtos: «cartões pequenos» na coluna do texto, ou «grelha 2 por 2» no lugar da imagem
   (se houver imagem, ela passa a ser a primeira célula da grelha). Os esgotados ficam de fora.
-  Telemóvel: imagem 1:1 a toda a largura no topo; com grelha, o texto vem primeiro e as etiquetas
-  (chips) deslizam na horizontal.
+  Telemóvel: imagem 1:1 a toda a largura no topo; com grelha, o texto vem primeiro; as etiquetas
+  (chips) partem em linhas e ocupam a largura toda, sem nada escondido fora do ecrã.
+  Tablet (750–1199 px) com imagem: imagem 16:9 por cima e texto por baixo, sem faixas vazias.
 {%- endcomment -%}
 {%- liquid
   capture lnat_fase
@@ -144,7 +145,7 @@
               {%- if img_m -%}
                 <source media="(max-width: 749px)" srcset="{{ img_m | image_url: width: 400 }} 400w, {{ img_m | image_url: width: 600 }} 600w, {{ img_m | image_url: width: 800 }} 800w" sizes="100vw">
               {%- endif -%}
-              {{- img | image_url: width: 1500 | image_tag: loading: 'lazy', widths: '400, 600, 800, 1000, 1200, 1500', sizes: '(min-width: 1440px) 744px, (min-width: 990px) 55vw, (min-width: 750px) 50vw, 100vw', alt: img_alt, class: 'lnat-ed__foto-img' -}}
+              {{- img | image_url: width: 1500 | image_tag: loading: 'lazy', widths: '400, 600, 800, 1000, 1200, 1500', sizes: '(min-width: 1440px) 744px, (min-width: 1200px) 55vw, (min-width: 750px) 92vw, 100vw', alt: img_alt, class: 'lnat-ed__foto-img' -}}
             </picture>
           </div>
         {%- else -%}
@@ -213,7 +214,9 @@
   .lnat-ed__motivo svg{width:min(200px,42%);height:auto}
 
   .lnat-ed__grelha-prod{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 14px}
-  .lnat-ed__celula{margin:0;min-width:0}
+  .lnat-ed__celula{margin:0;min-width:0;display:flex;flex-direction:column}
+  .lnat-ed__celula > .lnat-card{flex:1 1 auto}
+  .lnat-ed__celula .lnat-card__preco{margin-top:auto}
   .lnat-ed__celula--foto,.lnat-ed__celula--motivo{align-self:start;aspect-ratio:1/1;overflow:hidden}
   .lnat-ed__celula--foto img{display:block;width:100%;height:100%;object-fit:cover}
   .lnat-ed__celula--motivo{display:flex;align-items:center;justify-content:center;background-color:var(--lnat-linho);color:var(--lnat-ouro-velho)}
@@ -239,7 +242,7 @@
   .lnat-ed__mini-img img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
   .lnat-ed__mini:hover .lnat-ed__mini-img img{transform:scale(1.04)}
   .lnat-ed__mini-txt{display:flex;flex-direction:column;gap:4px;min-width:0}
-  .lnat-ed__mini-titulo{font-size:13px;line-height:18px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .lnat-ed__mini-titulo{font-size:13px;line-height:18px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .lnat-ed__mini-preco{font-size:14px;font-weight:600;color:var(--lnat-tinta);font-variant-numeric:tabular-nums}
 
   .lnat-ed__chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
@@ -252,9 +255,8 @@
     .lnat-ed--foto{padding-top:0}
     .lnat-ed--foto .lnat-ed__media{margin:0 calc(-1 * var(--lnat-gutter))}
     .lnat-ed--grelha .lnat-ed__grelha{grid-template-areas:"cab" "media" "acoes"}
-    .lnat-ed__chips{flex-wrap:nowrap;overflow-x:auto;margin:0 calc(-1 * var(--lnat-gutter));padding:0 var(--lnat-gutter);scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
-    .lnat-ed__chips::-webkit-scrollbar{display:none}
-    .lnat-ed__chips li{flex:0 0 auto}
+    .lnat-ed__chips li{flex:1 1 auto}
+    .lnat-ed__chip{width:100%;justify-content:center;padding:10px 12px;font-size:13px}
     .lnat-ed__btns{flex-direction:column}
     .lnat-ed__btns .lnat-btn{width:100%}
   }
@@ -268,7 +270,8 @@
     .lnat-ed__ico--coracao-cheio svg{width:28px;height:28px}
     .lnat-ed__txt{font-size:16px;line-height:26px}
     .lnat-ed__sabia{padding:16px 18px;font-size:14px;line-height:21px}
-    .lnat-ed__minis{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+    .lnat-ed__minis{grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px}
+    .lnat-ed__btns .lnat-btn{padding:0 22px}
     .lnat-ed__mini{flex-direction:row;align-items:center;gap:12px}
     .lnat-ed__mini-img{flex:0 0 88px;width:88px;height:88px}
     .lnat-ed__mini-titulo{font-size:14px;line-height:20px}
@@ -278,6 +281,12 @@
   @media screen and (min-width:990px){
     .lnat-ed__grelha{grid-template-columns:minmax(0,7fr) minmax(0,5fr);column-gap:clamp(48px,4.5vw,64px)}
     .lnat-ed--img-direita .lnat-ed__grelha{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+  }
+  @media screen and (min-width:750px) and (max-width:1199px){
+    .lnat-ed.lnat-ed--foto .lnat-ed__grelha{grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"media" "cab" "acoes";row-gap:32px}
+    .lnat-ed--foto .lnat-ed__foto{aspect-ratio:16/9}
+    .lnat-ed--foto .lnat-ed__cab,.lnat-ed--foto .lnat-ed__acoes{max-width:680px}
+    .lnat-ed--foto .lnat-ed__acoes{margin-top:0}
   }
 </style>
 

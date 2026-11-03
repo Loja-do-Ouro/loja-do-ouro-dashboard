@@ -4,10 +4,14 @@
   Três colunas sobre verde com azulejo:
     1. Quando encomendar: prazos lidos das definições do Natal (Açores, Madeira, peças gravadas, continente,
        levantar na loja, Dia de Reis). Linhas cujo prazo já passou ficam a meia opacidade com «Terminado».
+       Os prazos são sempre indicativos: a nota por baixo da lista nunca fica vazia.
        Botão «Adicionar ao calendário» com um .ics do prazo do continente (gerado no navegador, sem servidor).
     2. Levantar na loja: lojas por distrito (páginas /pages/loja-do-ouro-…), WhatsApp, horários de 24 e 31 dez.
-       e, a partir de 26 de dezembro (fase «mirra»), o texto das Janeiras.
-    3. Vales-prenda.
+       (só aparecem quando o campo estiver preenchido) e, a partir de 26 de dezembro (fase «mirra»), o texto
+       das Janeiras (desligado por omissão: só com «Janeiras confirmadas» ligado, o mesmo nome da barra e do calendário).
+    3. Vales-prenda. Os vales são físicos e seguem por correio: na última hora (e depois do prazo dos Reis) aparece
+       uma nota a dizer que já não chegam a tempo, como no guia «Siga a estrela» (não aparece com natal_vale_digital).
+  Entre 750 e 1199 px (tablet e iPad na horizontal): duas colunas, com os vales por baixo. A partir de 1200: três.
   No telemóvel vira acordeão: «Prazos de entrega» aberto, «Levantar na loja» e «Vales-prenda» fechados.
   Fases off/antes/fim: não mostra nada (em «antes» o HTML sai escondido para o navegador o abrir à meia-noite
   de 1 de dezembro se a página vier da cache). No editor mostra sempre, com uma nota.
@@ -64,7 +68,22 @@
   assign lnz_wa_txt = s.wa_texto | default: 'Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.'
   assign lnz_wa_q = lnz_wa_txt | url_encode | replace: '+', '%20'
 
+  # a nota dos prazos nunca fica vazia: os prazos são sempre indicativos
+  assign lnz_nota_txt = s.nota | strip | default: 'Prazos indicativos.'
+
   assign lnz_cont_n = lnz_continente | date: '%Y%m%d%H%M' | plus: 0
+  assign lnz_reis_n = lnz_reis | date: '%Y%m%d%H%M' | plus: 0
+  # Vales-prenda físicos (seguem por correio): avisa quando já não chegam a tempo, como o guia «Siga a estrela»
+  assign lnz_vale_natal = false
+  assign lnz_vale_reis = false
+  unless settings.natal_vale_digital
+    if lnz_fase == 'ultima'
+      assign lnz_vale_natal = true
+    endif
+    if lnz_fase == 'mirra' and lnz_agora > lnz_reis_n
+      assign lnz_vale_reis = true
+    endif
+  endunless
   assign lnz_cont_passou = false
   if lnz_agora > lnz_cont_n
     assign lnz_cont_passou = true
@@ -111,7 +130,7 @@
   .lnat-prazos__peq{margin:0;font-size:13px;line-height:20px;color:var(--lnat-cinza-noite)}
   .lnat-prazos__janeiras{display:flex;gap:12px;align-items:flex-start;margin:4px 0 0;padding-top:14px;border-top:1px solid #2c4c40;font-size:14px;line-height:22px;color:#e1dacb}
   .lnat-prazos__janeiras svg{color:var(--lnat-ouro);margin-top:-2px}
-  @media (min-width:750px) and (max-width:1023px){
+  @media (min-width:750px) and (max-width:1199px){
     .lnat-prazos__grid{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:40px;row-gap:24px}
     .lnat-prazos__p2{grid-column:2;grid-row:1/span 2}
     .lnat-prazos__p3{grid-column:1/span 2;grid-row:3;padding-top:24px;border-top:1px solid #2c4c40}
@@ -177,12 +196,20 @@
               endcase
               assign lnz_n = lnz_val | date: '%Y%m%d%H%M' | plus: 0
               assign lnz_passou = false
+              assign lnz_fc_hora = ''
               if lnz_c == 'loja'
                 if lnz_agora >= lnz_n
                   assign lnz_passou = true
                 endif
                 assign lnz_fl = 'hora'
-                assign lnz_fc = 'hora'
+                # telemóvel: «24 dez., 13h», como as outras linhas (forma curta + hora)
+                assign lnz_fc = 'abrev'
+                assign lnz_hh = lnz_val | date: '%-H' | append: 'h'
+                assign lnz_mi = lnz_val | date: '%M'
+                if lnz_mi != '00'
+                  assign lnz_hh = lnz_hh | append: lnz_mi
+                endif
+                assign lnz_fc_hora = ', ' | append: lnz_hh
               else
                 if lnz_agora > lnz_n
                   assign lnz_passou = true
@@ -194,15 +221,13 @@
             <div class="lnat-prazos__linha{% if lnz_passou %} is-fim{% endif %}" data-lnz-prazo="{{ lnz_c }}" data-valor="{{ lnz_val | escape }}"{% if lnz_c == 'loja' %} data-instante{% endif %}>
               <dt><span class="lnat-prazos__ll">{{ lnz_p[1] }}</span><span class="lnat-prazos__lc">{{ lnz_p[2] }}</span></dt>
               <dd>
-                <span data-lnz-data{% if lnz_passou %} hidden{% endif %}><span class="lnat-prazos__dl">{%- render 'lod-natal-data', valor: lnz_val, formato: lnz_fl -%}</span><span class="lnat-prazos__dc">{%- render 'lod-natal-data', valor: lnz_val, formato: lnz_fc -%}</span></span>
+                <span data-lnz-data{% if lnz_passou %} hidden{% endif %}><span class="lnat-prazos__dl">{%- render 'lod-natal-data', valor: lnz_val, formato: lnz_fl -%}</span><span class="lnat-prazos__dc">{%- render 'lod-natal-data', valor: lnz_val, formato: lnz_fc -%}{{ lnz_fc_hora }}</span></span>
                 <span data-lnz-fim{% unless lnz_passou %} hidden{% endunless %}>Terminado</span>
               </dd>
             </div>
           {%- endfor -%}
         </dl>
-        {%- if s.nota != blank -%}
-          <p class="lnat-prazos__nota">{{ s.nota | escape }}</p>
-        {%- endif -%}
+        <p class="lnat-prazos__nota">{{ lnz_nota_txt | escape | replace: ' €', '&nbsp;€' }}</p>
         {%- if s.mostrar_calendario -%}
           <button type="button" class="lnat-btn lnat-btn--claro lnat-prazos__ics" data-lnz-ics data-valor="{{ lnz_continente | escape }}" data-titulo="Último dia para encomendar as prendas de Natal (Loja do Ouro)" data-texto="Encomende até {{ lnz_ics_quando | strip | escape }}, para receber antes do Natal em Portugal continental (prazo indicativo)."{% if lnz_cont_passou %} hidden{% endif %}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="15.5" rx="1.5"/><path d="M3.5 10H20.5M8 3V7M16 3V7"/><path d="M12 13.2C12.3 14.4 12.8 14.9 14 15.2C12.8 15.5 12.3 16 12 17.2C11.7 16 11.2 15.5 10 15.2C11.2 14.9 11.7 14.4 12 13.2Z"/></svg>
@@ -220,7 +245,7 @@
         {%- render 'lod-natal-icon', nome: 'porta', tamanho: 40, classe: 'lnat-prazos__ico' -%}
         <h3 class="lnat-h3">{{ s.lojas_titulo | default: 'Ainda a tempo? Levante na loja.' | escape }}</h3>
         {%- if s.lojas_texto != blank -%}
-          <p class="lnat-prazos__txt">{{ s.lojas_texto | escape }}</p>
+          <p class="lnat-prazos__txt">{{ s.lojas_texto | escape | replace: ' €', '&nbsp;€' }}</p>
         {%- endif -%}
         <ul class="lnat-prazos__lojas" aria-label="As nossas lojas por distrito">
           {%- for lnz_d in lnz_lojas -%}
@@ -241,10 +266,12 @@
           </a>
           <a class="lnat-btn lnat-btn--claro" href="{{ lnz_lojas_url }}">Ver todas as lojas</a>
         </div>
+        {%- comment -%} Horários de 24 e 31 dez.: vazio = não mostra (decisão do dono por tomar). {%- endcomment -%}
         {%- if s.horarios != blank -%}
           <p class="lnat-prazos__peq">{{ s.horarios | escape }}</p>
         {%- endif -%}
-        {%- if s.janeiras != blank -%}
+        {%- comment -%} Janeiras: só com a definição ligada (lojas, dias e horas por decidir). {%- endcomment -%}
+        {%- if s.janeiras_confirmadas and s.janeiras != blank -%}
           <p class="lnat-prazos__janeiras" data-lnz-fases="mirra"{% unless lnz_fase == 'mirra' %} hidden{% endunless %}>
             {%- render 'lod-natal-icon', nome: 'coroa', tamanho: 28 -%}
             <span>{{ s.janeiras | escape }}</span>
@@ -260,8 +287,12 @@
         {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 40, classe: 'lnat-prazos__ico' -%}
         <h3 class="lnat-h3">{{ s.vales_titulo | default: 'Ainda sem ideia? Ofereça a escolha.' | escape }}</h3>
         {%- if s.vales_texto != blank -%}
-          <p class="lnat-prazos__txt">{{ s.vales_texto | escape }}</p>
+          <p class="lnat-prazos__txt">{{ s.vales_texto | escape | replace: ' €', '&nbsp;€' }}</p>
         {%- endif -%}
+        {%- unless settings.natal_vale_digital -%}
+          <p class="lnat-prazos__peq" data-lnz-fases="ultima"{% unless lnz_vale_natal %} hidden{% endunless %}>Os vales-prenda seguem por correio e já não chegam antes do Natal.</p>
+          <p class="lnat-prazos__peq" data-lnz-fases="mirra" data-lnz-desde="{{ lnz_reis | escape }}"{% unless lnz_vale_reis %} hidden{% endunless %}>Os vales-prenda seguem por correio e já não chegam antes do Dia de Reis.</p>
+        {%- endunless -%}
         <div class="lnat-btns">
           <a class="lnat-btn lnat-btn--ouro" href="{{ lnz_vales_url }}">{{ s.vales_botao | default: 'Escolher vale-prenda' | escape }}</a>
         </div>
@@ -334,6 +365,8 @@
     if (ics) ics.hidden = passou(ics.getAttribute('data-valor'));
     root.querySelectorAll('[data-lnz-fases]').forEach(function (el) {
       el.hidden = (' ' + el.getAttribute('data-lnz-fases') + ' ').indexOf(' ' + f + ' ') < 0;
+      // «a partir de» um prazo: só depois do último minuto desse prazo
+      if (!el.hidden && el.hasAttribute('data-lnz-desde') && !passou(el.getAttribute('data-lnz-desde'))) el.hidden = true;
     });
     if (n && n.wa) {
       root.querySelectorAll('[data-lnz-wa]').forEach(function (a) {
@@ -397,7 +430,8 @@
       "type": "textarea",
       "id": "nota",
       "label": "Nota",
-      "default": "Prazos indicativos para encomendas pagas até às 23h59 do dia indicado. Expedimos no dia útil seguinte à confirmação do pagamento; na época alta a transportadora pode ter atrasos."
+      "default": "Prazos indicativos para encomendas pagas até às 23h59 do dia indicado. Expedimos no dia útil seguinte à confirmação do pagamento; na época alta a transportadora pode ter atrasos.",
+      "info": "Os prazos são sempre indicativos. Vazio = «Prazos indicativos.»"
     },
     {
       "type": "checkbox",
@@ -417,7 +451,7 @@
       "type": "textarea",
       "id": "lojas_texto",
       "label": "Texto",
-      "default": "Como muitas peças são únicas, primeiro localizamos a peça e depois marcamos consigo o levantamento."
+      "default": "Como o stock está repartido pelas 13 lojas, primeiro localizamos a peça e depois marcamos consigo o levantamento."
     },
     {
       "type": "text",
@@ -436,14 +470,21 @@
       "type": "text",
       "id": "horarios",
       "label": "Horários de 24 e 31 de dezembro",
-      "default": "Horários de 24 e 31 de dezembro: a confirmar."
+      "info": "Vazio = não mostra. Preencha só com os horários decididos, no formato «24 e 31 de dezembro: lojas abertas até às [hora].»"
+    },
+    {
+      "type": "checkbox",
+      "id": "janeiras_confirmadas",
+      "label": "Janeiras confirmadas",
+      "default": false,
+      "info": "Ligue só depois de decidir lojas, dias e horas (3 de janeiro de 2027 é domingo). Aparece de 26 de dezembro a 6 de janeiro. Ligue também «Janeiras confirmadas» na barra e no calendário, e a mensagem «Abrimos a porta às Janeiras» do banner."
     },
     {
       "type": "textarea",
       "id": "janeiras",
-      "label": "Janeiras (a partir de 26 de dezembro)",
+      "label": "Texto das Janeiras",
       "default": "Abrimos a porta às Janeiras. De 2 a 6 de janeiro, grupos de Janeiras vêm cantar às nossas lojas.",
-      "info": "Aparece na fase dos Reis. Vazio = não mostra."
+      "info": "Rascunho: confirme o texto antes de ligar «Janeiras confirmadas». Vazio = não mostra."
     },
     { "type": "header", "content": "Vales-prenda" },
     {

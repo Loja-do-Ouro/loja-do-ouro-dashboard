@@ -92,12 +92,14 @@
         "lado_cartao": "direita",
         "foco_x": 100,
         "foco_y": 30,
-        "foco_y_tel": 20,
+        "foco_y_tablet": 5,
+        "corte_tablet": 18,
+        "foco_y_tel": 100,
         "mostrar_estrela": true,
         "titulo_h1": true,
         "assinatura": "Seleção Loja do Ouro",
         "marca_lateral": "Loja do Ouro · Natal 2026",
-        "faixa": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\nGarantia legal de 3 anos\n13 lojas em Portugal, levantamento com marcação",
+        "faixa": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\n13 lojas em Portugal, levantamento com marcação",
         "mostrar_no_telemovel": true
       },
       "blocks": {
@@ -105,10 +107,11 @@
           "type": "fase",
           "settings": {
             "fase": "ouro",
+            "ligado": true,
             "eyebrow": "Natal 2026 · Ouro de Reis",
             "titulo": "O primeiro presente de Natal foi ouro.",
             "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família.",
-            "chip": "Chega antes do Natal: encomende até <b>{continente}</b> · Portugal continental",
+            "chip": "Para o Natal em Portugal continental, encomende até <b>{continente}</b> (prazo indicativo).",
             "botao1_texto": "Encontrar a prenda",
             "botao1_url": "/#siga-a-estrela",
             "botao1_whatsapp": false,
@@ -121,10 +124,11 @@
           "type": "fase",
           "settings": {
             "fase": "incenso",
+            "ligado": true,
             "eyebrow": "Incenso · Pronto a oferecer",
             "titulo": "Ainda a tempo do Natal.",
-            "texto": "Encomende até {continente} para receber em Portugal continental. Embrulhamos e juntamos a sua mensagem.",
-            "chip": "Faltam <b>{contagem}</b> para o último dia de encomendas",
+            "texto": "Encomende até {continente} para receber antes do Natal em Portugal continental (prazo indicativo). Embrulhamos e juntamos a sua mensagem.",
+            "chip": "Faltam <b>{contagem}</b> para o fim do prazo de Natal · Portugal continental",
             "botao1_texto": "Encontrar a prenda",
             "botao1_url": "/#siga-a-estrela",
             "botao1_whatsapp": false,
@@ -137,6 +141,7 @@
           "type": "fase",
           "settings": {
             "fase": "ultima",
+            "ligado": true,
             "eyebrow": "Última hora",
             "titulo": "Ainda vai a tempo: levante na loja.",
             "texto": "Localizamos a peça numa das nossas 13 lojas e marcamos consigo o levantamento até {loja}.",
@@ -145,7 +150,7 @@
             "botao1_url": "",
             "botao1_whatsapp": true,
             "mensagem_whatsapp": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.",
-            "botao2_texto": "Ver lojas e horários",
+            "botao2_texto": "Ver lojas",
             "botao2_url": "/#prazos"
           }
         },
@@ -153,6 +158,7 @@
           "type": "fase",
           "settings": {
             "fase": "consoada",
+            "ligado": true,
             "eyebrow": "Natal 2026",
             "titulo": "Boas Festas.",
             "texto": "Da família Loja do Ouro para a sua. As encomendas feitas nestes dias seguem a partir de {retoma}.",
@@ -167,16 +173,66 @@
           "type": "fase",
           "settings": {
             "fase": "mirra",
-            "eyebrow": "Mirra · Até ao Dia de Reis, 6 de janeiro",
+            "ligado": true,
+            "ate": "reis",
+            "eyebrow": "Mirra · Até ao Dia de Reis",
             "titulo": "Ainda vai a tempo dos Reis.",
-            "texto": "Encomende até {reis} para receber até 6 de janeiro (Portugal continental).",
+            "texto": "Encomende até {reis} para receber até 6 de janeiro (Portugal continental, prazo indicativo).",
             "chip": "",
             "botao1_texto": "Prendas de Reis",
             "botao1_url": "shopify://collections/dia-de-reis-2026",
             "botao1_whatsapp": false,
             "mensagem_whatsapp": "",
-            "botao2_texto": "Luz de Ano Novo",
-            "botao2_url": "shopify://collections/colecao-luz-de-ano-novo"
+            "botao2_texto": "Ver prazos e lojas",
+            "botao2_url": "/#prazos",
+            "botao2_alt_texto": "Luz de Ano Novo",
+            "botao2_alt_url": "shopify://collections/colecao-luz-de-ano-novo",
+            "botao2_alt_de": "2026-12-28 00:00",
+            "botao2_alt_ate": "2026-12-31 23:59"
+          }
+        },
+        "fase_mirra_janeiras": {
+          "type": "fase",
+          "settings": {
+            "fase": "mirra",
+            "ligado": false,
+            "de": "reis",
+            "eyebrow": "Mirra · Dia de Reis",
+            "titulo": "Abrimos a porta às Janeiras.",
+            "texto": "De 2 a 6 de janeiro, nas nossas lojas. Para os Reis, localizamos a peça numa das nossas 13 lojas e marcamos consigo o levantamento.",
+            "chip": "",
+            "botao1_texto": "Marcar por WhatsApp",
+            "botao1_url": "",
+            "botao1_whatsapp": true,
+            "mensagem_whatsapp": "Olá! Gostava de levantar uma prenda de Reis numa das vossas lojas.",
+            "botao2_texto": "Ver lojas",
+            "botao2_url": "/#prazos",
+            "botao2_alt_texto": "Luz de Ano Novo",
+            "botao2_alt_url": "shopify://collections/colecao-luz-de-ano-novo",
+            "botao2_alt_de": "2026-12-28 00:00",
+            "botao2_alt_ate": "2026-12-31 23:59"
+          }
+        },
+        "fase_mirra_loja": {
+          "type": "fase",
+          "settings": {
+            "fase": "mirra",
+            "ligado": true,
+            "de": "reis",
+            "eyebrow": "Mirra · Dia de Reis",
+            "titulo": "Para os Reis, levante na loja.",
+            "texto": "Localizamos a peça numa das nossas 13 lojas e marcamos consigo o dia do levantamento.",
+            "chip": "",
+            "botao1_texto": "Marcar por WhatsApp",
+            "botao1_url": "",
+            "botao1_whatsapp": true,
+            "mensagem_whatsapp": "Olá! Gostava de levantar uma prenda de Reis numa das vossas lojas.",
+            "botao2_texto": "Ver lojas",
+            "botao2_url": "/#prazos",
+            "botao2_alt_texto": "Luz de Ano Novo",
+            "botao2_alt_url": "shopify://collections/colecao-luz-de-ano-novo",
+            "botao2_alt_de": "2026-12-28 00:00",
+            "botao2_alt_ate": "2026-12-31 23:59"
           }
         }
       },
@@ -185,7 +241,9 @@
         "fase_incenso",
         "fase_ultima",
         "fase_consoada",
-        "fase_mirra"
+        "fase_mirra",
+        "fase_mirra_janeiras",
+        "fase_mirra_loja"
       ],
       "disabled": false
     },
@@ -201,7 +259,10 @@
         "titulo_resultados": "A estrela parou aqui.",
         "colecao_vale": "voucher-prenda",
         "ancora": "siga-a-estrela",
-        "mostrar_no_telemovel": true
+        "estado_inicial": "fechado",
+        "mostrar_no_telemovel": true,
+        "barra_telemovel": true,
+        "barra_fundo": 148
       },
       "blocks": {
         "para_ela": {
@@ -316,21 +377,57 @@
     "lod_natal_selecao": {
       "type": "lod-natal-selecao",
       "settings": {
-        "eyebrow": "Os mais oferecidos no Natal passado",
+        "eyebrow": "No Natal passado",
         "titulo": "Os mais oferecidos",
-        "descricao": "As peças mais escolhidas no nosso Natal de 2025.",
+        "descricao": "Algumas das peças mais escolhidas no nosso Natal de 2025.",
         "produtos": [
-          "brincos-coracao-de-viana-em-prata-com-perola",
-          "conjunto-fio-e-brincos-coracao-de-viana-em-prata",
-          "brincos-coracao-de-viana-em-prata-dourada-e-esmalte-azul-1",
-          "brincos-coracao-de-viana-em-prata-dourada",
+          "medalha-nossa-senhora-em-ouro-19kl-0-9cm",
+          "brincos-flamma-em-prata-dourada",
           "escapulario-em-prata-dourada-com-imagem-religiosa-em-madreperola-e-zirconias",
-          "brincos-celestia-em-prata-dourada-e-perola-branca",
-          "fio-em-prata-dourada-com-coracao-de-viana"
+          "fio-em-prata-dourada-com-coracao-de-viana",
+          "medalha-papiro-em-ouro-19kl-com-letras",
+          "brincos-sonhos-de-alfama-em-prata-dourada",
+          "conjunto-fio-e-brincos-em-prata-com-perolas-e-zirconias",
+          "brincos-maria-em-prata-dourada-5cm",
+          "brincos-portuguesa-em-prata-dourada-5-8cm",
+          "brincos-hortencia-em-prata-dourada-4cm",
+          "brincos-luminis-em-prata-dourada-e-perola-aqua",
+          "pulseira-ternura-em-prata-dourada-16-5cm"
         ],
         "limite": 8,
         "esconder_esgotados": true,
         "link_texto": "",
+        "fundo": "papel",
+        "mostrar_no_telemovel": true
+      },
+      "blocks": {},
+      "block_order": [],
+      "disabled": false
+    },
+    "lod_natal_familia": {
+      "type": "lod-natal-selecao",
+      "settings": {
+        "eyebrow": "Para a vida",
+        "titulo": "Ouro que fica na família",
+        "descricao": "Peças em ouro português de 19,2 quilates para passar de geração em geração.",
+        "produtos": [
+          "medalha-coracao-de-viana-em-filigrana-de-ouro-19kl-5cm",
+          "brincos-meia-conta-de-viana-em-ouro-19kl-1-05cm",
+          "cruz-contas-de-viana-em-ouro-19kl-4-45cm",
+          "conta-de-viana-em-ouro-19kl-8-6mm",
+          "fio-elos-portugueses-em-ouro-19kl-50cm",
+          "medalha-em-ouro-de-19kl-com-caramujos-e-esmalte-colorido-1-9cm",
+          "brincos-rainha-ouro-19kl-4-5cm",
+          "pulseira-tradicao-em-ouro-19kl-com-esferas-19-5cm",
+          "terco-em-ouro-19kl-45cm",
+          "pulseira-escrava-em-ouro-19kl-6-8cm",
+          "brincos-meia-conta-de-viana-em-ouro-19kl-1-46cm",
+          "conta-de-viana-em-ouro-19kl-7-3mm"
+        ],
+        "limite": 8,
+        "esconder_esgotados": true,
+        "link_texto": "Ver todo o ouro tradicional",
+        "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
         "fundo": "papel",
         "mostrar_no_telemovel": true
       },
@@ -367,7 +464,7 @@
             "texto_trocas": "",
             "imagem_alt": "",
             "link_texto": "Ver ouro tradicional",
-            "link_url": "/collections/tradicao-ouro",
+            "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
             "abre_embrulho": false
           }
         },
@@ -378,7 +475,7 @@
             "numeral": "II",
             "eyebrow": "Incenso",
             "titulo": "Embrulhar",
-            "texto": "Saco prenda, Pack Premium e uma mensagem escrita por si — escolha no carrinho. Também enviamos diretamente para quem recebe.",
+            "texto": "Saco de oferta, Pack Premium e uma mensagem escrita por si — escolha no carrinho. Também enviamos diretamente para quem recebe.",
             "texto_trocas": "",
             "imagem_alt": "",
             "link_texto": "Ver opções de embrulho",
@@ -393,8 +490,8 @@
             "numeral": "III",
             "eyebrow": "Mirra",
             "titulo": "Cuidar",
-            "texto": "Apoio por WhatsApp e 13 lojas para o que precisar. Todas as peças têm a garantia legal de 3 anos.",
-            "texto_trocas": "Trocas de Natal até {trocas}, apoio por WhatsApp e 13 lojas para o que precisar. Todas as peças têm a garantia legal de 3 anos.",
+            "texto": "Apoio por WhatsApp e 13 lojas para o que precisar. Em caso de defeito, aplica-se a garantia legal de 3 anos.",
+            "texto_trocas": "Trocas de Natal até {trocas}, apoio por WhatsApp e 13 lojas para o que precisar. Em caso de defeito, aplica-se a garantia legal de 3 anos.",
             "imagem_alt": "",
             "link_texto": "Encontrar uma loja",
             "link_url": "/pages/agencias",
@@ -421,7 +518,7 @@
         "estilo_titulo": "oswald",
         "texto": "<p>Símbolo de devoção ao Sagrado Coração de Jesus e raiz do ouro de Viana. Conta a tradição que o primeiro terá sido feito a pedido de D. Maria I, em agradecimento pelo nascimento de um herdeiro. Lenda ou história, ficou o gesto: um coração em filigrana para oferecer a quem se ama.</p><p>Os Corações de Viana que lhe sugerimos aqui são em prata dourada.</p>",
         "sabia_titulo": "Sabia que?",
-        "sabia": "<p>Foi D. Maria I quem mandou erguer a Basílica da Estrela, em Lisboa, para cumprir uma promessa pelo nascimento de um herdeiro — considerada a primeira igreja dedicada ao Sagrado Coração de Jesus. Lá dentro está o célebre presépio saído da oficina de Machado de Castro.</p>",
+        "sabia": "<p>Foi D. Maria I quem mandou erguer a Basílica da Estrela, em Lisboa, para cumprir uma promessa pelo nascimento de um herdeiro. É considerada a primeira igreja dedicada ao Sagrado Coração de Jesus. Lá dentro está o célebre presépio saído da oficina de Machado de Castro.</p>",
         "produtos": [
           "brincos-coracao-de-viana-em-prata-com-perola",
           "pulseira-coracao-de-viana-em-prata-dourada-com-perolas-barrocas",
@@ -451,7 +548,8 @@
         "grelha_inicio": "2026-11-30",
         "dias_ouro": "2026-12-24,2026-12-25,2027-01-06",
         "ancora": "calendario",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "janeiras_confirmadas": false
       },
       "blocks": {
         "dia_20261201": {
@@ -459,7 +557,8 @@
           "settings": {
             "data": "2026-12-01",
             "titulo": "O primeiro presente de Natal foi ouro",
-            "historia": "Conta o Evangelho de São Mateus que os Magos levaram ao Menino ouro, incenso e mirra: três presentes. Na leitura da Igreja, o ouro é o que se oferece a um rei — e foi assim que o ouro entrou no Natal. Até ao Dia de Reis, abrimos aqui uma porta por dia. Para começar: um fio em ouro português de 19,2 quilates e uns brincos em prata dourada com pérola.",
+            "historia": "Conta o Evangelho de São Mateus que os Magos levaram ao Menino ouro, incenso e mirra: três presentes. Na leitura da Igreja, o ouro é o que se oferece a um rei — e foi assim que o ouro entrou no Natal. Até ao Dia de Reis, abrimos aqui uma porta por dia.",
+            "sugestao": "Para começar: um fio em ouro português de 19,2 quilates e uns brincos em prata dourada com pérola.",
             "icone": "estrela",
             "produto": "fio-malha-cadeado-em-ouro-19kl-45cm",
             "produto_2": "brincos-luminis-em-prata-dourada-e-perola-branca",
@@ -474,7 +573,8 @@
           "settings": {
             "data": "2026-12-02",
             "titulo": "Ouro português, 19,2 quilates",
-            "historia": "O ouro português tem uma medida própria: 800 partes de ouro fino em cada mil, a liga conhecida como 19,2 quilates. As peças são contrastadas pelas contrastarias da Imprensa Nacional-Casa da Moeda (INCM), a marca oficial que garante o metal. Hoje: umas argolas pequenas e um fio com anjo da guarda, ambos em ouro de 19,2 quilates.",
+            "historia": "O ouro português tem uma medida própria: 800 partes de ouro fino em cada mil, a liga conhecida como 19,2 quilates. As peças são contrastadas pelas contrastarias da Imprensa Nacional-Casa da Moeda (INCM), cuja marca oficial garante o metal.",
+            "sugestao": "Hoje: umas argolas pequenas e um fio com anjo da guarda, ambos em ouro de 19,2 quilates.",
             "icone": "ouro",
             "produto": "argolas-pequenas-ouro-19kl-1-55cm",
             "produto_2": "fio-em-ouro-de-19kl-com-anjo-da-guarda-zirconia",
@@ -489,10 +589,11 @@
           "settings": {
             "data": "2026-12-03",
             "titulo": "A enchedeira",
-            "historia": "Em Gondomar e na Póvoa de Lanhoso, a filigrana faz-se fio a fio. A enchedeira — tradicionalmente uma mulher — enche a moldura da peça com fio torcido de ouro ou prata, em espirais e esses, sempre em curva, nunca em ângulo reto. É do seu trabalho que vem a maior parte do valor de uma peça. Hoje: uma medalha em filigrana de ouro e uns brincos em filigrana de prata dourada.",
+            "historia": "Em Gondomar e na Póvoa de Lanhoso, a filigrana faz-se fio a fio. A enchedeira — tradicionalmente uma mulher — enche a moldura da peça com fio torcido de ouro ou prata, em espirais e esses, sempre em curva, nunca em ângulo reto. É do seu trabalho que vem a maior parte do valor de uma peça.",
+            "sugestao": "Hoje: uns brincos com pérola e uma cruz, ambos em filigrana de prata dourada.",
             "icone": "estrela",
-            "produto": "medalha-floral-em-filigrana-ouro-19kl-com-turquesas-e-perola-4-5cm",
-            "produto_2": "brincos-flor-de-filigrana-em-prata-dourada-e-perola",
+            "produto": "brincos-flor-de-filigrana-em-prata-dourada-e-perola",
+            "produto_2": "cruz-filigrana-em-prata-dourada",
             "colecao": "filigrana",
             "cta_texto": "Ver filigrana",
             "dica": "A filigrana da Póvoa de Lanhoso e a de Gondomar estão no Inventário Nacional do Património Cultural Imaterial.",
@@ -504,14 +605,17 @@
           "settings": {
             "data": "2026-12-04",
             "titulo": "A libra, e o último dia para os Açores",
-            "historia": "Em Portugal, a libra é uma moeda de ouro que se oferece e se guarda — e que também se usa ao peito, com aro. Durante gerações, as mulheres portuguesas viram no ouro um adorno e, ao mesmo tempo, uma segurança para o futuro. Hoje: uma meia libra e uma libra da rainha Vitória, ambas montadas em aro trabalhado de ouro de 19,2 quilates.",
+            "historia": "Em Portugal, a libra é uma moeda de ouro que se oferece e se guarda — e que também se usa ao peito, com aro. Durante gerações, as mulheres portuguesas viram no ouro um adorno e, ao mesmo tempo, uma segurança para o futuro.",
+            "sugestao": "Hoje: duas libras já montadas em aro trabalhado de ouro de 19,2 quilates.",
             "icone": "ouro",
             "produto": "meia-libra-rainha-isabel-ii-1982-com-aro-trabalhado-de-19kl",
             "produto_2": "libra-rainha-vitoria-1888-com-aro-trabalhado-em-ouro-19kl",
             "colecao": "libras-com-aro",
             "cta_texto": "Ver libras com aro",
             "dica": "Açores: hoje é o último dia para encomendar e receber antes do Natal (prazo indicativo).",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "acores",
+            "prazo_quando": "dia"
           }
         },
         "dia_20261205": {
@@ -519,14 +623,17 @@
           "settings": {
             "data": "2026-12-05",
             "titulo": "Contas de Viana",
-            "historia": "As Contas de Viana são contas de ouro e uma das mais antigas tradições do Minho. Hoje usam-se num colar, num fio com uma só conta ou num par de brincos. Para esta porta escolhemos uns brincos em prata dourada e uma conta em ouro de 19,2 quilates — o princípio de um colar que pode crescer de Natal em Natal.",
+            "historia": "As Contas de Viana são contas tradicionalmente feitas em ouro e uma das mais antigas tradições do Minho. Hoje usam-se num colar, num fio com uma só conta ou num par de brincos.",
+            "sugestao": "Para esta porta escolhemos uns brincos em prata dourada e uma conta em ouro de 19,2 quilates — o princípio de um colar que pode crescer de Natal em Natal.",
             "icone": "ouro",
             "produto": "brincos-contas-de-viana-em-prata-dourada-1cm",
             "produto_2": "conta-de-viana-em-ouro-19kl-8-6mm",
             "colecao": "contas-de-viana",
             "cta_texto": "Ver Contas de Viana",
-            "dica": "Madeira: encomende até 11 de dezembro para receber antes do Natal (prazo indicativo).",
-            "sem_venda": false
+            "dica": "Madeira: encomende até {madeira}, para receber antes do Natal (prazo indicativo).",
+            "sem_venda": false,
+            "prazo": "madeira",
+            "prazo_quando": "antes"
           }
         },
         "dia_20261206": {
@@ -534,11 +641,12 @@
           "settings": {
             "data": "2026-12-06",
             "titulo": "Arrecadas: mais de 2000 anos de filigrana",
-            "historia": "As arrecadas são brincos tradicionais do ouro do Minho. Os seus antepassados são as arrecadas de ouro da Idade do Ferro, encontradas em Laúndos, Estela e Afife, que já tinham filigrana e granulado. Mais de 2000 anos depois, a arte continua viva. Hoje: uns brincos arrecadas em prata dourada, feitos em Portugal.",
+            "historia": "As arrecadas são brincos tradicionais do ouro do Minho. Os seus antepassados são as arrecadas de ouro da Idade do Ferro, encontradas em Laúndos, Estela e Afife, que já tinham filigrana e granulado. Mais de 2000 anos depois, a arte continua viva.",
+            "sugestao": "Hoje: umas arrecadas modernas em prata dourada, com trabalho de filigrana.",
             "icone": "estrela",
-            "produto": "brincos-arrecadas-em-prata",
+            "produto": "brincos-arrecadas-modernas-em-prata-dourada",
             "colecao": "tradicao-ouro",
-            "cta_texto": "Ver ouro tradicional",
+            "cta_texto": "Ver joias da tradição",
             "dica": "Volte amanhã: a porta de 7 de dezembro conta a história dos bonecos de Estremoz.",
             "sem_venda": false
           }
@@ -548,7 +656,7 @@
           "settings": {
             "data": "2026-12-07",
             "titulo": "Bonecos de Estremoz",
-            "historia": "Faz hoje nove anos: a 7 de dezembro de 2017, a UNESCO inscreveu a arte dos bonecos de Estremoz na Lista Representativa do Património Cultural Imaterial da Humanidade. E conta a própria UNESCO que este barro começou nos presépios — o presépio de altar e o presépio de três figuras. Um Natal português feito à mão, como a nossa filigrana.",
+            "historia": "Faz hoje nove anos: a 7 de dezembro de 2017, a UNESCO inscreveu a arte dos bonecos de Estremoz na Lista Representativa do Património Cultural Imaterial da Humanidade. E conta a própria UNESCO que este barro começou nos presépios — o presépio de altar e o presépio de três figuras. Um Natal português feito à mão, como a arte da filigrana.",
             "icone": "estrela",
             "dica": "Amanhã, dia 8, é feriado: a porta abre com o Coração de Viana.",
             "sem_venda": false
@@ -559,14 +667,17 @@
           "settings": {
             "data": "2026-12-08",
             "titulo": "Coração de Viana: conta a tradição",
-            "historia": "Conta a tradição que o primeiro Coração de Viana terá sido feito a pedido de D. Maria I, em agradecimento pelo nascimento de um herdeiro. Lenda ou história, ficou o símbolo de devoção ao Sagrado Coração de Jesus e a raiz do ouro de Viana. Hoje: os brincos em prata dourada com pérola mais oferecidos no nosso Natal passado e uma medalha em filigrana de ouro.",
+            "historia": "Conta a tradição que o primeiro Coração de Viana terá sido feito a pedido de D. Maria I, em agradecimento pelo nascimento de um herdeiro. Lenda ou história, ficou o símbolo de devoção ao Sagrado Coração de Jesus e a raiz do ouro de Viana.",
+            "sugestao": "Hoje: os brincos em prata dourada com pérola mais oferecidos no nosso Natal passado e um fio com Coração de Viana, também em prata dourada.",
             "icone": "coracao",
             "produto": "brincos-coracao-de-viana-em-prata-com-perola",
-            "produto_2": "medalha-coracao-de-viana-em-filigrana-de-ouro-19kl-5cm",
+            "produto_2": "fio-em-prata-dourada-com-coracao-de-viana",
             "colecao": "coracoes-de-viana",
             "cta_texto": "Ver Corações de Viana",
-            "dica": "Quer gravar uma lembrança? As peças gravadas encomendam-se até 16 de dezembro (prazo indicativo).",
-            "sem_venda": false
+            "dica": "Quer gravar uma lembrança? Para chegarem antes do Natal, as peças gravadas encomendam-se até {gravacao} (prazo indicativo).",
+            "sem_venda": false,
+            "prazo": "gravacao",
+            "prazo_quando": "antes"
           }
         },
         "dia_20261209": {
@@ -574,14 +685,16 @@
           "settings": {
             "data": "2026-12-09",
             "titulo": "Gravar uma lembrança",
-            "historia": "Um nome, uma data ou «Natal 2026» gravados no verso fazem de uma peça uma lembrança só de quem a recebe. Nos fios em prata da coleção «Grave o seu fio», escolhe o texto na própria página do produto (+5 €). As medalhas em ouro de 19,2 quilates que se podem gravar combinam-se connosco por chat ou WhatsApp.",
+            "historia": "Um nome, uma data ou «Natal 2026» gravados no verso fazem de uma peça uma lembrança só de quem a recebe. Nos fios em prata da coleção «Grave o seu fio», escolhe o texto na própria página do produto, onde vê também o preço. As medalhas em ouro de 19,2 quilates que se podem gravar combinam-se connosco por chat ou WhatsApp.",
             "icone": "coracao",
             "produto": "fio-em-prata-com-medalha-nascimento",
             "produto_2": "medalha-redonda-deus-te-guie-em-ouro-19kl-1-1cm",
             "colecao": "para-gravacao",
             "cta_texto": "Ver peças para gravar",
-            "dica": "Gravação a tempo do Natal: encomende até 16 de dezembro (prazo indicativo). Peças gravadas não têm troca nem devolução, salvo defeito.",
-            "sem_venda": false
+            "dica": "Gravação a tempo do Natal: encomende até {gravacao} (prazo indicativo). Peças gravadas não têm troca nem devolução, salvo defeito.",
+            "sem_venda": false,
+            "prazo": "gravacao",
+            "prazo_quando": "antes"
           }
         },
         "dia_20261210": {
@@ -589,7 +702,7 @@
           "settings": {
             "data": "2026-12-10",
             "titulo": "A Basílica da Estrela e o seu presépio",
-            "historia": "Foi D. Maria I quem mandou erguer a Basílica da Estrela, em Lisboa, para cumprir uma promessa pelo nascimento de um herdeiro. As obras começaram em 1779 e terminaram em 1790, e é considerada a primeira igreja dedicada ao Sagrado Coração de Jesus. Lá dentro está um célebre presépio, encomendado pela rainha à oficina de Joaquim Machado de Castro.",
+            "historia": "Foi D. Maria I quem mandou erguer a Basílica da Estrela, em Lisboa, para cumprir uma promessa pelo nascimento de um herdeiro. As obras começaram em 1779 e terminaram em 1790. A basílica é considerada a primeira igreja dedicada ao Sagrado Coração de Jesus. Lá dentro está um célebre presépio, encomendado pela rainha à oficina de Joaquim Machado de Castro.",
             "icone": "porta",
             "dica": "É a mesma devoção ao Sagrado Coração que vive no Coração de Viana.",
             "sem_venda": false
@@ -600,13 +713,17 @@
           "settings": {
             "data": "2026-12-11",
             "titulo": "A laça, e o último dia para a Madeira",
-            "historia": "A laça é um pendente em forma de laço e uma das peças emblemáticas do ouro tradicional português, ao lado das arrecadas, das medalhas e do coração minhoto. Um laço que não se desata — talvez por isso fique tão bem numa prenda. Hoje: um alfinete de peito em forma de laço, em ouro de 19,2 quilates.",
+            "historia": "A laça é um pendente em forma de laço e uma das peças emblemáticas do ouro tradicional português, ao lado das arrecadas, das medalhas e do coração minhoto. Um laço que não se desata — talvez por isso fique tão bem numa prenda.",
+            "sugestao": "Hoje: duas peças com laço, em ouro de 19,2 quilates: um alfinete de peito e uma pulseira.",
             "icone": "laco",
             "produto": "alfinete-em-ouro-19kl-formato-laco",
+            "produto_2": "pulseira-em-ouro-19kl-com-elos-ovais-e-uniao-em-laco-18cm",
             "colecao": "tradicao-prata-ouro-filigrana-viana",
             "cta_texto": "Ver toda a Tradição",
             "dica": "Madeira: hoje é o último dia para encomendar e receber antes do Natal (prazo indicativo).",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "madeira",
+            "prazo_quando": "dia"
           }
         },
         "dia_20261212": {
@@ -614,14 +731,17 @@
           "settings": {
             "data": "2026-12-12",
             "titulo": "Para ela",
-            "historia": "Peças que se usam todos os dias e se guardam para sempre. No Natal passado, 12 de dezembro foi o nosso dia com mais encomendas — por isso, hoje, a porta é para ela: uns brincos Celestia em prata dourada com pérola branca, entre os mais escolhidos de 2025, e um anel Baronesa em ouro de 19,2 quilates com pedra de cor ametista.",
+            "historia": "Peças que se usam todos os dias e se guardam para sempre. No Natal passado, 12 de dezembro foi o nosso dia com mais encomendas — por isso, hoje, a porta é para ela.",
+            "sugestao": "Uns brincos Celestia em prata dourada com pérola branca, entre os mais escolhidos de 2025, e um anel Baronesa em ouro de 19,2 quilates com pedra de cor ametista.",
             "icone": "coracao",
             "produto": "brincos-celestia-em-prata-dourada-e-perola-branca",
             "produto_2": "anel-baronesa-em-ouro-19kl-com-pedra-de-cor-ametista",
             "colecao": "para-ela-natal",
             "cta_texto": "Ver prendas para ela",
-            "dica": "Portugal continental: encomende até 18 de dezembro para receber antes do Natal (prazo indicativo).",
-            "sem_venda": false
+            "dica": "Portugal continental: encomende até {continente}, para receber antes do Natal (prazo indicativo).",
+            "sem_venda": false,
+            "prazo": "continente",
+            "prazo_quando": "antes"
           }
         },
         "dia_20261213": {
@@ -629,7 +749,8 @@
           "settings": {
             "data": "2026-12-13",
             "titulo": "Para o sapatinho: até 50 €",
-            "historia": "As prendas pequenas são, tantas vezes, as que mais se guardam. Para o sapatinho deste ano, duas ideias até 50 €: uma pulseira com Coração de Viana e pérolas barrocas e um fio Tradição com medalha de caramujos azul — ambos em prata dourada.",
+            "historia": "As prendas pequenas são, tantas vezes, as que mais se guardam.",
+            "sugestao": "Para o sapatinho deste ano, duas ideias até 50 €: uma pulseira com Coração de Viana e pérolas barrocas e um fio Tradição com medalha de caramujos azul — ambos em prata dourada.",
             "icone": "sapatinho",
             "produto": "pulseira-coracao-de-viana-em-prata-dourada-com-perolas-barrocas",
             "produto_2": "fio-tradicao-em-prata-dourada-com-medalha-caramujos-azul-e-branco",
@@ -644,7 +765,8 @@
           "settings": {
             "data": "2026-12-14",
             "titulo": "Cartas ao Menino Jesus",
-            "historia": "Até meados dos anos 80, era ao Menino Jesus que as crianças portuguesas escreviam a pedir as prendas — Portugal foi dos poucos países da Europa onde era o próprio Menino a trazê-las. Para os mais pequenos de hoje: uma medalha Anjo da Guarda em ouro de 19,2 quilates com zircónia e um fio com coração em prata dourada e zircónias.",
+            "historia": "Até meados dos anos 80, era ao Menino Jesus que as crianças portuguesas escreviam a pedir as prendas — Portugal foi dos poucos países da Europa onde era o próprio Menino a trazê-las.",
+            "sugestao": "Para os mais pequenos de hoje: uma medalha Anjo da Guarda em ouro de 19,2 quilates com zircónia e um fio com coração em prata dourada e zircónias.",
             "icone": "estrela",
             "produto": "medalha-anjo-da-guarda-em-ouro-19kl-com-zirconia-0-9cm",
             "produto_2": "fio-cora-o-em-prata-dourada-com-zirconias",
@@ -663,8 +785,10 @@
             "icone": "incenso",
             "cta_texto": "Ver opções de embrulho",
             "cta_url": "/#embrulho",
-            "dica": "Peças gravadas: amanhã é o último dia para chegarem antes do Natal (prazo indicativo).",
-            "sem_venda": false
+            "dica": "Peças gravadas: amanhã é o último dia para as encomendar a tempo do Natal (prazo indicativo).",
+            "sem_venda": false,
+            "prazo": "gravacao",
+            "prazo_quando": "vespera"
           }
         },
         "dia_20261216": {
@@ -672,14 +796,17 @@
           "settings": {
             "data": "2026-12-16",
             "titulo": "Brincos à rainha",
-            "historia": "Diz-se que os brincos à rainha surgiram no tempo de D. Maria I e ganharam o nome com D. Maria II: na visita da rainha a Viana, a 8 de maio de 1852, as raparigas da terra ofereceram-lhe um par. Foram peças de estatuto e ainda hoje são usados por noivas. Hoje: brincos rainha em prata dourada e em ouro de 19,2 quilates.",
+            "historia": "Diz-se que os brincos à rainha surgiram no tempo de D. Maria I e ganharam o nome com D. Maria II: na visita da rainha a Viana, a 8 de maio de 1852, as raparigas da terra ofereceram-lhe um par. Foram peças de estatuto e ainda hoje são usados por noivas.",
+            "sugestao": "Hoje: brincos rainha em prata dourada e em prata.",
             "icone": "coroa",
             "produto": "brincos-rainha-em-prata-dourada-5-3cm",
-            "produto_2": "brincos-rainha-ouro-19kl-4-5cm",
+            "produto_2": "brincos-rainha-em-prata-5-3cm",
             "cta_texto": "Ver brincos à rainha",
             "cta_url": "/search?q=brincos+rainha",
             "dica": "Peças gravadas: hoje é o último dia para encomendar a tempo do Natal (prazo indicativo).",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "gravacao",
+            "prazo_quando": "dia"
           }
         },
         "dia_20261217": {
@@ -687,14 +814,17 @@
           "settings": {
             "data": "2026-12-17",
             "titulo": "Para a mãe",
-            "historia": "Para quem nos ensinou a guardar as coisas boas: uns brincos Amália em prata dourada, com trevos e filigrana, e uma medalha de Nossa Senhora de Fátima em ouro de 19,2 quilates, com zircónias. Duas peças para usar todos os dias e passar, um dia, a quem vier depois.",
+            "historia": "Para quem nos ensinou a guardar as coisas boas: peças para usar todos os dias e passar, um dia, a quem vier depois.",
+            "sugestao": "Hoje: uns brincos Amália em prata dourada, com trevos e filigrana, e uma medalha de Nossa Senhora de Fátima em ouro de 19,2 quilates, com zircónias.",
             "icone": "coracao",
             "produto": "brincos-amalia-em-prata-dourada-com-trevos-e-filigrana",
             "produto_2": "medalha-nossa-senhora-em-ouro-19kl-com-zirconias-1-4cm",
             "colecao": "para-a-mae-natal",
             "cta_texto": "Ver prendas para a mãe",
             "dica": "Amanhã é o último dia para encomendar e receber antes do Natal em Portugal continental (prazo indicativo).",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "continente",
+            "prazo_quando": "vespera"
           }
         },
         "dia_20261218": {
@@ -702,14 +832,17 @@
           "settings": {
             "data": "2026-12-18",
             "titulo": "Último dia para o continente",
-            "historia": "Hoje é o último dia para encomendar e receber antes do Natal em Portugal continental. O prazo é indicativo e vale para encomendas pagas até às 23h59: expedimos no dia útil seguinte à confirmação do pagamento e, nesta época, a transportadora pode ter atrasos. Duas sugestões em azul: brincos em prata dourada com esmalte e um anel em ouro de 19,2 quilates.",
+            "historia": "Hoje é o último dia para encomendar e receber antes do Natal em Portugal continental. O prazo é indicativo e vale para encomendas pagas até às {hora_continente}: expedimos no dia útil seguinte à confirmação do pagamento e, nesta época, a transportadora pode ter atrasos.",
+            "sugestao": "Duas sugestões em azul: uns brincos em prata dourada com esmalte e um anel em ouro de 19,2 quilates com pedra azul.",
             "icone": "estrela",
             "produto": "brincos-coracao-de-viana-em-prata-dourada-e-esmalte-azul-1",
             "produto_2": "anel-ma-leonor-em-ouro-19kl-com-pedra-azul-e-cristais-swarovski",
             "cta_texto": "Encontrar a prenda",
             "cta_url": "/#siga-a-estrela",
-            "dica": "A partir de amanhã, pode levantar numa das nossas lojas até 24 de dezembro, às 13h, com marcação.",
-            "sem_venda": false
+            "dica": "A partir de amanhã, pode levantar numa das nossas lojas até {loja}, com marcação.",
+            "sem_venda": false,
+            "prazo": "continente",
+            "prazo_quando": "dia"
           }
         },
         "dia_20261219": {
@@ -717,14 +850,17 @@
           "settings": {
             "data": "2026-12-19",
             "titulo": "O madeiro",
-            "historia": "Na noite de 24, em muitas terras do interior — da Beira Baixa a Trás-os-Montes e à Guarda — arde no adro da igreja o madeiro, uma grande fogueira onde as pessoas se juntam depois da Missa do Galo. Tradicionalmente, são os rapazes que trazem os troncos. Para lembrar esse calor: brincos Flamma em prata dourada e um anel em ouro de 19,2 quilates com pedra vermelha.",
+            "historia": "Na noite de 24, em muitas terras do interior, como a Beira Baixa, a Guarda e Trás-os-Montes, arde no adro da igreja o madeiro, uma grande fogueira onde as pessoas se juntam depois da Missa do Galo. Tradicionalmente, são os rapazes que trazem os troncos.",
+            "sugestao": "Para lembrar esse calor: uns brincos Flamma em prata dourada e um anel em ouro de 19,2 quilates com pedra vermelha.",
             "icone": "incenso",
             "produto": "brincos-flamma-em-prata-dourada",
             "produto_2": "anel-dona-aurora-em-ouro-com-pedra-vermelha-e-cristais-swarovski",
-            "cta_texto": "Ver lojas e horários",
+            "cta_texto": "Ver as nossas lojas",
             "cta_url": "/pages/agencias",
-            "dica": "Já não chega por correio? Levante numa das nossas 13 lojas até 24 de dezembro, às 13h, com marcação.",
-            "sem_venda": false
+            "dica": "Já não chega por correio? Levante numa das nossas 13 lojas até {loja}, com marcação.",
+            "sem_venda": false,
+            "prazo": "continente",
+            "prazo_quando": "depois"
           }
         },
         "dia_20261220": {
@@ -737,7 +873,9 @@
             "colecao": "voucher-prenda",
             "cta_texto": "Escolher vale-prenda",
             "dica": "Para o ter antes do Natal, pergunte-nos por WhatsApp como o pode levantar numa das nossas lojas.",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "continente",
+            "prazo_quando": "depois"
           }
         },
         "dia_20261221": {
@@ -745,12 +883,14 @@
           "settings": {
             "data": "2026-12-21",
             "titulo": "Levantar na loja",
-            "historia": "Ainda vai a tempo: temos 13 lojas nos distritos de Lisboa, Santarém, Coimbra e Leiria. Como muitas peças são únicas, primeiro localizamos a que escolheu e depois marcamos consigo o levantamento, até 24 de dezembro às 13h. Escreva-nos por WhatsApp ou ligue para a loja mais perto de si.",
+            "historia": "Ainda vai a tempo: temos 13 lojas nos distritos de Lisboa, Santarém, Coimbra e Leiria. Como o stock está repartido pelas lojas, primeiro localizamos a peça que escolheu e depois marcamos consigo o levantamento, até {loja}. Escreva-nos por WhatsApp ou ligue para a loja mais perto de si.",
             "icone": "porta",
-            "cta_texto": "Ver lojas e horários",
+            "cta_texto": "Ver as nossas lojas",
             "cta_url": "/pages/agencias",
             "dica": "Antes de ir, confirme o horário na página da loja.",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "loja",
+            "prazo_quando": "antes"
           }
         },
         "dia_20261222": {
@@ -758,14 +898,17 @@
           "settings": {
             "data": "2026-12-22",
             "titulo": "Para ele",
-            "historia": "Para ele, duas ideias que não passam de moda: um relógio Momentum, de 44 mm, para todos os dias, e uma pulseira de malha 3x1 em ouro de 19,2 quilates, para a vida inteira. Para chegar a tempo, combine connosco o levantamento numa das nossas lojas, até 24 de dezembro às 13h.",
+            "historia": "Para ele, peças que não passam de moda. Para chegar a tempo, combine connosco o levantamento numa das nossas lojas, até {loja}.",
+            "sugestao": "Hoje, duas ideias em ouro de 19,2 quilates: um fio de malha cadeado, para todos os dias, e uma pulseira de malha 3x1, para a vida inteira.",
             "icone": "ouro",
-            "produto": "relogio-momentum-para-homem",
+            "produto": "fio-malha-cadeado-em-ouro-19kl-45cm",
             "produto_2": "pulseira-malha-3x1-em-ouro-19kl-18cm-1",
             "colecao": "para-ele-natal",
             "cta_texto": "Ver prendas para ele",
-            "dica": "Muitas peças são únicas: primeiro localizamos a peça e depois marcamos consigo o levantamento.",
-            "sem_venda": false
+            "dica": "O stock está repartido pelas lojas: primeiro localizamos a peça e depois marcamos consigo o levantamento.",
+            "sem_venda": false,
+            "prazo": "loja",
+            "prazo_quando": "antes"
           }
         },
         "dia_20261223": {
@@ -773,14 +916,17 @@
           "settings": {
             "data": "2026-12-23",
             "titulo": "O sapatinho na chaminé",
-            "historia": "Na noite de Natal, as crianças deixavam a meia ou o sapatinho junto à chaminé — limpa de propósito, para o Menino Jesus não sujar os pés. De manhã, lá estavam as prendas. Para um sapatinho pequenino: uma medalha Anjo da Guarda em ouro de 19,2 quilates e uns brincos Amor com Fé em prata dourada.",
+            "historia": "Na noite de Natal, as crianças deixavam a meia ou o sapatinho junto à chaminé — limpa de propósito, para o Menino Jesus não sujar os pés. De manhã, lá estavam as prendas.",
+            "sugestao": "Para um sapatinho pequenino: uma medalha Anjo da Guarda em ouro de 19,2 quilates e uns brincos Amor com Fé em prata dourada.",
             "icone": "sapatinho",
             "produto": "medalha-anjo-da-guarda-em-ouro-de-19-2kl-1-24cm",
             "produto_2": "brincos-amor-com-fe-em-prata-dourada-1-7cm",
             "colecao": "medalhas-crianca-ouro",
             "cta_texto": "Ver medalhas em ouro",
-            "dica": "Última oportunidade: levante na loja até amanhã, 24 de dezembro, às 13h, com marcação.",
-            "sem_venda": false
+            "dica": "Última oportunidade: levante na loja até amanhã, {loja}, com marcação.",
+            "sem_venda": false,
+            "prazo": "loja",
+            "prazo_quando": "vespera"
           }
         },
         "dia_20261224": {
@@ -788,6 +934,7 @@
           "settings": {
             "data": "2026-12-24",
             "titulo": "Consoada e Missa do Galo",
+            "rotulo": "Consoada",
             "historia": "A Consoada é a ceia da noite de 24: bacalhau ou outro peixe — em algumas terras do Norte, polvo — e, na mesa, rabanadas, filhós, azevias e Bolo-Rei. Depois da ceia, muitos seguem para a Missa do Galo, à meia-noite, onde se encontram os amigos e se trocam as boas-festas. Da família Loja do Ouro para a sua: uma santa Consoada.",
             "icone": "estrela",
             "sem_venda": true
@@ -798,7 +945,8 @@
           "settings": {
             "data": "2026-12-25",
             "titulo": "Feliz Natal",
-            "historia": "Hoje não há peça nem sugestão. Há a mesa, a família e o que se dá sem embrulho. Obrigado por abrir connosco, dia a dia, estas portas do ouro português. Amanhã voltamos, com a mirra: o cuidado que vem depois da prenda. Feliz Natal, de todos nós, nas 13 lojas Loja do Ouro.",
+            "rotulo": "Natal",
+            "historia": "Hoje não há peça nem sugestão. Há a mesa, a família e o que se dá sem embrulho. Obrigado por abrir connosco, dia a dia, estas portas do ouro português. Amanhã voltamos, com a mirra: o cuidado que vem depois da prenda. Feliz Natal, de todos nós, nas 13 lojas da Loja do Ouro.",
             "icone": "coracao",
             "sem_venda": true
           }
@@ -807,13 +955,27 @@
           "type": "dia",
           "settings": {
             "data": "2026-12-26",
-            "titulo": "Mirra: trocas de Natal",
-            "historia": "Dos três presentes dos Magos, a mirra é o último — e nós lemo-la como cuidado. Recebeu uma peça que não é bem do seu tamanho? Fale connosco por WhatsApp ou numa das nossas 13 lojas e explicamos como a pode trocar. E lembre-se: todas as peças têm a garantia legal de 3 anos.",
+            "titulo": "Mirra: o cuidado depois da prenda",
+            "historia": "Dos três presentes dos Magos, a mirra é o último — e nós lemo-la como cuidado. Recebeu uma peça que não é bem do seu tamanho? Fale connosco por WhatsApp ou numa das nossas 13 lojas e explicamos as condições de troca. Em caso de defeito, aplica-se a garantia legal de 3 anos.",
             "icone": "mirra",
-            "cta_texto": "Encontrar uma loja",
-            "cta_url": "/pages/agencias",
+            "cta_texto": "Ver condições de troca",
+            "cta_url": "/pages/devolucoes",
             "dica": "Peças gravadas são feitas para si: não têm troca nem devolução, salvo defeito.",
             "sem_venda": false
+          }
+        },
+        "dia_20261226_trocas": {
+          "type": "dia",
+          "settings": {
+            "data": "2026-12-26",
+            "titulo": "Mirra: trocas de Natal",
+            "historia": "Dos três presentes dos Magos, a mirra é o último — e nós lemo-la como cuidado. Recebeu uma peça que não é bem do seu tamanho? As trocas de Natal fazem-se até {trocas}, com talão de oferta. Fale connosco por WhatsApp ou numa das nossas 13 lojas.",
+            "icone": "mirra",
+            "cta_texto": "Ver condições de troca",
+            "cta_url": "/pages/devolucoes",
+            "dica": "Peças gravadas são feitas para si: não têm troca nem devolução, salvo defeito.",
+            "sem_venda": false,
+            "condicao": "trocas"
           }
         },
         "dia_20261227": {
@@ -834,14 +996,17 @@
           "settings": {
             "data": "2026-12-28",
             "titulo": "Luz de Ano Novo",
-            "historia": "Para entrar no ano com brilho, a Coleção Luz de Ano Novo reúne brincos em prata dourada pensados para celebrar novos começos. Escolhemos dois para esta porta: os Renda de Luz e os Solaris. Uns para a noite de passagem de ano, outros para o primeiro dia — ou os dois, para quem não quer escolher.",
+            "historia": "Para entrar no ano com brilho, a Coleção Luz de Ano Novo reúne brincos em prata dourada pensados para celebrar novos começos.",
+            "sugestao": "Escolhemos dois para esta porta: os Renda de Luz e os Solaris. Uns para a noite de passagem de ano, outros para o primeiro dia — ou os dois, para quem não quer escolher.",
             "icone": "estrela",
             "produto": "brincos-renda-de-luz-em-prata-dourada-5cm",
             "produto_2": "brincos-solaris-em-prata-dourada",
             "colecao": "colecao-luz-de-ano-novo",
             "cta_texto": "Ver Luz de Ano Novo",
             "dica": "Já voltámos a expedir: as encomendas seguem no dia útil seguinte à confirmação do pagamento.",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "retoma",
+            "prazo_quando": "dia"
           }
         },
         "dia_20261229": {
@@ -849,7 +1014,8 @@
           "settings": {
             "data": "2026-12-29",
             "titulo": "Ouro que se guarda",
-            "historia": "Durante gerações, as mulheres portuguesas guardaram ouro para se enfeitarem e como segurança para o futuro. Um cordão, uma libra, uma pequena barra: ouro que se oferece hoje e se guarda para amanhã. Para esta porta: barras de ouro de 24 quilates, de 1 g e de 2,5 g.",
+            "historia": "Durante gerações, as mulheres portuguesas guardaram ouro para se enfeitarem e como segurança para o futuro. Um cordão, uma libra, uma pequena barra: ouro que se oferece hoje e se guarda para amanhã.",
+            "sugestao": "Para esta porta: barras de ouro de 24 quilates, de 1 g e de 2,5 g.",
             "icone": "ouro",
             "produto": "barra-de-ouro-24kl-1gr",
             "produto_2": "barra-em-ouro-2-5-gr",
@@ -864,14 +1030,17 @@
           "settings": {
             "data": "2026-12-30",
             "titulo": "Último dia para chegar a tempo dos Reis",
-            "historia": "Ainda vai a tempo dos Reis: encomende até hoje, às 23h59, para receber até 6 de janeiro em Portugal continental. É um prazo indicativo. Para o Dia de Reis, duas sugestões: um anel Baronesa em ouro de 19,2 quilates com pedra de cor rubi e um fio com pomba em prata dourada, com madrepérola e zircónia.",
+            "historia": "Ainda vai a tempo dos Reis: encomende até hoje, às {hora_reis}, para receber até 6 de janeiro em Portugal continental. É um prazo indicativo.",
+            "sugestao": "Para o Dia de Reis, duas sugestões: um anel Baronesa em ouro de 19,2 quilates com pedra de cor rubi e um fio com pomba em prata dourada, com madrepérola e zircónia.",
             "icone": "coroa",
             "produto": "anel-baronesa-em-ouro-19kl-com-pedra-de-cor-rubi",
             "produto_2": "fio-pomba-em-prata-dourada-com-zirconia-e-madreperola",
             "colecao": "dia-de-reis-2026",
             "cta_texto": "Ver prendas de Reis",
             "dica": "Depois de hoje, pode levantar a prenda numa das nossas lojas, com marcação.",
-            "sem_venda": false
+            "sem_venda": false,
+            "prazo": "reis",
+            "prazo_quando": "dia"
           }
         },
         "dia_20261231": {
@@ -879,7 +1048,8 @@
           "settings": {
             "data": "2026-12-31",
             "titulo": "Boas entradas",
-            "historia": "Última noite do ano: a mesa cheia, a contagem até à meia-noite e o primeiro abraço de 2027. Para a festa, dois brincos da Coleção Luz de Ano Novo, em prata dourada: os Cantiga Dourada e os Melodia. Que o ano novo traga brilho a quem os usar — e a quem os oferecer.",
+            "historia": "Última noite do ano: a mesa cheia, a contagem até à meia-noite e o primeiro abraço de 2027.",
+            "sugestao": "Para a festa, dois pares de brincos da Coleção Luz de Ano Novo, em prata dourada: os Cantiga Dourada e os Melodia. Que o ano novo traga brilho a quem os usar — e a quem os oferecer.",
             "icone": "estrela",
             "produto": "brincos-cantiga-dourada-em-prata-dourada-6-4cm",
             "produto_2": "brincos-melodia-em-prata-dourada-6-2cm",
@@ -906,13 +1076,27 @@
           "type": "dia",
           "settings": {
             "data": "2027-01-02",
+            "titulo": "Cantar as Janeiras",
+            "historia": "As Janeiras cantam-se em quadras: votos de saúde, paz e bom ano para a casa e para quem lá mora, muitas vezes ao som de concertina, bombo e ferrinhos. Há quadras para agradecer a quem abre a porta e outras, mais marotas, para quem a deixa fechada. Se este ano lhe baterem à porta, abra e ouça: é um dos costumes mais bonitos do nosso inverno.",
+            "icone": "porta",
+            "dica": "Já voltámos a expedir: as encomendas seguem no dia útil seguinte à confirmação do pagamento.",
+            "sem_venda": false,
+            "prazo": "retoma",
+            "prazo_quando": "depois"
+          }
+        },
+        "dia_20270102_janeiras": {
+          "type": "dia",
+          "settings": {
+            "data": "2027-01-02",
             "titulo": "Janeiras nas nossas lojas",
             "historia": "Abrimos a porta às Janeiras. De 2 a 6 de janeiro, os grupos de Janeiras são bem-vindos nas nossas lojas: venha cantar os votos de bom ano a quem está ao balcão, ou simplesmente ouvir. É a nossa maneira de agradecer a quem nos visitou neste Natal.",
             "icone": "porta",
             "cta_texto": "Ver as nossas lojas",
             "cta_url": "/pages/agencias",
             "dica": "Vem com um grupo? Ligue antes para a loja para combinarmos a hora.",
-            "sem_venda": false
+            "sem_venda": false,
+            "condicao": "janeiras"
           }
         },
         "dia_20270103": {
@@ -920,7 +1104,8 @@
           "settings": {
             "data": "2027-01-03",
             "titulo": "Epifania: este ano a 3 de janeiro",
-            "historia": "A Epifania celebra a visita dos Magos ao Menino. Nas dioceses portuguesas, a festa litúrgica passa para o domingo entre 2 e 8 de janeiro — e em 2027 é hoje, domingo, 3 de janeiro. O Dia de Reis continua a ser a 6. Para esta porta, duas peças em ouro de 19,2 quilates com estrelas: uma pulseira com corações e uma medalha em forma de coração.",
+            "historia": "A Epifania celebra a visita dos Magos ao Menino. Nas dioceses portuguesas, a festa litúrgica passa para o domingo entre 2 e 8 de janeiro — e em 2027 é hoje, domingo, 3 de janeiro. O Dia de Reis continua a ser a 6.",
+            "sugestao": "Para esta porta, duas peças em ouro de 19,2 quilates com estrelas: uma pulseira com corações e uma medalha em forma de coração.",
             "icone": "estrela",
             "produto": "pulseira-com-coracoes-e-estrela-em-ouro-19kl-14-8-cm",
             "produto_2": "medalha-coracao-com-recortes-de-lua-e-estrelas-em-ouro-19kl",
@@ -935,10 +1120,10 @@
           "settings": {
             "data": "2027-01-04",
             "titulo": "Bolo-Rei, desde o século XIX",
-            "historia": "O Bolo-Rei chegou de França no século XIX. A Confeitaria Nacional, em Lisboa, conta que foi Balthazar Castanheiro Júnior quem trouxe a receita. Tem a forma de uma coroa — e é por isso que, nesta porta, as coroas são de ouro: um solitário Tiara e um anel com tiara de rubis, ambos em ouro de 19,2 quilates.",
+            "historia": "O Bolo-Rei chegou de França no século XIX. A Confeitaria Nacional, em Lisboa, conta que foi Balthazar Castanheiro Júnior quem trouxe a receita. Tem a forma de uma coroa — e é por isso que, nesta porta, a coroa é de ouro.",
+            "sugestao": "Hoje: um solitário Tiara em ouro de 19,2 quilates.",
             "icone": "coroa",
             "produto": "anel-solitario-em-ouro-19kl-com-zirconia-formato-tiara",
-            "produto_2": "anel-em-ouro-19kl-com-tiara-de-rubis-t16",
             "dica": "Na mesa, a coroa é para partilhar; a de ouro é para guardar.",
             "sem_venda": false
           }
@@ -948,12 +1133,13 @@
           "settings": {
             "data": "2027-01-05",
             "titulo": "Ouro, incenso e mirra",
-            "historia": "Na véspera de Reis, voltamos ao princípio: ouro, incenso e mirra. Na leitura de São João Paulo II, o ouro é oferecido ao Rei, o incenso a Deus e a mirra ao homem que viria a ser sepultado. O ouro continua a ser a prenda que fica: hoje, uma pulseira em filigrana e uma pequena medalha de Nossa Senhora de Fátima, ambas em ouro de 19,2 quilates.",
+            "historia": "Na véspera de Reis, voltamos ao princípio: ouro, incenso e mirra. Na leitura de São João Paulo II, o ouro é oferecido ao Rei, o incenso a Deus e a mirra ao homem que viria a ser sepultado. O ouro continua a ser a prenda que fica.",
+            "sugestao": "Hoje: umas argolas e uma pequena medalha de Nossa Senhora de Fátima, ambas em ouro de 19,2 quilates.",
             "icone": "ouro",
-            "produto": "pulseira-filigrana-em-ouro-21cm",
+            "produto": "argolas-achatadas-em-ouro-19kl-1-44cm",
             "produto_2": "medalha-nossa-senhora-em-ouro-19kl-0-9cm",
             "colecao": "tradicao-ouro",
-            "cta_texto": "Ver ouro tradicional",
+            "cta_texto": "Ver joias da tradição",
             "dica": "Amanhã fecha o calendário: a última porta é a do Dia de Reis.",
             "sem_venda": false
           }
@@ -963,13 +1149,15 @@
           "settings": {
             "data": "2027-01-06",
             "titulo": "Dia de Reis",
-            "historia": "Hoje é Dia de Reis, o fim tradicional da quadra do Natal em Portugal, com as últimas Janeiras e o Bolo-Rei à mesa. Fechamos aqui o Calendário de Ouro: obrigado por ter aberto connosco 37 portas. Para a última, uma medalha com letra em ouro de 19,2 quilates e um fio com cruz em filigrana de prata dourada.",
+            "rotulo": "Reis",
+            "historia": "Hoje é Dia de Reis, o fim tradicional da quadra do Natal em Portugal, com as últimas Janeiras e o Bolo-Rei à mesa. Fechamos aqui o Calendário de Ouro: obrigado por ter aberto connosco 37 portas.",
+            "sugestao": "Para a última, uma medalha com letra em ouro de 19,2 quilates e um fio com cruz em filigrana de prata dourada.",
             "icone": "coroa",
             "produto": "medalha-papiro-em-ouro-19kl-com-letras",
             "produto_2": "fio-cruz-filigrana-em-prata-dourada-com-zirconias",
             "colecao": "dia-de-reis-2026",
             "cta_texto": "Ver prendas de Reis",
-            "dica": "Precisa de trocar uma prenda? Fale connosco por WhatsApp ou numa das nossas lojas.",
+            "dica": "Dúvidas sobre uma prenda? Fale connosco por WhatsApp ou numa das nossas lojas.",
             "sem_venda": false
           }
         }
@@ -1001,6 +1189,7 @@
         "dia_20261224",
         "dia_20261225",
         "dia_20261226",
+        "dia_20261226_trocas",
         "dia_20261227",
         "dia_20261228",
         "dia_20261229",
@@ -1008,6 +1197,7 @@
         "dia_20261231",
         "dia_20270101",
         "dia_20270102",
+        "dia_20270102_janeiras",
         "dia_20270103",
         "dia_20270104",
         "dia_20270105",
@@ -1018,7 +1208,7 @@
     "lod_natal_filigrana": {
       "type": "lod-natal-filigrana",
       "settings": {
-        "eyebrow": "Feito à mão em Portugal",
+        "eyebrow": "Uma arte portuguesa",
         "titulo": "Fio a fio.",
         "texto": "<p>Em Gondomar e na Póvoa de Lanhoso, a enchedeira preenche à mão cada contorno com fio torcido de ouro ou prata — espirais, esses e rodilhões, sempre em curva, nunca em ângulo reto. A filigrana destas terras está no Inventário Nacional do Património Cultural Imaterial, e a Filigrana de Portugal é candidata a Património da Humanidade.</p>",
         "botao1_texto": "Ver filigrana",
@@ -1037,25 +1227,25 @@
             "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana"
           }
         },
+        "numero_seculo": {
+          "type": "numero",
+          "settings": {
+            "valor": "Séc. XIX",
+            "legenda": "a filigrana torna-se arte autónoma em Gondomar e na Póvoa de Lanhoso"
+          }
+        },
         "numero_fio": {
           "type": "numero",
           "settings": {
             "valor": "0,22 mm",
-            "legenda": "espessura máxima do fio na filigrana certificada"
-          }
-        },
-        "numero_quilates": {
-          "type": "numero",
-          "settings": {
-            "valor": "19,2 quilates",
-            "legenda": "ouro português: 800 partes de ouro fino por mil"
+            "legenda": "espessura máxima do fio na certificação Filigrana de Portugal"
           }
         }
       },
       "block_order": [
         "numero_anos",
-        "numero_fio",
-        "numero_quilates"
+        "numero_seculo",
+        "numero_fio"
       ],
       "disabled": false
     },
@@ -1084,7 +1274,7 @@
           "settings": {
             "icone": "filigrana",
             "termo": "Filigrana",
-            "definicao": "Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais.",
+            "definicao": "A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais.",
             "link_texto": "Ver peças",
             "link_url": "/collections/filigrana"
           }
@@ -1094,9 +1284,7 @@
           "settings": {
             "icone": "enchedeira",
             "termo": "Enchedeira",
-            "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana.",
-            "link_texto": "Ver peças",
-            "link_url": "/collections/tradicao-filigrana-prata"
+            "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana."
           }
         },
         "termo_rainha": {
@@ -1124,7 +1312,7 @@
           "settings": {
             "icone": "contas",
             "termo": "Contas de Viana",
-            "definicao": "Contas de ouro, uma das mais antigas tradições do Minho.",
+            "definicao": "Contas tradicionalmente feitas em ouro, uma das mais antigas tradições do Minho.",
             "link_texto": "Ver peças",
             "link_url": "/collections/contas-de-viana"
           }
@@ -1225,10 +1413,11 @@
         "nota": "Prazos indicativos para encomendas pagas até às 23h59 do dia indicado. Expedimos no dia útil seguinte à confirmação do pagamento; na época alta a transportadora pode ter atrasos.",
         "mostrar_calendario": true,
         "lojas_titulo": "Ainda a tempo? Levante na loja.",
-        "lojas_texto": "Como muitas peças são únicas, primeiro localizamos a peça e depois marcamos consigo o levantamento.",
+        "lojas_texto": "Como o stock está repartido pelas 13 lojas, primeiro localizamos a peça e depois marcamos consigo o levantamento.",
         "wa_texto": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.",
         "lojas_url": "/pages/agencias",
-        "horarios": "Horários de 24 e 31 de dezembro: a confirmar.",
+        "horarios": "",
+        "janeiras_confirmadas": false,
         "janeiras": "Abrimos a porta às Janeiras. De 2 a 6 de janeiro, grupos de Janeiras vêm cantar às nossas lojas.",
         "vales_titulo": "Ainda sem ideia? Ofereça a escolha.",
         "vales_texto": "Vales-prenda de 25, 50, 100 e 150 €.",
@@ -1244,7 +1433,7 @@
       "type": "lod-natal-boas-festas",
       "settings": {
         "titulo": "Boas Festas",
-        "texto": "De todos nós, nas 13 lojas Loja do Ouro.",
+        "texto": "De todos nós, nas 13 lojas da Loja do Ouro.",
         "mostrar_coracao": true,
         "mostrar_fio": true,
         "mostrar_no_telemovel": true
@@ -1253,66 +1442,6 @@
       "block_order": [],
       "disabled": false
     },
-    "lod_rail_natal_familia": {
-      "type": "lod-premium-collection-rail",
-      "disabled": false,
-      "settings": {
-        "header-98abd0992d9c45bc6f5db827d643dc1a": null,
-        "collection": "tradicao-ouro",
-        "collection_handle_fallback": "",
-        "eyebrow": "Para a vida",
-        "title": "Ouro que fica na família",
-        "description": "<p>Peças em ouro português de 19,2 quilates para passar de geração em geração.</p>",
-        "show_collection_description": false,
-        "products_to_show": 12,
-        "header-7d9f4f94230ce121d9a0903f4ec51636": null,
-        "eyebrow_en": "",
-        "title_en": "",
-        "description_en": "",
-        "view_all_label_en": "",
-        "header-ea0459e10faffa2c6a52a37a4f9f4e8d": null,
-        "eyebrow_es": "",
-        "title_es": "",
-        "description_es": "",
-        "view_all_label_es": "",
-        "header-80259406b1af96416f409b3cae8caad9": null,
-        "eyebrow_fr": "",
-        "title_fr": "",
-        "description_fr": "",
-        "view_all_label_fr": "",
-        "header-2137b5cd4a44ed582c3b3944bfda0ff8": null,
-        "eyebrow_de": "",
-        "title_de": "",
-        "description_de": "",
-        "view_all_label_de": "",
-        "header-08af13e89a2ca34f25bbbf59ac142f66": null,
-        "columns_desktop": "4",
-        "mobile_layout": "peek",
-        "image_ratio": "square",
-        "show_secondary_image": true,
-        "show_vendor": false,
-        "show_price": true,
-        "show_badges": true,
-        "show_discount_percent": false,
-        "show_custom_badge": true,
-        "badge_metafield_namespace": "custom",
-        "badge_metafield_key": "badges",
-        "max_custom_badges": 2,
-        "show_growave_wishlist": true,
-        "show_arrows": true,
-        "show_progress": true,
-        "show_view_all": true,
-        "view_all_label": "",
-        "full_width": false,
-        "color_scheme": "",
-        "accent_color": "#bd9558",
-        "header-e1de75a5865381539f04543ff4e40576": null,
-        "padding_top": 56,
-        "padding_bottom": 56
-      },
-      "blocks": {},
-      "block_order": []
-    },
     "lod_rail_natal_libras": {
       "type": "lod-premium-collection-rail",
       "disabled": false,
@@ -1320,9 +1449,9 @@
         "header-98abd0992d9c45bc6f5db827d643dc1a": null,
         "collection": "libras-com-aro",
         "collection_handle_fallback": "",
-        "eyebrow": "Libras e barras",
+        "eyebrow": "Libras com aro",
         "title": "Ouro que se guarda",
-        "description": "<p>Uma libra com aro para usar ao peito, ou uma barra para guardar. O preço do ouro varia com o mercado; informação comercial, não constitui aconselhamento de investimento.</p>",
+        "description": "<p>Uma libra com aro para usar ao peito e guardar para sempre. O preço do ouro varia com o mercado; informação comercial, não constitui aconselhamento de investimento.</p>",
         "show_collection_description": false,
         "products_to_show": 12,
         "header-7d9f4f94230ce121d9a0903f4ec51636": null,
@@ -1364,7 +1493,7 @@
         "show_view_all": true,
         "view_all_label": "",
         "full_width": false,
-        "color_scheme": "",
+        "color_scheme": "scheme-4",
         "accent_color": "#bd9558",
         "header-e1de75a5865381539f04543ff4e40576": null,
         "padding_top": 56,
@@ -1377,11 +1506,12 @@
   "order": [
     "lod_natal_hero",
     "lod_natal_estrela",
-    "lod_natal_selecao",
     "lod_natal_tres_presentes",
+    "lod_natal_selecao",
     "lod_natal_editorial_coracao",
+    "1790243941dcacc144",
     "lod_natal_calendario",
-    "lod_rail_natal_familia",
+    "lod_natal_familia",
     "lod_natal_filigrana",
     "lod_natal_dicionario",
     "lod_natal_editorial_sapatinho",
@@ -1391,7 +1521,6 @@
     "1790243960cea80991",
     "custom_liquid_UpFHrA",
     "lod_natal_boas_festas",
-    "1790243941dcacc144",
     "z_image_banner_cKpxhH"
   ]
 }

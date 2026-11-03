@@ -5,6 +5,9 @@
   faúlhas douradas em CSS (18 pontos, 12 no telemóvel), em pausa fora do ecrã.
   Com «reduzir movimento», poupança de dados ou pouca memória: estrela já desenhada e sem faúlhas.
   Uma imagem (4:5) substitui a estrela.
+  Os textos e os números falam da arte da filigrana portuguesa, não das peças à venda: «feito à mão» e
+  «certificada» só na ficha das peças com custom.filigrana_certificada.
+  Números: uma coluna no telemóvel e no tablet (até 1199 px), três lado a lado a partir de 1200.
 {%- endcomment -%}
 {%- liquid
   capture lnat_fase
@@ -172,6 +175,9 @@
     .lnat-fi__estrela{width:min(480px,92%)}
     .lnat-fi__tracos > *{stroke-width:.22}
   }
+  @media screen and (min-width:750px) and (max-width:1199px){
+    .lnat-fi__numeros{grid-template-columns:minmax(0,1fr);gap:14px}
+  }
   @media (prefers-reduced-motion:reduce){
     .lnat-fi__faulhas{display:none}
     .lnat-fi .lnat-fi__tracos > *{stroke-dashoffset:0!important}
@@ -211,6 +217,7 @@
       });
     }, { threshold: 0.25 });
     io.observe(arte);
+    sec._lnatIo = io;
   }
   function todos(){
     var l = document.querySelectorAll('.lnat-fi');
@@ -221,6 +228,15 @@
   if (doc.hasAttribute('data-lnat-fi')) return;
   doc.setAttribute('data-lnat-fi', '');
   document.addEventListener('shopify:section:load', todos);
+  // editor: ao redesenhar ou apagar a secção, larga o observador da instância que sai
+  document.addEventListener('shopify:section:unload', function(e){
+    var alvo = e.target;
+    if (!alvo || !alvo.querySelectorAll) return;
+    var l = alvo.classList && alvo.classList.contains('lnat-fi') ? [alvo] : alvo.querySelectorAll('.lnat-fi');
+    for (var i = 0; i < l.length; i++) {
+      if (l[i]._lnatIo) { l[i]._lnatIo.disconnect(); l[i]._lnatIo = null; }
+    }
+  });
 })();
 </script>
 {%- endif -%}
@@ -232,7 +248,8 @@
   "class": "lnat-secao lnat-secao--filigrana",
   "max_blocks": 4,
   "settings": [
-    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Feito à mão em Portugal" },
+    { "type": "paragraph", "content": "Fale da arte da filigrana portuguesa, não das peças à venda: «feito à mão» e «certificada» só valem para peças com a certificação Filigrana de Portugal." },
+    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Uma arte portuguesa" },
     { "type": "text", "id": "titulo", "label": "Título", "default": "Fio a fio." },
     { "type": "richtext", "id": "texto", "label": "Texto", "default": "<p>Em Gondomar e na Póvoa de Lanhoso, a enchedeira preenche à mão cada contorno com fio torcido de ouro ou prata.</p>" },
     { "type": "header", "content": "Botões" },
@@ -252,8 +269,8 @@
       "type": "numero",
       "name": "Número",
       "settings": [
-        { "type": "text", "id": "valor", "label": "Valor", "default": "19,2 quilates" },
-        { "type": "text", "id": "legenda", "label": "Legenda", "default": "ouro português: 800 partes de ouro fino por mil" }
+        { "type": "text", "id": "valor", "label": "Valor", "default": "+ 2000 anos" },
+        { "type": "text", "id": "legenda", "label": "Legenda", "default": "as arrecadas de ouro da Idade do Ferro já tinham filigrana" }
       ]
     }
   ],
@@ -262,8 +279,8 @@
       "name": "Natal · Fio a fio",
       "blocks": [
         { "type": "numero", "settings": { "valor": "+ 2000 anos", "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana" } },
-        { "type": "numero", "settings": { "valor": "0,22 mm", "legenda": "espessura máxima do fio na filigrana certificada" } },
-        { "type": "numero", "settings": { "valor": "19,2 quilates", "legenda": "ouro português: 800 partes de ouro fino por mil" } }
+        { "type": "numero", "settings": { "valor": "Séc. XIX", "legenda": "a filigrana torna-se arte autónoma em Gondomar e na Póvoa de Lanhoso" } },
+        { "type": "numero", "settings": { "valor": "0,22 mm", "legenda": "espessura máxima do fio na certificação Filigrana de Portugal" } }
       ]
     }
   ]

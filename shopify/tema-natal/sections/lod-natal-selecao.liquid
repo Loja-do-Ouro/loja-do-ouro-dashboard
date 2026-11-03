@@ -1,7 +1,9 @@
 {%- comment -%}
   Natal 2026 · Ouro de Reis — «Os mais oferecidos» (seleção manual de produtos).
-  Grelha de 4 no computador; faixa com scroll-snap no telemóvel (2 cartões visíveis e o seguinte a espreitar).
-  Usa o cartão lod-natal-card (sem selos de desconto). Os esgotados ficam de fora.
+  Grelha de 4 a partir de 750 px, só com filas completas (com 5 a 7 cartões mostra 4, sem buracos);
+  faixa com scroll-snap no telemóvel (2 cartões visíveis e o seguinte a espreitar).
+  Usa o cartão lod-natal-card (sem selos de desconto). Os esgotados ficam de fora: escolha mais produtos
+  do que o número máximo, para que entre o seguinte da lista quando um esgota.
 {%- endcomment -%}
 {%- liquid
   capture lnat_fase
@@ -41,11 +43,16 @@
     assign mostrar = false
   endif
 
+  assign corta = 0
+  if n > 4
+    assign corta = n | modulo: 4
+  endif
+
   assign fundo = section.settings.fundo | default: 'papel'
 -%}
 {%- if mostrar -%}
 <section
-  class="lnat lnat-sel lnat-sec lnat-bg-{{ fundo }}{% unless section.settings.mostrar_no_telemovel %} lnat-sel--sem-tel{% endunless %}{% if request.design_mode %} lnat-sel--editor{% endif %}"
+  class="lnat lnat-sel lnat-sec lnat-bg-{{ fundo }}{% if corta > 0 %} lnat-sel--corta-{{ corta }}{% endif %}{% unless section.settings.mostrar_no_telemovel %} lnat-sel--sem-tel{% endunless %}{% if request.design_mode %} lnat-sel--editor{% endif %}"
   id="lnat-sel-{{ section.id }}"
   aria-labelledby="lnat-sel-h-{{ section.id }}"
 >
@@ -84,8 +91,10 @@
   .lnat-sel__h{color:var(--lnat-tinta)}
   .lnat-bg-tinta .lnat-sel__h,.lnat-bg-verde .lnat-sel__h{color:var(--lnat-papel)}
   .lnat-sel__link{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:14px;font-weight:600}
-  .lnat-sel__lista{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 24px}
-  .lnat-sel__item{margin:0;min-width:0}
+  .lnat-sel__lista{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:32px 16px}
+  .lnat-sel__item{margin:0;min-width:0;display:flex}
+  .lnat-sel__item > .lnat-card{flex:1 1 auto}
+  .lnat-sel .lnat-card__preco{margin-top:auto}
   .lnat-sel__vazio{padding:32px 0}
 
   @media screen and (max-width:749px){
@@ -99,6 +108,11 @@
     }
     .lnat-sel__lista::-webkit-scrollbar{display:none}
     .lnat-sel__item{scroll-snap-align:start}
+  }
+  @media screen and (min-width:750px){
+    .lnat-sel--corta-1 .lnat-sel__item:nth-last-child(-n+1),
+    .lnat-sel--corta-2 .lnat-sel__item:nth-last-child(-n+2),
+    .lnat-sel--corta-3 .lnat-sel__item:nth-last-child(-n+3){display:none}
   }
   @media screen and (min-width:990px){
     .lnat-sel__cab{margin-bottom:32px}
@@ -136,11 +150,11 @@
   "tag": "section",
   "class": "lnat-secao lnat-secao--selecao",
   "settings": [
-    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Os mais oferecidos no Natal passado" },
+    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "No Natal passado" },
     { "type": "text", "id": "titulo", "label": "Título", "default": "Os mais oferecidos" },
-    { "type": "textarea", "id": "descricao", "label": "Descrição", "default": "As peças mais escolhidas no nosso Natal de 2025." },
-    { "type": "product_list", "id": "produtos", "label": "Produtos", "limit": 12 },
-    { "type": "range", "id": "limite", "label": "Número máximo de produtos", "min": 2, "max": 12, "step": 1, "default": 8 },
+    { "type": "textarea", "id": "descricao", "label": "Descrição", "default": "Algumas das peças mais escolhidas no nosso Natal de 2025." },
+    { "type": "product_list", "id": "produtos", "label": "Produtos", "limit": 12, "info": "Escolha mais produtos do que o número máximo: quando um esgota, entra o seguinte da lista." },
+    { "type": "range", "id": "limite", "label": "Número máximo de produtos", "min": 2, "max": 12, "step": 1, "default": 8, "info": "A partir de 750 px só se mostram filas completas de 4 (8 é o ideal)." },
     { "type": "checkbox", "id": "esconder_esgotados", "label": "Esconder produtos esgotados", "default": true },
     { "type": "text", "id": "link_texto", "label": "Texto do link (opcional)" },
     { "type": "url", "id": "link_url", "label": "Link" },

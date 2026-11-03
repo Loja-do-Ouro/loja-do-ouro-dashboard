@@ -27,7 +27,7 @@
         "texto_trocas": "",
         "imagem_alt": "",
         "link_texto": "Ver ouro tradicional",
-        "link_url": "/collections/tradicao-ouro",
+        "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
         "abre_embrulho": false
       }
     },
@@ -38,7 +38,7 @@
         "numeral": "II",
         "eyebrow": "Incenso",
         "titulo": "Embrulhar",
-        "texto": "Saco prenda, Pack Premium e uma mensagem escrita por si — escolha no carrinho. Também enviamos diretamente para quem recebe.",
+        "texto": "Saco de oferta, Pack Premium e uma mensagem escrita por si — escolha no carrinho. Também enviamos diretamente para quem recebe.",
         "texto_trocas": "",
         "imagem_alt": "",
         "link_texto": "Ver opções de embrulho",
@@ -53,8 +53,8 @@
         "numeral": "III",
         "eyebrow": "Mirra",
         "titulo": "Cuidar",
-        "texto": "Apoio por WhatsApp e 13 lojas para o que precisar. Todas as peças têm a garantia legal de 3 anos.",
-        "texto_trocas": "Trocas de Natal até {trocas}, apoio por WhatsApp e 13 lojas para o que precisar. Todas as peças têm a garantia legal de 3 anos.",
+        "texto": "Apoio por WhatsApp e 13 lojas para o que precisar. Em caso de defeito, aplica-se a garantia legal de 3 anos.",
+        "texto_trocas": "Trocas de Natal até {trocas}, apoio por WhatsApp e 13 lojas para o que precisar. Em caso de defeito, aplica-se a garantia legal de 3 anos.",
         "imagem_alt": "",
         "link_texto": "Encontrar uma loja",
         "link_url": "/pages/agencias",

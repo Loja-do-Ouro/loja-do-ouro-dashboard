@@ -3,15 +3,20 @@
 
   - Fundo tinta, 40 px (36 px no telemóvel). Estrela à esquerda, mensagem ao centro, botão de pausa à direita.
   - Uma mensagem de cada vez, a rodar de 5 em 5 segundos. Pausa com o botão (WCAG 2.2.2) e, enquanto o rato
-    estiver em cima ou o foco estiver dentro da barra. Com «reduzir movimento» só aparece a primeira mensagem ativa.
+    estiver em cima ou o foco do teclado estiver dentro da barra (o toque não conta; «Retomar» volta a rodar logo).
+    Com «reduzir movimento» só aparece a primeira mensagem ativa. Sem aria-live (a contagem não é anunciada).
+  - Texto comprido a partir de 1100 px (se não couber numa linha, o script passa ao curto); texto curto
+    (texto_telemovel) abaixo disso.
   - Cada bloco «Mensagem» tem as suas datas (De / Até, hora de Lisboa). Aceita datas «AAAA-MM-DD HH:MM» ou o nome
     de uma data das definições do Natal (inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma,
     reis, fim, trocas). Num «De», um prazo (acores, madeira, gravacao, continente, festas, reis, fim, trocas) quer
     dizer «depois desse prazo»; num «Até», um início (inicio, fase2, loja, retoma) quer dizer «até ao minuto antes».
     Assim as mensagens mudam no mesmo instante que as fases (window.LOD_NATAL.fase()).
   - No texto, {continente} escreve a data das definições («18 de dezembro»); {continente:longo} «sexta, 18 de
-    dezembro»; :abrev «18 dez.»; :hora «24 de dezembro, 13h»; :ano «15 de janeiro de 2027». {contagem} coloca a
-    contagem decrescente nesse sítio (sem {contagem}, a contagem vai para o fim).
+    dezembro»; :abrev «18 dez.»; :hora «24 de dezembro, 13h»; :ano «15 de janeiro de 2027». {loja} sozinho leva
+    sempre a hora. {contagem} coloca a contagem decrescente nesse sítio (sem {contagem}, a contagem vai para o fim),
+    no formato do banner: «2 d 14 h», e no último dia «14 h 5 min».
+  - Mensagens com condição «Janeiras» só aparecem com «Janeiras confirmadas» ligado (desligado por omissão).
   - O HTML sai já com a mensagem certa (data do servidor, ou a data simulada fora do tema publicado); o script
     volta a escolher com LOD_NATAL.agora(), mesmo que a página venha da cache.
   - Nunca pôr prestações nesta barra.
@@ -98,6 +103,9 @@
       if b.condicao == 'trocas' and settings.natal_mostrar_trocas != true
         assign lnb_usar = false
       endif
+      if b.condicao == 'janeiras' and s.janeiras_confirmadas != true
+        assign lnb_usar = false
+      endif
       unless lnb_usar
         continue
       endunless
@@ -169,10 +177,15 @@
                 assign lnb_t2 = lnb_t2 | replace: lnb_tok, lnb_dt
               endif
             endfor
+            # Sem formato: «curto»; o levantamento leva sempre a hora («24 de dezembro, 13h»)
             assign lnb_tok = lnb_tk | append: '}'
             if lnb_t1 contains lnb_tok or lnb_t2 contains lnb_tok
+              assign lnb_f0 = 'curto'
+              if k == 'loja'
+                assign lnb_f0 = 'hora'
+              endif
               capture lnb_dt
-                render 'lod-natal-data', valor: lnb_dv, formato: 'curto'
+                render 'lod-natal-data', valor: lnb_dv, formato: lnb_f0
               endcapture
               assign lnb_t1 = lnb_t1 | replace: lnb_tok, lnb_dt
               assign lnb_t2 = lnb_t2 | replace: lnb_tok, lnb_dt
@@ -181,7 +194,8 @@
         endfor
       endif
 
-      # Contagem decrescente (minutos; o minuto do prazo conta, como em LOD_NATAL.falta)
+      # Contagem decrescente (minutos; o minuto do prazo conta, como em LOD_NATAL.falta;
+      # num início, como loja às 13:00, conta só até esse minuto)
       assign lnb_cd_on = false
       if b.contagem == 'continente' or b.contagem == 'loja' or b.contagem == 'reis'
         assign lnb_cd_on = true
@@ -190,7 +204,14 @@
             assign lnb_alvo = lnb_v[forloop.index0]
           endif
         endfor
-        assign lnb_dif = lnb_alvo | date: '%s' | plus: 60 | minus: lnb_agora_s
+        assign lnb_ck = ',' | append: b.contagem | append: ','
+        assign lnb_cd_inst = false
+        assign lnb_extra = 60
+        if lnb_inst contains lnb_ck
+          assign lnb_cd_inst = true
+          assign lnb_extra = 0
+        endif
+        assign lnb_dif = lnb_alvo | date: '%s' | plus: lnb_extra | minus: lnb_agora_s
         if lnb_dif < 0
           assign lnb_dif = 0
         endif
@@ -202,7 +223,7 @@
     -%}
     {%- if lnb_cd_on -%}
       {%- capture lnb_cd -%}
-        <span class="lnat-bar__cd" data-lnb-cd data-alvo="{{ lnb_alvo | escape }}">faltam {% if lnb_cd_d > 0 -%}
+        <span class="lnat-bar__cd" data-lnb-cd data-alvo="{{ lnb_alvo | escape }}"{% if lnb_cd_inst %} data-inst{% endif %}>faltam {% if lnb_cd_d > 0 -%}
           <span class="lnat-bar__n">{{ lnb_cd_d }}</span><span aria-hidden="true">&nbsp;d</span><span class="lnat-sr"> {% if lnb_cd_d == 1 %}dia{% else %}dias{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;h</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}hora{% else %}horas{% endif %}</span>
         {%- else -%}
           <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;h</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}hora{% else %}horas{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_m }}</span><span aria-hidden="true">&nbsp;min</span><span class="lnat-sr"> {% if lnb_cd_m == 1 %}minuto{% else %}minutos{% endif %}</span>
@@ -244,7 +265,8 @@
         <span class="lnat-bar__t lnat-bar__t--c">{{ lnb_t1 }}</span>
         {%- if lnb_t2 != blank -%}<span class="lnat-bar__t lnat-bar__t--m">{{ lnb_t2 }}</span>{%- endif -%}
         {%- if b.link != blank -%}
-          {%- if b.link_texto != blank -%}<span class="lnat-bar__cta"> {{ b.link_texto | escape }}</span>{%- endif -%}
+          {%- comment -%} O espaço fica fora do span sublinhado: o if fecha sem traço para o guardar. {%- endcomment -%}
+          {%- if b.link_texto != blank %} <span class="lnat-bar__cta">{{ b.link_texto | escape }}</span>{%- endif -%}
           <svg class="lnat-bar__seta" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12H19M12 5L19 12L12 19"/></svg></a>
         {%- endif -%}
       </p>
@@ -264,9 +286,17 @@
   .lnat-bar__in{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;height:40px;max-width:1440px;margin:0 auto;padding:0 8px}
   .lnat-bar__estrela{display:flex;align-items:center;justify-content:center;color:var(--lnat-ouro)}
   .lnat-bar__msgs{display:grid;min-width:0;text-align:center}
-  .lnat-bar__msg{grid-area:1/1;min-width:0;margin:0;padding:3px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .4s ease,transform .4s ease,visibility 0s linear .4s}
-  .lnat-bar__msg.is-on{opacity:1;visibility:visible;transform:none;transition:opacity .4s ease,transform .4s ease,visibility 0s}
+  {%- comment -%} A que sai desaparece em .3s; só depois a que entra aparece (nunca as duas ao mesmo tempo) {%- endcomment -%}
+  .lnat-bar__msg{grid-area:1/1;min-width:0;margin:0;padding:3px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .3s ease,transform .3s ease,visibility 0s linear .3s}
+  .lnat-bar__msg.is-on{opacity:1;visibility:visible;transform:none;transition:opacity .3s ease .3s,transform .3s ease .3s,visibility 0s linear .3s}
   .lnat-bar__t--m{display:none}
+  {%- comment -%} Texto curto: até 1099 px, ou quando o script vê que o comprido não cabe (is-curto) {%- endcomment -%}
+  .lnat-bar__msg--m.is-curto .lnat-bar__t--c{display:none}
+  .lnat-bar__msg--m.is-curto .lnat-bar__t--m{display:inline}
+  @media (min-width:750px) and (max-width:1099px){
+    .lnat-bar__msg--m .lnat-bar__t--c{display:none}
+    .lnat-bar__msg--m .lnat-bar__t--m{display:inline}
+  }
   .lnat-bar strong,.lnat-bar b{color:var(--lnat-ouro-claro);font-weight:600}
   .lnat-bar em,.lnat-bar i{font-style:italic}
   .lnat-bar a.lnat-bar__a{color:var(--lnat-papel)!important;text-decoration:none!important}
@@ -306,7 +336,8 @@
     <span class="lnat-bar__estrela" aria-hidden="true">
       <svg viewBox="0 0 64 64" width="16" height="16" fill="currentColor" focusable="false"><g><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(90 32 32)"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(180 32 32)"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(270 32 32)"/></g><g opacity=".65"><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(45 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(135 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(225 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(315 32 32)"/></g><circle cx="32" cy="32" r="6"/></svg>
     </span>
-    <div class="lnat-bar__msgs" data-lnb-live aria-live="off" aria-atomic="true">
+    {%- comment -%} Sem aria-live: a contagem muda de minuto a minuto e não deve ser anunciada; lê-se ao navegar até à barra. {%- endcomment -%}
+    <div class="lnat-bar__msgs">
       {{- lnb_html -}}
     </div>
     <button type="button" class="lnat-bar__pausa{% if lnb_n < 2 %} is-off{% endif %}" data-lnb-pausa aria-label="Pausar as mensagens">
@@ -335,6 +366,7 @@
   }
   function agora() { var n = N(); return n && n.agora ? n.agora().getTime() : Date.now(); }
   function fase() { var n = N(); return n && n.fase ? n.fase() : 'ouro'; }
+  // Mesmo formato do banner: «2 d 14 h» com dias, «14 h 5 min» no último dia (espaço inseparável antes da unidade)
   function un(v, c, l1, l2) {
     return '<span class="lnat-bar__n">' + v + '</span><span aria-hidden="true"> ' + c + '</span><span class="lnat-sr"> ' + (v === 1 ? l1 : l2) + '</span>';
   }
@@ -350,10 +382,14 @@
     var reduce = false;
     try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
     var msgs = Array.prototype.slice.call(root.querySelectorAll('[data-lnb-msg]'));
-    var box = root.querySelector('[data-lnb-live]');
     var btn = root.querySelector('[data-lnb-pausa]');
     var nota = root.querySelector('[data-lnb-nota]');
-    var atual = root.querySelector('[data-lnb-msg].is-on'), ativos = [], parado = false, suspenso = false, escolhido = null;
+    var atual = root.querySelector('[data-lnb-msg].is-on'), ativos = [], parado = false, escolhido = null;
+    // rato: o rato está em cima; teclado: o foco do teclado está dentro; retomada: carregou em «Retomar»
+    // (ignora rato e foco até saírem da barra, para a rotação voltar logo)
+    var rato = false, teclado = false, retomada = false;
+    var largo = null;
+    try { largo = window.matchMedia('(min-width:1100px)'); } catch (e) {}
 
     function dentro(m) {
       var t = agora(), de = m.getAttribute('data-de'), ate = m.getAttribute('data-ate'), a, b;
@@ -369,7 +405,7 @@
       root.querySelectorAll('[data-lnb-cd]').forEach(function (el) {
         var a = lx(el.getAttribute('data-alvo'));
         if (!a) return;
-        var ms = a.getTime() + 60000 - agora();
+        var ms = a.getTime() + (el.hasAttribute('data-inst') ? 0 : 60000) - agora();
         var w = el.closest('[data-lnb-cdw]') || el;
         w.hidden = ms <= 0;
         if (ms <= 0) return;
@@ -377,7 +413,15 @@
         if (el._h !== h) { el.innerHTML = h; el._h = h; }
       });
     }
-    function vivo() { if (box) box.setAttribute('aria-live', parado ? 'polite' : 'off'); }
+    // A partir de 1100 px usa o texto comprido; se não couber numa linha, passa ao curto (texto_telemovel)
+    function caber() {
+      var grande = largo ? largo.matches : window.innerWidth >= 1100;
+      msgs.forEach(function (x) {
+        if (!x.classList.contains('lnat-bar__msg--m')) return;
+        x.classList.remove('is-curto');
+        if (grande && !x.hidden && x.scrollWidth > x.clientWidth + 1) x.classList.add('is-curto');
+      });
+    }
     function atualizar() {
       var lista = ATIVAS.indexOf(fase()) > -1 ? msgs.filter(dentro) : [];
       var fora = false;
@@ -391,30 +435,42 @@
       if (btn) btn.classList.toggle('is-off', ativos.length < 2);
       if (ativos.indexOf(atual) < 0) mostrar(ativos[0]);
       contagens();
+      caber();
     }
     function passo() {
+      var suspenso = (rato || teclado) && !retomada;
       if (parado || suspenso || escolhido || ativos.length < 2 || document.hidden) return;
       mostrar(ativos[(ativos.indexOf(atual) + 1) % ativos.length]);
     }
+    function relogio() { clearInterval(st.t1); st.t1 = setInterval(passo, 5000); }
 
     if (btn) btn.addEventListener('click', function () {
       parado = !parado;
+      retomada = !parado;
       btn.classList.toggle('is-parado', parado);
       btn.setAttribute('aria-label', parado ? 'Retomar as mensagens' : 'Pausar as mensagens');
-      vivo();
+      relogio();
     });
-    // Pausa enquanto o rato está em cima ou o foco do teclado está dentro da barra
+    // Pausa enquanto o rato está em cima ou o foco do teclado está dentro da barra.
+    // Só o rato conta: um toque no telemóvel não deixa a barra parada (sem :hover preso).
     function focoTeclado() {
       try { return !!root.querySelector(':focus-visible'); } catch (e) { return root.contains(document.activeElement); }
     }
-    root.addEventListener('mouseenter', function () { suspenso = true; });
-    root.addEventListener('mouseleave', function () { suspenso = focoTeclado(); });
-    root.addEventListener('focusin', function () { suspenso = focoTeclado() || root.matches(':hover'); });
+    root.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') rato = true; });
+    root.addEventListener('pointerleave', function (e) {
+      if (e.pointerType !== 'mouse') return;
+      rato = false;
+      if (!teclado) retomada = false;
+    });
+    root.addEventListener('focusin', function () { teclado = focoTeclado(); });
     root.addEventListener('focusout', function (e) {
-      if (!e.relatedTarget || !root.contains(e.relatedTarget)) suspenso = root.matches(':hover');
+      if (e.relatedTarget && root.contains(e.relatedTarget)) return;
+      teclado = false;
+      if (!rato) retomada = false;
     });
 
     st.atualizar = atualizar;
+    st.caber = caber;
     st.escolher = function (id) {
       escolhido = null;
       if (id) msgs.forEach(function (x) { if (x.getAttribute('data-bloco') === id) escolhido = x; });
@@ -424,9 +480,9 @@
     st.parar = function () { clearInterval(st.t1); clearInterval(st.t2); };
 
     atualizar();
-    vivo();
-    st.t1 = setInterval(passo, 5000);
+    relogio();
     st.t2 = setInterval(atualizar, 30000);
+    try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(caber); } catch (e) {}
   }
 
   function todas() { document.querySelectorAll('[data-lnat-bar]').forEach(init); }
@@ -436,6 +492,13 @@
   var html = document.documentElement;
   if (html.hasAttribute('data-lnat-bar-js')) return;
   html.setAttribute('data-lnat-bar-js', '');
+  var rz = 0;
+  window.addEventListener('resize', function () {
+    cancelAnimationFrame(rz);
+    rz = requestAnimationFrame(function () {
+      document.querySelectorAll('[data-lnat-bar]').forEach(function (r) { if (r._lnb && r._lnb.caber) r._lnb.caber(); });
+    });
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) return;
     document.querySelectorAll('[data-lnat-bar]').forEach(function (r) { if (r._lnb && r._lnb.atualizar) r._lnb.atualizar(); });
@@ -483,12 +546,19 @@
       "default": true
     },
     {
+      "type": "checkbox",
+      "id": "janeiras_confirmadas",
+      "label": "Janeiras confirmadas",
+      "default": false,
+      "info": "Desligado, as mensagens com «Mostrar: Só se as Janeiras estiverem confirmadas» não aparecem. Ligue só quando as lojas, os dias e as horas das Janeiras estiverem decididos. Ligue também «Janeiras confirmadas» no calendário e nos Prazos, e a mensagem «Abrimos a porta às Janeiras» do banner."
+    },
+    {
       "type": "paragraph",
       "content": "Datas das mensagens (hora de Lisboa): AAAA-MM-DD HH:MM, ou o nome de uma data das definições: inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma, reis, fim, trocas. Num «De», um prazo quer dizer «depois desse prazo»; num «Até», inicio, fase2, loja ou retoma quer dizer «até ao minuto antes»."
     },
     {
       "type": "paragraph",
-      "content": "No texto, {continente} escreve «18 de dezembro»; {continente:longo} «sexta, 18 de dezembro»; {continente:abrev} «18 dez.»; {loja:hora} «24 de dezembro, 13h»; {trocas:ano} «15 de janeiro de 2027». As palavras a negrito ficam em ouro."
+      "content": "No texto, {continente} escreve «18 de dezembro»; {continente:longo} «sexta, 18 de dezembro»; {continente:abrev} «18 dez.»; {loja} ou {loja:hora} «24 de dezembro, 13h»; {trocas:ano} «15 de janeiro de 2027». As palavras a negrito ficam em ouro. Nos prazos de entrega escreva sempre «prazo indicativo»."
     }
   ],
   "blocks": [
@@ -500,14 +570,14 @@
           "type": "inline_richtext",
           "id": "texto",
           "label": "Texto",
-          "default": "Natal: encomende até <strong>{continente}</strong> e receba antes do Natal (Portugal continental).",
+          "default": "Natal: encomende até <strong>{continente}</strong> para receber antes do Natal (Portugal continental, prazo indicativo).",
           "info": "Negrito = palavra em ouro. Não ponha links no texto: use o campo Link."
         },
         {
           "type": "inline_richtext",
           "id": "texto_telemovel",
           "label": "Texto no telemóvel (opcional, mais curto)",
-          "info": "Até 2 linhas em 36 px. Vazio = usa o texto acima."
+          "info": "Usado no telemóvel (até 2 linhas) e no tablet até 1099 px (1 linha, com o texto do link). No computador, se o texto acima não couber numa linha, usa este. Vazio = usa sempre o texto acima."
         },
         {
           "type": "url",
@@ -555,9 +625,10 @@
           "options": [
             { "value": "sempre", "label": "Sempre, nas datas acima" },
             { "value": "vale_digital", "label": "Só se o vale prenda for digital" },
-            { "value": "trocas", "label": "Só se as trocas de Natal estiverem aprovadas" }
+            { "value": "trocas", "label": "Só se as trocas de Natal estiverem aprovadas" },
+            { "value": "janeiras", "label": "Só se as Janeiras estiverem confirmadas" }
           ],
-          "info": "Depende das opções natal_vale_digital e natal_mostrar_trocas das definições do tema."
+          "info": "Depende das opções natal_vale_digital e natal_mostrar_trocas das definições do tema e de «Janeiras confirmadas» nesta secção."
         }
       ]
     }

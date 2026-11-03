@@ -4,6 +4,8 @@
   Devolve: off | antes | ouro | incenso | ultima | consoada | mirra | fim
   A data simulada (definições do tema › Natal 2026) só conta fora do tema publicado;
   o JavaScript (window.LOD_NATAL) volta a calcular a fase no navegador.
+  As datas vazias usam os mesmos valores por omissão de lod-natal-config: uma data apagada nas
+  definições não pode pôr o servidor numa fase diferente da do navegador.
 {%- endcomment -%}
 {%- liquid
   assign agora = 'now' | date: '%Y%m%d%H%M' | plus: 0
@@ -14,12 +16,12 @@
     endif
     assign agora = simulada | date: '%Y%m%d%H%M' | plus: 0
   endif
-  assign t_inicio = settings.natal_inicio | date: '%Y%m%d%H%M' | plus: 0
-  assign t_fase2 = settings.natal_fase2_inicio | date: '%Y%m%d%H%M' | plus: 0
-  assign t_cont = settings.natal_limite_continente | date: '%Y%m%d%H%M' | plus: 0
-  assign t_loja = settings.natal_limite_loja | date: '%Y%m%d%H%M' | plus: 0
-  assign t_festas = settings.natal_boas_festas_fim | date: '%Y%m%d%H%M' | plus: 0
-  assign t_fim = settings.natal_fim | date: '%Y%m%d%H%M' | plus: 0
+  assign t_inicio = settings.natal_inicio | default: '2026-12-01 00:00' | date: '%Y%m%d%H%M' | plus: 0
+  assign t_fase2 = settings.natal_fase2_inicio | default: '2026-12-14 00:00' | date: '%Y%m%d%H%M' | plus: 0
+  assign t_cont = settings.natal_limite_continente | default: '2026-12-18 23:59' | date: '%Y%m%d%H%M' | plus: 0
+  assign t_loja = settings.natal_limite_loja | default: '2026-12-24 13:00' | date: '%Y%m%d%H%M' | plus: 0
+  assign t_festas = settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | date: '%Y%m%d%H%M' | plus: 0
+  assign t_fim = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y%m%d%H%M' | plus: 0
 
   if settings.natal_ativo == false
     echo 'off'

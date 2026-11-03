@@ -8,6 +8,12 @@
   · As escolhas ficam no endereço: #siga-a-estrela?para=ela&metal=ouro&valor=100-250 (sem dados pessoais).
   · Sem JavaScript, as escolhas «Para quem» são ligações para as coleções.
   · Fases off/antes/fim: não mostra nada (no editor mostra, com uma nota).
+  · Estado inicial (definição estado_inicial): por omissão o painel de resultados só abre depois da primeira
+    escolha «Para quem», para não repetir as peças de «Os mais oferecidos», que vem a seguir.
+  · «Ouro» ou «Prata» ficam desativados («Sem peças») quando a escolha não tem peças disponíveis nesse metal.
+  · No telemóvel, depois da primeira escolha, uma barra fixa «Ver N prendas» leva aos resultados
+    (fica acima do botão de chat; distância ao fundo na definição barra_fundo).
+  · O vale-prenda só é sugerido quando ainda chega a tempo por correio ou quando natal_vale_digital está ligado.
 {%- endcomment -%}
 {%- liquid
   capture lnat_fase
@@ -32,6 +38,8 @@
     assign est_vale_url = section.settings.colecao_vale.url
   endif
   assign est_titulo_res = section.settings.titulo_resultados | default: 'A estrela parou aqui.'
+  assign est_inicial = section.settings.estado_inicial | default: 'fechado'
+  assign est_fundo = section.settings.barra_fundo | default: 148
 
   assign est_html_d = ''
   assign est_html_o = ''
@@ -62,9 +70,11 @@
       assign est_resumo = block.settings.resumo | default: est_rotulo | downcase
       assign est_marcar = false
       if est_marcado == false
-        assign est_marcar = true
         assign est_marcado = true
         assign est_todas = est_c1.url
+        if est_inicial == 'primeira'
+          assign est_marcar = true
+        endif
       endif
     -%}
     {%- capture est_chip -%}
@@ -87,7 +97,7 @@
   {%- endif -%}
 {%- endfor -%}
 
-<section class="lnat lnat-est lnat-sec lnat-bg-tinta lnat-azulejo-escuro{% unless section.settings.mostrar_no_telemovel %} lnat-est--sem-tel{% endunless %}" id="{{ est_ancora }}" aria-labelledby="{{ est_titulo_id }}" data-passo="1" data-wa="{{ est_wa }}" data-vale="{{ est_vale_url }}">
+<section class="lnat lnat-est lnat-sec lnat-bg-tinta lnat-azulejo-escuro{% unless section.settings.mostrar_no_telemovel %} lnat-est--sem-tel{% endunless %}" id="{{ est_ancora }}" aria-labelledby="{{ est_titulo_id }}" data-passo="1" data-wa="{{ est_wa }}" data-vale="{{ est_vale_url }}" data-vale-digital="{{ settings.natal_vale_digital }}" data-inicial="{{ est_inicial | escape }}" data-fundo="{{ est_fundo }}" style="--lnat-est-fundo:{{ est_fundo }}px">
   {%- if est_escondida -%}
     <p class="lnat-est__editor">
       {%- case lnat_fase -%}
@@ -134,8 +144,8 @@
         <fieldset class="lnat-est__passo" data-est-passo="2">
           <legend class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">II</span>Ouro ou prata?</legend>
           <div class="lnat-est__ops lnat-est__ops--3">
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="ouro" data-grupo="metal"><span class="lnat-est__chip">Ouro</span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="prata" data-grupo="metal"><span class="lnat-est__chip">Prata</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="ouro" data-grupo="metal"><span class="lnat-est__chip"><span class="lnat-est__chip-nome">Ouro</span><span class="lnat-est__chip-desc lnat-est__sem">Sem peças</span></span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="prata" data-grupo="metal"><span class="lnat-est__chip"><span class="lnat-est__chip-nome">Prata</span><span class="lnat-est__chip-desc lnat-est__sem">Sem peças</span></span></label>
             <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="tanto-faz" data-grupo="metal" data-inicial checked><span class="lnat-est__chip">Tanto faz</span></label>
           </div>
           <p class="lnat-est__nota" data-est-nota-metal hidden>Não se aplica a esta escolha.</p>
@@ -158,9 +168,18 @@
         <p class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">I</span>Para quem é a prenda?</p>
         <ul class="lnat-est__ops lnat-est__ops--links">{{ est_html_links }}</ul>
       </div>
+
+      {%- if section.settings.barra_telemovel -%}
+        <div class="lnat-est__fixa lnat-est__js" data-est-fixa data-modo="para">
+          <button type="button" class="lnat-est__fixa-btn" data-est-fixa-btn>
+            <span class="lnat-est__fixa-txt"><span class="lnat-est__fixa-tit" data-est-fixa-tit>Para quem é a prenda?</span><span class="lnat-est__fixa-sub" data-est-fixa-sub>Escolha no passo I para ver as peças.</span></span>
+            <span class="lnat-est__fixa-ico" aria-hidden="true">{%- render 'lod-natal-icon', nome: 'seta', tamanho: 20 -%}</span>
+          </button>
+        </div>
+      {%- endif -%}
     </div>
 
-    <div class="lnat-est__painel lnat-est__js" data-est-painel role="region" aria-labelledby="{{ est_res_id }}" aria-busy="true">
+    <div class="lnat-est__painel lnat-est__js" data-est-painel role="region" aria-labelledby="{{ est_res_id }}" aria-busy="true"{% if est_inicial != 'primeira' %} hidden{% endif %}>
       <span class="lnat-est__pousa" aria-hidden="true">{%- render 'lod-natal-icon', nome: 'estrela', tamanho: 32 -%}</span>
       <div class="lnat-est__res-cab">
         <h3 class="lnat-est__res-titulo" id="{{ est_res_id }}" tabindex="-1">{{ est_titulo_res | escape }}</h3>
@@ -168,7 +187,7 @@
         <p class="lnat-est__aviso" data-est-aviso hidden></p>
       </div>
       <div class="lnat-est__acoes">
-        <a class="lnat-btn lnat-btn--tinta" data-est-todas href="{{ est_todas }}?sort_by=best-selling">Ver todas na coleção</a>
+        <a class="lnat-btn lnat-btn--tinta" data-est-todas href="{{ est_todas }}?sort_by=best-selling">Ver mais na coleção</a>
         <button type="button" class="lnat-btn lnat-btn--contorno" data-est-recomecar>Recomeçar</button>
       </div>
       <div class="lnat-est__grelha" data-est-grelha>
@@ -176,12 +195,12 @@
       </div>
       <div class="lnat-est__vazio" data-est-vazio hidden>
         <div class="lnat-est__sugestoes" data-est-sugestoes></div>
-        <div class="lnat-btns"><a class="lnat-btn lnat-btn--tinta" href="{{ est_vale_url }}">Ver vales-prenda</a></div>
+        <div class="lnat-btns" data-est-vale><a class="lnat-btn lnat-btn--tinta" href="{{ est_vale_url }}">Ver vales-prenda</a></div>
       </div>
       <div class="lnat-est__vazio" data-est-erro hidden>
         <div class="lnat-btns">
           <button type="button" class="lnat-btn lnat-btn--tinta" data-est-tentar>Tentar de novo</button>
-          <a class="lnat-btn lnat-btn--contorno" href="{{ est_vale_url }}">Ver vales-prenda</a>
+          <a class="lnat-btn lnat-btn--contorno" data-est-vale href="{{ est_vale_url }}">Ver vales-prenda</a>
         </div>
       </div>
       <div class="lnat-est__mais" hidden>
@@ -231,7 +250,7 @@
   .lnat-est__ajuda{margin:4px 0 0;font-size:14px;line-height:22px;color:var(--lnat-cinza-noite)}
   .lnat-est__ajuda .lnat-ico{margin:-3px 6px 0 0}
   .lnat-est__passos{display:flex;flex-direction:column;gap:28px;min-width:0}
-  .lnat-est__passo{border:0;margin:0;padding:0;min-width:0}
+  .lnat-est__passo{border:0;margin:0;padding:0;min-width:0;scroll-margin-top:88px}
   .lnat-est__leg{display:block;width:100%;float:none;padding:0;margin:0 0 12px;font:500 15px/22px var(--lnat-sans);color:var(--lnat-ouro-claro)}
   .lnat-est__num{display:inline-block;min-width:22px;margin-right:8px;font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:20px;color:var(--lnat-ouro)}
   .lnat-est__nota{margin:8px 0 0;font-size:13px;line-height:20px;color:var(--lnat-cinza-noite)}
@@ -250,6 +269,11 @@
   .lnat-est__op--destaque .lnat-est__chip-nome{font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:28px;line-height:1.05}
   .lnat-est__chip-desc{font-size:11px;line-height:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--lnat-ouro-claro)}
   .lnat-est__radio:checked+.lnat-est__chip .lnat-est__chip-desc{color:var(--lnat-tinta);opacity:.8}
+  /* Metal sem peças para a escolha feita */
+  .lnat-est__sem{display:none}
+  .lnat-est__op.is-sem-pecas .lnat-est__sem{display:block}
+  .lnat-est__op.is-sem-pecas .lnat-est__chip{opacity:.45;border-style:dashed}
+  .lnat-est__op.is-sem-pecas .lnat-est__chip:hover{background:transparent}
 
   /* Sem JavaScript: só as ligações do passo I */
   .lnat-est__nojs{display:block;min-width:0}
@@ -257,7 +281,7 @@
   html:not([data-natal-fase]) .lnat-est:not(.lnat-est--js) .lnat-est__js{display:none}
 
   /* Painel claro dos resultados */
-  .lnat-est__painel{position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"cab" "grelha" "mais" "acoes" "entrega";gap:20px;margin-top:48px;padding:36px 16px 24px;background:var(--lnat-papel);color:var(--lnat-texto)}
+  .lnat-est__painel{position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"cab" "grelha" "mais" "acoes" "entrega";gap:20px;margin-top:48px;padding:36px 16px 24px;background:var(--lnat-papel);color:var(--lnat-texto);scroll-margin-top:100px}
   .lnat-est__pousa{position:absolute;left:50%;top:0;width:48px;height:48px;margin:-24px 0 0 -24px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--lnat-tinta);border:1px solid var(--lnat-ouro);color:var(--lnat-ouro-claro)}
   .lnat-est__painel.is-pronto .lnat-est__pousa{animation:lnat-est-pousa .8s cubic-bezier(.3,0,.3,1) both}
   @keyframes lnat-est-pousa{from{opacity:0;transform:translateY(-36px) rotate(-90deg)}to{opacity:1;transform:none}}
@@ -270,7 +294,9 @@
   .lnat-est__grelha{grid-area:grelha;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 12px;transition:opacity .25s}
   .lnat-est__painel.is-a-carregar .lnat-est__grelha,.lnat-est__painel.is-a-carregar .lnat-est__vazio{opacity:.45;pointer-events:none}
   .lnat-est__painel .lnat-card{color:var(--lnat-texto)!important}
-  .lnat-est__painel .lnat-card__preco{color:var(--lnat-tinta)}
+  /* Nomes até 4 linhas («… em Prata Dourada» nunca fica cortado) e preços alinhados no fundo de cada linha */
+  .lnat-est__painel .lnat-card__titulo{-webkit-line-clamp:4}
+  .lnat-est__painel .lnat-card__preco{margin-top:auto;color:var(--lnat-tinta)}
   .lnat-est__painel a:focus-visible,.lnat-est__painel button:focus-visible{outline-color:var(--lnat-ouro-velho)}
   .lnat-est__painel .lnat-peq{color:var(--lnat-cinza)}
   .lnat-est__painel .lnat-link{color:var(--lnat-ouro-velho)!important}
@@ -291,11 +317,22 @@
   .lnat-est__entrega{grid-area:entrega;padding-top:20px;border-top:1px solid var(--lnat-linha);font-size:14px;line-height:22px}
   .lnat-est__entrega p{margin:0 0 8px}
   .lnat-est__entrega b{font-weight:600;color:var(--lnat-tinta)}
-  .lnat-est__regioes{list-style:none;margin:0 0 12px;padding:0}
+  .lnat-est__regioes{list-style:none;margin:0 0 6px;padding:0}
+  .lnat-est__entrega .lnat-est__ind{margin:0 0 14px}
   .lnat-est__regioes li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px dotted var(--lnat-linha)}
   .lnat-est__regioes li b{font-family:var(--lnat-cond);font-weight:400;font-size:15px;letter-spacing:.02em;color:var(--lnat-ouro-velho);text-align:right}
   .lnat-est__ent-ko{padding:8px 12px;background:var(--lnat-linho);border-left:2px solid var(--lnat-vermelho)}
-  .lnat-est__entrega .lnat-peq{margin:0}
+
+  /* Barra fixa «Ver N prendas» (só no telemóvel; acima do botão de chat, que está a 84 px do fundo e tem 56 px) */
+  .lnat-est__fixa{display:none}
+  .lnat-est__fixa-btn{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;margin:0;padding:8px 8px 8px 16px;border:1px solid var(--lnat-ouro);border-radius:0;background:var(--lnat-papel);color:var(--lnat-tinta);box-shadow:0 6px 18px rgba(0,0,0,.35);font:inherit;text-align:left;cursor:pointer}
+  .lnat-est__fixa-txt{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}
+  .lnat-est__fixa-tit{font:600 15px/20px var(--lnat-sans);color:var(--lnat-tinta)}
+  .lnat-est__fixa-sub{font-size:12px;line-height:16px;color:var(--lnat-cinza);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lnat-est__fixa-ico{display:flex;flex:0 0 auto;align-items:center;justify-content:center;width:40px;height:40px;background:var(--lnat-tinta);color:var(--lnat-ouro-claro)}
+  .lnat-est__fixa-ico .lnat-ico{transform:rotate(90deg)}
+  .lnat-est__fixa[data-modo="para"] .lnat-est__fixa-ico .lnat-ico{transform:rotate(-90deg)}
+  .lnat-est .lnat-est__fixa-btn:focus-visible{outline:2px solid var(--lnat-ouro-claro);outline-offset:3px}
 
   @media (min-width:600px){
     .lnat-est__marco-nome{display:inline}
@@ -304,6 +341,9 @@
     .lnat-est__op--destaque .lnat-est__chip{min-height:88px}
     .lnat-est__op--destaque .lnat-est__chip-nome{font-size:34px}
     .lnat-est__ops--outros,.lnat-est__ops--links{grid-template-columns:repeat(3,minmax(0,1fr))}
+    /* Sem buraco na última linha de 3 colunas */
+    .lnat-est__ops--outros .lnat-est__op:last-child:nth-child(3n+2),.lnat-est__ops--links .lnat-est__op:last-child:nth-child(3n+2){grid-column:span 2}
+    .lnat-est__ops--outros .lnat-est__op:last-child:nth-child(3n+1),.lnat-est__ops--links .lnat-est__op:last-child:nth-child(3n+1){grid-column:1/-1}
     .lnat-est__chip{min-height:52px}
     .lnat-est__painel{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"cab acoes" "grelha grelha" "mais mais" "entrega entrega";gap:28px 24px;padding:48px 40px 32px}
     .lnat-est__acoes{align-self:end;justify-content:flex-end}
@@ -324,9 +364,15 @@
   }
   @media (max-width:749px){
     .lnat-est--sem-tel{display:none!important}
+    /* Sem buraco na última linha de 2 colunas */
+    .lnat-est__ops--outros .lnat-est__op:last-child:nth-child(odd),.lnat-est__ops--links .lnat-est__op:last-child:nth-child(odd){grid-column:1/-1}
+    /* Preços em 2 colunas: «100 a 250 €» numa só linha */
+    .lnat-est__passo[data-est-passo="3"] .lnat-est__ops--3{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .lnat-est__fixa{display:block;position:fixed;left:16px;right:16px;bottom:calc(var(--lnat-est-fundo,148px) + env(safe-area-inset-bottom,0px));z-index:3;visibility:hidden;opacity:0;transform:translateY(12px);transition:opacity .25s,transform .25s,visibility 0s linear .25s}
+    .lnat-est__fixa.is-visivel{visibility:visible;opacity:1;transform:none;transition:opacity .25s,transform .25s,visibility 0s}
   }
   @media (prefers-reduced-motion:reduce){
-    .lnat-est__viajante,.lnat-est__viajante-y,.lnat-est__astro,.lnat-est__marco{transition:none!important}
+    .lnat-est__viajante,.lnat-est__viajante-y,.lnat-est__astro,.lnat-est__marco,.lnat-est__fixa{transition:none!important}
     .lnat-est__painel.is-pronto .lnat-est__pousa,.lnat-est__esq span{animation:none!important}
   }
 </style>
@@ -392,9 +438,18 @@
     var entregaEl = painel.querySelector('[data-est-entrega]');
     var passo2 = form.querySelector('[data-est-passo="2"]');
     var notaMetal = form.querySelector('[data-est-nota-metal]');
+    var valeEls = painel.querySelectorAll('[data-est-vale]');
+    var fixa = root.querySelector('[data-est-fixa]');
+    var fixaBtn = fixa ? fixa.querySelector('[data-est-fixa-btn]') : null;
+    var fixaTit = fixa ? fixa.querySelector('[data-est-fixa-tit]') : null;
+    var fixaSub = fixa ? fixa.querySelector('[data-est-fixa-sub]') : null;
+    var esqueleto = grelha.innerHTML;
     var ancora = root.id;
     var wa = root.getAttribute('data-wa') || (N && N.wa) || '';
     var valeUrl = root.getAttribute('data-vale') || '/collections/voucher-prenda';
+    var valeDigital = root.getAttribute('data-vale-digital') === 'true';
+    var fundo = parseInt(root.getAttribute('data-fundo'), 10);
+    if (isNaN(fundo)) fundo = 148;
     var taxa = 1;
     try { taxa = parseFloat(window.Shopify && Shopify.currency && Shopify.currency.rate) || 1; } catch (e) {}
     var preview = null;
@@ -402,8 +457,10 @@
 
     var cache = {};      /* url da coleção -> { itens, completo } (só respostas completas) */
     var emCurso = {};    /* url da coleção -> { pr, ctrl } */
-    var ctrl = null, ctrlPara = null, seq = 0, ativo = false, io = null, tPub = 0;
+    var ctrl = null, ctrlPara = null, seq = 0, ativo = false, io = null, ioBarra = [], tPub = 0;
     var lista = [], mostrar = POR;
+    /* barra fixa: só depois de uma escolha da pessoa, com as perguntas no ecrã e os resultados ainda não */
+    var escolheu = false, vePerguntas = false, vePainel = false;
 
     /* ---------- leitura das escolhas ---------- */
     function grupo(g) { return form.querySelectorAll('[data-grupo="' + g + '"]'); }
@@ -416,26 +473,35 @@
       }
       return false;
     }
+    /* Sem escolha «Para quem» (estado inicial fechado), para = '' e o painel fica fechado. */
     function estado() {
-      var p = marcado('para') || grupo('para')[0];
-      if (!p) return null;
-      var m = marcado('metal'), v = marcado('valor');
+      var p = marcado('para'), m = marcado('metal'), v = marcado('valor');
       return {
-        para: p.value,
-        url: p.getAttribute('data-url'),
-        pag: parseInt(p.getAttribute('data-pag'), 10) || 1,
-        alt: p.getAttribute('data-alt') || '',
-        altPag: parseInt(p.getAttribute('data-alt-pag'), 10) || 1,
-        saltar: p.hasAttribute('data-saltar-metal'),
-        resumo: p.getAttribute('data-resumo') || p.value,
-        aviso: p.getAttribute('data-aviso') || '',
+        para: p ? p.value : '',
+        url: p ? p.getAttribute('data-url') || '' : '',
+        pag: p ? parseInt(p.getAttribute('data-pag'), 10) || 1 : 1,
+        alt: p ? p.getAttribute('data-alt') || '' : '',
+        altPag: p ? parseInt(p.getAttribute('data-alt-pag'), 10) || 1 : 1,
+        saltar: !!(p && p.hasAttribute('data-saltar-metal')),
+        resumo: p ? p.getAttribute('data-resumo') || p.value : '',
+        aviso: p ? p.getAttribute('data-aviso') || '' : '',
         metal: m ? m.value : 'tanto-faz',
         valor: v ? v.value : 'qualquer'
       };
     }
     function rotulo(input) {
       var s = input && input.nextElementSibling;
-      return s ? s.textContent.replace(/\s+/g, ' ').trim() : '';
+      if (!s) return '';
+      var n = s.querySelector('.lnat-est__chip-nome') || s;
+      return n.textContent.replace(/\s+/g, ' ').trim();
+    }
+    /* «para ela, em ouro, de 100 a 250 €» */
+    function frase(s) {
+      var p = [s.resumo];
+      if (!s.saltar && s.metal === 'ouro') p.push('em ouro');
+      if (!s.saltar && s.metal === 'prata') p.push('em prata');
+      if (FRASE_VALOR[s.valor]) p.push(FRASE_VALOR[s.valor]);
+      return p.join(', ');
     }
 
     /* ---------- estrela e passos ---------- */
@@ -448,10 +514,49 @@
       if (avisoEl) { avisoEl.textContent = s.aviso; avisoEl.hidden = !s.aviso; }
     }
 
+    /* ---------- «Ouro» / «Prata» sem peças para esta escolha ----------
+       Conta as peças disponíveis de cada metal (a qualquer preço) na coleção principal e, se aí não houver,
+       na alternativa. Com 0 peças, o metal fica desativado («Sem peças»). «Tanto faz» nunca se desativa.
+       Devolve o metal que estava escolhido e deixou de ter peças (ou ''). */
+    function contaMetal(itens, metal) {
+      var c = 0;
+      for (var i = 0; i < itens.length; i++) if (itens[i].disp && itens[i].preco > 0 && itens[i].metal === metal) c++;
+      return c;
+    }
+    function metais(s, d1, d2, verAlt) {
+      var temAlt = !!s.alt && s.alt !== s.url, falta = false, tirado = '';
+      var els = grupo('metal');
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (el.value === 'tanto-faz') continue;
+        var sem = false;
+        if (s.para && d1 && !s.saltar) {
+          var n = contaMetal(d1.itens, el.value);
+          if (!n && temAlt) {
+            if (d2) n = contaMetal(d2.itens, el.value);
+            else { n = -1; falta = true; }
+          }
+          sem = n === 0;
+        }
+        el.disabled = sem;
+        if (el.parentNode && el.parentNode.classList) el.parentNode.classList.toggle('is-sem-pecas', sem);
+        if (sem && el.checked) tirado = el.value;
+      }
+      if (falta && verAlt) {
+        /* A principal não tem um dos metais e a alternativa ainda não veio: confirma em segundo plano. */
+        carregar(s.alt, s.altPag).then(function () {
+          var e = estado();
+          if (e.para !== s.para || !cache[e.url]) return;
+          if (metais(e, cache[e.url], cache[e.alt] || null, false)) correr('metal');
+        }, function () {});
+      }
+      return tirado;
+    }
+
     /* ---------- endereço (#siga-a-estrela?para=…) ---------- */
     function prefixo() { return '#' + ancora + '?'; }
     function escreverHash(s) {
-      if (design || !window.history || !history.replaceState) return;
+      if (!s.para || design || !window.history || !history.replaceState) return;
       var q = 'para=' + encodeURIComponent(s.para) + (s.saltar ? '' : '&metal=' + encodeURIComponent(s.metal)) + '&valor=' + encodeURIComponent(s.valor);
       try { history.replaceState(history.state, '', location.pathname + location.search + prefixo() + q); } catch (e) {}
     }
@@ -466,6 +571,7 @@
       var q;
       try { q = new URLSearchParams(h.slice(prefixo().length)); } catch (e) { return false; }
       marcar('para', q.get('para'));
+      metais({ para: '' }, null, null, false);   /* volta a ativar os metais; correr() confirma-os para a nova escolha */
       marcar('metal', q.get('metal'));
       marcar('valor', q.get('valor'));
       return true;
@@ -518,7 +624,8 @@
     function carregar(base, dica) {
       if (cache[base]) return Promise.resolve(cache[base]);
       var atual = emCurso[base];
-      if (atual && atual.ctrl === ctrl) return atual.pr;
+      /* reaproveita o mesmo pedido (ou a pré-carga, que não se cancela) */
+      if (atual && (atual.ctrl === ctrl || !atual.ctrl)) return atual.pr;
       var meuCtrl = ctrl, sinal = meuCtrl ? meuCtrl.signal : undefined;
       var n = Math.max(1, Math.min(MAX_PAGINAS, dica || 1));
       var lote = [];
@@ -578,21 +685,24 @@
       return primeiro;
     }
     function resumo(n, s, completo) {
-      var p = [s.resumo];
-      if (!s.saltar && s.metal === 'ouro') p.push('em ouro');
-      if (!s.saltar && s.metal === 'prata') p.push('em prata');
-      if (FRASE_VALOR[s.valor]) p.push(FRASE_VALOR[s.valor]);
-      var cauda = p.join(', ');
+      var cauda = frase(s);
       if (completo) return n + (n === 1 ? ' prenda ' : ' prendas ') + cauda;
       return (n === 1 ? 'A prenda mais vendida ' : 'As ' + n + ' prendas mais vendidas ') + cauda;
     }
-    function sugerir(base, s) {
-      var vistos = {}, unicos = [], html = '';
-      base.forEach(function (it) { if (!vistos[it.url]) { vistos[it.url] = 1; unicos.push(it); } });
-      function conta(metal, valor) {
+    /* Conta como correr(): só a principal quando dá 4 ou mais peças; senão, principal + alternativa
+       (sem repetir peças). Assim o número do botão é o que aparece depois do clique. */
+    function sugerir(base, baseAlt, s) {
+      var vistos = {}, u1 = [], u2 = [], html = '';
+      base.forEach(function (it) { if (it.url && !vistos[it.url]) { vistos[it.url] = 1; u1.push(it); } });
+      (baseAlt || []).forEach(function (it) { if (it.url && !vistos[it.url]) { vistos[it.url] = 1; u2.push(it); } });
+      function contaEm(l, metal, valor) {
         var c = 0;
-        for (var i = 0; i < unicos.length; i++) if (passa(unicos[i], metal, valor, s.saltar)) c++;
+        for (var i = 0; i < l.length; i++) if (passa(l[i], metal, valor, s.saltar)) c++;
         return c;
+      }
+      function conta(metal, valor) {
+        var c1 = contaEm(u1, metal, valor);
+        return (c1 >= MINIMO || !baseAlt) ? c1 : c1 + contaEm(u2, metal, valor);
       }
       function botao(g, v, txt, n) {
         return '<button type="button" class="lnat-est__sug" data-sug-grupo="' + g + '" data-sug="' + esc(v) + '">' + esc(txt) + ' <span>· ' + n + (n === 1 ? ' peça' : ' peças') + '</span></button>';
@@ -610,16 +720,49 @@
         if (n2 && tf) html = botao('metal', 'tanto-faz', rotulo(tf), n2);
       }
       sugEl.innerHTML = html ? '<p>Experimente:</p><div class="lnat-est__sugs">' + html + '</div>' : '';
+      return !!html;
+    }
+    /* «Ver mais na coleção»: a coleção de onde vêm as peças, com o preço escolhido.
+       O metal não vai no endereço: os filtros da loja não têm o tipo de produto. */
+    function urlTodas(base, s) {
+      var u = base + (base.indexOf('?') > -1 ? '&' : '?') + 'sort_by=best-selling';
+      var f = FAIXAS[s.valor];
+      if (f) {
+        if (f[0] > 0) u += '&filter.v.price.gte=' + Math.floor(f[0] * taxa / 100);
+        if (isFinite(f[1])) u += '&filter.v.price.lte=' + Math.ceil(f[1] * taxa / 100);
+      }
+      return u;
+    }
+    /* Os vales-prenda são físicos e seguem por correio: só se sugerem quando ainda chegam a tempo
+       (ou quando natal_vale_digital estiver ligado). */
+    function valeOk() {
+      if (valeDigital) return true;
+      var L = window.LOD_NATAL;
+      if (!L || !L.d || typeof L.passou !== 'function' || typeof L.fase !== 'function') return true;
+      var f = L.fase();
+      if (f === 'consoada' || f === 'mirra') return !L.passou(L.d.reis);
+      if (f === 'ultima' || f === 'fim') return false;
+      return !L.passou(L.d.continente);
+    }
+    function vales() {
+      var ok = valeOk();
+      for (var i = 0; i < valeEls.length; i++) valeEls[i].hidden = !ok;
+    }
+    function waLink(msg) {
+      if (!wa) return '';
+      var u = 'https://wa.me/' + encodeURIComponent(wa) + '?text=' + encodeURIComponent(msg);
+      return ' <a class="lnat-link" href="' + esc(u) + '" target="_blank" rel="noopener">Marcar por WhatsApp<span class="lnat-sr"> (abre noutra janela)</span></a>';
     }
     function entrega() {
       var L = window.LOD_NATAL;
       if (!entregaEl) return;
-      if (!L || !L.d || typeof L.passou !== 'function') { entregaEl.hidden = true; return; }
+      if (!L || !L.d || typeof L.passou !== 'function' || typeof L.fase !== 'function') { entregaEl.hidden = true; return; }
       var D = L.d, f = L.fase(), h = '';
-      var vale = '<a class="lnat-link" href="' + esc(valeUrl) + '">ofereça um vale-prenda</a>';
-      var reis = '<p>Chega a tempo do Dia de Reis se encomendar até <b>' + esc(dataLonga(D.reis)) + '</b> · Portugal continental.</p>';
+      /* Vale-prenda só quando é entregue por email: os vales físicos seguem por correio e também já não chegam. */
+      var vale = valeDigital ? '<p>Ou ofereça um <a class="lnat-link" href="' + esc(valeUrl) + '">vale-prenda</a>, entregue por email.</p>' : '';
+      var reis = '<p>Para chegar até ao Dia de Reis, encomende até <b>' + esc(dataLonga(D.reis)) + '</b> · Portugal continental (prazo indicativo).</p>';
       if (f === 'mirra' || f === 'fim') {
-        h += !L.passou(D.reis) ? reis : '<p class="lnat-est__ent-ko">Já não chega a tempo do Dia de Reis por correio — levante numa loja ou ' + vale + '.</p>';
+        h += !L.passou(D.reis) ? reis : '<p class="lnat-est__ent-ko">Já não chega a tempo do Dia de Reis por correio.</p><p>Pode levantar a prenda numa das nossas lojas, com marcação.' + waLink('Olá! Gostava de levantar uma prenda numa das vossas lojas.') + '</p>' + vale;
       } else if (f === 'consoada') {
         h += '<p>As encomendas feitas nestes dias seguem a partir de <b>' + esc(dataLonga(D.retoma)) + '</b>.</p>';
         if (!L.passou(D.reis)) h += reis;
@@ -628,21 +771,20 @@
         var ok = R.filter(function (r) { return !L.passou(r[2]); });
         var ko = R.filter(function (r) { return L.passou(r[2]); });
         if (ok.length) {
-          h += '<p>Chega a tempo do Natal se encomendar até:</p><ul class="lnat-est__regioes">';
+          h += '<p>Para chegar antes do Natal, encomende até:</p><ul class="lnat-est__regioes">';
           ok.forEach(function (r) { h += '<li><span>' + r[0] + '</span><b>' + esc(dataLonga(r[2])) + '</b></li>'; });
-          h += '</ul>';
-        }
-        if (!L.passou(D.loja)) {
-          var waUrl = wa ? 'https://wa.me/' + encodeURIComponent(wa) + '?text=' + encodeURIComponent('Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.') : '';
-          h += '<p>Levantar na loja até <b>' + esc(dataHora(D.loja)) + '</b>, com marcação.' + (waUrl ? ' <a class="lnat-link" href="' + esc(waUrl) + '" target="_blank" rel="noopener">Marcar por WhatsApp<span class="lnat-sr"> (abre noutra janela)</span></a>' : '') + '</p>';
+          h += '</ul><p class="lnat-peq lnat-est__ind">Prazos indicativos.</p>';
         }
         if (ko.length) {
-          h += '<p class="lnat-est__ent-ko">Já não chega a tempo por correio' + (ko.length === R.length ? '' : ' para ' + juntar(ko.map(function (r) { return r[1]; }))) + ' — levante numa loja ou ' + vale + '.</p>';
+          h += '<p class="lnat-est__ent-ko">Já não chega a tempo por correio' + (ko.length === R.length ? '' : ' para ' + juntar(ko.map(function (r) { return r[1]; }))) + '.</p>';
         }
+        if (!L.passou(D.loja)) {
+          h += '<p>' + (ko.length === R.length ? 'Ainda pode levantar a prenda numa das nossas lojas' : 'Levantar na loja') + ' até <b>' + esc(dataHora(D.loja)) + '</b>, com marcação.' + waLink('Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.') + '</p>';
+        }
+        if (ko.length) h += vale;
       }
-      h += '<p class="lnat-peq">Prazos indicativos.</p>';
       entregaEl.innerHTML = h;
-      entregaEl.hidden = false;
+      entregaEl.hidden = !h;
     }
     function publicar(s, n) {
       clearTimeout(tPub);
@@ -654,28 +796,48 @@
         } catch (e) {}
       }, 1200);
     }
+    /* ---------- barra fixa «Ver N prendas» (telemóvel) ---------- */
+    function barra() {
+      if (fixa) fixa.classList.toggle('is-visivel', escolheu && vePerguntas && !vePainel);
+    }
+    function textoBarra(modo, tit, sub) {
+      if (!fixa) return;
+      fixa.setAttribute('data-modo', modo);
+      if (fixaTit) fixaTit.textContent = tit;
+      if (fixaSub) { fixaSub.textContent = sub || ''; fixaSub.hidden = !sub; }
+    }
+    function barraRes(s, n) {
+      if (n == null) textoBarra('res', 'A procurar prendas…', frase(s));
+      else if (n) textoBarra('res', 'Ver ' + n + (n === 1 ? ' prenda' : ' prendas'), frase(s));
+      else textoBarra('res', 'Ver sugestões', 'Sem peças ' + frase(s));
+    }
+
     function desenhar(r, s, origem) {
       lista = r.lista;
       mostrar = POR;
       painel.classList.remove('is-a-carregar');
       painel.removeAttribute('aria-busy');
       erroEl.hidden = true;
-      todasEl.href = r.todas + (r.todas.indexOf('?') > -1 ? '&' : '?') + 'sort_by=best-selling';
+      todasEl.href = urlTodas(r.todas, s);
       grelha.textContent = '';
+      vales();
+      var pre = r.tirado ? 'Sem peças em ' + r.tirado + ' ' + s.resumo + '. ' : '';
       if (!lista.length) {
         grelha.hidden = true;
         maisWrap.hidden = true;
         vazioEl.hidden = false;
-        sugerir(r.base, s);
-        estadoEl.textContent = 'Não encontrámos peças com estas escolhas. Experimente outro valor ou ofereça um vale-prenda.';
+        sugerir(r.base, r.baseAlt, s);
+        var tente = (!s.saltar && s.metal !== 'tanto-faz') ? 'outro valor ou outro metal' : 'outro valor';
+        estadoEl.textContent = pre + 'Não encontrámos peças com estas escolhas. Experimente ' + tente + (valeOk() ? ', ou ofereça um vale-prenda.' : '.');
       } else {
         vazioEl.hidden = true;
         grelha.hidden = false;
         pintar(0, mostrar);
-        estadoEl.textContent = resumo(lista.length, s, r.completo) + '.';
+        estadoEl.textContent = pre + resumo(lista.length, s, r.completo) + '.';
       }
       entrega();
       painel.classList.add('is-pronto');
+      barraRes(s, lista.length);
       if (origem === 'utilizador' || origem === 'sugestao' || origem === 'hash') publicar(s, lista.length);
     }
     function falhou() {
@@ -686,40 +848,84 @@
       maisWrap.hidden = true;
       vazioEl.hidden = true;
       erroEl.hidden = false;
+      vales();
       estadoEl.textContent = 'Não conseguimos mostrar as peças agora. Tente de novo ou veja a coleção.';
+      textoBarra('res', 'Ver resultados', 'Não conseguimos mostrar as peças agora.');
+    }
+    function abrir() { if (painel.hidden) painel.hidden = false; }
+    /* Sem escolha «Para quem»: painel fechado, pronto a reabrir com o esqueleto. */
+    function fechar() {
+      seq++;
+      lista = [];
+      painel.hidden = true;
+      painel.classList.remove('is-pronto', 'is-a-carregar');
+      painel.setAttribute('aria-busy', 'true');
+      grelha.innerHTML = esqueleto;
+      grelha.hidden = false;
+      vazioEl.hidden = true;
+      erroEl.hidden = true;
+      maisWrap.hidden = true;
+      estadoEl.textContent = '';
+      if (entregaEl) entregaEl.hidden = true;
+      textoBarra('para', 'Para quem é a prenda?', 'Escolha no passo I para ver as peças.');
+    }
+    /* Estado inicial fechado: quando a secção se aproxima, já vai buscando a primeira escolha. */
+    function preCarregar() {
+      var p = grupo('para')[0];
+      var u = p && p.getAttribute('data-url');
+      if (u) carregar(u, parseInt(p.getAttribute('data-pag'), 10) || 1).then(null, function () {});
     }
 
     /* ---------- procura ---------- */
     function correr(origem) {
       var s = estado();
-      if (!s) return;
       ui(s);
       if (origem === 'utilizador' || origem === 'sugestao') escreverHash(s);
-      if (!ativo || !s.url) return;
+      if (!s.para || !s.url) {
+        metais(s, null, null, false);
+        fechar();
+        if (origem === 'auto') preCarregar();
+        return;
+      }
+      abrir();
+      if (!ativo) return;
       if (ctrlPara !== s.para) {
         if (ctrl) { try { ctrl.abort(); } catch (e) {} }
         ctrl = ('AbortController' in window) ? new AbortController() : null;
         ctrlPara = s.para;
       }
+      var temAlt = !!s.alt && s.alt !== s.url;
+      metais(s, cache[s.url] || null, temAlt ? cache[s.alt] || null : null, false);
       var meu = ++seq;
+      barraRes(s, null);
       if (!cache[s.url]) aCarregar();
       carregar(s.url, s.pag).then(function (d1) {
-        var m1 = filtrar(d1.itens, s);
-        if (m1.length >= MINIMO || !s.alt || s.alt === s.url) {
-          return { lista: m1, completo: d1.completo, todas: s.url, base: d1.itens };
-        }
+        if (!temAlt) return { d1: d1, d2: null };
+        if (filtrar(d1.itens, s).length >= MINIMO) return { d1: d1, d2: cache[s.alt] || null };
         if (!cache[s.alt] && meu === seq) aCarregar();
-        return carregar(s.alt, s.altPag).then(function (d2) {
+        return carregar(s.alt, s.altPag).then(function (d2) { return { d1: d1, d2: d2 }; }, function (e) {
+          if (e && e.name === 'AbortError') throw e;
+          return { d1: d1, d2: null };
+        });
+      }).then(function (o) {
+        if (meu !== seq) return;
+        /* Se o metal escolhido não tem peças nesta escolha, passa a «Tanto faz» e diz porquê. */
+        var tirado = metais(s, o.d1, o.d2, true);
+        if (tirado) {
+          s.metal = 'tanto-faz';
+          marcar('metal', 'tanto-faz');
+          if (escolheu) escreverHash(s);
+        }
+        var m1 = filtrar(o.d1.itens, s), r;
+        if (m1.length >= MINIMO || !o.d2) {
+          r = { lista: m1, completo: o.d1.completo, todas: s.url, base: o.d1.itens, baseAlt: null };
+        } else {
           var vistos = {};
           m1.forEach(function (it) { vistos[it.url] = 1; });
-          var m2 = filtrar(d2.itens, s).filter(function (it) { return !vistos[it.url]; });
-          return { lista: m1.concat(m2), completo: d1.completo && d2.completo, todas: m2.length ? s.alt : s.url, base: d1.itens.concat(d2.itens) };
-        }, function (e) {
-          if (e && e.name === 'AbortError') throw e;
-          return { lista: m1, completo: d1.completo, todas: s.url, base: d1.itens };
-        });
-      }).then(function (r) {
-        if (meu !== seq) return;
+          var m2 = filtrar(o.d2.itens, s).filter(function (it) { return !vistos[it.url]; });
+          r = { lista: m1.concat(m2), completo: o.d1.completo && o.d2.completo, todas: m2.length ? s.alt : s.url, base: o.d1.itens, baseAlt: o.d2.itens };
+        }
+        r.tirado = tirado;
         desenhar(r, s, origem);
       }, function (e) {
         if (meu !== seq || (e && e.name === 'AbortError')) return;
@@ -731,6 +937,7 @@
         ativo = true;
         if (io) { io.disconnect(); io = null; }
       }
+      if (origem === 'utilizador' || origem === 'sugestao' || origem === 'hash') { escolheu = true; barra(); }
       correr(origem);
     }
 
@@ -753,14 +960,28 @@
       if (primeiro) { try { primeiro.focus({ preventScroll: false }); } catch (e) { primeiro.focus(); } }
     });
     painel.querySelector('[data-est-recomecar]').addEventListener('click', function () {
+      var tudo = form.querySelectorAll('[data-grupo]');
+      for (var j = 0; j < tudo.length; j++) tudo[j].checked = false;
       var ini = form.querySelectorAll('[data-inicial]');
       for (var i = 0; i < ini.length; i++) ini[i].checked = true;
       passo(1);
       limparHash();
+      escolheu = false;
+      barra();
       ativar('recomecar');
-      var p = marcado('para');
+      var p = marcado('para') || grupo('para')[0];
       if (p) { try { p.focus({ preventScroll: true }); } catch (e) {} }
       try { root.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (e) {}
+    });
+    if (fixaBtn) fixaBtn.addEventListener('click', function () {
+      var suave = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      var alvo = painel, foco = tituloRes;
+      if (fixa.getAttribute('data-modo') === 'para' || painel.hidden) {
+        alvo = form.querySelector('[data-est-passo="1"]') || form;
+        foco = grupo('para')[0];
+      }
+      try { alvo.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'start' }); } catch (e) { alvo.scrollIntoView(); }
+      if (foco) { try { foco.focus({ preventScroll: true }); } catch (e) {} }
     });
     painel.querySelector('[data-est-tentar]').addEventListener('click', function () { ativar('utilizador'); });
     sugEl.addEventListener('click', function (e) {
@@ -785,8 +1006,19 @@
       parar: function () {
         if (ctrl) { try { ctrl.abort(); } catch (e) {} }
         if (io) { io.disconnect(); io = null; }
+        ioBarra.forEach(function (o) { o.disconnect(); });
+        ioBarra = [];
       }
     };
+
+    /* A barra aparece com as perguntas no ecrã e desaparece quando o topo do painel já se vê acima dela. */
+    if (fixa && 'IntersectionObserver' in window) {
+      var ioP = new IntersectionObserver(function (en) { vePerguntas = en[en.length - 1].isIntersecting; barra(); }, { rootMargin: '0px 0px -64px 0px' });
+      var ioR = new IntersectionObserver(function (en) { vePainel = en[en.length - 1].isIntersecting; barra(); }, { rootMargin: '0px 0px -' + (fundo + 80) + 'px 0px' });
+      ioP.observe(form);
+      ioR.observe(painel);
+      ioBarra = [ioP, ioR];
+    }
 
     ui(estado());
     if (!design && lerHash()) {
@@ -842,10 +1074,24 @@
     { "type": "text", "id": "ajuda_mensagem", "label": "Mensagem já escrita no WhatsApp", "default": "Olá! Estou a escolher uma prenda de Natal e gostava de ajuda." },
     { "type": "text", "id": "titulo_resultados", "label": "Título dos resultados", "default": "A estrela parou aqui." },
     { "type": "header", "content": "Ligações" },
-    { "type": "collection", "id": "colecao_vale", "label": "Coleção dos vales-prenda", "info": "Usada quando não há peças e quando já não chega a tempo por correio. Vazio usa /collections/voucher-prenda." },
+    { "type": "collection", "id": "colecao_vale", "label": "Coleção dos vales-prenda", "info": "Usada quando não há peças. Os vales seguem por correio: depois do prazo do correio só se sugerem se estiver ligada a opção O vale-prenda é entregue por email, nas definições do tema (Natal 2026). Vazio usa /collections/voucher-prenda." },
     { "type": "text", "id": "ancora", "label": "Âncora da secção", "default": "siga-a-estrela", "info": "Endereço da secção: /#siga-a-estrela. As escolhas ficam a seguir, por exemplo #siga-a-estrela?para=ela&metal=ouro&valor=100-250" },
+    { "type": "header", "content": "Comportamento" },
+    {
+      "type": "select",
+      "id": "estado_inicial",
+      "label": "Ao abrir a página",
+      "options": [
+        { "value": "fechado", "label": "Esperar pela primeira escolha" },
+        { "value": "primeira", "label": "Mostrar logo a primeira escolha" }
+      ],
+      "default": "fechado",
+      "info": "Esperar pela primeira escolha evita mostrar as mesmas peças da secção Os mais oferecidos, que vem a seguir."
+    },
     { "type": "header", "content": "Telemóvel" },
-    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true },
+    { "type": "checkbox", "id": "barra_telemovel", "label": "Barra Ver prendas no fundo do ecrã", "default": true, "info": "Aparece depois da primeira escolha, enquanto as perguntas estão no ecrã e os resultados ainda não. Leva aos resultados." },
+    { "type": "range", "id": "barra_fundo", "label": "Distância da barra ao fundo do ecrã", "min": 0, "max": 240, "step": 4, "unit": "px", "default": 148, "info": "148 px deixa a barra acima do botão de chat (a 84 px do fundo, com 56 px de altura)." }
   ],
   "blocks": [
     {

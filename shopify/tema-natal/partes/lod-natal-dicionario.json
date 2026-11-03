@@ -23,7 +23,7 @@
       "settings": {
         "icone": "filigrana",
         "termo": "Filigrana",
-        "definicao": "Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais.",
+        "definicao": "A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais.",
         "link_texto": "Ver peças",
         "link_url": "/collections/filigrana"
       }
@@ -33,9 +33,7 @@
       "settings": {
         "icone": "enchedeira",
         "termo": "Enchedeira",
-        "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana.",
-        "link_texto": "Ver peças",
-        "link_url": "/collections/tradicao-filigrana-prata"
+        "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana."
       }
     },
     "termo_rainha": {
@@ -63,7 +61,7 @@
       "settings": {
         "icone": "contas",
         "termo": "Contas de Viana",
-        "definicao": "Contas de ouro, uma das mais antigas tradições do Minho.",
+        "definicao": "Contas tradicionalmente feitas em ouro, uma das mais antigas tradições do Minho.",
         "link_texto": "Ver peças",
         "link_url": "/collections/contas-de-viana"
       }

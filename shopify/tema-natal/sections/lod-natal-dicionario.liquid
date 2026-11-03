@@ -1,7 +1,9 @@
 {%- comment -%}
   Natal 2026 · Ouro de Reis — «Dicionário do Ouro Português», fundo linho.
-  Blocos «termo» (ícone, termo, definição, link). Grelha de 4 colunas no computador; no telemóvel,
-  faixa com scroll-snap (cartões de 300 px) e pontos indicadores.
+  Blocos «termo» (ícone, termo, definição, link). Grelha de 4 colunas a partir de 1200 px, 2 colunas
+  entre 750 e 1199 (tablet e iPad na horizontal); no telemóvel, faixa com scroll-snap (cartões de 300 px)
+  e pontos indicadores. As definições falam da tradição: nada de «feito à mão» ou «de ouro» ao lado de
+  um «Ver peças» que leve a coleções com peças de prata ou sem certificação.
 {%- endcomment -%}
 {%- liquid
   capture lnat_fase
@@ -116,7 +118,7 @@
     .lnat-dic__termo{flex:none}
     .lnat-dic__pontos{display:none}
   }
-  @media screen and (min-width:990px){
+  @media screen and (min-width:1200px){
     .lnat-dic__lista{grid-template-columns:repeat(4,minmax(0,1fr))}
   }
 </style>
@@ -203,7 +205,7 @@
           "default": "estrela"
         },
         { "type": "text", "id": "termo", "label": "Termo", "default": "Filigrana" },
-        { "type": "textarea", "id": "definicao", "label": "Definição", "default": "Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais." },
+        { "type": "textarea", "id": "definicao", "label": "Definição", "default": "A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais." },
         { "type": "text", "id": "link_texto", "label": "Texto do link", "default": "Ver peças" },
         { "type": "url", "id": "link_url", "label": "Link" }
       ]
@@ -214,7 +216,7 @@
       "name": "Natal · Dicionário",
       "blocks": [
         { "type": "termo", "settings": { "icone": "coracao", "termo": "Coração de Viana", "definicao": "Símbolo de devoção ao Sagrado Coração de Jesus. Conta a tradição que nasceu de um pedido de D. Maria I." } },
-        { "type": "termo", "settings": { "icone": "filigrana", "termo": "Filigrana", "definicao": "Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais." } },
+        { "type": "termo", "settings": { "icone": "filigrana", "termo": "Filigrana", "definicao": "A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais." } },
         { "type": "termo", "settings": { "icone": "enchedeira", "termo": "Enchedeira", "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana." } },
         { "type": "termo", "settings": { "icone": "ouro-portugues", "termo": "Ouro português", "definicao": "Liga de 800 partes de ouro fino por mil, conhecida como 19,2 quilates, contrastada pela INCM." } }
       ]

@@ -2,14 +2,15 @@
   "type": "lod-natal-bar",
   "settings": {
     "so_portugal": true,
-    "mostrar_no_telemovel": true
+    "mostrar_no_telemovel": true,
+    "janeiras_confirmadas": false
   },
   "blocks": {
     "msg_natal": {
       "type": "mensagem",
       "settings": {
-        "texto": "Natal: encomende até <strong>{continente}</strong> e receba antes do Natal (Portugal continental).",
-        "texto_telemovel": "Encomende até <strong>{continente:abrev}</strong> e receba antes do Natal (Portugal continental)",
+        "texto": "Natal: encomende até <strong>{continente}</strong> para receber antes do Natal (Portugal continental, prazo indicativo).",
+        "texto_telemovel": "Natal: encomende até <strong>{continente:abrev}</strong> (Portugal continental, prazo indicativo)",
         "link": "/#prazos",
         "link_texto": "Ver prazos",
         "de": "inicio",
@@ -21,8 +22,8 @@
     "msg_ilhas": {
       "type": "mensagem",
       "settings": {
-        "texto": "Açores: encomende até <strong>{acores}</strong> · Madeira: até <strong>{madeira}</strong>",
-        "texto_telemovel": "Açores: até <strong>{acores:abrev}</strong> · Madeira: até <strong>{madeira:abrev}</strong>",
+        "texto": "Açores: encomende até <strong>{acores}</strong> · Madeira: até <strong>{madeira}</strong> (prazos indicativos).",
+        "texto_telemovel": "Açores: até <strong>{acores:abrev}</strong> · Madeira: até <strong>{madeira:abrev}</strong> (prazos indicativos)",
         "link": "/#prazos",
         "link_texto": "Ver prazos",
         "de": "inicio",
@@ -34,8 +35,8 @@
     "msg_madeira": {
       "type": "mensagem",
       "settings": {
-        "texto": "Madeira: encomende até <strong>{madeira}</strong> para receber antes do Natal.",
-        "texto_telemovel": "Madeira: encomende até <strong>{madeira:abrev}</strong> para receber antes do Natal",
+        "texto": "Madeira: encomende até <strong>{madeira}</strong> para receber antes do Natal (prazo indicativo).",
+        "texto_telemovel": "Madeira: encomende até <strong>{madeira:abrev}</strong> para o Natal (prazo indicativo)",
         "link": "/#prazos",
         "link_texto": "Ver prazos",
         "de": "acores",
@@ -47,8 +48,10 @@
     "msg_ultimos_dias": {
       "type": "mensagem",
       "settings": {
-        "texto": "Últimos dias: encomende até <strong>{continente:longo}</strong> (Portugal continental)",
-        "texto_telemovel": "Últimos dias: encomende até <strong>{continente:abrev}</strong>",
+        "texto": "Últimos dias: encomende até <strong>{continente:longo}</strong> (Portugal continental, prazo indicativo)",
+        "texto_telemovel": "Últimos dias: encomende até <strong>{continente:abrev}</strong> (prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
         "de": "fase2",
         "ate": "continente",
         "contagem": "continente",
@@ -58,8 +61,10 @@
     "msg_gravadas": {
       "type": "mensagem",
       "settings": {
-        "texto": "Peças gravadas: encomende até <strong>{gravacao}</strong>.",
-        "texto_telemovel": "Peças gravadas: encomende até <strong>{gravacao:abrev}</strong>",
+        "texto": "Peças gravadas: encomende até <strong>{gravacao}</strong> para receber antes do Natal (prazo indicativo).",
+        "texto_telemovel": "Peças gravadas: encomende até <strong>{gravacao:abrev}</strong> (prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
         "de": "fase2",
         "ate": "gravacao",
         "contagem": "nenhuma",
@@ -69,7 +74,7 @@
     "msg_levantar_loja": {
       "type": "mensagem",
       "settings": {
-        "texto": "Já não chega por correio? Levante numa das nossas 13 lojas, com marcação, até <strong>{loja}</strong>.",
+        "texto": "Já não chega por correio? Levante numa das nossas 13 lojas, com marcação, até <strong>{loja:hora}</strong>.",
         "texto_telemovel": "Levante numa das nossas 13 lojas, com marcação, até <strong>{loja:hora}</strong>",
         "link": "/pages/agencias",
         "link_texto": "Ver lojas",
@@ -106,8 +111,10 @@
     "msg_reis": {
       "type": "mensagem",
       "settings": {
-        "texto": "Ainda vai a tempo dos Reis: encomende até <strong>{reis}</strong> (Portugal continental).",
-        "texto_telemovel": "A tempo dos Reis: encomende até <strong>{reis:abrev}</strong> (Portugal continental)",
+        "texto": "Ainda vai a tempo dos Reis: encomende até <strong>{reis}</strong> (Portugal continental, prazo indicativo).",
+        "texto_telemovel": "A tempo dos Reis: encomende até <strong>{reis:abrev}</strong> (prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
         "de": "festas",
         "ate": "reis",
         "contagem": "nenhuma",
@@ -135,7 +142,7 @@
         "de": "festas",
         "ate": "fim",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "janeiras"
       }
     },
     "msg_portes": {
@@ -145,6 +152,17 @@
         "texto_telemovel": "<strong>Portes grátis</strong> acima de 150 € (exceto ouro de investimento)",
         "de": "inicio",
         "ate": "continente",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_portes_reis": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "<strong>Portes grátis</strong> em encomendas superiores a 150 € (exceto ouro de investimento).",
+        "texto_telemovel": "<strong>Portes grátis</strong> acima de 150 € (exceto ouro de investimento)",
+        "de": "festas",
+        "ate": "fim",
         "contagem": "nenhuma",
         "condicao": "sempre"
       }
@@ -174,6 +192,7 @@
     "msg_trocas",
     "msg_janeiras",
     "msg_portes",
+    "msg_portes_reis",
     "msg_embrulho"
   ]
 }

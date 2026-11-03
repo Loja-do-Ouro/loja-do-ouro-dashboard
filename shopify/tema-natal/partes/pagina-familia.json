@@ -1,0 +1,30 @@
+{
+  "type": "lod-natal-selecao",
+  "settings": {
+    "eyebrow": "Para a vida",
+    "titulo": "Ouro que fica na família",
+    "descricao": "Peças em ouro português de 19,2 quilates para passar de geração em geração.",
+    "produtos": [
+      "medalha-coracao-de-viana-em-filigrana-de-ouro-19kl-5cm",
+      "brincos-meia-conta-de-viana-em-ouro-19kl-1-05cm",
+      "cruz-contas-de-viana-em-ouro-19kl-4-45cm",
+      "conta-de-viana-em-ouro-19kl-8-6mm",
+      "fio-elos-portugueses-em-ouro-19kl-50cm",
+      "medalha-em-ouro-de-19kl-com-caramujos-e-esmalte-colorido-1-9cm",
+      "brincos-rainha-ouro-19kl-4-5cm",
+      "pulseira-tradicao-em-ouro-19kl-com-esferas-19-5cm",
+      "terco-em-ouro-19kl-45cm",
+      "pulseira-escrava-em-ouro-19kl-6-8cm",
+      "brincos-meia-conta-de-viana-em-ouro-19kl-1-46cm",
+      "conta-de-viana-em-ouro-19kl-7-3mm"
+    ],
+    "limite": 8,
+    "esconder_esgotados": true,
+    "link_texto": "Ver todo o ouro tradicional",
+    "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
+    "fundo": "papel",
+    "mostrar_no_telemovel": true
+  },
+  "blocks": {},
+  "block_order": []
+}

@@ -5,6 +5,7 @@
            curto  → 18 de dezembro
            abrev  → 18 dez.
            hora   → 24 de dezembro, 13h
+           abrev-hora → 24 dez., 13h (listas curtas no telemóvel)
            ano    → 15 de janeiro de 2027
 {%- endcomment -%}
 {%- liquid
@@ -30,6 +31,12 @@
         assign hh = h | append: 'h' | append: mi
       endif
       echo d | append: ' de ' | append: meses[m] | append: ', ' | append: hh
+    when 'abrev-hora'
+      assign hh = h | append: 'h'
+      if mi != '00'
+        assign hh = h | append: 'h' | append: mi
+      endif
+      echo d | append: ' ' | append: mabr[m] | append: ', ' | append: hh
     when 'ano'
       assign ano = valor | date: '%Y'
       echo d | append: ' de ' | append: meses[m] | append: ' de ' | append: ano

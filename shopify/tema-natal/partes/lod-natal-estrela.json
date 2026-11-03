@@ -10,7 +10,10 @@
     "titulo_resultados": "A estrela parou aqui.",
     "colecao_vale": "voucher-prenda",
     "ancora": "siga-a-estrela",
-    "mostrar_no_telemovel": true
+    "estado_inicial": "fechado",
+    "mostrar_no_telemovel": true,
+    "barra_telemovel": true,
+    "barra_fundo": 148
   },
   "blocks": {
     "para_ela": {
