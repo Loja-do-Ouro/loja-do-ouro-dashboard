@@ -1,0 +1,271 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Fio a fio.» (filigrana), fundo tinta.
+  Texto, números e botões à esquerda; à direita a estrela de filigrana (480 px no computador, 240 no
+  telemóvel), que se desenha ao entrar no ecrã (stroke-dashoffset com pathLength="1") e um brilho de
+  faúlhas douradas em CSS (18 pontos, 12 no telemóvel), em pausa fora do ecrã.
+  Com «reduzir movimento», poupança de dados ou pouca memória: estrela já desenhada e sem faúlhas.
+  Uma imagem (4:5) substitui a estrela.
+{%- endcomment -%}
+{%- liquid
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+  assign oculta = false
+  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
+    assign oculta = true
+  endif
+  assign mostrar = true
+  if oculta
+    assign mostrar = false
+    if request.design_mode
+      assign mostrar = true
+    endif
+  endif
+
+  assign s = section.settings
+  assign img = s.imagem
+  assign img_alt = s.imagem_alt
+  if img_alt == blank and img
+    assign img_alt = img.alt
+  endif
+  assign tem_b1 = false
+  if s.botao1_texto != blank and s.botao1_url != blank
+    assign tem_b1 = true
+  endif
+  assign tem_b2 = false
+  if s.botao2_texto != blank and s.botao2_url != blank
+    assign tem_b2 = true
+  endif
+-%}
+{%- comment -%} Faúlhas: x %, y %, tamanho (px), atraso (s), duração (s), desvio horizontal (px). {%- endcomment -%}
+{%- liquid
+  assign faulhas = '12,22,2,0,6.5,4|84,16,3,1.2,7.2,-6|90,56,2,2.6,6.8,5|9,72,3,0.8,7.6,-4|27,90,2,3.4,6.2,6|72,86,2.5,1.9,7,-5|50,6,2,4.1,6.6,3|22,46,1.5,2.2,8,-3|78,38,1.5,0.4,7.4,4|58,94,3,5,6.9,-6|36,14,1.5,3,7.8,5|94,80,2,1.6,6.4,-4|4,40,2,4.6,7.1,3|66,22,1.5,5.6,8.2,-5|18,60,2.5,6,6.7,6|86,68,1.5,2.9,7.7,-3|44,82,2,0.9,8.4,4|62,52,1.5,3.8,7.3,-4' | split: '|'
+-%}
+{%- if mostrar -%}
+<section
+  class="lnat lnat-fi lnat-sec lnat-bg-tinta{% if img %} lnat-fi--foto{% endif %}{% unless s.mostrar_no_telemovel %} lnat-fi--sem-tel{% endunless %}{% if request.design_mode %} lnat-fi--editor{% endif %}"
+  id="lnat-fi-{{ section.id }}"
+  aria-labelledby="lnat-fi-h-{{ section.id }}"
+>
+  <div class="lnat-wrap">
+    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+
+    <div class="lnat-fi__grelha">
+      <div class="lnat-fi__texto">
+        {%- if s.eyebrow != blank -%}
+          <p class="lnat-eb">{{ s.eyebrow | escape }}</p>
+        {%- endif -%}
+        <h2 class="lnat-h1 lnat-fi__h" id="lnat-fi-h-{{ section.id }}">{{ s.titulo | escape }}</h2>
+        {%- if s.texto != blank -%}
+          <div class="lnat-fi__txt">{{ s.texto }}</div>
+        {%- endif -%}
+        {%- if section.blocks.size > 0 -%}
+          <dl class="lnat-fi__numeros">
+            {%- for block in section.blocks -%}
+              <div class="lnat-fi__numero" {{ block.shopify_attributes }}>
+                <dt class="lnat-fi__valor">{{ block.settings.valor | escape }}</dt>
+                <dd class="lnat-fi__legenda">{{ block.settings.legenda | escape }}</dd>
+              </div>
+            {%- endfor -%}
+          </dl>
+        {%- endif -%}
+        {%- if tem_b1 or tem_b2 -%}
+          <div class="lnat-btns lnat-fi__btns">
+            {%- if tem_b1 -%}<a class="lnat-btn lnat-btn--ouro" href="{{ s.botao1_url }}">{{ s.botao1_texto | escape }}</a>{%- endif -%}
+            {%- if tem_b2 -%}<a class="lnat-btn lnat-btn--claro" href="{{ s.botao2_url }}">{{ s.botao2_texto | escape }}</a>{%- endif -%}
+          </div>
+        {%- endif -%}
+      </div>
+
+      <div class="lnat-fi__arte">
+        {%- if img -%}
+          <div class="lnat-fi__foto">
+            {{- img | image_url: width: 1040 | image_tag: loading: 'lazy', widths: '400, 520, 780, 1040', sizes: '(min-width: 990px) 520px, (min-width: 750px) 45vw, 90vw', alt: img_alt -}}
+          </div>
+        {%- else -%}
+          <div class="lnat-fi__estrela-caixa">
+            {%- if s.faulhas -%}
+              <div class="lnat-fi__faulhas" aria-hidden="true">
+                {%- for f in faulhas -%}
+                  {%- assign v = f | split: ',' -%}
+                  <span class="lnat-fi__faulha" style="--x:{{ v[0] }}%;--y:{{ v[1] }}%;--s:{{ v[2] }}px;--a:{{ v[3] }}s;--d:{{ v[4] }}s;--dx:{{ v[5] }}px"></span>
+                {%- endfor -%}
+              </div>
+            {%- endif -%}
+            <svg class="lnat-fi__estrela" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <g class="lnat-fi__tracos">
+                {%- for r in (0..3) -%}
+                  {%- assign ang = r | times: 90 -%}
+                  <path pathLength="1" style="--i:{{ r }}" transform="rotate({{ ang }} 32 32)" d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z"/>
+                {%- endfor -%}
+                {%- for r in (0..3) -%}
+                  {%- assign ang = r | times: 90 | plus: 45 -%}
+                  {%- assign i = r | plus: 4 -%}
+                  <path pathLength="1" style="--i:{{ i }}" transform="rotate({{ ang }} 32 32)" d="M32 25C29 21 29.5 16 32 12C34.5 16 35 21 32 25Z"/>
+                {%- endfor -%}
+                {%- for r in (0..3) -%}
+                  {%- assign ang = r | times: 90 -%}
+                  {%- assign i = r | plus: 8 -%}
+                  <path pathLength="1" style="--i:{{ i }}" transform="rotate({{ ang }} 32 32)" d="M32 21C30 19 30 16 32 15C34 14 34 11 32 10"/>
+                {%- endfor -%}
+                <path pathLength="1" style="--i:12" d="M38 32A6 6 0 1 1 26 32A6 6 0 1 1 38 32Z"/>
+              </g>
+              <circle class="lnat-fi__granulo" cx="32" cy="32" r="2" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .lnat-fi{overflow:hidden}
+  .lnat-fi__grelha{display:grid;grid-template-columns:minmax(0,1fr);gap:32px;align-items:center}
+  .lnat-fi__texto{display:flex;flex-direction:column;align-items:flex-start;gap:18px;min-width:0}
+  .lnat-fi__h{color:var(--lnat-ouro-claro)}
+  .lnat-fi__txt{font-size:16px;line-height:26px;color:#e1dacb}
+  .lnat-fi__txt p{margin:0 0 12px}
+  .lnat-fi__txt p:last-child{margin-bottom:0}
+  .lnat-fi__txt a{color:var(--lnat-ouro-claro)}
+  .lnat-fi__numeros{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;width:100%;margin:6px 0 0;padding:22px 0 0;border-top:1px solid #3a3528}
+  .lnat-fi__numero{margin:0}
+  .lnat-fi__valor{margin:0;font-family:var(--lnat-cond);font-weight:400;font-size:28px;line-height:32px;letter-spacing:.04em;text-transform:uppercase;color:var(--lnat-ouro-claro);font-variant-numeric:tabular-nums}
+  .lnat-fi__legenda{margin:6px 0 0;font-size:13px;line-height:19px;color:var(--lnat-cinza-noite)}
+  .lnat-fi__btns{margin-top:6px}
+
+  .lnat-fi__arte{order:-1;display:flex;align-items:center;justify-content:center;min-width:0}
+  .lnat-fi__foto{width:100%;max-width:520px;aspect-ratio:4/5;overflow:hidden;background:#1c1912}
+  .lnat-fi__foto img{display:block;width:100%;height:100%;object-fit:cover}
+  .lnat-fi__estrela-caixa{position:relative;display:flex;align-items:center;justify-content:center;width:280px;max-width:100%;aspect-ratio:1/1}
+  .lnat-fi__estrela{position:relative;display:block;width:240px;height:auto;color:var(--lnat-ouro);overflow:visible}
+  .lnat-fi__tracos > *{stroke-width:.36}
+
+  .lnat-fi.js-anima .lnat-fi__tracos > *{stroke-dasharray:1 2;stroke-dashoffset:1;transition:stroke-dashoffset .9s cubic-bezier(.22,.61,.36,1) calc(var(--i) * 40ms)}
+  .lnat-fi.js-anima .lnat-fi__granulo{opacity:0;transition:opacity .5s ease .9s}
+  .lnat-fi.js-anima.is-desenhada .lnat-fi__tracos > *{stroke-dashoffset:0}
+  .lnat-fi.js-anima.is-desenhada .lnat-fi__granulo{opacity:1}
+  .lnat-fi.js-anima.is-desenhada .lnat-fi__estrela{animation:lnat-fi-respira 6s ease-in-out 1.4s infinite;animation-play-state:paused}
+  .lnat-fi.js-anima.is-desenhada.is-visivel .lnat-fi__estrela{animation-play-state:running}
+  @keyframes lnat-fi-respira{0%,100%{opacity:1}50%{opacity:.9}}
+
+  .lnat-fi__faulhas{position:absolute;inset:0;pointer-events:none}
+  .lnat-fi__faulha{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);border-radius:50%;background:radial-gradient(circle,#e5c98e 0%,#bc914c 75%);box-shadow:0 0 6px rgba(229,201,142,.5);opacity:0;animation:lnat-fi-faulha var(--d) ease-in-out var(--a) infinite both;animation-play-state:paused}
+  .lnat-fi.is-visivel .lnat-fi__faulha{animation-play-state:running}
+  @keyframes lnat-fi-faulha{0%{opacity:0;transform:translate3d(0,10px,0) scale(.6)}20%{opacity:.9}55%{opacity:.55}100%{opacity:0;transform:translate3d(var(--dx),-30px,0) scale(1)}}
+  .lnat-fi--quieto .lnat-fi__faulhas{display:none}
+
+  @media screen and (max-width:749px){
+    .lnat-fi--sem-tel{display:none}
+    .lnat-fi__faulha:nth-child(n+13){display:none}
+    .lnat-fi__btns{flex-direction:column;width:100%}
+    .lnat-fi__btns .lnat-btn{width:100%}
+  }
+  @media screen and (min-width:750px){
+    .lnat-fi__grelha{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(40px,4.5vw,64px)}
+    .lnat-fi__arte{order:0}
+    .lnat-fi__txt{font-size:17px;line-height:28px}
+    .lnat-fi__numeros{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:10px;padding-top:24px}
+    .lnat-fi__valor{font-size:clamp(24px,2vw,32px);line-height:36px}
+    .lnat-fi__estrela-caixa{width:min(520px,100%)}
+    .lnat-fi__estrela{width:min(480px,92%)}
+    .lnat-fi__tracos > *{stroke-width:.22}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .lnat-fi__faulhas{display:none}
+    .lnat-fi .lnat-fi__tracos > *{stroke-dashoffset:0!important}
+    .lnat-fi .lnat-fi__granulo{opacity:1!important}
+  }
+</style>
+
+<script>
+(function(){
+  function ini(sec){
+    if (sec.getAttribute('data-lnat-pronto')) return;
+    sec.setAttribute('data-lnat-pronto', '1');
+    var N = window.LOD_NATAL;
+    if (N && !sec.classList.contains('lnat-fi--editor')) {
+      var f = N.fase();
+      if (f === 'off' || f === 'antes' || f === 'fim') { sec.hidden = true; return; }
+    }
+    var arte = sec.querySelector('.lnat-fi__estrela-caixa');
+    if (!arte) return;
+    var reduz = false;
+    try { reduz = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    var con = navigator.connection;
+    var poupa = !!(con && con.saveData) || (typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 2);
+    if (poupa) sec.classList.add('lnat-fi--quieto');
+    if (reduz || poupa || !('IntersectionObserver' in window)) { sec.classList.add('is-desenhada'); return; }
+    sec.classList.add('js-anima');
+    var io = new IntersectionObserver(function(entradas){
+      entradas.forEach(function(en){
+        if (en.isIntersecting) {
+          sec.classList.add('is-visivel');
+          if (!sec.classList.contains('is-desenhada')) {
+            requestAnimationFrame(function(){ sec.classList.add('is-desenhada'); });
+          }
+        } else {
+          sec.classList.remove('is-visivel');
+        }
+      });
+    }, { threshold: 0.25 });
+    io.observe(arte);
+  }
+  function todos(){
+    var l = document.querySelectorAll('.lnat-fi');
+    for (var i = 0; i < l.length; i++) ini(l[i]);
+  }
+  todos();
+  var doc = document.documentElement;
+  if (doc.hasAttribute('data-lnat-fi')) return;
+  doc.setAttribute('data-lnat-fi', '');
+  document.addEventListener('shopify:section:load', todos);
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Fio a fio",
+  "tag": "section",
+  "class": "lnat-secao lnat-secao--filigrana",
+  "max_blocks": 4,
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Feito à mão em Portugal" },
+    { "type": "text", "id": "titulo", "label": "Título", "default": "Fio a fio." },
+    { "type": "richtext", "id": "texto", "label": "Texto", "default": "<p>Em Gondomar e na Póvoa de Lanhoso, a enchedeira preenche à mão cada contorno com fio torcido de ouro ou prata.</p>" },
+    { "type": "header", "content": "Botões" },
+    { "type": "text", "id": "botao1_texto", "label": "Botão 1, texto", "default": "Ver filigrana" },
+    { "type": "url", "id": "botao1_url", "label": "Botão 1, link" },
+    { "type": "text", "id": "botao2_texto", "label": "Botão 2, texto", "default": "Filigrana em prata" },
+    { "type": "url", "id": "botao2_url", "label": "Botão 2, link" },
+    { "type": "header", "content": "Estrela ou imagem" },
+    { "type": "checkbox", "id": "faulhas", "label": "Faúlhas douradas à volta da estrela", "default": true },
+    { "type": "image_picker", "id": "imagem", "label": "Imagem 4:5 (opcional, substitui a estrela)" },
+    { "type": "text", "id": "imagem_alt", "label": "Texto alternativo da imagem" },
+    { "type": "header", "content": "Telemóvel" },
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+  ],
+  "blocks": [
+    {
+      "type": "numero",
+      "name": "Número",
+      "settings": [
+        { "type": "text", "id": "valor", "label": "Valor", "default": "19,2 quilates" },
+        { "type": "text", "id": "legenda", "label": "Legenda", "default": "ouro português: 800 partes de ouro fino por mil" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Natal · Fio a fio",
+      "blocks": [
+        { "type": "numero", "settings": { "valor": "+ 2000 anos", "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana" } },
+        { "type": "numero", "settings": { "valor": "0,22 mm", "legenda": "espessura máxima do fio na filigrana certificada" } },
+        { "type": "numero", "settings": { "valor": "19,2 quilates", "legenda": "ouro português: 800 partes de ouro fino por mil" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,24 @@
+{
+  "type": "lod-natal-selecao",
+  "settings": {
+    "eyebrow": "Os mais oferecidos no Natal passado",
+    "titulo": "Os mais oferecidos",
+    "descricao": "As peças mais escolhidas no nosso Natal de 2025.",
+    "produtos": [
+      "brincos-coracao-de-viana-em-prata-com-perola",
+      "conjunto-fio-e-brincos-coracao-de-viana-em-prata",
+      "brincos-coracao-de-viana-em-prata-dourada-e-esmalte-azul-1",
+      "brincos-coracao-de-viana-em-prata-dourada",
+      "escapulario-em-prata-dourada-com-imagem-religiosa-em-madreperola-e-zirconias",
+      "brincos-celestia-em-prata-dourada-e-perola-branca",
+      "fio-em-prata-dourada-com-coracao-de-viana"
+    ],
+    "limite": 8,
+    "esconder_esgotados": true,
+    "link_texto": "",
+    "fundo": "papel",
+    "mostrar_no_telemovel": true
+  },
+  "blocks": {},
+  "block_order": []
+}

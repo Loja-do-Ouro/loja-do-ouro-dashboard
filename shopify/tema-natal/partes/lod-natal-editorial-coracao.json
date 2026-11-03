@@ -1,0 +1,31 @@
+{
+  "type": "lod-natal-editorial",
+  "settings": {
+    "lado_imagem": "esquerda",
+    "imagem": "shopify://shop_images/NOVO_banner_desktop_geral_1920_x_1080_px_17.webp",
+    "imagem_alt": "Três pendentes Coração de Viana em filigrana",
+    "icone": "coracao-cheio",
+    "eyebrow": "Um coração que se dá",
+    "titulo": "Coração de Viana",
+    "estilo_titulo": "oswald",
+    "texto": "<p>Símbolo de devoção ao Sagrado Coração de Jesus e raiz do ouro de Viana. Conta a tradição que o primeiro terá sido feito a pedido de D. Maria I, em agradecimento pelo nascimento de um herdeiro. Lenda ou história, ficou o gesto: um coração em filigrana para oferecer a quem se ama.</p><p>Os Corações de Viana que lhe sugerimos aqui são em prata dourada.</p>",
+    "sabia_titulo": "Sabia que?",
+    "sabia": "<p>Foi D. Maria I quem mandou erguer a Basílica da Estrela, em Lisboa, para cumprir uma promessa pelo nascimento de um herdeiro — considerada a primeira igreja dedicada ao Sagrado Coração de Jesus. Lá dentro está o célebre presépio saído da oficina de Machado de Castro.</p>",
+    "produtos": [
+      "brincos-coracao-de-viana-em-prata-com-perola",
+      "pulseira-coracao-de-viana-em-prata-dourada-com-perolas-barrocas",
+      "brincos-coracao-de-viana-em-prata-dourada-2-5cm",
+      "fio-coracao-de-viana-em-prata-dourada-49cm"
+    ],
+    "produtos_max": 2,
+    "produtos_estilo": "mini",
+    "botao1_texto": "Ver Corações de Viana",
+    "botao1_url": "/collections/coracoes-de-viana",
+    "botao2_texto": "Toda a Tradição",
+    "botao2_url": "/collections/tradicao-prata-ouro-filigrana-viana",
+    "fundo": "linho",
+    "mostrar_no_telemovel": true
+  },
+  "blocks": {},
+  "block_order": []
+}

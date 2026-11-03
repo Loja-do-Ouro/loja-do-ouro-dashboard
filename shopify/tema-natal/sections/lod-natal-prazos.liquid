@@ -1,0 +1,485 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Prazos, lojas e vales» (id="prazos").
+
+  Três colunas sobre verde com azulejo:
+    1. Quando encomendar: prazos lidos das definições do Natal (Açores, Madeira, peças gravadas, continente,
+       levantar na loja, Dia de Reis). Linhas cujo prazo já passou ficam a meia opacidade com «Terminado».
+       Botão «Adicionar ao calendário» com um .ics do prazo do continente (gerado no navegador, sem servidor).
+    2. Levantar na loja: lojas por distrito (páginas /pages/loja-do-ouro-…), WhatsApp, horários de 24 e 31 dez.
+       e, a partir de 26 de dezembro (fase «mirra»), o texto das Janeiras.
+    3. Vales-prenda.
+  No telemóvel vira acordeão: «Prazos de entrega» aberto, «Levantar na loja» e «Vales-prenda» fechados.
+  Fases off/antes/fim: não mostra nada (em «antes» o HTML sai escondido para o navegador o abrir à meia-noite
+  de 1 de dezembro se a página vier da cache). No editor mostra sempre, com uma nota.
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+
+  capture lnz_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnz_fase = lnz_fase | strip
+  assign lnz_ativa = false
+  case lnz_fase
+    when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+      assign lnz_ativa = true
+  endcase
+
+  assign lnz_render = lnz_ativa
+  assign lnz_esconder = false
+  assign lnz_nota = false
+  if lnz_fase == 'antes'
+    assign lnz_render = true
+    assign lnz_esconder = true
+  endif
+  if request.design_mode and lnz_ativa == false
+    assign lnz_render = true
+    assign lnz_esconder = false
+    assign lnz_nota = true
+  endif
+
+  assign lnz_agora_txt = 'now'
+  if settings.natal_data_simulada != blank and theme.role != 'main'
+    assign lnz_agora_txt = settings.natal_data_simulada | strip
+    if lnz_agora_txt.size == 10
+      assign lnz_agora_txt = lnz_agora_txt | append: ' 10:00'
+    endif
+  endif
+  assign lnz_agora = lnz_agora_txt | date: '%Y%m%d%H%M' | plus: 0
+
+  assign lnz_inicio = settings.natal_inicio | default: '2026-12-01 00:00' | strip
+  assign lnz_acores = settings.natal_limite_acores | default: '2026-12-04 23:59' | strip
+  assign lnz_madeira = settings.natal_limite_madeira | default: '2026-12-11 23:59' | strip
+  assign lnz_gravacao = settings.natal_limite_gravacao | default: '2026-12-16 23:59' | strip
+  assign lnz_continente = settings.natal_limite_continente | default: '2026-12-18 23:59' | strip
+  assign lnz_loja = settings.natal_limite_loja | default: '2026-12-24 13:00' | strip
+  assign lnz_reis = settings.natal_limite_reis | default: '2026-12-30 23:59' | strip
+
+  assign lnz_ancora = s.ancora | default: 'prazos' | handleize
+  assign lnz_lojas_url = s.lojas_url | default: '/pages/agencias'
+  assign lnz_vales_url = s.vales_url | default: '/collections/voucher-prenda'
+
+  assign lnz_wa = settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+' | remove: '-'
+  assign lnz_wa_txt = s.wa_texto | default: 'Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.'
+  assign lnz_wa_q = lnz_wa_txt | url_encode | replace: '+', '%20'
+
+  assign lnz_cont_n = lnz_continente | date: '%Y%m%d%H%M' | plus: 0
+  assign lnz_cont_passou = false
+  if lnz_agora > lnz_cont_n
+    assign lnz_cont_passou = true
+  endif
+
+  # chave | rótulo | rótulo curto (telemóvel)
+  assign lnz_linhas = 'acores|Açores|Açores;madeira|Madeira|Madeira;gravacao|Peças gravadas|Peças gravadas;continente|Portugal continental|Portugal continental;loja|Levantar na loja, com marcação|Levantar na loja;reis|Dia de Reis (continente)|Dia de Reis' | split: ';'
+
+  # distrito | loja:página, …
+  assign lnz_lojas = 'Lisboa|Benfica:loja-do-ouro-benfica,Loures:loja-do-ouro-loures-infantado;Santarém|Santarém:loja-do-ouro-santarem,Abrantes:loja-do-ouro-abrantes,Torres Novas:loja-do-ouro-torres-novas,Cartaxo:loja-do-ouro-cartaxo,Entroncamento:loja-do-ouro-entroncamento,Tomar:loja-do-ouro-tomar,Fátima:loja-do-ouro-fatima;Coimbra|Coimbra:loja-do-ouro-coimbra,Figueira da Foz:loja-do-ouro-figueira-da-foz;Leiria|Arcadas:loja-do-ouro-leiria-arcadas,Bairro de Jericó:loja-do-ouro-leiria-bairro-de-jerico' | split: ';'
+-%}
+
+{%- if lnz_render -%}
+{%- capture lnz_ics_quando -%}{%- render 'lod-natal-data', valor: lnz_continente, formato: 'hora' -%}{%- endcapture -%}
+
+<style>
+  .lnat-prazos{scroll-margin-top:96px}
+  .lnat-prazos__nota-editor{display:inline-block;margin:0 0 24px;padding:6px 10px;background:var(--lnat-tinta);color:var(--lnat-ouro-claro);font-size:13px;line-height:18px}
+  .lnat-prazos__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:56px;row-gap:20px;align-items:start}
+  .lnat-prazos__h2{grid-column:1;grid-row:1;font-size:clamp(26px,2.3vw,32px);line-height:1.18;color:var(--lnat-papel)}
+  .lnat-prazos__p1{grid-column:1;grid-row:2}
+  .lnat-prazos__p2{grid-column:2;grid-row:1/span 2}
+  .lnat-prazos__p3{grid-column:3;grid-row:1/span 2}
+  .lnat-prazos__acc{display:none}
+  .lnat-prazos__painel{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .lnat-prazos__ico{color:var(--lnat-ouro)}
+  .lnat-prazos .lnat-h3{color:var(--lnat-papel)}
+  .lnat-prazos__txt{margin:0;font-size:15px;line-height:24px;color:#e1dacb}
+  .lnat-prazos__lista{margin:0;padding:0}
+  .lnat-prazos__linha{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid #2c4c40;font-size:15px;line-height:21px;transition:opacity .3s}
+  .lnat-prazos__linha:first-child{border-top:1px solid #2c4c40}
+  .lnat-prazos__linha dt{margin:0;color:var(--lnat-papel)}
+  .lnat-prazos__linha dd{margin:0;flex:0 0 auto;text-align:right;font-family:var(--lnat-cond);font-weight:400;font-size:16px;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:var(--lnat-ouro-claro)}
+  .lnat-prazos__linha.is-fim{opacity:.5}
+  .lnat-prazos__linha.is-fim dd{color:var(--lnat-papel)}
+  .lnat-prazos__dc,.lnat-prazos__lc{display:none}
+  .lnat-prazos__nota{margin:2px 0 0;font-size:13px;line-height:20px;color:var(--lnat-cinza-noite)}
+  .lnat-prazos__ics{align-self:flex-start;gap:10px}
+  .lnat-prazos__lojas{margin:0;padding:0;list-style:none;font-size:14px;line-height:22px;color:#e1dacb}
+  .lnat-prazos__lojas li{margin:0 0 6px;padding:0}
+  .lnat-prazos__distrito{display:inline-block;margin-right:2px;font-weight:600;color:var(--lnat-ouro-claro)}
+  .lnat-prazos__lojas a{color:#e1dacb!important;text-decoration:underline;text-decoration-color:rgba(229,201,142,.45);text-underline-offset:3px}
+  .lnat-prazos__lojas a:hover{color:var(--lnat-papel)!important;text-decoration-color:var(--lnat-ouro-claro)}
+  .lnat-prazos__peq{margin:0;font-size:13px;line-height:20px;color:var(--lnat-cinza-noite)}
+  .lnat-prazos__janeiras{display:flex;gap:12px;align-items:flex-start;margin:4px 0 0;padding-top:14px;border-top:1px solid #2c4c40;font-size:14px;line-height:22px;color:#e1dacb}
+  .lnat-prazos__janeiras svg{color:var(--lnat-ouro);margin-top:-2px}
+  @media (min-width:750px) and (max-width:1023px){
+    .lnat-prazos__grid{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:40px;row-gap:24px}
+    .lnat-prazos__p2{grid-column:2;grid-row:1/span 2}
+    .lnat-prazos__p3{grid-column:1/span 2;grid-row:3;padding-top:24px;border-top:1px solid #2c4c40}
+  }
+  @media (max-width:749px){
+    .lnat-prazos__grid{display:block}
+    .lnat-prazos__h2{margin-bottom:12px}
+    .lnat-prazos__acc{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:56px;margin:0;padding:0;background:transparent;border:0;border-top:1px solid #2c4c40;border-radius:0;color:var(--lnat-papel);font:500 15px/1.3 var(--lnat-sans);text-align:left;cursor:pointer}
+    .lnat-prazos__acc-ico{position:relative;width:14px;height:14px;flex:0 0 14px;color:var(--lnat-ouro-claro)}
+    .lnat-prazos__acc-ico::before,.lnat-prazos__acc-ico::after{content:"";position:absolute;left:0;top:6px;width:14px;height:1.5px;background:currentColor;transition:transform .25s}
+    .lnat-prazos__acc-ico::after{transform:rotate(90deg)}
+    .lnat-prazos__acc[aria-expanded="true"] .lnat-prazos__acc-ico::after{transform:rotate(0)}
+    .lnat-prazos__acc[aria-expanded="false"]+.lnat-prazos__painel{display:none}
+    .lnat-prazos__painel{padding:4px 0 24px}
+    .lnat-prazos__p3{border-bottom:1px solid #2c4c40}
+    .lnat-prazos__acc--ultimo[aria-expanded="false"]{border-bottom:1px solid #2c4c40}
+    .lnat-prazos__painel>.lnat-prazos__ico{display:none}
+    .lnat-prazos__linha{font-size:14px;line-height:20px;padding:11px 0}
+    .lnat-prazos__linha dd{font-size:15px}
+    .lnat-prazos__linha:first-child{border-top:0}
+    .lnat-prazos__dl,.lnat-prazos__ll{display:none}
+    .lnat-prazos__dc,.lnat-prazos__lc{display:inline}
+    .lnat-prazos .lnat-btns{flex-direction:column;align-items:stretch}
+    .lnat-prazos__ics{align-self:stretch}
+    {%- unless s.mostrar_no_telemovel %}
+    #shopify-section-{{ section.id }}{display:none!important}
+    {%- endunless %}
+  }
+</style>
+
+<section class="lnat lnat-prazos lnat-sec lnat-bg-verde lnat-azulejo-escuro" id="{{ lnz_ancora }}" aria-labelledby="lnz-h-{{ section.id }}" data-lnat-prazos{% if lnz_esconder %} hidden{% endif %}>
+  <div class="lnat-wrap">
+    {%- if lnz_nota -%}
+      <p class="lnat-prazos__nota-editor">Pré-visualização no editor · visível a partir de {% render 'lod-natal-data', valor: lnz_inicio, formato: 'curto' %}</p>
+    {%- endif -%}
+
+    <div class="lnat-prazos__grid">
+      <h2 class="lnat-h2 lnat-prazos__h2" id="lnz-h-{{ section.id }}">{{ s.titulo | default: 'Quando encomendar para chegar a tempo' | escape }}</h2>
+
+      {%- comment -%} 1 · Prazos {%- endcomment -%}
+      <button type="button" class="lnat-prazos__acc" data-lnz-acc aria-expanded="true" aria-controls="lnz-p1-{{ section.id }}">
+        <span>Prazos de entrega</span><span class="lnat-prazos__acc-ico" aria-hidden="true"></span>
+      </button>
+      <div class="lnat-prazos__painel lnat-prazos__p1" id="lnz-p1-{{ section.id }}">
+        <dl class="lnat-prazos__lista">
+          {%- for lnz_l in lnz_linhas -%}
+            {%- liquid
+              assign lnz_p = lnz_l | split: '|'
+              assign lnz_c = lnz_p[0]
+              case lnz_c
+                when 'acores'
+                  assign lnz_val = lnz_acores
+                when 'madeira'
+                  assign lnz_val = lnz_madeira
+                when 'gravacao'
+                  assign lnz_val = lnz_gravacao
+                when 'continente'
+                  assign lnz_val = lnz_continente
+                when 'loja'
+                  assign lnz_val = lnz_loja
+                else
+                  assign lnz_val = lnz_reis
+              endcase
+              assign lnz_n = lnz_val | date: '%Y%m%d%H%M' | plus: 0
+              assign lnz_passou = false
+              if lnz_c == 'loja'
+                if lnz_agora >= lnz_n
+                  assign lnz_passou = true
+                endif
+                assign lnz_fl = 'hora'
+                assign lnz_fc = 'hora'
+              else
+                if lnz_agora > lnz_n
+                  assign lnz_passou = true
+                endif
+                assign lnz_fl = 'longo'
+                assign lnz_fc = 'abrev'
+              endif
+            -%}
+            <div class="lnat-prazos__linha{% if lnz_passou %} is-fim{% endif %}" data-lnz-prazo="{{ lnz_c }}" data-valor="{{ lnz_val | escape }}"{% if lnz_c == 'loja' %} data-instante{% endif %}>
+              <dt><span class="lnat-prazos__ll">{{ lnz_p[1] }}</span><span class="lnat-prazos__lc">{{ lnz_p[2] }}</span></dt>
+              <dd>
+                <span data-lnz-data{% if lnz_passou %} hidden{% endif %}><span class="lnat-prazos__dl">{%- render 'lod-natal-data', valor: lnz_val, formato: lnz_fl -%}</span><span class="lnat-prazos__dc">{%- render 'lod-natal-data', valor: lnz_val, formato: lnz_fc -%}</span></span>
+                <span data-lnz-fim{% unless lnz_passou %} hidden{% endunless %}>Terminado</span>
+              </dd>
+            </div>
+          {%- endfor -%}
+        </dl>
+        {%- if s.nota != blank -%}
+          <p class="lnat-prazos__nota">{{ s.nota | escape }}</p>
+        {%- endif -%}
+        {%- if s.mostrar_calendario -%}
+          <button type="button" class="lnat-btn lnat-btn--claro lnat-prazos__ics" data-lnz-ics data-valor="{{ lnz_continente | escape }}" data-titulo="Último dia para encomendar as prendas de Natal (Loja do Ouro)" data-texto="Encomende até {{ lnz_ics_quando | strip | escape }}, para receber antes do Natal em Portugal continental (prazo indicativo)."{% if lnz_cont_passou %} hidden{% endif %}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="15.5" rx="1.5"/><path d="M3.5 10H20.5M8 3V7M16 3V7"/><path d="M12 13.2C12.3 14.4 12.8 14.9 14 15.2C12.8 15.5 12.3 16 12 17.2C11.7 16 11.2 15.5 10 15.2C11.2 14.9 11.7 14.4 12 13.2Z"/></svg>
+            Adicionar ao calendário
+          </button>
+          <p class="lnat-sr" role="status" data-lnz-estado></p>
+        {%- endif -%}
+      </div>
+
+      {%- comment -%} 2 · Levantar na loja {%- endcomment -%}
+      <button type="button" class="lnat-prazos__acc" data-lnz-acc aria-expanded="false" aria-controls="lnz-p2-{{ section.id }}">
+        <span>Levantar na loja</span><span class="lnat-prazos__acc-ico" aria-hidden="true"></span>
+      </button>
+      <div class="lnat-prazos__painel lnat-prazos__p2" id="lnz-p2-{{ section.id }}">
+        {%- render 'lod-natal-icon', nome: 'porta', tamanho: 40, classe: 'lnat-prazos__ico' -%}
+        <h3 class="lnat-h3">{{ s.lojas_titulo | default: 'Ainda a tempo? Levante na loja.' | escape }}</h3>
+        {%- if s.lojas_texto != blank -%}
+          <p class="lnat-prazos__txt">{{ s.lojas_texto | escape }}</p>
+        {%- endif -%}
+        <ul class="lnat-prazos__lojas" aria-label="As nossas lojas por distrito">
+          {%- for lnz_d in lnz_lojas -%}
+            {%- assign lnz_dp = lnz_d | split: '|' -%}
+            {%- assign lnz_ls = lnz_dp[1] | split: ',' -%}
+            <li><span class="lnat-prazos__distrito">{{ lnz_dp[0] }}</span>{{ ' ' }}
+              {%- for lnz_lj in lnz_ls -%}
+                {%- assign lnz_lp = lnz_lj | split: ':' -%}
+                {% unless forloop.first %}, {% endunless %}<a href="/pages/{{ lnz_lp[1] }}">{{ lnz_lp[0] }}</a>
+              {%- endfor -%}
+            </li>
+          {%- endfor -%}
+        </ul>
+        <div class="lnat-btns">
+          <a class="lnat-btn lnat-btn--ouro" href="https://wa.me/{{ lnz_wa }}?text={{ lnz_wa_q }}" target="_blank" rel="noopener" data-lnz-wa data-texto="{{ lnz_wa_txt | escape }}">
+            {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
+            <span>Marcar por WhatsApp</span><span class="lnat-sr"> (abre noutra janela)</span>
+          </a>
+          <a class="lnat-btn lnat-btn--claro" href="{{ lnz_lojas_url }}">Ver todas as lojas</a>
+        </div>
+        {%- if s.horarios != blank -%}
+          <p class="lnat-prazos__peq">{{ s.horarios | escape }}</p>
+        {%- endif -%}
+        {%- if s.janeiras != blank -%}
+          <p class="lnat-prazos__janeiras" data-lnz-fases="mirra"{% unless lnz_fase == 'mirra' %} hidden{% endunless %}>
+            {%- render 'lod-natal-icon', nome: 'coroa', tamanho: 28 -%}
+            <span>{{ s.janeiras | escape }}</span>
+          </p>
+        {%- endif -%}
+      </div>
+
+      {%- comment -%} 3 · Vales-prenda {%- endcomment -%}
+      <button type="button" class="lnat-prazos__acc lnat-prazos__acc--ultimo" data-lnz-acc aria-expanded="false" aria-controls="lnz-p3-{{ section.id }}">
+        <span>Vales-prenda</span><span class="lnat-prazos__acc-ico" aria-hidden="true"></span>
+      </button>
+      <div class="lnat-prazos__painel lnat-prazos__p3" id="lnz-p3-{{ section.id }}">
+        {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 40, classe: 'lnat-prazos__ico' -%}
+        <h3 class="lnat-h3">{{ s.vales_titulo | default: 'Ainda sem ideia? Ofereça a escolha.' | escape }}</h3>
+        {%- if s.vales_texto != blank -%}
+          <p class="lnat-prazos__txt">{{ s.vales_texto | escape }}</p>
+        {%- endif -%}
+        <div class="lnat-btns">
+          <a class="lnat-btn lnat-btn--ouro" href="{{ lnz_vales_url }}">{{ s.vales_botao | default: 'Escolher vale-prenda' | escape }}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  var ATIVAS = ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'];
+  function N() { return window.LOD_NATAL || null; }
+  function lx(v) {
+    var n = N();
+    if (n && n.lx) return n.lx(v);
+    var m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/);
+    return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0)) : null;
+  }
+  function agora() { var n = N(); return n && n.agora ? n.agora().getTime() : Date.now(); }
+  // prazo «até» conta o último minuto; «instante» (levantar na loja, 13:00) acaba à hora certa
+  function passou(v, instante) { var d = lx(v); return d ? agora() >= d.getTime() + (instante ? 0 : 60000) : false; }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function icsTexto(v) { return String(v || '').replace(/[\\;,]/g, function (c) { return '\\' + c; }).replace(/\r?\n/g, '\\n'); }
+  function dobrar(l) { var o = ''; while (l.length > 60) { o += l.slice(0, 60) + '\r\n '; l = l.slice(60); } return o + l; }
+
+  function calendario(btn, estado) {
+    try {
+      var m = String(btn.getAttribute('data-valor') || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m || !window.Blob || !window.URL || !URL.createObjectURL) return;
+      var dia = m[1] + m[2] + m[3];
+      var s = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + 1));
+      var fim = s.getUTCFullYear() + pad(s.getUTCMonth() + 1) + pad(s.getUTCDate());
+      var raiz = btn.closest('[data-lnat-prazos]');
+      var url = location.origin + location.pathname + '#' + ((raiz && raiz.id) || 'prazos');
+      var titulo = btn.getAttribute('data-titulo') || 'Natal';
+      var linhas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Loja do Ouro//Natal 2026//PT', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+        'BEGIN:VEVENT', 'UID:natal-continente-' + dia + '@' + location.hostname,
+        'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'),
+        'DTSTART;VALUE=DATE:' + dia, 'DTEND;VALUE=DATE:' + fim,
+        'SUMMARY:' + icsTexto(titulo), 'DESCRIPTION:' + icsTexto((btn.getAttribute('data-texto') || '') + ' ' + url),
+        'URL:' + url, 'TRANSP:TRANSPARENT',
+        'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsTexto(titulo), 'TRIGGER:PT10H', 'END:VALARM',
+        'END:VEVENT', 'END:VCALENDAR'];
+      var corpo = linhas.map(dobrar).join('\r\n');
+      var href = URL.createObjectURL(new Blob([corpo], { type: 'text/calendar;charset=utf-8' }));
+      var a = document.createElement('a');
+      a.href = href; a.download = 'natal-loja-do-ouro.ics'; a.style.display = 'none';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 4000);
+      if (estado) estado.textContent = 'Lembrete transferido. Abra o ficheiro para o juntar ao seu calendário.';
+    } catch (e) {}
+  }
+
+  function aplicar(root) {
+    var n = N(), design = !!(window.Shopify && Shopify.designMode);
+    var f = n && n.fase ? n.fase() : 'ouro';
+    if (ATIVAS.indexOf(f) < 0) {
+      if (!design) { root.hidden = true; return; }
+      f = 'ouro';
+    }
+    root.hidden = false;
+    root.querySelectorAll('[data-lnz-prazo]').forEach(function (l) {
+      var p = passou(l.getAttribute('data-valor'), l.hasAttribute('data-instante'));
+      l.classList.toggle('is-fim', p);
+      var d = l.querySelector('[data-lnz-data]'), t = l.querySelector('[data-lnz-fim]');
+      if (d) d.hidden = p;
+      if (t) t.hidden = !p;
+    });
+    var ics = root.querySelector('[data-lnz-ics]');
+    if (ics) ics.hidden = passou(ics.getAttribute('data-valor'));
+    root.querySelectorAll('[data-lnz-fases]').forEach(function (el) {
+      el.hidden = (' ' + el.getAttribute('data-lnz-fases') + ' ').indexOf(' ' + f + ' ') < 0;
+    });
+    if (n && n.wa) {
+      root.querySelectorAll('[data-lnz-wa]').forEach(function (a) {
+        a.href = 'https://wa.me/' + n.wa + '?text=' + encodeURIComponent(a.getAttribute('data-texto') || '');
+      });
+    }
+  }
+
+  function init(root) {
+    if (!root || root._lnz) return;
+    root._lnz = true;
+    aplicar(root);
+    root.querySelectorAll('[data-lnz-acc]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        b.setAttribute('aria-expanded', b.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+      });
+    });
+    var ics = root.querySelector('[data-lnz-ics]');
+    if (ics) ics.addEventListener('click', function () { calendario(ics, root.querySelector('[data-lnz-estado]')); });
+  }
+
+  function todas() { document.querySelectorAll('[data-lnat-prazos]').forEach(init); }
+  todas();
+
+  var html = document.documentElement;
+  if (html.hasAttribute('data-lnat-prazos-js')) return;
+  html.setAttribute('data-lnat-prazos-js', '');
+  document.addEventListener('shopify:section:load', todas);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) document.querySelectorAll('[data-lnat-prazos]').forEach(function (r) { if (r._lnz) aplicar(r); });
+  });
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Prazos e lojas",
+  "tag": "section",
+  "class": "lnat-prazos-section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "As datas vêm do grupo «Natal 2026» das definições do tema. Só aparece de 1 de dezembro a 6 de janeiro."
+    },
+    {
+      "type": "text",
+      "id": "ancora",
+      "label": "Âncora (id)",
+      "default": "prazos",
+      "info": "Os links «Ver prazos» apontam para #prazos. Use um id diferente se houver duas secções na mesma página."
+    },
+    { "type": "header", "content": "Prazos" },
+    {
+      "type": "text",
+      "id": "titulo",
+      "label": "Título",
+      "default": "Quando encomendar para chegar a tempo"
+    },
+    {
+      "type": "textarea",
+      "id": "nota",
+      "label": "Nota",
+      "default": "Prazos indicativos para encomendas pagas até às 23h59 do dia indicado. Expedimos no dia útil seguinte à confirmação do pagamento; na época alta a transportadora pode ter atrasos."
+    },
+    {
+      "type": "checkbox",
+      "id": "mostrar_calendario",
+      "label": "Botão «Adicionar ao calendário»",
+      "default": true,
+      "info": "Transfere um lembrete (.ics) do prazo de Portugal continental. Desaparece depois do prazo."
+    },
+    { "type": "header", "content": "Levantar na loja" },
+    {
+      "type": "text",
+      "id": "lojas_titulo",
+      "label": "Título",
+      "default": "Ainda a tempo? Levante na loja."
+    },
+    {
+      "type": "textarea",
+      "id": "lojas_texto",
+      "label": "Texto",
+      "default": "Como muitas peças são únicas, primeiro localizamos a peça e depois marcamos consigo o levantamento."
+    },
+    {
+      "type": "text",
+      "id": "wa_texto",
+      "label": "Mensagem do WhatsApp",
+      "default": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.",
+      "info": "Número: definição natal_whatsapp. Não peça dados pessoais nesta mensagem."
+    },
+    {
+      "type": "url",
+      "id": "lojas_url",
+      "label": "Link «Ver todas as lojas»",
+      "info": "Vazio = /pages/agencias."
+    },
+    {
+      "type": "text",
+      "id": "horarios",
+      "label": "Horários de 24 e 31 de dezembro",
+      "default": "Horários de 24 e 31 de dezembro: a confirmar."
+    },
+    {
+      "type": "textarea",
+      "id": "janeiras",
+      "label": "Janeiras (a partir de 26 de dezembro)",
+      "default": "Abrimos a porta às Janeiras. De 2 a 6 de janeiro, grupos de Janeiras vêm cantar às nossas lojas.",
+      "info": "Aparece na fase dos Reis. Vazio = não mostra."
+    },
+    { "type": "header", "content": "Vales-prenda" },
+    {
+      "type": "text",
+      "id": "vales_titulo",
+      "label": "Título",
+      "default": "Ainda sem ideia? Ofereça a escolha."
+    },
+    {
+      "type": "textarea",
+      "id": "vales_texto",
+      "label": "Texto",
+      "default": "Vales-prenda de 25, 50, 100 e 150 €."
+    },
+    {
+      "type": "text",
+      "id": "vales_botao",
+      "label": "Botão",
+      "default": "Escolher vale-prenda"
+    },
+    {
+      "type": "url",
+      "id": "vales_url",
+      "label": "Link do botão",
+      "info": "Vazio = /collections/voucher-prenda."
+    },
+    { "type": "header", "content": "Telemóvel" },
+    {
+      "type": "checkbox",
+      "id": "mostrar_no_telemovel",
+      "label": "Mostrar no telemóvel",
+      "default": true
+    }
+  ],
+  "presets": [
+    { "name": "Natal · Prazos e lojas" }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,574 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — barra de avisos (grupo do cabeçalho).
+
+  - Fundo tinta, 40 px (36 px no telemóvel). Estrela à esquerda, mensagem ao centro, botão de pausa à direita.
+  - Uma mensagem de cada vez, a rodar de 5 em 5 segundos. Pausa com o botão (WCAG 2.2.2) e, enquanto o rato
+    estiver em cima ou o foco estiver dentro da barra. Com «reduzir movimento» só aparece a primeira mensagem ativa.
+  - Cada bloco «Mensagem» tem as suas datas (De / Até, hora de Lisboa). Aceita datas «AAAA-MM-DD HH:MM» ou o nome
+    de uma data das definições do Natal (inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma,
+    reis, fim, trocas). Num «De», um prazo (acores, madeira, gravacao, continente, festas, reis, fim, trocas) quer
+    dizer «depois desse prazo»; num «Até», um início (inicio, fase2, loja, retoma) quer dizer «até ao minuto antes».
+    Assim as mensagens mudam no mesmo instante que as fases (window.LOD_NATAL.fase()).
+  - No texto, {continente} escreve a data das definições («18 de dezembro»); {continente:longo} «sexta, 18 de
+    dezembro»; :abrev «18 dez.»; :hora «24 de dezembro, 13h»; :ano «15 de janeiro de 2027». {contagem} coloca a
+    contagem decrescente nesse sítio (sem {contagem}, a contagem vai para o fim).
+  - O HTML sai já com a mensagem certa (data do servidor, ou a data simulada fora do tema publicado); o script
+    volta a escolher com LOD_NATAL.agora(), mesmo que a página venha da cache.
+  - Nunca pôr prestações nesta barra.
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+
+  capture lnb_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnb_fase = lnb_fase | strip
+  assign lnb_fase_ok = false
+  case lnb_fase
+    when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+      assign lnb_fase_ok = true
+  endcase
+
+  assign lnb_render = true
+  if lnb_fase == 'off' or lnb_fase == 'fim'
+    assign lnb_render = false
+  endif
+  if s.so_portugal and localization.market.handle != 'pt'
+    assign lnb_render = false
+  endif
+  if request.design_mode
+    assign lnb_render = true
+  endif
+
+  assign lnb_agora_txt = 'now'
+  if settings.natal_data_simulada != blank and theme.role != 'main'
+    assign lnb_agora_txt = settings.natal_data_simulada | strip
+    if lnb_agora_txt.size == 10
+      assign lnb_agora_txt = lnb_agora_txt | append: ' 10:00'
+    endif
+  endif
+  assign lnb_agora = lnb_agora_txt | date: '%Y%m%d%H%M' | plus: 0
+  assign lnb_agora_s = lnb_agora_txt | date: '%s' | plus: 0
+
+  assign lnb_k = 'inicio,fase2,acores,madeira,gravacao,continente,loja,festas,retoma,reis,fim,trocas' | split: ','
+  assign lnb_inst = ',inicio,fase2,loja,retoma,'
+  assign lnb_x = settings.natal_inicio | default: '2026-12-01 00:00' | strip
+  assign lnb_v = lnb_x
+  assign lnb_x = settings.natal_fase2_inicio | default: '2026-12-14 00:00' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_limite_acores | default: '2026-12-04 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_limite_madeira | default: '2026-12-11 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_limite_gravacao | default: '2026-12-16 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_limite_continente | default: '2026-12-18 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_limite_loja | default: '2026-12-24 13:00' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_retoma_envios | default: '2026-12-28' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_limite_reis | default: '2026-12-30 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_fim | default: '2027-01-06 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_trocas_ate | default: '2027-01-15' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_v = lnb_v | split: '|'
+  assign lnb_fmt = 'longo,curto,abrev,hora,ano' | split: ','
+
+  assign lnb_html = ''
+  assign lnb_n = 0
+-%}
+
+{%- if lnb_render -%}
+  {%- for block in section.blocks -%}
+    {%- liquid
+      assign b = block.settings
+      assign lnb_usar = true
+      if b.texto == blank
+        assign lnb_usar = false
+      endif
+      if b.condicao == 'vale_digital' and settings.natal_vale_digital != true
+        assign lnb_usar = false
+      endif
+      if b.condicao == 'trocas' and settings.natal_mostrar_trocas != true
+        assign lnb_usar = false
+      endif
+      unless lnb_usar
+        continue
+      endunless
+
+      # Datas da mensagem: data escrita ou nome de uma data das definições
+      assign lnb_de_raw = b.de | strip | downcase
+      assign lnb_ate_raw = b.ate | strip | downcase
+      assign lnb_de = lnb_de_raw
+      assign lnb_ate = lnb_ate_raw
+      assign lnb_de_depois = false
+      assign lnb_ate_antes = false
+      for k in lnb_k
+        assign lnb_kk = ',' | append: k | append: ','
+        if k == lnb_de_raw
+          assign lnb_de = lnb_v[forloop.index0]
+          unless lnb_inst contains lnb_kk
+            assign lnb_de_depois = true
+          endunless
+        endif
+        if k == lnb_ate_raw
+          assign lnb_ate = lnb_v[forloop.index0]
+          if lnb_inst contains lnb_kk
+            assign lnb_ate_antes = true
+          endif
+        endif
+      endfor
+
+      assign lnb_ok = lnb_fase_ok
+      if lnb_de != blank
+        assign lnb_t = lnb_de | date: '%Y%m%d%H%M' | plus: 0
+        if lnb_t > 190000000000
+          if lnb_de_depois
+            if lnb_agora <= lnb_t
+              assign lnb_ok = false
+            endif
+          elsif lnb_agora < lnb_t
+            assign lnb_ok = false
+          endif
+        endif
+      endif
+      if lnb_ate != blank
+        assign lnb_t = lnb_ate | date: '%Y%m%d%H%M' | plus: 0
+        if lnb_t > 190000000000
+          if lnb_ate_antes
+            if lnb_agora >= lnb_t
+              assign lnb_ok = false
+            endif
+          elsif lnb_agora > lnb_t
+            assign lnb_ok = false
+          endif
+        endif
+      endif
+
+      # Datas dentro do texto: {continente}, {continente:longo}, ...
+      assign lnb_t1 = b.texto
+      assign lnb_t2 = b.texto_telemovel
+      if lnb_t1 contains '{' or lnb_t2 contains '{'
+        for k in lnb_k
+          assign lnb_tk = '{' | append: k
+          assign lnb_dv = lnb_v[forloop.index0]
+          if lnb_t1 contains lnb_tk or lnb_t2 contains lnb_tk
+            for f in lnb_fmt
+              assign lnb_tok = lnb_tk | append: ':' | append: f | append: '}'
+              if lnb_t1 contains lnb_tok or lnb_t2 contains lnb_tok
+                capture lnb_dt
+                  render 'lod-natal-data', valor: lnb_dv, formato: f
+                endcapture
+                assign lnb_t1 = lnb_t1 | replace: lnb_tok, lnb_dt
+                assign lnb_t2 = lnb_t2 | replace: lnb_tok, lnb_dt
+              endif
+            endfor
+            assign lnb_tok = lnb_tk | append: '}'
+            if lnb_t1 contains lnb_tok or lnb_t2 contains lnb_tok
+              capture lnb_dt
+                render 'lod-natal-data', valor: lnb_dv, formato: 'curto'
+              endcapture
+              assign lnb_t1 = lnb_t1 | replace: lnb_tok, lnb_dt
+              assign lnb_t2 = lnb_t2 | replace: lnb_tok, lnb_dt
+            endif
+          endif
+        endfor
+      endif
+
+      # Contagem decrescente (minutos; o minuto do prazo conta, como em LOD_NATAL.falta)
+      assign lnb_cd_on = false
+      if b.contagem == 'continente' or b.contagem == 'loja' or b.contagem == 'reis'
+        assign lnb_cd_on = true
+        for k in lnb_k
+          if k == b.contagem
+            assign lnb_alvo = lnb_v[forloop.index0]
+          endif
+        endfor
+        assign lnb_dif = lnb_alvo | date: '%s' | plus: 60 | minus: lnb_agora_s
+        if lnb_dif < 0
+          assign lnb_dif = 0
+        endif
+        assign lnb_min = lnb_dif | divided_by: 60 | floor
+        assign lnb_cd_d = lnb_min | divided_by: 1440 | floor
+        assign lnb_cd_h = lnb_min | modulo: 1440 | divided_by: 60 | floor
+        assign lnb_cd_m = lnb_min | modulo: 60
+      endif
+    -%}
+    {%- if lnb_cd_on -%}
+      {%- capture lnb_cd -%}
+        <span class="lnat-bar__cd" data-lnb-cd data-alvo="{{ lnb_alvo | escape }}">faltam {% if lnb_cd_d > 0 -%}
+          <span class="lnat-bar__n">{{ lnb_cd_d }}</span><span aria-hidden="true">&nbsp;d</span><span class="lnat-sr"> {% if lnb_cd_d == 1 %}dia{% else %}dias{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;h</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}hora{% else %}horas{% endif %}</span>
+        {%- else -%}
+          <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;h</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}hora{% else %}horas{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_m }}</span><span aria-hidden="true">&nbsp;min</span><span class="lnat-sr"> {% if lnb_cd_m == 1 %}minuto{% else %}minutos{% endif %}</span>
+        {%- endif -%}</span>
+      {%- endcapture -%}
+      {%- capture lnb_cdw -%}<span data-lnb-cdw{% if lnb_dif == 0 %} hidden{% endif %}> · {{ lnb_cd }}</span>{%- endcapture -%}
+      {%- liquid
+        if lnb_t1 contains '{contagem}'
+          assign lnb_t1 = lnb_t1 | replace: '{contagem}', lnb_cd
+        else
+          assign lnb_t1 = lnb_t1 | append: lnb_cdw
+        endif
+        if lnb_t2 != blank
+          if lnb_t2 contains '{contagem}'
+            assign lnb_t2 = lnb_t2 | replace: '{contagem}', lnb_cd
+          else
+            assign lnb_t2 = lnb_t2 | append: lnb_cdw
+          endif
+        endif
+      -%}
+    {%- else -%}
+      {%- liquid
+        assign lnb_t1 = lnb_t1 | remove: '{contagem}'
+        assign lnb_t2 = lnb_t2 | remove: '{contagem}'
+      -%}
+    {%- endif -%}
+    {%- liquid
+      assign lnb_on = false
+      if lnb_ok and lnb_n == 0
+        assign lnb_on = true
+      endif
+      if lnb_ok
+        assign lnb_n = lnb_n | plus: 1
+      endif
+    -%}
+    {%- capture lnb_bloco -%}
+      <p class="lnat-bar__msg{% if lnb_t2 != blank %} lnat-bar__msg--m{% endif %}{% if lnb_on %} is-on{% endif %}" data-lnb-msg data-bloco="{{ block.id }}"{% if lnb_de != blank %} data-de="{{ lnb_de | escape }}"{% endif %}{% if lnb_de_depois %} data-de-depois{% endif %}{% if lnb_ate != blank %} data-ate="{{ lnb_ate | escape }}"{% endif %}{% if lnb_ate_antes %} data-ate-antes{% endif %}{% unless lnb_ok %} hidden{% endunless %} {{ block.shopify_attributes }}>
+        {%- if b.link != blank -%}<a class="lnat-bar__a" href="{{ b.link }}">{%- endif -%}
+        <span class="lnat-bar__t lnat-bar__t--c">{{ lnb_t1 }}</span>
+        {%- if lnb_t2 != blank -%}<span class="lnat-bar__t lnat-bar__t--m">{{ lnb_t2 }}</span>{%- endif -%}
+        {%- if b.link != blank -%}
+          {%- if b.link_texto != blank -%}<span class="lnat-bar__cta"> {{ b.link_texto | escape }}</span>{%- endif -%}
+          <svg class="lnat-bar__seta" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12H19M12 5L19 12L12 19"/></svg></a>
+        {%- endif -%}
+      </p>
+    {%- endcapture -%}
+    {%- assign lnb_html = lnb_html | append: lnb_bloco -%}
+  {%- endfor -%}
+
+  {%- liquid
+    assign lnb_esconder = false
+    if lnb_n == 0 and request.design_mode == false
+      assign lnb_esconder = true
+    endif
+  -%}
+
+<style>
+  .lnat-bar{font:500 13px/20px var(--lnat-sans);z-index:3}
+  .lnat-bar__in{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;height:40px;max-width:1440px;margin:0 auto;padding:0 8px}
+  .lnat-bar__estrela{display:flex;align-items:center;justify-content:center;color:var(--lnat-ouro)}
+  .lnat-bar__msgs{display:grid;min-width:0;text-align:center}
+  .lnat-bar__msg{grid-area:1/1;min-width:0;margin:0;padding:3px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .4s ease,transform .4s ease,visibility 0s linear .4s}
+  .lnat-bar__msg.is-on{opacity:1;visibility:visible;transform:none;transition:opacity .4s ease,transform .4s ease,visibility 0s}
+  .lnat-bar__t--m{display:none}
+  .lnat-bar strong,.lnat-bar b{color:var(--lnat-ouro-claro);font-weight:600}
+  .lnat-bar em,.lnat-bar i{font-style:italic}
+  .lnat-bar a.lnat-bar__a{color:var(--lnat-papel)!important;text-decoration:none!important}
+  .lnat-bar__cta{color:var(--lnat-ouro-claro);text-decoration:underline;text-decoration-color:var(--lnat-ouro);text-underline-offset:3px}
+  .lnat-bar a.lnat-bar__a:hover .lnat-bar__cta{color:var(--lnat-papel)}
+  .lnat-bar .lnat-bar__a:focus-visible{outline:2px solid var(--lnat-ouro-claro);outline-offset:1px}
+  .lnat-bar__seta{display:none;margin-left:6px;vertical-align:-2px;color:var(--lnat-ouro-claro)}
+  .lnat-bar__n{font-family:var(--lnat-cond);font-weight:400;font-size:15px;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:var(--lnat-ouro-claro)}
+  .lnat-bar__pausa{display:flex;align-items:center;justify-content:center;width:44px;height:40px;margin:0;padding:0;background:transparent;border:0;border-radius:0;color:var(--lnat-ouro-claro);cursor:pointer}
+  .lnat-bar__pausa>span{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #3a3528;transition:border-color .25s}
+  .lnat-bar__pausa:hover>span{border-color:var(--lnat-ouro)}
+  .lnat-bar .lnat-bar__pausa:focus-visible{outline:2px solid var(--lnat-ouro-claro);outline-offset:-4px}
+  .lnat-bar__pausa.is-off{visibility:hidden}
+  .lnat-bar__i-play,.lnat-bar__pausa.is-parado .lnat-bar__i-pausa{display:none}
+  .lnat-bar__pausa.is-parado .lnat-bar__i-play{display:block}
+  .lnat-bar__nota{position:absolute;left:0;top:100%;z-index:5;margin:0;padding:4px 10px;background:var(--lnat-vermelho);color:var(--lnat-papel);font:500 11px/16px var(--lnat-sans)}
+  @media (max-width:749px){
+    .lnat-bar{font-size:12px;line-height:15px}
+    .lnat-bar__in{grid-template-columns:28px minmax(0,1fr) 44px;height:36px;padding:0 0 0 6px}
+    .lnat-bar__msgs{text-align:left}
+    .lnat-bar__msg{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;text-overflow:clip;padding:1px 2px}
+    .lnat-bar__msg--m .lnat-bar__t--c{display:none}
+    .lnat-bar__msg--m .lnat-bar__t--m{display:inline}
+    .lnat-bar__cta{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+    .lnat-bar__seta{display:inline-block}
+    .lnat-bar__n{font-size:13px}
+    .lnat-bar__pausa{height:36px}
+    .lnat-bar__pausa>span{width:28px;height:28px;border-color:transparent}
+    {%- unless s.mostrar_no_telemovel %}
+    #lnat-bar-{{ section.id }}{display:none!important}
+    {%- endunless %}
+  }
+</style>
+
+<section class="lnat lnat-bar lnat-bg-tinta" id="lnat-bar-{{ section.id }}" aria-label="Avisos de Natal" data-lnat-bar data-section="{{ section.id }}"{% if lnb_esconder %} hidden{% endif %}>
+  <div class="lnat-bar__in">
+    <span class="lnat-bar__estrela" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="16" height="16" fill="currentColor" focusable="false"><g><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(90 32 32)"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(180 32 32)"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(270 32 32)"/></g><g opacity=".65"><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(45 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(135 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(225 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(315 32 32)"/></g><circle cx="32" cy="32" r="6"/></svg>
+    </span>
+    <div class="lnat-bar__msgs" data-lnb-live aria-live="off" aria-atomic="true">
+      {{- lnb_html -}}
+    </div>
+    <button type="button" class="lnat-bar__pausa{% if lnb_n < 2 %} is-off{% endif %}" data-lnb-pausa aria-label="Pausar as mensagens">
+      <span>
+        <svg class="lnat-bar__i-pausa" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" focusable="false"><rect x="3" y="2" width="3" height="12" fill="currentColor"/><rect x="10" y="2" width="3" height="12" fill="currentColor"/></svg>
+        <svg class="lnat-bar__i-play" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" focusable="false"><path d="M4 2L13 8L4 14Z" fill="currentColor"/></svg>
+      </span>
+    </button>
+  </div>
+  {%- if request.design_mode -%}
+    {%- assign lnb_inicio = lnb_v.first -%}
+    <p class="lnat-bar__nota" data-lnb-nota hidden>Pré-visualização no editor: no site, a barra só aparece a partir de {% render 'lod-natal-data', valor: lnb_inicio, formato: 'curto' %} e cada mensagem só nas suas datas.</p>
+  {%- endif -%}
+</section>
+
+<script>
+(function () {
+  var ATIVAS = ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'];
+  function N() { return window.LOD_NATAL || null; }
+  // «AAAA-MM-DD HH:MM» de Lisboa → Date (usa o motor do Natal; sem ele, Lisboa = UTC no inverno)
+  function lx(v) {
+    var n = N();
+    if (n && n.lx) return n.lx(v);
+    var m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/);
+    return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0)) : null;
+  }
+  function agora() { var n = N(); return n && n.agora ? n.agora().getTime() : Date.now(); }
+  function fase() { var n = N(); return n && n.fase ? n.fase() : 'ouro'; }
+  function un(v, c, l1, l2) {
+    return '<span class="lnat-bar__n">' + v + '</span><span aria-hidden="true"> ' + c + '</span><span class="lnat-sr"> ' + (v === 1 ? l1 : l2) + '</span>';
+  }
+  function cdHtml(ms) {
+    var m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mi = m % 60;
+    return 'faltam ' + (d > 0 ? un(d, 'd', 'dia', 'dias') + ' ' + un(h, 'h', 'hora', 'horas') : un(h, 'h', 'hora', 'horas') + ' ' + un(mi, 'min', 'minuto', 'minutos'));
+  }
+
+  function init(root) {
+    if (!root || root._lnb) return;
+    var st = root._lnb = {};
+    var design = !!(window.Shopify && Shopify.designMode);
+    var reduce = false;
+    try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    var msgs = Array.prototype.slice.call(root.querySelectorAll('[data-lnb-msg]'));
+    var box = root.querySelector('[data-lnb-live]');
+    var btn = root.querySelector('[data-lnb-pausa]');
+    var nota = root.querySelector('[data-lnb-nota]');
+    var atual = root.querySelector('[data-lnb-msg].is-on'), ativos = [], parado = false, suspenso = false, escolhido = null;
+
+    function dentro(m) {
+      var t = agora(), de = m.getAttribute('data-de'), ate = m.getAttribute('data-ate'), a, b;
+      if (de && (a = lx(de)) && t < a.getTime() + (m.hasAttribute('data-de-depois') ? 60000 : 0)) return false;
+      if (ate && (b = lx(ate)) && t >= b.getTime() + (m.hasAttribute('data-ate-antes') ? 0 : 60000)) return false;
+      return true;
+    }
+    function mostrar(m) {
+      atual = m || null;
+      msgs.forEach(function (x) { x.classList.toggle('is-on', x === atual); });
+    }
+    function contagens() {
+      root.querySelectorAll('[data-lnb-cd]').forEach(function (el) {
+        var a = lx(el.getAttribute('data-alvo'));
+        if (!a) return;
+        var ms = a.getTime() + 60000 - agora();
+        var w = el.closest('[data-lnb-cdw]') || el;
+        w.hidden = ms <= 0;
+        if (ms <= 0) return;
+        var h = cdHtml(ms);
+        if (el._h !== h) { el.innerHTML = h; el._h = h; }
+      });
+    }
+    function vivo() { if (box) box.setAttribute('aria-live', parado ? 'polite' : 'off'); }
+    function atualizar() {
+      var lista = ATIVAS.indexOf(fase()) > -1 ? msgs.filter(dentro) : [];
+      var fora = false;
+      if (!lista.length && design) { lista = msgs.slice(); fora = true; }
+      if (escolhido) lista = [escolhido];
+      if (reduce && lista.length > 1) lista = lista.slice(0, 1);
+      msgs.forEach(function (x) { x.hidden = lista.indexOf(x) < 0; });
+      if (nota) nota.hidden = !fora;
+      root.hidden = !lista.length;
+      ativos = lista;
+      if (btn) btn.classList.toggle('is-off', ativos.length < 2);
+      if (ativos.indexOf(atual) < 0) mostrar(ativos[0]);
+      contagens();
+    }
+    function passo() {
+      if (parado || suspenso || escolhido || ativos.length < 2 || document.hidden) return;
+      mostrar(ativos[(ativos.indexOf(atual) + 1) % ativos.length]);
+    }
+
+    if (btn) btn.addEventListener('click', function () {
+      parado = !parado;
+      btn.classList.toggle('is-parado', parado);
+      btn.setAttribute('aria-label', parado ? 'Retomar as mensagens' : 'Pausar as mensagens');
+      vivo();
+    });
+    // Pausa enquanto o rato está em cima ou o foco do teclado está dentro da barra
+    function focoTeclado() {
+      try { return !!root.querySelector(':focus-visible'); } catch (e) { return root.contains(document.activeElement); }
+    }
+    root.addEventListener('mouseenter', function () { suspenso = true; });
+    root.addEventListener('mouseleave', function () { suspenso = focoTeclado(); });
+    root.addEventListener('focusin', function () { suspenso = focoTeclado() || root.matches(':hover'); });
+    root.addEventListener('focusout', function (e) {
+      if (!e.relatedTarget || !root.contains(e.relatedTarget)) suspenso = root.matches(':hover');
+    });
+
+    st.atualizar = atualizar;
+    st.escolher = function (id) {
+      escolhido = null;
+      if (id) msgs.forEach(function (x) { if (x.getAttribute('data-bloco') === id) escolhido = x; });
+      atualizar();
+      if (escolhido) mostrar(escolhido);
+    };
+    st.parar = function () { clearInterval(st.t1); clearInterval(st.t2); };
+
+    atualizar();
+    vivo();
+    st.t1 = setInterval(passo, 5000);
+    st.t2 = setInterval(atualizar, 30000);
+  }
+
+  function todas() { document.querySelectorAll('[data-lnat-bar]').forEach(init); }
+  function daSeccao(e) { return document.querySelector('[data-lnat-bar][data-section="' + (e.detail && e.detail.sectionId) + '"]'); }
+  todas();
+
+  var html = document.documentElement;
+  if (html.hasAttribute('data-lnat-bar-js')) return;
+  html.setAttribute('data-lnat-bar-js', '');
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    document.querySelectorAll('[data-lnat-bar]').forEach(function (r) { if (r._lnb && r._lnb.atualizar) r._lnb.atualizar(); });
+  });
+  document.addEventListener('shopify:section:load', todas);
+  document.addEventListener('shopify:section:unload', function (e) {
+    var r = daSeccao(e);
+    if (r && r._lnb && r._lnb.parar) r._lnb.parar();
+  });
+  document.addEventListener('shopify:block:select', function (e) {
+    var r = daSeccao(e);
+    if (r && r._lnb && r._lnb.escolher) r._lnb.escolher(e.detail.blockId);
+  });
+  document.addEventListener('shopify:block:deselect', function (e) {
+    var r = daSeccao(e);
+    if (r && r._lnb && r._lnb.escolher) r._lnb.escolher(null);
+  });
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Barra de avisos",
+  "tag": "section",
+  "class": "lnat-bar-section",
+  "enabled_on": { "groups": ["header"] },
+  "max_blocks": 20,
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Uma mensagem de cada vez, a rodar de 5 em 5 segundos, com botão de pausa. Só aparece de 1 de dezembro a 6 de janeiro (datas do grupo «Natal 2026» das definições do tema). Não ponha prestações nesta barra."
+    },
+    {
+      "type": "checkbox",
+      "id": "so_portugal",
+      "label": "Mostrar só no mercado Portugal",
+      "default": true,
+      "info": "Os prazos de entrega são de Portugal. Desligado, a barra aparece em todos os mercados."
+    },
+    {
+      "type": "checkbox",
+      "id": "mostrar_no_telemovel",
+      "label": "Mostrar no telemóvel",
+      "default": true
+    },
+    {
+      "type": "paragraph",
+      "content": "Datas das mensagens (hora de Lisboa): AAAA-MM-DD HH:MM, ou o nome de uma data das definições: inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma, reis, fim, trocas. Num «De», um prazo quer dizer «depois desse prazo»; num «Até», inicio, fase2, loja ou retoma quer dizer «até ao minuto antes»."
+    },
+    {
+      "type": "paragraph",
+      "content": "No texto, {continente} escreve «18 de dezembro»; {continente:longo} «sexta, 18 de dezembro»; {continente:abrev} «18 dez.»; {loja:hora} «24 de dezembro, 13h»; {trocas:ano} «15 de janeiro de 2027». As palavras a negrito ficam em ouro."
+    }
+  ],
+  "blocks": [
+    {
+      "type": "mensagem",
+      "name": "Mensagem",
+      "settings": [
+        {
+          "type": "inline_richtext",
+          "id": "texto",
+          "label": "Texto",
+          "default": "Natal: encomende até <strong>{continente}</strong> e receba antes do Natal (Portugal continental).",
+          "info": "Negrito = palavra em ouro. Não ponha links no texto: use o campo Link."
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto_telemovel",
+          "label": "Texto no telemóvel (opcional, mais curto)",
+          "info": "Até 2 linhas em 36 px. Vazio = usa o texto acima."
+        },
+        {
+          "type": "url",
+          "id": "link",
+          "label": "Link"
+        },
+        {
+          "type": "text",
+          "id": "link_texto",
+          "label": "Texto do link",
+          "info": "Ex.: Ver prazos. No telemóvel aparece só uma seta."
+        },
+        {
+          "type": "text",
+          "id": "de",
+          "label": "De",
+          "default": "inicio",
+          "info": "AAAA-MM-DD HH:MM ou o nome de uma data das definições. Vazio = sem início."
+        },
+        {
+          "type": "text",
+          "id": "ate",
+          "label": "Até",
+          "default": "fim",
+          "info": "AAAA-MM-DD HH:MM (o último minuto conta) ou o nome de uma data das definições. Vazio = sem fim."
+        },
+        {
+          "type": "select",
+          "id": "contagem",
+          "label": "Contagem decrescente",
+          "default": "nenhuma",
+          "options": [
+            { "value": "nenhuma", "label": "Nenhuma" },
+            { "value": "continente", "label": "Prazo de Portugal continental" },
+            { "value": "loja", "label": "Levantamento na loja" },
+            { "value": "reis", "label": "Prazo do Dia de Reis" }
+          ],
+          "info": "Use {contagem} no texto para escolher o sítio; sem isso, vai para o fim."
+        },
+        {
+          "type": "select",
+          "id": "condicao",
+          "label": "Mostrar",
+          "default": "sempre",
+          "options": [
+            { "value": "sempre", "label": "Sempre, nas datas acima" },
+            { "value": "vale_digital", "label": "Só se o vale prenda for digital" },
+            { "value": "trocas", "label": "Só se as trocas de Natal estiverem aprovadas" }
+          ],
+          "info": "Depende das opções natal_vale_digital e natal_mostrar_trocas das definições do tema."
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Natal · Barra de avisos",
+      "blocks": [
+        { "type": "mensagem" }
+      ]
+    }
+  ]
+}
+{% endschema %}

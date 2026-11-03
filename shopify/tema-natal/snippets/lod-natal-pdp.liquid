@@ -1,0 +1,358 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — bloco de Natal na ficha de produto.
+  Uso (sections/lod-main-product.liquid, logo a seguir a lod-installments):
+    {%- render 'lod-natal-pdp', product: product -%}
+
+  Mostra, num painel linho discreto:
+    1. «Para o Natal»: a mensagem de entrega da fase (antes do prazo do continente / levantar na loja até 24 dez.,
+       13h / Boas Festas / a tempo dos Reis). Escolhida no servidor e corrigida no navegador com window.LOD_NATAL.
+    2. Gravação: produtos em «para-gravacao» ou «grave-o-seu-fio» (prazo de gravação, WhatsApp, sem troca).
+    3. «Embrulho de oferta e mensagem: escolha no carrinho.»
+    4. «Trocas de Natal até …» só com a definição natal_mostrar_trocas e em peças não gravadas.
+    5. «Sabia que?» do Dicionário para Corações de Viana, Contas de Viana e filigrana.
+  Não aparece: fora das fases ouro→mirra, fora do mercado Portugal, em ouro de investimento
+  (coleção moedas-de-investimento ou etiqueta ouro-investimento) e em produtos do tipo Voucher, Gift,
+  Gift Message ou wrapin. No editor aparece sempre (com uma nota) se a fase ainda não tiver começado.
+{%- endcomment -%}
+
+{%- liquid
+  assign lnp_render = false
+  if product != blank
+    assign lnp_render = true
+  endif
+  if localization.market.handle != 'pt' and request.design_mode == false
+    assign lnp_render = false
+  endif
+
+  assign lnp_tipo = product.type | downcase | strip
+  if lnp_tipo == 'voucher' or lnp_tipo == 'gift' or lnp_tipo == 'gift message' or lnp_tipo == 'wrapin'
+    assign lnp_render = false
+  endif
+  if product.tags contains 'ouro-investimento'
+    assign lnp_render = false
+  endif
+
+  assign lnp_cols = ','
+  for lnp_c in product.collections
+    assign lnp_cols = lnp_cols | append: lnp_c.handle | append: ','
+  endfor
+  if lnp_cols contains ',moedas-de-investimento,'
+    assign lnp_render = false
+  endif
+
+  # lnp_vf = fase usada para escolher o texto no servidor
+  assign lnp_vf = 'ouro'
+  assign lnp_esconder = false
+  assign lnp_nota = false
+  if lnp_render
+    capture lnp_fase
+      render 'lod-natal-fase'
+    endcapture
+    assign lnp_fase = lnp_fase | strip
+    assign lnp_ativa = false
+    case lnp_fase
+      when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+        assign lnp_ativa = true
+    endcase
+    if lnp_ativa
+      assign lnp_vf = lnp_fase
+    elsif request.design_mode
+      assign lnp_nota = true
+    elsif lnp_fase == 'antes'
+      assign lnp_esconder = true
+    else
+      assign lnp_render = false
+    endif
+  endif
+-%}
+
+{%- if lnp_render -%}
+{%- liquid
+  assign lnp_agora_txt = 'now'
+  if settings.natal_data_simulada != blank and theme.role != 'main'
+    assign lnp_agora_txt = settings.natal_data_simulada | strip
+    if lnp_agora_txt.size == 10
+      assign lnp_agora_txt = lnp_agora_txt | append: ' 10:00'
+    endif
+  endif
+  assign lnp_agora = lnp_agora_txt | date: '%Y%m%d%H%M' | plus: 0
+
+  assign lnp_inicio = settings.natal_inicio | default: '2026-12-01 00:00' | strip
+  assign lnp_acores = settings.natal_limite_acores | default: '2026-12-04 23:59' | strip
+  assign lnp_madeira = settings.natal_limite_madeira | default: '2026-12-11 23:59' | strip
+  assign lnp_gravacao = settings.natal_limite_gravacao | default: '2026-12-16 23:59' | strip
+  assign lnp_continente = settings.natal_limite_continente | default: '2026-12-18 23:59' | strip
+  assign lnp_loja = settings.natal_limite_loja | default: '2026-12-24 13:00' | strip
+  assign lnp_retoma = settings.natal_retoma_envios | default: '2026-12-28' | strip
+  assign lnp_reis = settings.natal_limite_reis | default: '2026-12-30 23:59' | strip
+  assign lnp_trocas = settings.natal_trocas_ate | default: '2027-01-15' | strip
+
+  assign lnp_t = lnp_acores | date: '%Y%m%d%H%M' | plus: 0
+  assign lnp_p_acores = false
+  if lnp_agora > lnp_t
+    assign lnp_p_acores = true
+  endif
+  assign lnp_t = lnp_madeira | date: '%Y%m%d%H%M' | plus: 0
+  assign lnp_p_madeira = false
+  if lnp_agora > lnp_t
+    assign lnp_p_madeira = true
+  endif
+  assign lnp_t = lnp_gravacao | date: '%Y%m%d%H%M' | plus: 0
+  assign lnp_p_gravacao = false
+  if lnp_agora > lnp_t
+    assign lnp_p_gravacao = true
+  endif
+  assign lnp_t = lnp_reis | date: '%Y%m%d%H%M' | plus: 0
+  assign lnp_p_reis = false
+  if lnp_agora > lnp_t
+    assign lnp_p_reis = true
+  endif
+
+  # Mensagem de entrega visível no servidor
+  assign lnp_v_natal = false
+  assign lnp_v_ultima = false
+  assign lnp_v_consoada = false
+  assign lnp_v_mirra = false
+  case lnp_vf
+    when 'ouro', 'incenso'
+      assign lnp_v_natal = true
+    when 'ultima'
+      assign lnp_v_ultima = true
+    when 'consoada'
+      assign lnp_v_consoada = true
+    when 'mirra'
+      unless lnp_p_reis
+        assign lnp_v_mirra = true
+      endunless
+  endcase
+  assign lnp_entrega = false
+  if lnp_v_natal or lnp_v_ultima or lnp_v_consoada or lnp_v_mirra
+    assign lnp_entrega = true
+  endif
+
+  # Gravação
+  assign lnp_grav = false
+  assign lnp_grav_fio = false
+  if lnp_cols contains ',para-gravacao,'
+    assign lnp_grav = true
+  elsif lnp_cols contains ',grave-o-seu-fio,'
+    assign lnp_grav = true
+    assign lnp_grav_fio = true
+  endif
+  assign lnp_grav_prazo = false
+  if lnp_v_natal and lnp_p_gravacao == false
+    assign lnp_grav_prazo = true
+  endif
+  assign lnp_grav_reis = false
+  if lnp_vf == 'mirra'
+    assign lnp_grav_reis = true
+  endif
+
+  # «Sabia que?» (Dicionário do Ouro Português)
+  assign lnp_sabia_t = ''
+  assign lnp_sabia = ''
+  assign lnp_sabia_i = 'estrela'
+  if lnp_cols contains ',coracoes-de-viana,'
+    assign lnp_sabia_t = 'Coração de Viana'
+    assign lnp_sabia = 'Símbolo de devoção ao Sagrado Coração de Jesus. Conta a tradição que nasceu de um pedido de D. Maria I.'
+    assign lnp_sabia_i = 'coracao'
+  elsif lnp_cols contains ',contas-de-viana,'
+    assign lnp_sabia_t = 'Contas de Viana'
+    assign lnp_sabia = 'Contas de ouro, uma das mais antigas tradições do Minho.'
+  elsif lnp_cols contains ',filigrana,' or lnp_cols contains ',tradicao-filigrana-prata,'
+    assign lnp_sabia_t = 'Filigrana'
+    assign lnp_sabia = 'Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais.'
+  endif
+
+  # WhatsApp (sem dados pessoais: só a peça e o link)
+  assign lnp_wa = settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+' | remove: '-'
+  assign lnp_url = shop.url | append: product.url
+  assign lnp_m_loja = 'Olá! Gostava de levantar esta peça numa loja antes do Natal: ' | append: product.title | append: ' ' | append: lnp_url
+  assign lnp_m_loja = lnp_m_loja | url_encode | replace: '+', '%20'
+  assign lnp_m_grav = 'Olá! Gostava de gravar a peça ' | append: product.title | append: ' para o Natal. ' | append: lnp_url
+  assign lnp_m_grav = lnp_m_grav | url_encode | replace: '+', '%20'
+  assign lnp_m_grav_reis = 'Olá! Gostava de gravar a peça ' | append: product.title | append: ' para o Dia de Reis. ' | append: lnp_url
+  assign lnp_m_grav_reis = lnp_m_grav_reis | url_encode | replace: '+', '%20'
+-%}
+
+<style>
+  .lnat-pdp{margin:20px 0 4px;padding:2px 18px;background:var(--lnat-linho);font-size:15px;line-height:23px;color:var(--lnat-texto)}
+  .lnat-pdp p{margin:0}
+  .lnat-pdp strong{font-weight:600;color:var(--lnat-tinta)}
+  .lnat-pdp__nota{display:inline-block;margin:12px 0 0!important;padding:4px 8px;background:var(--lnat-vermelho);color:var(--lnat-papel);font-size:12px;line-height:16px}
+  .lnat-pdp__linha{display:flex;gap:14px;align-items:flex-start;padding:14px 0}
+  .lnat-pdp__linha:not([hidden])~.lnat-pdp__linha{border-top:1px solid var(--lnat-linha)}
+  .lnat-pdp__var{display:flex;gap:14px;align-items:flex-start;flex:1 1 auto;min-width:0}
+  .lnat-pdp__ico{flex:0 0 auto;margin-top:1px;color:var(--lnat-ouro-velho)}
+  .lnat-pdp__corpo{display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex:1 1 auto;min-width:0}
+  .lnat-pdp__eb{font-size:11px;line-height:16px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--lnat-ouro-velho)}
+  .lnat-pdp__titulo{font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:22px;line-height:26px;color:var(--lnat-tinta)}
+  .lnat-pdp__peq{font-size:13px;line-height:19px;color:var(--lnat-cinza-linho)}
+  .lnat-pdp .lnat-pdp__btn{min-height:44px;margin-top:4px;padding:0 18px;gap:8px;font-size:12px;letter-spacing:.08em}
+  .lnat-pdp__det{margin:-4px 0 -6px}
+  .lnat-pdp__det summary{display:inline-flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;list-style:none;color:var(--lnat-ouro-velho);font-size:14px;font-weight:500}
+  .lnat-pdp__det summary::-webkit-details-marker{display:none}
+  .lnat-pdp__det summary::after{content:"";width:6px;height:6px;margin-top:-3px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);transition:transform .2s}
+  .lnat-pdp__det[open] summary::after{margin-top:3px;transform:rotate(225deg)}
+  .lnat-pdp__det summary:focus-visible{outline:2px solid var(--lnat-ouro-velho);outline-offset:2px}
+  .lnat-pdp__ilhas{margin:0 0 4px;padding:0;list-style:none}
+  .lnat-pdp__ilhas li{margin:0;padding:2px 0;list-style:none}
+  .lnat-pdp__det .lnat-pdp__peq{margin-bottom:10px}
+  .lnat-pdp__mini{align-items:center}
+  .lnat-pdp__termo{font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:19px;line-height:23px;color:var(--lnat-tinta)}
+  @media (max-width:749px){
+    .lnat-pdp{margin-top:16px;padding:2px 14px}
+    .lnat-pdp .lnat-pdp__btn{align-self:stretch}
+  }
+</style>
+
+<div class="lnat lnat-pdp" data-lnat-pdp{% if lnp_esconder %} hidden{% endif %}>
+  {%- if lnp_nota -%}
+    <p class="lnat-pdp__nota">Pré-visualização no editor · visível a partir de {% render 'lod-natal-data', valor: lnp_inicio, formato: 'curto' %}</p>
+  {%- endif -%}
+
+  {%- comment -%} 1 · Entrega para o Natal {%- endcomment -%}
+  <div class="lnat-pdp__linha" data-lnp-grupo{% unless lnp_entrega %} hidden{% endunless %}>
+    <div class="lnat-pdp__var" data-lnp-fases="ouro incenso"{% unless lnp_v_natal %} hidden{% endunless %}>
+      {%- render 'lod-natal-icon', nome: 'sapatinho', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+      <div class="lnat-pdp__corpo">
+        <p class="lnat-pdp__eb">Para o Natal</p>
+        <p><strong>Chega antes do Natal:</strong> encomende até <strong>{% render 'lod-natal-data', valor: lnp_continente, formato: 'longo' %}</strong> (Portugal continental).</p>
+        <details class="lnat-pdp__det">
+          <summary>Prazos para Madeira e Açores</summary>
+          <ul class="lnat-pdp__ilhas">
+            <li data-lnp-ilha data-valor="{{ lnp_madeira | escape }}">Madeira: <span data-lnp-sim{% if lnp_p_madeira %} hidden{% endif %}>até <strong>{% render 'lod-natal-data', valor: lnp_madeira, formato: 'longo' %}</strong></span><span data-lnp-nao{% unless lnp_p_madeira %} hidden{% endunless %}>prazo de Natal terminado</span></li>
+            <li data-lnp-ilha data-valor="{{ lnp_acores | escape }}">Açores: <span data-lnp-sim{% if lnp_p_acores %} hidden{% endif %}>até <strong>{% render 'lod-natal-data', valor: lnp_acores, formato: 'longo' %}</strong></span><span data-lnp-nao{% unless lnp_p_acores %} hidden{% endunless %}>prazo de Natal terminado</span></li>
+          </ul>
+          <p class="lnat-pdp__peq">Prazos indicativos para encomendas pagas até às 23h59 do dia indicado.</p>
+        </details>
+      </div>
+    </div>
+
+    <div class="lnat-pdp__var" data-lnp-fases="ultima"{% unless lnp_v_ultima %} hidden{% endunless %}>
+      {%- render 'lod-natal-icon', nome: 'porta', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+      <div class="lnat-pdp__corpo">
+        <p class="lnat-pdp__eb">Última hora</p>
+        <p>Para o Natal, levante esta peça numa das nossas lojas, com marcação, até <strong>{% render 'lod-natal-data', valor: lnp_loja, formato: 'hora' %}</strong>.</p>
+        <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_loja }}" target="_blank" rel="noopener" data-lnp-wa>
+          {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
+          <span>Reservar por WhatsApp</span><span class="lnat-sr"> (abre noutra janela)</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="lnat-pdp__var" data-lnp-fases="consoada"{% unless lnp_v_consoada %} hidden{% endunless %}>
+      {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+      <div class="lnat-pdp__corpo">
+        <p><strong>Boas Festas!</strong> As encomendas feitas hoje seguem a partir de <strong>{% render 'lod-natal-data', valor: lnp_retoma, formato: 'longo' %}</strong>.</p>
+      </div>
+    </div>
+
+    <div class="lnat-pdp__var" data-lnp-fases="mirra" data-lnp-ate="reis"{% unless lnp_v_mirra %} hidden{% endunless %}>
+      {%- render 'lod-natal-icon', nome: 'coroa', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+      <div class="lnat-pdp__corpo">
+        <p class="lnat-pdp__eb">Dia de Reis</p>
+        <p><strong>A tempo dos Reis:</strong> encomende até <strong>{% render 'lod-natal-data', valor: lnp_reis, formato: 'longo' %}</strong> (Portugal continental).</p>
+        <p class="lnat-pdp__peq">Prazo indicativo.</p>
+      </div>
+    </div>
+  </div>
+
+  {%- comment -%} 2 · Gravação {%- endcomment -%}
+  {%- if lnp_grav -%}
+    <div class="lnat-pdp__linha">
+      <svg class="lnat-ico lnat-pdp__ico" viewBox="0 0 64 64" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 50L40 24"/><path d="M40 24L46 14L50 18L40 24"/><path d="M10 54H24"/><path d="M47 37C47.6 39.4 48.6 40.4 51 41C48.6 41.6 47.6 42.6 47 45C46.4 42.6 45.4 41.6 43 41C45.4 40.4 46.4 39.4 47 37Z"/></svg>
+      <div class="lnat-pdp__corpo">
+        <p class="lnat-pdp__titulo">Grave uma lembrança de Natal</p>
+        <p>
+          {%- if lnp_grav_fio -%}
+            Ideia de Natal: grave um nome, uma data ou «Natal 2026».
+          {%- else -%}
+            Esta peça pode ser gravada pela nossa equipa: um nome, uma data ou «Natal 2026».
+          {%- endif -%}
+          <span data-lnp-fases="ouro incenso" data-lnp-ate="gravacao"{% unless lnp_grav_prazo %} hidden{% endunless %}> Para chegar antes do Natal, encomende até <strong>{% render 'lod-natal-data', valor: lnp_gravacao, formato: 'longo' %}</strong>.</span>
+        </p>
+        <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_grav }}" target="_blank" rel="noopener" data-lnp-wa data-lnp-fases="ouro incenso ultima consoada"{% if lnp_grav_reis %} hidden{% endif %}>
+          {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
+          <span>Combinar gravação no WhatsApp</span><span class="lnat-sr"> (abre noutra janela)</span>
+        </a>
+        <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_grav_reis }}" target="_blank" rel="noopener" data-lnp-wa data-lnp-fases="mirra"{% unless lnp_grav_reis %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
+          <span>Combinar gravação no WhatsApp</span><span class="lnat-sr"> (abre noutra janela)</span>
+        </a>
+        <p class="lnat-pdp__peq">Peças gravadas são feitas para si: não têm troca nem devolução, salvo defeito.</p>
+      </div>
+    </div>
+  {%- endif -%}
+
+  {%- comment -%} 3 · Embrulho {%- endcomment -%}
+  <p class="lnat-pdp__linha lnat-pdp__mini">
+    {%- render 'lod-natal-icon', nome: 'laco', tamanho: 28, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+    <span>Embrulho de oferta e mensagem: escolha no carrinho.</span>
+  </p>
+
+  {%- comment -%} 4 · Trocas de Natal (só depois de aprovadas) {%- endcomment -%}
+  {%- if settings.natal_mostrar_trocas and lnp_grav == false -%}
+    <p class="lnat-pdp__linha lnat-pdp__mini">
+      <svg class="lnat-ico lnat-pdp__ico" viewBox="0 0 64 64" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 30C14 20 22 12 32 12C40 12 46 16 49 22"/><path d="M50 12V23H39"/><path d="M50 34C50 44 42 52 32 52C24 52 18 48 15 42"/><path d="M14 52V41H25"/></svg>
+      <span>Trocas de Natal até <strong>{% render 'lod-natal-data', valor: lnp_trocas, formato: 'ano' %}</strong>, com talão de oferta.</span>
+    </p>
+  {%- endif -%}
+
+  {%- comment -%} 5 · Sabia que? {%- endcomment -%}
+  {%- if lnp_sabia != blank -%}
+    <div class="lnat-pdp__linha">
+      {%- render 'lod-natal-icon', nome: lnp_sabia_i, tamanho: 28, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+      <div class="lnat-pdp__corpo">
+        <p class="lnat-pdp__eb">Sabia que?</p>
+        <p><span class="lnat-pdp__termo">{{ lnp_sabia_t }}.</span> {{ lnp_sabia }}</p>
+      </div>
+    </div>
+  {%- endif -%}
+</div>
+
+<script>
+(function () {
+  var ATIVAS = ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'];
+  function aplicar(root) {
+    var N = window.LOD_NATAL;
+    if (!root || !N || !N.fase) return;
+    var design = !!(window.Shopify && Shopify.designMode);
+    var f = N.fase();
+    if (ATIVAS.indexOf(f) < 0) {
+      if (!design) { root.hidden = true; return; }
+      f = 'ouro';
+    }
+    root.hidden = false;
+    root.querySelectorAll('[data-lnp-fases]').forEach(function (el) {
+      var ok = (' ' + el.getAttribute('data-lnp-fases') + ' ').indexOf(' ' + f + ' ') > -1;
+      var ate = el.getAttribute('data-lnp-ate');
+      if (ok && ate && N.d && N.d[ate] && N.passou(N.d[ate])) ok = false;
+      el.hidden = !ok;
+    });
+    root.querySelectorAll('[data-lnp-ilha]').forEach(function (li) {
+      var p = N.passou(li.getAttribute('data-valor'));
+      var sim = li.querySelector('[data-lnp-sim]'), nao = li.querySelector('[data-lnp-nao]');
+      if (sim) sim.hidden = p;
+      if (nao) nao.hidden = !p;
+    });
+    root.querySelectorAll('[data-lnp-grupo]').forEach(function (g) {
+      g.hidden = !g.querySelector('[data-lnp-fases]:not([hidden])');
+    });
+    if (N.wa) {
+      root.querySelectorAll('[data-lnp-wa]').forEach(function (a) {
+        a.href = a.href.replace(/wa\.me\/\d+/, 'wa.me/' + N.wa);
+      });
+    }
+  }
+  function todos() { document.querySelectorAll('[data-lnat-pdp]').forEach(aplicar); }
+  todos();
+
+  var html = document.documentElement;
+  if (html.hasAttribute('data-lnat-pdp-js')) return;
+  html.setAttribute('data-lnat-pdp-js', '');
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) todos(); });
+  document.addEventListener('shopify:section:load', todos);
+})();
+</script>
+{%- endif -%}

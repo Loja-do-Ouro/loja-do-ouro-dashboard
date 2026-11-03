@@ -1,0 +1,179 @@
+{
+  "type": "lod-natal-bar",
+  "settings": {
+    "so_portugal": true,
+    "mostrar_no_telemovel": true
+  },
+  "blocks": {
+    "msg_natal": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Natal: encomende até <strong>{continente}</strong> e receba antes do Natal (Portugal continental).",
+        "texto_telemovel": "Encomende até <strong>{continente:abrev}</strong> e receba antes do Natal (Portugal continental)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "inicio",
+        "ate": "fase2",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_ilhas": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Açores: encomende até <strong>{acores}</strong> · Madeira: até <strong>{madeira}</strong>",
+        "texto_telemovel": "Açores: até <strong>{acores:abrev}</strong> · Madeira: até <strong>{madeira:abrev}</strong>",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "inicio",
+        "ate": "acores",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_madeira": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Madeira: encomende até <strong>{madeira}</strong> para receber antes do Natal.",
+        "texto_telemovel": "Madeira: encomende até <strong>{madeira:abrev}</strong> para receber antes do Natal",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "acores",
+        "ate": "madeira",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_ultimos_dias": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Últimos dias: encomende até <strong>{continente:longo}</strong> (Portugal continental)",
+        "texto_telemovel": "Últimos dias: encomende até <strong>{continente:abrev}</strong>",
+        "de": "fase2",
+        "ate": "continente",
+        "contagem": "continente",
+        "condicao": "sempre"
+      }
+    },
+    "msg_gravadas": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Peças gravadas: encomende até <strong>{gravacao}</strong>.",
+        "texto_telemovel": "Peças gravadas: encomende até <strong>{gravacao:abrev}</strong>",
+        "de": "fase2",
+        "ate": "gravacao",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_levantar_loja": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Já não chega por correio? Levante numa das nossas 13 lojas, com marcação, até <strong>{loja}</strong>.",
+        "texto_telemovel": "Levante numa das nossas 13 lojas, com marcação, até <strong>{loja:hora}</strong>",
+        "link": "/pages/agencias",
+        "link_texto": "Ver lojas",
+        "de": "continente",
+        "ate": "loja",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_vale": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "<strong>Vale-prenda</strong> de 25 € a 150 €: a prenda que nunca falha o tamanho.",
+        "texto_telemovel": "<strong>Vale-prenda</strong> de 25 € a 150 €: nunca falha o tamanho",
+        "link": "/collections/voucher-prenda",
+        "link_texto": "Escolher",
+        "de": "continente",
+        "ate": "loja",
+        "contagem": "nenhuma",
+        "condicao": "vale_digital"
+      }
+    },
+    "msg_boas_festas": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Boas Festas da Loja do Ouro. As encomendas feitas hoje seguem a partir de <strong>{retoma}</strong>.",
+        "texto_telemovel": "Boas Festas! As encomendas de hoje seguem a partir de <strong>{retoma:abrev}</strong>",
+        "de": "loja",
+        "ate": "festas",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_reis": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Ainda vai a tempo dos Reis: encomende até <strong>{reis}</strong> (Portugal continental).",
+        "texto_telemovel": "A tempo dos Reis: encomende até <strong>{reis:abrev}</strong> (Portugal continental)",
+        "de": "festas",
+        "ate": "reis",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_trocas": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Trocas de Natal até <strong>{trocas}</strong>.",
+        "texto_telemovel": "Trocas de Natal até <strong>{trocas:abrev}</strong>",
+        "link": "/pages/devolucoes",
+        "link_texto": "Saiba como",
+        "de": "festas",
+        "ate": "fim",
+        "contagem": "nenhuma",
+        "condicao": "trocas"
+      }
+    },
+    "msg_janeiras": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Abrimos a porta às <strong>Janeiras</strong>: de 2 a 6 de janeiro, nas nossas lojas.",
+        "texto_telemovel": "<strong>Janeiras</strong> nas nossas lojas, de 2 a 6 de janeiro",
+        "de": "festas",
+        "ate": "fim",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_portes": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "<strong>Portes grátis</strong> em encomendas superiores a 150 € (exceto ouro de investimento).",
+        "texto_telemovel": "<strong>Portes grátis</strong> acima de 150 € (exceto ouro de investimento)",
+        "de": "inicio",
+        "ate": "continente",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    },
+    "msg_embrulho": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "<strong>Embrulho de oferta</strong> e mensagem: escolha no carrinho.",
+        "texto_telemovel": "<strong>Embrulho de oferta</strong> e mensagem: escolha no carrinho",
+        "de": "inicio",
+        "ate": "continente",
+        "contagem": "nenhuma",
+        "condicao": "sempre"
+      }
+    }
+  },
+  "block_order": [
+    "msg_natal",
+    "msg_ilhas",
+    "msg_madeira",
+    "msg_ultimos_dias",
+    "msg_gravadas",
+    "msg_levantar_loja",
+    "msg_vale",
+    "msg_boas_festas",
+    "msg_reis",
+    "msg_trocas",
+    "msg_janeiras",
+    "msg_portes",
+    "msg_embrulho"
+  ]
+}

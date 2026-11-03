@@ -1,0 +1,164 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Os mais oferecidos» (seleção manual de produtos).
+  Grelha de 4 no computador; faixa com scroll-snap no telemóvel (2 cartões visíveis e o seguinte a espreitar).
+  Usa o cartão lod-natal-card (sem selos de desconto). Os esgotados ficam de fora.
+{%- endcomment -%}
+{%- liquid
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+  assign oculta = false
+  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
+    assign oculta = true
+  endif
+  assign mostrar = true
+  if oculta
+    assign mostrar = false
+    if request.design_mode
+      assign mostrar = true
+    endif
+  endif
+
+  assign limite = section.settings.limite | default: 8
+  assign n = 0
+  capture cartoes
+    for p in section.settings.produtos
+      if n >= limite
+        break
+      endif
+      if p.available == false and section.settings.esconder_esgotados
+        continue
+      endif
+      assign n = n | plus: 1
+      echo '<li class="lnat-sel__item">'
+      render 'lod-natal-card', product: p, largura: 480, carregar: 'lazy'
+      echo '</li>'
+    endfor
+  endcapture
+
+  if n == 0 and request.design_mode == false
+    assign mostrar = false
+  endif
+
+  assign fundo = section.settings.fundo | default: 'papel'
+-%}
+{%- if mostrar -%}
+<section
+  class="lnat lnat-sel lnat-sec lnat-bg-{{ fundo }}{% unless section.settings.mostrar_no_telemovel %} lnat-sel--sem-tel{% endunless %}{% if request.design_mode %} lnat-sel--editor{% endif %}"
+  id="lnat-sel-{{ section.id }}"
+  aria-labelledby="lnat-sel-h-{{ section.id }}"
+>
+  <div class="lnat-wrap">
+    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+
+    <div class="lnat-sel__cab">
+      <div class="lnat-sel__titulos">
+        {%- if section.settings.eyebrow != blank -%}
+          <p class="lnat-eb">{{ section.settings.eyebrow | escape }}</p>
+        {%- endif -%}
+        <h2 class="lnat-h2 lnat-sel__h" id="lnat-sel-h-{{ section.id }}">{{ section.settings.titulo | escape }}</h2>
+        {%- if section.settings.descricao != blank -%}
+          <p class="lnat-txt lnat-sel__desc">{{ section.settings.descricao | escape }}</p>
+        {%- endif -%}
+      </div>
+      {%- if section.settings.link_texto != blank and section.settings.link_url != blank -%}
+        <a class="lnat-link lnat-sel__link" href="{{ section.settings.link_url }}">{{ section.settings.link_texto | escape }} <span aria-hidden="true">→</span></a>
+      {%- endif -%}
+    </div>
+
+    {%- if n > 0 -%}
+      <ul class="lnat-sel__lista" role="list" aria-label="{{ section.settings.titulo | escape }}">
+        {{- cartoes -}}
+      </ul>
+    {%- else -%}
+      <p class="lnat-peq lnat-sel__vazio">Escolha os produtos nas definições da secção. Os esgotados não aparecem.</p>
+    {%- endif -%}
+  </div>
+</section>
+
+<style>
+  .lnat-sel{overflow:hidden}
+  .lnat-sel__cab{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 32px;margin:0 0 24px}
+  .lnat-sel__titulos{display:flex;flex-direction:column;align-items:flex-start;gap:10px;max-width:720px}
+  .lnat-sel__h{color:var(--lnat-tinta)}
+  .lnat-bg-tinta .lnat-sel__h,.lnat-bg-verde .lnat-sel__h{color:var(--lnat-papel)}
+  .lnat-sel__link{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:14px;font-weight:600}
+  .lnat-sel__lista{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 24px}
+  .lnat-sel__item{margin:0;min-width:0}
+  .lnat-sel__vazio{padding:32px 0}
+
+  @media screen and (max-width:749px){
+    .lnat-sel--sem-tel{display:none}
+    .lnat-sel__cab{margin-bottom:20px}
+    .lnat-sel__lista{
+      grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:calc((100% - 24px) / 2.25);gap:12px;
+      margin:0 calc(-1 * var(--lnat-gutter));padding:0 var(--lnat-gutter) 4px;
+      overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:var(--lnat-gutter);
+      -webkit-overflow-scrolling:touch;scrollbar-width:none
+    }
+    .lnat-sel__lista::-webkit-scrollbar{display:none}
+    .lnat-sel__item{scroll-snap-align:start}
+  }
+  @media screen and (min-width:990px){
+    .lnat-sel__cab{margin-bottom:32px}
+    .lnat-sel__lista{grid-template-columns:repeat(4,minmax(0,1fr));gap:40px 24px}
+  }
+</style>
+
+<script>
+(function(){
+  function ini(sec){
+    if (sec.getAttribute('data-lnat-pronto')) return;
+    sec.setAttribute('data-lnat-pronto', '1');
+    var N = window.LOD_NATAL;
+    if (N && !sec.classList.contains('lnat-sel--editor')) {
+      var f = N.fase();
+      if (f === 'off' || f === 'antes' || f === 'fim') sec.hidden = true;
+    }
+  }
+  function todos(){
+    var l = document.querySelectorAll('.lnat-sel');
+    for (var i = 0; i < l.length; i++) ini(l[i]);
+  }
+  todos();
+  var doc = document.documentElement;
+  if (doc.hasAttribute('data-lnat-sel')) return;
+  doc.setAttribute('data-lnat-sel', '');
+  document.addEventListener('shopify:section:load', todos);
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Mais oferecidos",
+  "tag": "section",
+  "class": "lnat-secao lnat-secao--selecao",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Os mais oferecidos no Natal passado" },
+    { "type": "text", "id": "titulo", "label": "Título", "default": "Os mais oferecidos" },
+    { "type": "textarea", "id": "descricao", "label": "Descrição", "default": "As peças mais escolhidas no nosso Natal de 2025." },
+    { "type": "product_list", "id": "produtos", "label": "Produtos", "limit": 12 },
+    { "type": "range", "id": "limite", "label": "Número máximo de produtos", "min": 2, "max": 12, "step": 1, "default": 8 },
+    { "type": "checkbox", "id": "esconder_esgotados", "label": "Esconder produtos esgotados", "default": true },
+    { "type": "text", "id": "link_texto", "label": "Texto do link (opcional)" },
+    { "type": "url", "id": "link_url", "label": "Link" },
+    {
+      "type": "select",
+      "id": "fundo",
+      "label": "Fundo",
+      "options": [
+        { "value": "papel", "label": "Papel" },
+        { "value": "linho", "label": "Linho" }
+      ],
+      "default": "papel"
+    },
+    { "type": "header", "content": "Telemóvel" },
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+  ],
+  "presets": [
+    { "name": "Natal · Mais oferecidos" }
+  ]
+}
+{% endschema %}

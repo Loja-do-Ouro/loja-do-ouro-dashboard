@@ -1,0 +1,224 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Dicionário do Ouro Português», fundo linho.
+  Blocos «termo» (ícone, termo, definição, link). Grelha de 4 colunas no computador; no telemóvel,
+  faixa com scroll-snap (cartões de 300 px) e pontos indicadores.
+{%- endcomment -%}
+{%- liquid
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+  assign oculta = false
+  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
+    assign oculta = true
+  endif
+  assign mostrar = true
+  if oculta
+    assign mostrar = false
+    if request.design_mode
+      assign mostrar = true
+    endif
+  endif
+  assign s = section.settings
+-%}
+{%- capture svg_ini -%}<svg class="lnat-ico" viewBox="0 0 64 64" width="32" height="32" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{%- endcapture -%}
+{%- if mostrar -%}
+<section
+  class="lnat lnat-dic lnat-sec lnat-bg-linho{% if s.azulejo %} lnat-azulejo-linho{% endif %}{% unless s.mostrar_no_telemovel %} lnat-dic--sem-tel{% endunless %}{% if request.design_mode %} lnat-dic--editor{% endif %}"
+  id="lnat-dic-{{ section.id }}"
+  aria-labelledby="lnat-dic-h-{{ section.id }}"
+>
+  <div class="lnat-wrap">
+    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+
+    <header class="lnat-dic__cab">
+      {%- if s.eyebrow != blank -%}
+        <p class="lnat-eb">{{ s.eyebrow | escape }}</p>
+      {%- endif -%}
+      <h2 class="lnat-h2 lnat-dic__h" id="lnat-dic-h-{{ section.id }}">{{ s.titulo | escape }}</h2>
+      {%- if s.texto != blank -%}
+        <p class="lnat-dic__sub">{{ s.texto | escape }}</p>
+      {%- endif -%}
+    </header>
+
+    {%- if section.blocks.size > 0 -%}
+      <ul class="lnat-dic__lista" role="list">
+        {%- for block in section.blocks -%}
+          {%- assign b = block.settings -%}
+          <li class="lnat-dic__termo" {{ block.shopify_attributes }}>
+            <span class="lnat-dic__ico">
+              {%- case b.icone -%}
+                {%- when 'coracao' or 'estrela' or 'coroa' or 'ouro' -%}
+                  {%- render 'lod-natal-icon', nome: b.icone, tamanho: 32, traco: 2.4 -%}
+                {%- when 'filigrana' -%}
+                  {{ svg_ini }}<path d="M8 32C14 20 22 44 32 32C42 20 50 44 56 32"/><path d="M8 32C14 44 22 20 32 32C42 44 50 20 56 32"/><circle cx="8" cy="32" r="2" fill="currentColor" stroke="none"/><circle cx="56" cy="32" r="2" fill="currentColor" stroke="none"/></svg>
+                {%- when 'enchedeira' -%}
+                  {{ svg_ini }}<path d="M20 46C12 40 12 26 22 21C31 17 40 23 38 32C36 39 27 40 26 33C25 28 30 26 32 29"/><path d="M38 32C41 40 47 45 54 46"/><circle cx="54" cy="46" r="2" fill="currentColor" stroke="none"/></svg>
+                {%- when 'rainha' -%}
+                  {{ svg_ini }}<circle cx="32" cy="12" r="5"/><path d="M32 19C22 28 22 46 32 56C42 46 42 28 32 19Z"/><path d="M32 29C28 34 28 42 32 47C36 42 36 34 32 29Z"/></svg>
+                {%- when 'arrecadas' -%}
+                  {{ svg_ini }}<circle cx="32" cy="10" r="4"/><path d="M28.5 12C21 14 16 18 14 24"/><path d="M35.5 12C43 14 48 18 50 24"/><path d="M14 24C14 42 22 54 32 54C42 54 50 42 50 24C46 36 40 42 32 42C24 42 18 36 14 24Z"/><circle cx="25" cy="47.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="32" cy="48.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="39" cy="47.5" r="1.6" fill="currentColor" stroke="none"/></svg>
+                {%- when 'contas' -%}
+                  {{ svg_ini }}<path d="M4 22C6 26 8 29 10.5 31"/><circle cx="16" cy="34" r="6"/><path d="M22 35.5C23 36.3 24 36.9 25.2 37.4"/><circle cx="32" cy="38" r="7"/><path d="M38.8 37.4C40 36.9 41 36.3 42 35.5"/><circle cx="48" cy="34" r="6"/><path d="M53.5 31C56 29 58 26 60 22"/><circle cx="32" cy="38" r="1.6" fill="currentColor" stroke="none"/></svg>
+                {%- when 'libra' -%}
+                  {{ svg_ini }}<circle cx="32" cy="36" r="18"/><circle cx="32" cy="36" r="13" stroke-width="2" stroke-dasharray="0.1 4"/><path d="M27 18C27 11 37 11 37 18"/></svg>
+                {%- when 'ouro-portugues' -%}
+                  {{ svg_ini }}<path d="M12 44C12 40 16 30 20 28C28 26 36 26 44 28C48 30 52 40 52 44C40 47 24 47 12 44Z"/><path d="M20 28C24 33 40 33 44 28"/><path d="M32 35C32.6 37.4 33.6 38.4 36 39C33.6 39.6 32.6 40.6 32 43C31.4 40.6 30.4 39.6 28 39C30.4 38.4 31.4 37.4 32 35Z"/></svg>
+                {%- else -%}
+                  {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 32, traco: 2.4 -%}
+              {%- endcase -%}
+            </span>
+            <h3 class="lnat-cg lnat-dic__nome">{{ b.termo | escape }}</h3>
+            {%- if b.definicao != blank -%}
+              <p class="lnat-dic__def">{{ b.definicao | escape }}</p>
+            {%- endif -%}
+            {%- if b.link_url != blank and b.link_texto != blank -%}
+              <a class="lnat-link lnat-dic__link" href="{{ b.link_url }}">{{ b.link_texto | escape }}<span class="lnat-sr">: {{ b.termo | escape }}</span> <span aria-hidden="true">→</span></a>
+            {%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+      {%- if section.blocks.size > 1 -%}
+        <div class="lnat-dic__pontos" aria-hidden="true">
+          {%- for block in section.blocks -%}<span class="lnat-dic__ponto{% if forloop.first %} is-ativo{% endif %}"></span>{%- endfor -%}
+        </div>
+      {%- endif -%}
+    {%- elsif request.design_mode -%}
+      <p class="lnat-peq lnat-dic__vazio">Acrescente blocos «Termo».</p>
+    {%- endif -%}
+  </div>
+</section>
+
+<style>
+  .lnat-dic{overflow:hidden}
+  .lnat-dic__cab{display:flex;flex-direction:column;align-items:center;gap:12px;max-width:760px;margin:0 auto;text-align:center}
+  .lnat-dic__h{color:var(--lnat-tinta)}
+  .lnat-dic__sub{margin:0;max-width:640px;font-size:16px;line-height:26px}
+  .lnat-dic__lista{list-style:none;margin:32px calc(-1 * var(--lnat-gutter)) 0;padding:0 var(--lnat-gutter) 4px;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:var(--lnat-gutter);overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .lnat-dic__lista::-webkit-scrollbar{display:none}
+  .lnat-dic__termo{flex:0 0 min(300px,82vw);scroll-snap-align:start;display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin:0;padding:22px;background:var(--lnat-papel);border:1px solid var(--lnat-linha);color:var(--lnat-ouro-velho);min-width:0}
+  .lnat-dic__ico{line-height:0}
+  .lnat-dic__ico svg{width:40px;height:40px}
+  .lnat-dic__nome{margin:0;font-size:26px;line-height:30px;color:var(--lnat-tinta)}
+  .lnat-dic__def{margin:0;font-size:15px;line-height:23px;color:var(--lnat-texto)}
+  .lnat-dic__link{display:inline-flex;align-items:center;gap:4px;min-height:44px;margin-top:auto;font-size:14px;font-weight:600}
+  .lnat-dic__pontos{display:flex;justify-content:center;gap:8px;margin-top:16px}
+  .lnat-dic__ponto{display:block;width:6px;height:6px;border-radius:3px;background:var(--lnat-ouro-velho);opacity:.3;transition:width .25s,opacity .25s}
+  .lnat-dic__ponto.is-ativo{width:18px;opacity:1}
+  .lnat-dic__vazio{margin-top:24px;text-align:center}
+
+  @media screen and (max-width:749px){
+    .lnat-dic--sem-tel{display:none}
+  }
+  @media screen and (min-width:750px){
+    .lnat-dic__sub{font-size:17px;line-height:27px}
+    .lnat-dic__lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:48px 0 0;padding:0;overflow:visible;scroll-snap-type:none}
+    .lnat-dic__termo{flex:none}
+    .lnat-dic__pontos{display:none}
+  }
+  @media screen and (min-width:990px){
+    .lnat-dic__lista{grid-template-columns:repeat(4,minmax(0,1fr))}
+  }
+</style>
+
+<script>
+(function(){
+  function ini(sec){
+    if (sec.getAttribute('data-lnat-pronto')) return;
+    sec.setAttribute('data-lnat-pronto', '1');
+    var N = window.LOD_NATAL;
+    if (N && !sec.classList.contains('lnat-dic--editor')) {
+      var f = N.fase();
+      if (f === 'off' || f === 'antes' || f === 'fim') { sec.hidden = true; return; }
+    }
+    var lista = sec.querySelector('.lnat-dic__lista');
+    var pontos = sec.querySelectorAll('.lnat-dic__ponto');
+    if (!lista || pontos.length < 2) return;
+    var pendente = false;
+    function atualiza(){
+      pendente = false;
+      var itens = lista.children;
+      if (itens.length < 2) return;
+      var passo = itens[1].offsetLeft - itens[0].offsetLeft;
+      if (passo <= 0) return;
+      var max = lista.scrollWidth - lista.clientWidth;
+      var idx = lista.scrollLeft >= max - 2 ? itens.length - 1 : Math.round(lista.scrollLeft / passo);
+      for (var i = 0; i < pontos.length; i++) pontos[i].classList.toggle('is-ativo', i === idx);
+    }
+    lista.addEventListener('scroll', function(){
+      if (pendente) return;
+      pendente = true;
+      requestAnimationFrame(atualiza);
+    }, { passive: true });
+  }
+  function todos(){
+    var l = document.querySelectorAll('.lnat-dic');
+    for (var i = 0; i < l.length; i++) ini(l[i]);
+  }
+  todos();
+  var doc = document.documentElement;
+  if (doc.hasAttribute('data-lnat-dic')) return;
+  doc.setAttribute('data-lnat-dic', '');
+  document.addEventListener('shopify:section:load', todos);
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Dicionário",
+  "tag": "section",
+  "class": "lnat-secao lnat-secao--dicionario",
+  "max_blocks": 12,
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Dicionário do Ouro Português" },
+    { "type": "text", "id": "titulo", "label": "Título", "default": "As palavras do nosso ouro." },
+    { "type": "textarea", "id": "texto", "label": "Texto", "default": "Os nomes das peças que as nossas avós usavam — e que continuam a passar de mão em mão." },
+    { "type": "checkbox", "id": "azulejo", "label": "Padrão de azulejo no fundo", "default": false },
+    { "type": "header", "content": "Telemóvel" },
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+  ],
+  "blocks": [
+    {
+      "type": "termo",
+      "name": "Termo",
+      "settings": [
+        {
+          "type": "select",
+          "id": "icone",
+          "label": "Ícone",
+          "options": [
+            { "value": "coracao", "label": "Coração de Viana" },
+            { "value": "filigrana", "label": "Filigrana" },
+            { "value": "enchedeira", "label": "Enchedeira (espiral)" },
+            { "value": "rainha", "label": "Brincos à rainha" },
+            { "value": "arrecadas", "label": "Arrecadas" },
+            { "value": "contas", "label": "Contas de Viana" },
+            { "value": "libra", "label": "Libra" },
+            { "value": "ouro-portugues", "label": "Ouro português (barra)" },
+            { "value": "ouro", "label": "Moeda" },
+            { "value": "coroa", "label": "Coroa" },
+            { "value": "estrela", "label": "Estrela" }
+          ],
+          "default": "estrela"
+        },
+        { "type": "text", "id": "termo", "label": "Termo", "default": "Filigrana" },
+        { "type": "textarea", "id": "definicao", "label": "Definição", "default": "Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais." },
+        { "type": "text", "id": "link_texto", "label": "Texto do link", "default": "Ver peças" },
+        { "type": "url", "id": "link_url", "label": "Link" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Natal · Dicionário",
+      "blocks": [
+        { "type": "termo", "settings": { "icone": "coracao", "termo": "Coração de Viana", "definicao": "Símbolo de devoção ao Sagrado Coração de Jesus. Conta a tradição que nasceu de um pedido de D. Maria I." } },
+        { "type": "termo", "settings": { "icone": "filigrana", "termo": "Filigrana", "definicao": "Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais." } },
+        { "type": "termo", "settings": { "icone": "enchedeira", "termo": "Enchedeira", "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana." } },
+        { "type": "termo", "settings": { "icone": "ouro-portugues", "termo": "Ouro português", "definicao": "Liga de 800 partes de ouro fino por mil, conhecida como 19,2 quilates, contrastada pela INCM." } }
+      ]
+    }
+  ]
+}
+{% endschema %}

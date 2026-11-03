@@ -1,0 +1,15 @@
+{%- comment -%}
+  Natal 2026 — aviso só para o editor de temas, quando a secção está escondida no site por causa da fase.
+  {%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}
+  fase: off | antes | fim (nas outras fases não escreve nada).
+{%- endcomment -%}
+{%- if request.design_mode -%}
+  {%- case fase -%}
+    {%- when 'antes' -%}
+      <p class="lnat-aviso-fase" style="margin:0 0 24px;padding:8px 12px;background:#fff3cd;color:#3d2f00;font:13px/1.4 var(--lnat-sans,system-ui,sans-serif);text-align:left">Pré-visualização no editor: no site, esta secção aparece a partir de {% render 'lod-natal-data', valor: settings.natal_inicio, formato: 'curto' %}.</p>
+    {%- when 'fim' -%}
+      <p class="lnat-aviso-fase" style="margin:0 0 24px;padding:8px 12px;background:#fff3cd;color:#3d2f00;font:13px/1.4 var(--lnat-sans,system-ui,sans-serif);text-align:left">Pré-visualização no editor: a campanha de Natal terminou e esta secção já não aparece no site.</p>
+    {%- when 'off' -%}
+      <p class="lnat-aviso-fase" style="margin:0 0 24px;padding:8px 12px;background:#fff3cd;color:#3d2f00;font:13px/1.4 var(--lnat-sans,system-ui,sans-serif);text-align:left">Pré-visualização no editor: o Natal está desligado nas definições do tema, por isso esta secção não aparece no site.</p>
+  {%- endcase -%}
+{%- endif -%}

@@ -1,0 +1,39 @@
+{
+  "type": "lod-natal-filigrana",
+  "settings": {
+    "eyebrow": "Feito à mão em Portugal",
+    "titulo": "Fio a fio.",
+    "texto": "<p>Em Gondomar e na Póvoa de Lanhoso, a enchedeira preenche à mão cada contorno com fio torcido de ouro ou prata — espirais, esses e rodilhões, sempre em curva, nunca em ângulo reto. A filigrana destas terras está no Inventário Nacional do Património Cultural Imaterial, e a Filigrana de Portugal é candidata a Património da Humanidade.</p>",
+    "botao1_texto": "Ver filigrana",
+    "botao1_url": "/collections/filigrana",
+    "botao2_texto": "Filigrana em prata",
+    "botao2_url": "/collections/tradicao-filigrana-prata",
+    "faulhas": true,
+    "imagem_alt": "",
+    "mostrar_no_telemovel": true
+  },
+  "blocks": {
+    "numero_anos": {
+      "type": "numero",
+      "settings": {
+        "valor": "+ 2000 anos",
+        "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana"
+      }
+    },
+    "numero_fio": {
+      "type": "numero",
+      "settings": {
+        "valor": "0,22 mm",
+        "legenda": "espessura máxima do fio na filigrana certificada"
+      }
+    },
+    "numero_quilates": {
+      "type": "numero",
+      "settings": {
+        "valor": "19,2 quilates",
+        "legenda": "ouro português: 800 partes de ouro fino por mil"
+      }
+    }
+  },
+  "block_order": ["numero_anos", "numero_fio", "numero_quilates"]
+}

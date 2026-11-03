@@ -1,0 +1,401 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — editorial imagem + texto (Coração de Viana, Sapatinho, ...).
+  Coluna da imagem (7/12) e coluna do texto (5/12); o lado da imagem escolhe-se.
+  Imagem vazia: mostra o motivo do ícone em grande sobre linho com azulejo.
+  Produtos: «cartões pequenos» na coluna do texto, ou «grelha 2 por 2» no lugar da imagem
+  (se houver imagem, ela passa a ser a primeira célula da grelha). Os esgotados ficam de fora.
+  Telemóvel: imagem 1:1 a toda a largura no topo; com grelha, o texto vem primeiro e as etiquetas
+  (chips) deslizam na horizontal.
+{%- endcomment -%}
+{%- liquid
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+  assign oculta = false
+  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
+    assign oculta = true
+  endif
+  assign mostrar = true
+  if oculta
+    assign mostrar = false
+    if request.design_mode
+      assign mostrar = true
+    endif
+  endif
+
+  assign s = section.settings
+  assign fundo = s.fundo | default: 'linho'
+  assign lado = s.lado_imagem | default: 'esquerda'
+  assign estilo = s.produtos_estilo | default: 'mini'
+  assign pmax = s.produtos_max | default: 4
+  assign img = s.imagem
+  assign img_m = s.imagem_telemovel
+  assign img_alt = s.imagem_alt
+  if img_alt == blank and img
+    assign img_alt = img.alt
+  endif
+
+  assign motivo = 'estrela'
+  assign ico_t = 48
+  case s.icone
+    when 'coracao-cheio'
+      assign motivo = 'coracao'
+      assign ico_t = 28
+    when 'sapatinho'
+      assign motivo = 'sapatinho'
+      assign ico_t = 56
+  endcase
+
+  assign quer_grelha = false
+  if estilo == 'grelha'
+    assign quer_grelha = true
+  endif
+  assign max_p = pmax
+  if quer_grelha and img
+    assign max_p = pmax | at_most: 3
+  endif
+  assign n = 0
+-%}
+{%- capture prods -%}
+  {%- for p in s.produtos -%}
+    {%- if n >= max_p -%}{%- break -%}{%- endif -%}
+    {%- unless p.available -%}{%- continue -%}{%- endunless -%}
+    {%- assign n = n | plus: 1 -%}
+    {%- if quer_grelha -%}
+      <li class="lnat-ed__celula">{%- render 'lod-natal-card', product: p, largura: 480, carregar: 'lazy' -%}</li>
+    {%- else -%}
+      {%- assign p_img = p.featured_media -%}
+      <li class="lnat-ed__mini-item">
+        <a class="lnat-ed__mini" href="{{ p.url }}">
+          <span class="lnat-ed__mini-img">
+            {%- if p_img -%}
+              {{- p_img | image_url: width: 360 | image_tag: loading: 'lazy', widths: '120, 180, 240, 360', sizes: '(min-width: 750px) 88px, 45vw', alt: '' -}}
+            {%- else -%}
+              {%- render 'lod-natal-icon', nome: motivo, tamanho: 40 -%}
+            {%- endif -%}
+          </span>
+          <span class="lnat-ed__mini-txt">
+            <span class="lnat-ed__mini-titulo">{{ p.title | escape }}</span>
+            <span class="lnat-ed__mini-preco">{%- if p.price_varies -%}Desde {% endif -%}{{ p.price | money }}</span>
+          </span>
+        </a>
+      </li>
+    {%- endif -%}
+  {%- endfor -%}
+{%- endcapture -%}
+{%- liquid
+  assign grelha = false
+  if quer_grelha and n > 0
+    assign grelha = true
+  endif
+  assign celulas = n
+  if img
+    assign celulas = celulas | plus: 1
+  endif
+  assign resto = celulas | modulo: 2
+
+  assign tem_b1 = false
+  if s.botao1_texto != blank and s.botao1_url != blank
+    assign tem_b1 = true
+  endif
+  assign tem_b2 = false
+  if s.botao2_texto != blank and s.botao2_url != blank
+    assign tem_b2 = true
+  endif
+  assign tem_btns = false
+  if tem_b1 or tem_b2
+    assign tem_btns = true
+  endif
+  assign tem_acoes = tem_btns
+  if section.blocks.size > 0
+    assign tem_acoes = true
+  endif
+
+  assign sabia_t = s.sabia_titulo | escape
+  assign sabia_ini = '<p><b>' | append: sabia_t | append: '</b> '
+-%}
+{%- if mostrar -%}
+<section
+  class="lnat lnat-ed lnat-sec lnat-bg-{{ fundo }} lnat-ed--img-{{ lado }}{% if grelha %} lnat-ed--grelha{% elsif img %} lnat-ed--foto{% endif %}{% unless section.settings.mostrar_no_telemovel %} lnat-ed--sem-tel{% endunless %}{% if request.design_mode %} lnat-ed--editor{% endif %}"
+  id="lnat-ed-{{ section.id }}"
+  aria-labelledby="lnat-ed-h-{{ section.id }}"
+>
+  <div class="lnat-wrap">
+    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+
+    <div class="lnat-ed__grelha">
+      <div class="lnat-ed__media">
+        {%- if grelha -%}
+          <ul class="lnat-ed__grelha-prod" role="list">
+            {%- if img -%}
+              <li class="lnat-ed__celula lnat-ed__celula--foto">
+                {{- img | image_url: width: 900 | image_tag: loading: 'lazy', widths: '360, 540, 720, 900', sizes: '(min-width: 990px) 28vw, 50vw', alt: img_alt -}}
+              </li>
+            {%- endif -%}
+            {{- prods -}}
+            {%- if resto == 1 -%}
+              <li class="lnat-ed__celula lnat-ed__celula--motivo lnat-azulejo-linho" aria-hidden="true">{%- render 'lod-natal-icon', nome: motivo, tamanho: 96, traco: 1 -%}</li>
+            {%- endif -%}
+          </ul>
+        {%- elsif img -%}
+          <div class="lnat-ed__foto">
+            <picture>
+              {%- if img_m -%}
+                <source media="(max-width: 749px)" srcset="{{ img_m | image_url: width: 400 }} 400w, {{ img_m | image_url: width: 600 }} 600w, {{ img_m | image_url: width: 800 }} 800w" sizes="100vw">
+              {%- endif -%}
+              {{- img | image_url: width: 1500 | image_tag: loading: 'lazy', widths: '400, 600, 800, 1000, 1200, 1500', sizes: '(min-width: 1440px) 744px, (min-width: 990px) 55vw, (min-width: 750px) 50vw, 100vw', alt: img_alt, class: 'lnat-ed__foto-img' -}}
+            </picture>
+          </div>
+        {%- else -%}
+          <div class="lnat-ed__motivo lnat-azulejo-linho" aria-hidden="true">{%- render 'lod-natal-icon', nome: motivo, tamanho: 200, traco: 0.6 -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="lnat-ed__cab">
+        {%- if s.icone != 'nenhum' and s.icone != blank -%}
+          <span class="lnat-ed__ico lnat-ed__ico--{{ s.icone }}">{%- render 'lod-natal-icon', nome: s.icone, tamanho: ico_t -%}</span>
+        {%- endif -%}
+        {%- if s.eyebrow != blank -%}
+          <p class="lnat-eb">{{ s.eyebrow | escape }}</p>
+        {%- endif -%}
+        <h2 class="lnat-h2{% if s.estilo_titulo == 'serif' %} lnat-h2--serif{% endif %} lnat-ed__h" id="lnat-ed-h-{{ section.id }}">{{ s.titulo | escape }}</h2>
+        {%- if s.texto != blank -%}
+          <div class="lnat-ed__txt">{{ s.texto }}</div>
+        {%- endif -%}
+        {%- if s.sabia != blank -%}
+          <aside class="lnat-ed__sabia" aria-label="{{ s.sabia_titulo | escape }}">{{ s.sabia | replace_first: '<p>', sabia_ini }}</aside>
+        {%- endif -%}
+        {%- if grelha == false and n > 0 -%}
+          <ul class="lnat-ed__minis" role="list">{{- prods -}}</ul>
+        {%- endif -%}
+      </div>
+
+      {%- if tem_acoes -%}
+        <div class="lnat-ed__acoes">
+          {%- if section.blocks.size > 0 -%}
+            <ul class="lnat-ed__chips" role="list">
+              {%- for block in section.blocks -%}
+                {%- if block.settings.texto != blank -%}
+                  <li {{ block.shopify_attributes }}><a class="lnat-ed__chip" href="{{ block.settings.url | default: '#' }}">{{ block.settings.texto | escape }}</a></li>
+                {%- endif -%}
+              {%- endfor -%}
+            </ul>
+          {%- endif -%}
+          {%- if tem_btns -%}
+            <div class="lnat-btns lnat-ed__btns">
+              {%- if tem_b1 -%}
+                <a class="lnat-btn lnat-btn--tinta" href="{{ s.botao1_url }}">{{ s.botao1_texto | escape }}</a>
+              {%- endif -%}
+              {%- if tem_b2 -%}
+                <a class="lnat-btn lnat-btn--contorno" href="{{ s.botao2_url }}">{{ s.botao2_texto | escape }}</a>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+<style>
+  .lnat-ed{overflow:hidden}
+  .lnat-ed__grelha{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"media" "cab" "acoes";row-gap:28px}
+  .lnat-ed__media{grid-area:media;min-width:0}
+  .lnat-ed__cab{grid-area:cab;display:flex;flex-direction:column;align-items:flex-start;gap:14px;min-width:0}
+  .lnat-ed__acoes{grid-area:acoes;display:flex;flex-direction:column;gap:20px;min-width:0}
+
+  .lnat-ed__foto{position:relative;aspect-ratio:1/1;overflow:hidden;background:#ece2cf}
+  .lnat-ed__foto picture,.lnat-ed__foto img{display:block;width:100%;height:100%}
+  .lnat-ed__foto img{object-fit:cover;object-position:center}
+  .lnat-ed__motivo{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;background-color:var(--lnat-linho);color:var(--lnat-ouro-velho)}
+  .lnat-bg-linho .lnat-ed__motivo,.lnat-bg-linho .lnat-ed__celula--motivo{background-color:#ece2cf}
+  .lnat-ed__motivo svg{width:min(200px,42%);height:auto}
+
+  .lnat-ed__grelha-prod{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 14px}
+  .lnat-ed__celula{margin:0;min-width:0}
+  .lnat-ed__celula--foto,.lnat-ed__celula--motivo{align-self:start;aspect-ratio:1/1;overflow:hidden}
+  .lnat-ed__celula--foto img{display:block;width:100%;height:100%;object-fit:cover}
+  .lnat-ed__celula--motivo{display:flex;align-items:center;justify-content:center;background-color:var(--lnat-linho);color:var(--lnat-ouro-velho)}
+  .lnat-ed__celula--motivo svg{width:44%;height:auto}
+
+  .lnat-ed__ico{line-height:0;color:var(--lnat-ouro-velho)}
+  .lnat-ed__ico--coracao-cheio svg{width:24px;height:24px}
+  .lnat-ed__h{color:var(--lnat-tinta)}
+  .lnat-ed__txt{font-size:15px;line-height:24px}
+  .lnat-ed__txt p{margin:0 0 12px}
+  .lnat-ed__txt p:last-child{margin-bottom:0}
+  .lnat-ed__txt a{color:var(--lnat-ouro-velho)}
+  .lnat-ed__sabia{width:100%;background:var(--lnat-papel);border:1px solid var(--lnat-ouro-velho);padding:14px;font-size:13px;line-height:20px}
+  .lnat-ed__sabia p{margin:0 0 8px}
+  .lnat-ed__sabia p:last-child{margin-bottom:0}
+  .lnat-ed__sabia b{font-weight:600;color:var(--lnat-ouro-velho)}
+
+  .lnat-ed__minis{list-style:none;margin:0;padding:0;width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .lnat-ed__mini-item{margin:0;min-width:0}
+  .lnat-ed__mini{display:flex;flex-direction:column;gap:8px;color:var(--lnat-texto)!important;text-decoration:none!important}
+  .lnat-ed__mini-img{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;background:#ece2cf;color:var(--lnat-ouro-velho);overflow:hidden}
+  .lnat-bg-papel .lnat-ed__mini-img{background:var(--lnat-linho)}
+  .lnat-ed__mini-img img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+  .lnat-ed__mini:hover .lnat-ed__mini-img img{transform:scale(1.04)}
+  .lnat-ed__mini-txt{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .lnat-ed__mini-titulo{font-size:13px;line-height:18px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .lnat-ed__mini-preco{font-size:14px;font-weight:600;color:var(--lnat-tinta);font-variant-numeric:tabular-nums}
+
+  .lnat-ed__chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+  .lnat-ed__chips li{margin:0}
+  .lnat-ed__chip{display:inline-flex;align-items:center;min-height:44px;padding:10px 16px;border:1px solid var(--lnat-tinta);color:var(--lnat-tinta)!important;background:transparent;font-size:14px;line-height:20px;text-decoration:none!important;white-space:nowrap;transition:background .25s,color .25s}
+  .lnat-ed__chip:hover{background:var(--lnat-tinta);color:var(--lnat-papel)!important}
+
+  @media screen and (max-width:749px){
+    .lnat-ed--sem-tel{display:none}
+    .lnat-ed--foto{padding-top:0}
+    .lnat-ed--foto .lnat-ed__media{margin:0 calc(-1 * var(--lnat-gutter))}
+    .lnat-ed--grelha .lnat-ed__grelha{grid-template-areas:"cab" "media" "acoes"}
+    .lnat-ed__chips{flex-wrap:nowrap;overflow-x:auto;margin:0 calc(-1 * var(--lnat-gutter));padding:0 var(--lnat-gutter);scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+    .lnat-ed__chips::-webkit-scrollbar{display:none}
+    .lnat-ed__chips li{flex:0 0 auto}
+    .lnat-ed__btns{flex-direction:column}
+    .lnat-ed__btns .lnat-btn{width:100%}
+  }
+  @media screen and (min-width:750px){
+    .lnat-ed__grelha{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:1fr auto auto 1fr;grid-template-areas:"media ." "media cab" "media acoes" "media .";column-gap:40px;row-gap:0;align-items:center}
+    .lnat-ed--img-direita .lnat-ed__grelha{grid-template-areas:". media" "cab media" "acoes media" ". media"}
+    .lnat-ed__media{align-self:center}
+    .lnat-ed__acoes{margin-top:24px;align-self:start}
+    .lnat-ed__cab{align-self:end;gap:16px}
+    .lnat-ed__foto{aspect-ratio:4/3}
+    .lnat-ed__ico--coracao-cheio svg{width:28px;height:28px}
+    .lnat-ed__txt{font-size:16px;line-height:26px}
+    .lnat-ed__sabia{padding:16px 18px;font-size:14px;line-height:21px}
+    .lnat-ed__minis{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+    .lnat-ed__mini{flex-direction:row;align-items:center;gap:12px}
+    .lnat-ed__mini-img{flex:0 0 88px;width:88px;height:88px}
+    .lnat-ed__mini-titulo{font-size:14px;line-height:20px}
+    .lnat-ed__mini-preco{font-size:15px}
+    .lnat-ed__grelha-prod{gap:28px 20px}
+  }
+  @media screen and (min-width:990px){
+    .lnat-ed__grelha{grid-template-columns:minmax(0,7fr) minmax(0,5fr);column-gap:clamp(48px,4.5vw,64px)}
+    .lnat-ed--img-direita .lnat-ed__grelha{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+  }
+</style>
+
+<script>
+(function(){
+  function ini(sec){
+    if (sec.getAttribute('data-lnat-pronto')) return;
+    sec.setAttribute('data-lnat-pronto', '1');
+    var N = window.LOD_NATAL;
+    if (N && !sec.classList.contains('lnat-ed--editor')) {
+      var f = N.fase();
+      if (f === 'off' || f === 'antes' || f === 'fim') sec.hidden = true;
+    }
+  }
+  function todos(){
+    var l = document.querySelectorAll('.lnat-ed');
+    for (var i = 0; i < l.length; i++) ini(l[i]);
+  }
+  todos();
+  var doc = document.documentElement;
+  if (doc.hasAttribute('data-lnat-ed')) return;
+  doc.setAttribute('data-lnat-ed', '');
+  document.addEventListener('shopify:section:load', todos);
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Editorial",
+  "tag": "section",
+  "class": "lnat-secao lnat-secao--editorial",
+  "max_blocks": 3,
+  "settings": [
+    {
+      "type": "select",
+      "id": "lado_imagem",
+      "label": "Lado da imagem no computador",
+      "options": [
+        { "value": "esquerda", "label": "Esquerda" },
+        { "value": "direita", "label": "Direita" }
+      ],
+      "default": "esquerda"
+    },
+    { "type": "image_picker", "id": "imagem", "label": "Imagem", "info": "Vazia: mostra o motivo do ícone em grande. Com a grelha de produtos, a imagem passa a ser a primeira célula." },
+    { "type": "image_picker", "id": "imagem_telemovel", "label": "Imagem no telemóvel (opcional, 1:1)" },
+    { "type": "text", "id": "imagem_alt", "label": "Texto alternativo da imagem" },
+    {
+      "type": "select",
+      "id": "icone",
+      "label": "Ícone",
+      "options": [
+        { "value": "nenhum", "label": "Nenhum" },
+        { "value": "coracao-cheio", "label": "Coração (vermelho)" },
+        { "value": "sapatinho", "label": "Sapatinho" },
+        { "value": "estrela", "label": "Estrela" }
+      ],
+      "default": "nenhum"
+    },
+    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Um coração que se dá" },
+    { "type": "text", "id": "titulo", "label": "Título", "default": "Coração de Viana" },
+    {
+      "type": "select",
+      "id": "estilo_titulo",
+      "label": "Estilo do título",
+      "options": [
+        { "value": "oswald", "label": "Oswald, maiúsculas" },
+        { "value": "serif", "label": "Cormorant, itálico (frases longas)" }
+      ],
+      "default": "oswald"
+    },
+    { "type": "richtext", "id": "texto", "label": "Texto", "default": "<p>Escreva aqui a história.</p>" },
+    { "type": "text", "id": "sabia_titulo", "label": "Título da caixa", "default": "Sabia que?" },
+    { "type": "richtext", "id": "sabia", "label": "Caixa Sabia que (opcional)" },
+    { "type": "header", "content": "Produtos" },
+    { "type": "product_list", "id": "produtos", "label": "Produtos", "limit": 4 },
+    { "type": "range", "id": "produtos_max", "label": "Quantos mostrar", "min": 1, "max": 4, "step": 1, "default": 4, "info": "Os esgotados ficam de fora e entra o seguinte da lista." },
+    {
+      "type": "select",
+      "id": "produtos_estilo",
+      "label": "Como mostrar os produtos",
+      "options": [
+        { "value": "mini", "label": "Cartões pequenos no texto" },
+        { "value": "grelha", "label": "Grelha 2 por 2 no lugar da imagem" }
+      ],
+      "default": "mini"
+    },
+    { "type": "header", "content": "Botões" },
+    { "type": "text", "id": "botao1_texto", "label": "Botão 1, texto" },
+    { "type": "url", "id": "botao1_url", "label": "Botão 1, link" },
+    { "type": "text", "id": "botao2_texto", "label": "Botão 2, texto" },
+    { "type": "url", "id": "botao2_url", "label": "Botão 2, link" },
+    { "type": "header", "content": "Aspeto" },
+    {
+      "type": "select",
+      "id": "fundo",
+      "label": "Fundo",
+      "options": [
+        { "value": "papel", "label": "Papel" },
+        { "value": "linho", "label": "Linho" }
+      ],
+      "default": "linho"
+    },
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+  ],
+  "blocks": [
+    {
+      "type": "chip",
+      "name": "Etiqueta com link",
+      "limit": 3,
+      "settings": [
+        { "type": "text", "id": "texto", "label": "Texto", "default": "Prendas até 50 €" },
+        { "type": "url", "id": "url", "label": "Link" }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Natal · Editorial" }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,41 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Siga a estrela» · GRELHA (secção interna, não se acrescenta no editor).
+  Só é pedida pela Section Rendering API, a partir de lod-natal-estrela:
+    /collections/<coleção>?section_id=lod-natal-estrela-grelha&sort_by=best-selling[&page=2][&preview_theme_id=…]
+  Devolve até 48 cartões (lod-natal-card) da coleção, pela ordem «mais vendidos».
+  Ficam de fora embrulhos, mensagens e vales (tipo Voucher, Gift, Gift Message, wrapin)
+  e os produtos auxiliares da app easy-product-customizer.
+  O filtro por metal, preço e disponibilidade é feito no navegador com os atributos
+  data-metal, data-preco (cêntimos) e data-disponivel de cada cartão.
+{%- endcomment -%}
+{%- if collection != blank -%}
+  {%- paginate collection.products by 48 -%}
+    <div class="lnat-estg" data-lnat-grelha data-colecao="{{ collection.handle }}" data-total="{{ paginate.items }}" data-paginas="{{ paginate.pages }}" data-pagina="{{ paginate.current_page }}">
+      {%- for p in collection.products -%}
+        {%- liquid
+          assign lnatg_tipo = p.type | downcase | strip
+          assign lnatg_marca = p.vendor | downcase | strip
+          assign lnatg_fora = false
+          if lnatg_tipo == 'voucher' or lnatg_tipo == 'gift' or lnatg_tipo == 'gift message' or lnatg_tipo == 'wrapin'
+            assign lnatg_fora = true
+          endif
+          if lnatg_marca == 'easy-product-customizer'
+            assign lnatg_fora = true
+          endif
+        -%}
+        {%- unless lnatg_fora -%}
+          {%- render 'lod-natal-card', product: p, largura: 360, carregar: 'lazy' -%}
+        {%- endunless -%}
+      {%- endfor -%}
+    </div>
+  {%- endpaginate -%}
+{%- else -%}
+  <div class="lnat-estg" data-lnat-grelha data-total="0" data-paginas="1" data-pagina="1"></div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Estrela (grelha)",
+  "settings": []
+}
+{% endschema %}

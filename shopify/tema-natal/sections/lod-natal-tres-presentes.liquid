@@ -1,0 +1,339 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Três presentes. Um Natal inteiro.»
+  Fundo linho com azulejo. Blocos «presente» (ouro, incenso, mirra): colunas com filetes dourados no
+  computador; linhas com o ícone à esquerda no telemóvel (sem imagens).
+  Um bloco pode abrir a janela de embrulho (<dialog> desta secção) com os preços reais de 3 produtos.
+  Nos textos dos blocos, {trocas} passa a data de settings.natal_trocas_ate (ex.: «15 de janeiro»).
+{%- endcomment -%}
+{%- liquid
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+  assign oculta = false
+  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
+    assign oculta = true
+  endif
+  assign mostrar = true
+  if oculta
+    assign mostrar = false
+    if request.design_mode
+      assign mostrar = true
+    endif
+  endif
+
+  capture d_trocas
+    render 'lod-natal-data', valor: settings.natal_trocas_ate, formato: 'curto'
+  endcapture
+  assign d_trocas = d_trocas | strip
+  assign com_trocas = false
+  if settings.natal_mostrar_trocas and d_trocas != blank
+    assign com_trocas = true
+  endif
+
+  assign dlg_id = 'lnat-tp-dlg-' | append: section.id
+  assign n_emb = 0
+  for i in (1..3)
+    assign chave = 'embrulho_' | append: i
+    if section.settings[chave] != blank
+      assign n_emb = n_emb | plus: 1
+    endif
+  endfor
+  assign tem_embrulho = false
+  if n_emb > 0 or section.settings.embrulho_nota != blank
+    assign tem_embrulho = true
+  endif
+-%}
+{%- if mostrar -%}
+<section
+  class="lnat lnat-tp lnat-sec lnat-bg-linho{% if section.settings.azulejo %} lnat-azulejo-linho{% endif %}{% unless section.settings.mostrar_no_telemovel %} lnat-tp--sem-tel{% endunless %}{% if request.design_mode %} lnat-tp--editor{% endif %}"
+  id="lnat-tp-{{ section.id }}"
+  aria-labelledby="lnat-tp-h-{{ section.id }}"
+>
+  <span id="embrulho" aria-hidden="true"></span>
+  <div class="lnat-wrap">
+    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+
+    <header class="lnat-tp__cab">
+      {%- if section.settings.eyebrow != blank -%}
+        <p class="lnat-eb">{{ section.settings.eyebrow | escape }}</p>
+      {%- endif -%}
+      <h2 class="lnat-h2 lnat-tp__h" id="lnat-tp-h-{{ section.id }}">{{ section.settings.titulo | escape }}</h2>
+      {%- if section.settings.lead != blank -%}
+        <p class="lnat-cg lnat-tp__lead">{{ section.settings.lead | escape }}</p>
+      {%- endif -%}
+    </header>
+
+    {%- if section.blocks.size > 0 -%}
+      <ol class="lnat-tp__lista" role="list">
+        {%- for block in section.blocks -%}
+          {%- liquid
+            assign b = block.settings
+            assign texto = b.texto
+            if com_trocas and b.texto_trocas != blank
+              assign texto = b.texto_trocas
+            endif
+            assign texto = texto | replace: '{trocas}', d_trocas
+            assign img = b.imagem
+            assign img_alt = b.imagem_alt
+            if img_alt == blank and img
+              assign img_alt = img.alt
+            endif
+          -%}
+          <li class="lnat-tp__item" {{ block.shopify_attributes }}>
+            <span class="lnat-tp__ico">{%- render 'lod-natal-icon', nome: b.icone, tamanho: 48 -%}</span>
+            <div class="lnat-tp__corpo">
+              {%- if b.numeral != blank or b.eyebrow != blank -%}
+                <p class="lnat-eb lnat-eb--simples lnat-tp__num">{{ b.numeral | escape }}{% if b.numeral != blank and b.eyebrow != blank %} · {% endif %}{{ b.eyebrow | escape }}</p>
+              {%- endif -%}
+              {%- if b.titulo != blank -%}
+                <h3 class="lnat-h3 lnat-tp__titulo">{{ b.titulo | escape }}</h3>
+              {%- endif -%}
+              {%- if img -%}
+                <div class="lnat-tp__img">
+                  {{- img | image_url: width: 720 | image_tag: loading: 'lazy', widths: '360, 480, 600, 720', sizes: '(min-width: 1440px) 400px, (min-width: 990px) 28vw, 1px', alt: img_alt -}}
+                </div>
+              {%- endif -%}
+              {%- if texto != blank -%}
+                <p class="lnat-txt lnat-tp__txt">{{ texto }}</p>
+              {%- endif -%}
+              {%- if b.link_texto != blank -%}
+                {%- if b.abre_embrulho and tem_embrulho -%}
+                  <button type="button" class="lnat-link lnat-tp__link" data-lnat-tp-abrir="{{ dlg_id }}" aria-haspopup="dialog" aria-controls="{{ dlg_id }}">{{ b.link_texto | escape }} <span aria-hidden="true">→</span></button>
+                {%- elsif b.link_url != blank -%}
+                  <a class="lnat-link lnat-tp__link" href="{{ b.link_url }}">{{ b.link_texto | escape }} <span aria-hidden="true">→</span></a>
+                {%- endif -%}
+              {%- endif -%}
+            </div>
+          </li>
+        {%- endfor -%}
+      </ol>
+    {%- elsif request.design_mode -%}
+      <p class="lnat-peq lnat-tp__vazio">Acrescente blocos «Presente» (ouro, incenso e mirra).</p>
+    {%- endif -%}
+  </div>
+
+  {%- if tem_embrulho -%}
+    <dialog class="lnat-tp__dlg" id="{{ dlg_id }}" aria-labelledby="{{ dlg_id }}-h">
+      <div class="lnat-tp__dlg-topo">
+        <span class="lnat-tp__dlg-ico">{%- render 'lod-natal-icon', nome: 'laco', tamanho: 40 -%}</span>
+        <h2 class="lnat-h3 lnat-tp__dlg-h" id="{{ dlg_id }}-h">{{ section.settings.embrulho_titulo | escape }}</h2>
+        <form method="dialog" class="lnat-tp__dlg-form">
+          <button type="submit" class="lnat-tp__fechar" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6L18 18M18 6L6 18"/></svg>
+          </button>
+        </form>
+      </div>
+      {%- if n_emb > 0 -%}
+        <ul class="lnat-tp__opcoes" role="list">
+          {%- for i in (1..3) -%}
+            {%- liquid
+              assign chave = 'embrulho_' | append: i
+              assign chave_t = chave | append: '_texto'
+              assign p = section.settings[chave]
+            -%}
+            {%- if p != blank -%}
+              {%- liquid
+                assign desc = section.settings[chave_t]
+                if desc == blank
+                  assign desc = p.description | strip_html | strip_newlines | truncatewords: 18
+                endif
+                assign p_img = p.featured_media
+              -%}
+              <li class="lnat-tp__opcao">
+                <span class="lnat-tp__opcao-img">
+                  {%- if p_img -%}
+                    {{- p_img | image_url: width: 160 | image_tag: loading: 'lazy', alt: '' -}}
+                  {%- else -%}
+                    {%- render 'lod-natal-icon', nome: 'laco', tamanho: 32 -%}
+                  {%- endif -%}
+                </span>
+                <span class="lnat-tp__opcao-txt">
+                  <span class="lnat-tp__opcao-nome">{{ p.title | escape }}</span>
+                  {%- if desc != blank -%}<span class="lnat-tp__opcao-desc">{{ desc | escape }}</span>{%- endif -%}
+                </span>
+                <span class="lnat-tp__opcao-preco">
+                  {{- p.price | money -}}
+                  {%- unless p.available -%}<span class="lnat-tp__opcao-esg">Esgotado</span>{%- endunless -%}
+                </span>
+              </li>
+            {%- endif -%}
+          {%- endfor -%}
+        </ul>
+      {%- endif -%}
+      {%- if section.settings.embrulho_nota != blank -%}
+        <p class="lnat-tp__nota">{{ section.settings.embrulho_nota | escape | newline_to_br }}</p>
+      {%- endif -%}
+    </dialog>
+  {%- endif -%}
+</section>
+
+<style>
+  .lnat-tp{overflow:hidden}
+  .lnat-tp__cab{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:760px;margin:0 auto;text-align:center}
+  .lnat-tp__h{color:var(--lnat-tinta)}
+  .lnat-tp__lead{margin:0;font-size:22px;line-height:28px;color:var(--lnat-texto);text-wrap:balance}
+  .lnat-tp__lista{list-style:none;margin:32px 0 0;padding:0}
+  .lnat-tp__item{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;margin:0;padding:20px 0;border-bottom:1px solid rgba(125,90,34,.22)}
+  .lnat-tp__item:last-child{border-bottom:0;padding-bottom:0}
+  .lnat-tp__ico{color:var(--lnat-ouro-velho);line-height:0}
+  .lnat-tp__ico svg{width:40px;height:40px}
+  .lnat-tp__corpo{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
+  .lnat-tp__titulo{color:var(--lnat-tinta)}
+  .lnat-tp__img{display:none}
+  .lnat-tp__txt{font-size:15px;line-height:23px}
+  .lnat-tp__link{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:14px;font-weight:600}
+  button.lnat-tp__link{-webkit-appearance:none;appearance:none;background:none;border:0;border-radius:0;padding:0;margin:0;font-family:inherit;line-height:1.3;cursor:pointer;text-align:left}
+  .lnat-tp__vazio{margin-top:24px;text-align:center}
+
+  .lnat-tp__dlg{width:min(560px,calc(100vw - 32px));max-width:none;max-height:min(86vh,760px);margin:auto;padding:24px 24px 22px;border:1px solid var(--lnat-linha);border-radius:0;background:var(--lnat-papel);color:var(--lnat-texto);box-shadow:0 24px 64px rgba(11,11,9,.28);overflow:auto;overscroll-behavior:contain}
+  .lnat-tp__dlg::backdrop{background:rgba(11,11,9,.62)}
+  .lnat-tp__dlg-topo{display:flex;align-items:center;gap:12px;margin:0 0 8px}
+  .lnat-tp__dlg-ico{color:var(--lnat-ouro-velho);line-height:0}
+  .lnat-tp__dlg-h{flex:1 1 auto;color:var(--lnat-tinta)}
+  .lnat-tp__dlg-form{margin:0}
+  .lnat-tp__fechar{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;margin:-6px -10px 0 0;padding:0;border:0;background:none;color:var(--lnat-tinta);cursor:pointer}
+  .lnat-tp__fechar:hover{color:var(--lnat-ouro-velho)}
+  .lnat-tp__opcoes{list-style:none;margin:0;padding:0}
+  .lnat-tp__opcao{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:14px;margin:0;padding:14px 0;border-bottom:1px solid var(--lnat-linha)}
+  .lnat-tp__opcao-img{display:flex;align-items:center;justify-content:center;width:64px;height:64px;background:var(--lnat-linho);color:var(--lnat-ouro-velho);overflow:hidden}
+  .lnat-tp__opcao-img img{width:100%;height:100%;object-fit:cover;display:block}
+  .lnat-tp__opcao-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .lnat-tp__opcao-nome{font-size:15px;line-height:21px;font-weight:600;color:var(--lnat-tinta)}
+  .lnat-tp__opcao-desc{font-size:13px;line-height:19px;color:var(--lnat-cinza)}
+  .lnat-tp__opcao-preco{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--lnat-tinta)}
+  .lnat-tp__opcao-esg{font-size:12px;font-weight:500;color:var(--lnat-cinza)}
+  .lnat-tp__nota{margin:18px 0 0;padding:14px 16px;background:var(--lnat-linho);border-left:2px solid var(--lnat-ouro);font-size:14px;line-height:21px}
+  html:has(.lnat-tp__dlg[open]){overflow:hidden}
+
+  @media screen and (max-width:749px){
+    .lnat-tp--sem-tel{display:none}
+    .lnat-tp__dlg{width:100%;max-width:100%;max-height:88vh;margin:auto 0 0;padding:20px 16px 24px;border-width:1px 0 0}
+  }
+  @media screen and (min-width:990px){
+    .lnat-tp__lead{font-size:26px;line-height:32px}
+    .lnat-tp__lista{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:56px}
+    .lnat-tp__item{display:flex;flex-direction:column;gap:14px;padding:0 32px;border-bottom:0}
+    .lnat-tp__item:first-child{padding-left:0}
+    .lnat-tp__item:last-child{padding-right:0}
+    .lnat-tp__item + .lnat-tp__item{border-left:1px solid var(--lnat-ouro)}
+    .lnat-tp__ico svg{width:48px;height:48px}
+    .lnat-tp__corpo{flex:1 1 auto;gap:14px}
+    .lnat-tp__img{display:block;width:100%;aspect-ratio:4/5;overflow:hidden;background:#ece2cf}
+    .lnat-tp__img img{display:block;width:100%;height:100%;object-fit:cover}
+    .lnat-tp__txt{font-size:16px;line-height:26px}
+    .lnat-tp__link{margin-top:auto}
+  }
+</style>
+
+<script>
+(function(){
+  var doc = document.documentElement;
+  function ini(sec){
+    if (sec.getAttribute('data-lnat-pronto')) return;
+    sec.setAttribute('data-lnat-pronto', '1');
+    var N = window.LOD_NATAL;
+    if (N && !sec.classList.contains('lnat-tp--editor')) {
+      var f = N.fase();
+      if (f === 'off' || f === 'antes' || f === 'fim') sec.hidden = true;
+    }
+  }
+  function todos(){
+    var l = document.querySelectorAll('.lnat-tp');
+    for (var i = 0; i < l.length; i++) ini(l[i]);
+  }
+  todos();
+  if (doc.hasAttribute('data-lnat-tp')) return;
+  doc.setAttribute('data-lnat-tp', '');
+  document.addEventListener('shopify:section:load', todos);
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var b = t.closest('[data-lnat-tp-abrir]');
+    if (b) {
+      var d = document.getElementById(b.getAttribute('data-lnat-tp-abrir'));
+      if (!d) return;
+      e.preventDefault();
+      if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); }
+      else d.setAttribute('open', '');
+      return;
+    }
+    // Clique no fundo escurecido fecha a janela.
+    if (t.classList && t.classList.contains('lnat-tp__dlg') && t.open && typeof t.close === 'function') {
+      var r = t.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) t.close();
+    }
+  });
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Três presentes",
+  "tag": "section",
+  "class": "lnat-secao lnat-secao--tres-presentes",
+  "max_blocks": 6,
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Ouro, incenso e mirra" },
+    { "type": "text", "id": "titulo", "label": "Título", "default": "Três presentes. Um Natal inteiro." },
+    { "type": "textarea", "id": "lead", "label": "Texto de abertura (letra Cormorant)", "default": "Conta o Evangelho de São Mateus que os Magos ofereceram ouro, incenso e mirra. Nós cuidamos do Natal da mesma maneira." },
+    { "type": "checkbox", "id": "azulejo", "label": "Padrão de azulejo no fundo", "default": true },
+    { "type": "header", "content": "Janela de embrulho" },
+    { "type": "paragraph", "content": "Abre-se no bloco que tem ligada a opção O link abre as opções de embrulho. Preço e disponibilidade vêm dos produtos escolhidos." },
+    { "type": "text", "id": "embrulho_titulo", "label": "Título da janela", "default": "Embrulho e mensagem" },
+    { "type": "product", "id": "embrulho_1", "label": "Opção 1" },
+    { "type": "text", "id": "embrulho_1_texto", "label": "Descrição da opção 1", "info": "Vazio: usa a descrição do produto." },
+    { "type": "product", "id": "embrulho_2", "label": "Opção 2" },
+    { "type": "text", "id": "embrulho_2_texto", "label": "Descrição da opção 2", "info": "Vazio: usa a descrição do produto." },
+    { "type": "product", "id": "embrulho_3", "label": "Opção 3" },
+    { "type": "text", "id": "embrulho_3_texto", "label": "Descrição da opção 3", "info": "Vazio: usa a descrição do produto." },
+    { "type": "textarea", "id": "embrulho_nota", "label": "Nota", "default": "Escolha no carrinho, antes de finalizar a encomenda. Também podemos enviar diretamente para quem recebe: indique essa morada no checkout." },
+    { "type": "header", "content": "Telemóvel" },
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+  ],
+  "blocks": [
+    {
+      "type": "presente",
+      "name": "Presente",
+      "settings": [
+        {
+          "type": "select",
+          "id": "icone",
+          "label": "Ícone",
+          "options": [
+            { "value": "ouro", "label": "Ouro" },
+            { "value": "incenso", "label": "Incenso" },
+            { "value": "mirra", "label": "Mirra" },
+            { "value": "laco", "label": "Laço" },
+            { "value": "porta", "label": "Porta" },
+            { "value": "estrela", "label": "Estrela" },
+            { "value": "coroa", "label": "Coroa" }
+          ],
+          "default": "ouro"
+        },
+        { "type": "text", "id": "numeral", "label": "Numeral", "default": "I" },
+        { "type": "text", "id": "eyebrow", "label": "Sobretítulo", "default": "Ouro" },
+        { "type": "text", "id": "titulo", "label": "Título", "default": "Escolher" },
+        { "type": "inline_richtext", "id": "texto", "label": "Texto", "default": "Joias em ouro português de 19,2 quilates, contrastadas, para quem mais gosta." },
+        { "type": "inline_richtext", "id": "texto_trocas", "label": "Texto com as trocas de Natal ligadas", "info": "Usado só quando as trocas de Natal estão ligadas nas definições do tema (Natal 2026). {trocas} passa a data limite das trocas." },
+        { "type": "image_picker", "id": "imagem", "label": "Imagem 4:5 (opcional, só no computador)" },
+        { "type": "text", "id": "imagem_alt", "label": "Texto alternativo da imagem" },
+        { "type": "text", "id": "link_texto", "label": "Texto do link", "default": "Ver mais" },
+        { "type": "url", "id": "link_url", "label": "Link" },
+        { "type": "checkbox", "id": "abre_embrulho", "label": "O link abre as opções de embrulho", "default": false }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Natal · Três presentes",
+      "blocks": [
+        { "type": "presente", "settings": { "icone": "ouro", "numeral": "I", "eyebrow": "Ouro", "titulo": "Escolher", "link_texto": "Ver ouro tradicional" } },
+        { "type": "presente", "settings": { "icone": "incenso", "numeral": "II", "eyebrow": "Incenso", "titulo": "Embrulhar", "texto": "Saco prenda, Pack Premium e uma mensagem escrita por si — escolha no carrinho.", "link_texto": "Ver opções de embrulho", "abre_embrulho": true } },
+        { "type": "presente", "settings": { "icone": "mirra", "numeral": "III", "eyebrow": "Mirra", "titulo": "Cuidar", "texto": "Apoio por WhatsApp e 13 lojas para o que precisar. Todas as peças têm a garantia legal de 3 anos.", "link_texto": "Encontrar uma loja" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

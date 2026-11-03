@@ -1,0 +1,105 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Boas Festas», fundo tinta, centrado.
+  Coração vermelho, título em Cormorant (72 px; 48 px no telemóvel), uma linha e a divisória «fio».
+{%- endcomment -%}
+{%- liquid
+  capture lnat_fase
+    render 'lod-natal-fase'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+  assign oculta = false
+  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
+    assign oculta = true
+  endif
+  assign mostrar = true
+  if oculta
+    assign mostrar = false
+    if request.design_mode
+      assign mostrar = true
+    endif
+  endif
+  assign s = section.settings
+-%}
+{%- if mostrar -%}
+<section
+  class="lnat lnat-bf lnat-bg-tinta{% unless s.mostrar_no_telemovel %} lnat-bf--sem-tel{% endunless %}{% if request.design_mode %} lnat-bf--editor{% endif %}"
+  id="lnat-bf-{{ section.id }}"
+  aria-labelledby="lnat-bf-h-{{ section.id }}"
+>
+  <div class="lnat-wrap lnat-bf__wrap">
+    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+    {%- if s.mostrar_coracao -%}
+      <span class="lnat-bf__coracao">{%- render 'lod-natal-icon', nome: 'coracao-cheio', tamanho: 28 -%}</span>
+    {%- endif -%}
+    <h2 class="lnat-bf__h" id="lnat-bf-h-{{ section.id }}">{{ s.titulo | escape }}</h2>
+    {%- if s.texto != blank -%}
+      <p class="lnat-bf__txt">{{ s.texto | escape }}</p>
+    {%- endif -%}
+    {%- if s.mostrar_fio -%}
+      {%- render 'lod-natal-icon', nome: 'fio' -%}
+    {%- endif -%}
+  </div>
+</section>
+
+<style>
+  .lnat-bf{padding:44px 0}
+  .lnat-bf__wrap{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+  .lnat-bf__coracao{line-height:0}
+  .lnat-bf__coracao svg{width:24px;height:24px}
+  .lnat-bf__h{margin:0;font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:48px;line-height:52px;letter-spacing:-.01em;color:var(--lnat-ouro-claro)}
+  .lnat-bf__txt{margin:0;font-size:14px;line-height:22px;color:#e1dacb}
+  .lnat-bf .lnat-fio{width:240px;height:24px;margin-top:4px}
+  @media screen and (max-width:749px){
+    .lnat-bf--sem-tel{display:none}
+  }
+  @media screen and (min-width:750px){
+    .lnat-bf{padding:80px 0}
+    .lnat-bf__wrap{gap:14px}
+    .lnat-bf__coracao svg{width:28px;height:28px}
+    .lnat-bf__h{font-size:72px;line-height:76px}
+    .lnat-bf__txt{font-size:16px;line-height:26px}
+  }
+</style>
+
+<script>
+(function(){
+  function ini(sec){
+    if (sec.getAttribute('data-lnat-pronto')) return;
+    sec.setAttribute('data-lnat-pronto', '1');
+    var N = window.LOD_NATAL;
+    if (N && !sec.classList.contains('lnat-bf--editor')) {
+      var f = N.fase();
+      if (f === 'off' || f === 'antes' || f === 'fim') sec.hidden = true;
+    }
+  }
+  function todos(){
+    var l = document.querySelectorAll('.lnat-bf');
+    for (var i = 0; i < l.length; i++) ini(l[i]);
+  }
+  todos();
+  var doc = document.documentElement;
+  if (doc.hasAttribute('data-lnat-bf')) return;
+  doc.setAttribute('data-lnat-bf', '');
+  document.addEventListener('shopify:section:load', todos);
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Boas Festas",
+  "tag": "section",
+  "class": "lnat-secao lnat-secao--boas-festas",
+  "settings": [
+    { "type": "text", "id": "titulo", "label": "Título", "default": "Boas Festas" },
+    { "type": "text", "id": "texto", "label": "Linha", "default": "De todos nós, nas 13 lojas Loja do Ouro." },
+    { "type": "checkbox", "id": "mostrar_coracao", "label": "Coração vermelho", "default": true },
+    { "type": "checkbox", "id": "mostrar_fio", "label": "Divisória em fio torcido", "default": true },
+    { "type": "header", "content": "Telemóvel" },
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+  ],
+  "presets": [
+    { "name": "Natal · Boas Festas" }
+  ]
+}
+{% endschema %}
