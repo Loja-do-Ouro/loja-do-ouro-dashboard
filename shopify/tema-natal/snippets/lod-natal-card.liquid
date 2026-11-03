@@ -21,7 +21,7 @@
 <a class="lnat-card {{ classe }}" href="{{ product.url }}" data-preco="{{ product.price }}" data-metal="{{ metal }}" data-disponivel="{{ product.available }}">
   <span class="lnat-card__img">
     {%- if img -%}
-      {{ img | image_url: width: w | image_tag: loading: carregar, widths: '240, 360, 480, 600', sizes: '(min-width: 990px) 25vw, 50vw', alt: product.title | escape }}
+      {{ img | image_url: width: w | image_tag: loading: carregar, widths: '240, 360, 480, 600', sizes: '(min-width: 990px) 25vw, 50vw', alt: product.title }}
     {%- else -%}
       {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 48 -%}
     {%- endif -%}
