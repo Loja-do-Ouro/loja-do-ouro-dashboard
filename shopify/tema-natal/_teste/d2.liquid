@@ -1,0 +1,52 @@
+<div>t</div>
+{% schema %}
+{
+ "name": "T d2",
+ "settings": [
+  {
+   "type": "header",
+   "content": "Cartão"
+  },
+  {
+   "type": "checkbox",
+   "id": "mostrar_estrela",
+   "label": "Mostrar estrela de filigrana",
+   "default": true
+  },
+  {
+   "type": "checkbox",
+   "id": "titulo_h1",
+   "label": "Título como H1 (título principal da página)",
+   "default": true
+  },
+  {
+   "type": "text",
+   "id": "assinatura",
+   "label": "Assinatura pequena",
+   "default": "Seleção Loja do Ouro"
+  },
+  {
+   "type": "text",
+   "id": "marca_lateral",
+   "label": "Texto vertical (computador)",
+   "default": "Loja do Ouro · Natal 2026"
+  },
+  {
+   "type": "textarea",
+   "id": "faixa",
+   "label": "Faixa de baixo (uma frase por linha)",
+   "default": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\nGarantia legal de 3 anos\n13 lojas em Portugal, levantamento com marcação"
+  },
+  {
+   "type": "checkbox",
+   "id": "mostrar_no_telemovel",
+   "label": "Mostrar no telemóvel",
+   "default": true
+  },
+  {
+   "type": "paragraph",
+   "content": "Nos textos pode usar {continente}, {loja}, {reis}, {retoma}, {trocas}, {gravacao} (datas das definições do tema › Natal 2026) e {contagem} (tempo que falta para o prazo do continente)."
+  }
+ ]
+}
+{% endschema %}

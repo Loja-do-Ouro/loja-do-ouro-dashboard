@@ -1,0 +1,29 @@
+<div>t</div>
+{% schema %}
+{
+ "name": "T d5",
+ "settings": [
+  {
+   "type": "header",
+   "content": "Fotografia"
+  },
+  {
+   "type": "image_picker",
+   "id": "imagem",
+   "label": "Imagem (computador)"
+  },
+  {
+   "type": "image_picker",
+   "id": "imagem_telemovel",
+   "label": "Imagem (telemóvel)",
+   "info": "Vertical. Se ficar vazia, usa a do computador."
+  },
+  {
+   "type": "text",
+   "id": "alt",
+   "label": "Descrição da imagem (acessibilidade)",
+   "default": "Três mulheres de diferentes gerações, de fato creme, com joias em ouro, junto a uma árvore de Natal."
+  }
+ ]
+}
+{% endschema %}

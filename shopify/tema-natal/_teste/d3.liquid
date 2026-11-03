@@ -1,0 +1,97 @@
+<div>t</div>
+{% schema %}
+{
+ "name": "T d3",
+ "settings": [],
+ "blocks": [
+  {
+   "type": "fase",
+   "name": "Mensagem de uma fase",
+   "settings": [
+    {
+     "type": "select",
+     "id": "fase",
+     "label": "Fase",
+     "options": [
+      {
+       "value": "ouro",
+       "label": "1 · Ouro — escolher (1–13 dez)"
+      },
+      {
+       "value": "incenso",
+       "label": "2 · Incenso — a tempo (14 dez → prazo do continente)"
+      },
+      {
+       "value": "ultima",
+       "label": "3 · Última hora (até 24 dez, 13h)"
+      },
+      {
+       "value": "consoada",
+       "label": "Consoada (24–25 dez)"
+      },
+      {
+       "value": "mirra",
+       "label": "4 · Mirra — dos Reis (26 dez – 6 jan)"
+      }
+     ],
+     "default": "ouro"
+    },
+    {
+     "type": "text",
+     "id": "eyebrow",
+     "label": "Texto pequeno por cima",
+     "default": "Natal 2026 · Ouro de Reis"
+    },
+    {
+     "type": "text",
+     "id": "titulo",
+     "label": "Título",
+     "default": "O primeiro presente de Natal foi ouro."
+    },
+    {
+     "type": "inline_richtext",
+     "id": "texto",
+     "label": "Texto"
+    },
+    {
+     "type": "inline_richtext",
+     "id": "chip",
+     "label": "Faixa vermelha (prazo)"
+    },
+    {
+     "type": "text",
+     "id": "botao1_texto",
+     "label": "Botão principal"
+    },
+    {
+     "type": "url",
+     "id": "botao1_url",
+     "label": "Ligação do botão principal"
+    },
+    {
+     "type": "checkbox",
+     "id": "botao1_whatsapp",
+     "label": "Botão principal abre o WhatsApp",
+     "default": false
+    },
+    {
+     "type": "text",
+     "id": "mensagem_whatsapp",
+     "label": "Mensagem pré-escrita do WhatsApp",
+     "default": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas."
+    },
+    {
+     "type": "text",
+     "id": "botao2_texto",
+     "label": "Botão secundário"
+    },
+    {
+     "type": "url",
+     "id": "botao2_url",
+     "label": "Ligação do botão secundário"
+    }
+   ]
+  }
+ ]
+}
+{% endschema %}

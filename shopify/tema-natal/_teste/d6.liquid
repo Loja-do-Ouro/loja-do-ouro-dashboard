@@ -1,0 +1,71 @@
+<div>t</div>
+{% schema %}
+{
+ "name": "T d6",
+ "settings": [
+  {
+   "type": "select",
+   "id": "esquema",
+   "label": "Esquema",
+   "options": [
+    {
+     "value": "foto-esquerda",
+     "label": "Foto ao lado do cartão (não tapa as pessoas)"
+    },
+    {
+     "value": "foto-inteira",
+     "label": "Foto a toda a largura, cartão por cima"
+    }
+   ],
+   "default": "foto-esquerda"
+  },
+  {
+   "type": "select",
+   "id": "lado_cartao",
+   "label": "Lado do cartão",
+   "options": [
+    {
+     "value": "direita",
+     "label": "Direita"
+    },
+    {
+     "value": "esquerda",
+     "label": "Esquerda"
+    }
+   ],
+   "default": "direita"
+  },
+  {
+   "type": "range",
+   "id": "foco_x",
+   "min": 0,
+   "max": 100,
+   "step": 1,
+   "unit": "%",
+   "label": "Ponto de foco horizontal (computador)",
+   "info": "100% corta mais do lado esquerdo da foto (onde está a placa).",
+   "default": 100
+  },
+  {
+   "type": "range",
+   "id": "foco_y",
+   "min": 0,
+   "max": 100,
+   "step": 1,
+   "unit": "%",
+   "label": "Ponto de foco vertical (computador)",
+   "default": 30
+  },
+  {
+   "type": "range",
+   "id": "foco_y_tel",
+   "min": 0,
+   "max": 100,
+   "step": 1,
+   "unit": "%",
+   "label": "Ponto de foco vertical (telemóvel)",
+   "default": 20
+  }
+ ]
+}
+{% endschema %}
