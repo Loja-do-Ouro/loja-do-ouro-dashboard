@@ -76,7 +76,7 @@ Substituem os dois Excel das lojas (importados em outubro de 2026 com `scripts/i
 
 ### Investimento online e lojas físicas
 
-O investimento Meta e Google separa-se em **Online**, **Loja física** (por loja) e **Partilhado** (`lib/bi/channels.ts`). Uma campanha com a palavra-chave de uma loja no nome (Administração → Lojas) é dessa loja; as restantes são do online. O Super Admin define exceções em Administração → Campanhas (tabela `ldo_campaign_channels`; vale para todo o histórico). O MER e o investimento do e-mail diário passam a contar só o online. A recolha guarda o detalhe das campanhas por dia, para separar qualquer período. Esta separação prepara a comparação com os orçamentos de 2027 (online e negócio físico).
+O investimento Meta e Google separa-se em **Online**, **Loja física** (por loja) e **Partilhado** (`lib/bi/channels.ts`). Uma campanha com a palavra-chave de uma loja no nome (Administração → Lojas) é dessa loja; as restantes são do online. O Super Admin define exceções em Administração → Campanhas (tabela `ldo_campaign_channels`; vale para todo o histórico). O MER e o investimento do e-mail diário passam a contar só o online. A recolha guarda o detalhe das campanhas por dia, para separar qualquer período: pede um dia de cada vez (os últimos dias da recolha e, desde o início do mês anterior, até 10 dias por noite que ainda não tenham detalhe, `lib/bi/ad-days.ts`). Basta faltar um dia para o online e as lojas físicas desse período ficarem "por apurar"; o dashboard diz que dias faltam. Esta separação prepara a comparação com os orçamentos de 2027 (online e negócio físico).
 
 ### Apoio ao Cliente
 

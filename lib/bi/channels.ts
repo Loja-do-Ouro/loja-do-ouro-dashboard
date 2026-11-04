@@ -50,6 +50,13 @@ export type Split = {
   campaigns: CampaignSpend[];
 };
 
+// Days without campaign detail, as "31/10", "30/10 e 31/10" or "1/10, 2/10, 3/10 e mais 4".
+export function missingDays(days: string[]): string {
+  const short = days.map((d) => `${Number(d.slice(8, 10))}/${d.slice(5, 7)}`);
+  if (short.length <= 4) return short.length > 1 ? `${short.slice(0, -1).join(", ")} e ${short.at(-1)}` : short.join("");
+  return `${short.slice(0, 3).join(", ")} e mais ${short.length - 3}`;
+}
+
 // Sums campaign rows (per ad and day for Meta, per campaign and day for Google).
 export function splitRows(source: string, rows: Row[], rules: ChannelRules | undefined): CampaignSpend[] {
   const totals = new Map<string, number>();
@@ -80,7 +87,10 @@ export function adSplit(store: Store, p: Period): Split {
     out.bySource[source] = part;
     out.online += part.online; out.store += part.store; out.shared += part.shared;
     out.campaigns.push(...campaigns);
-    if (!d.complete) { out.complete = false; notes.push(`${label}: ${d.note}`); }
+    if (!d.complete) {
+      out.complete = false;
+      notes.push(`${label}: ${d.note}${d.missing?.length ? ` (em falta: ${missingDays(d.missing)})` : ""}`);
+    }
   }
   if (!store.channels) notes.push("Regras de destino indisponíveis nesta vista; tudo contado como online.");
   out.note = notes.join(" · ");

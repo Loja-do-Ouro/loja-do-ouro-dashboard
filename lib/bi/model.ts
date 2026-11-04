@@ -297,6 +297,8 @@ export type Detail = {
   note: string;
   fetchedAt: string | null;
   datasets: Dataset[];
+  // Days of the period with no usable daily version (only when the detail is put together from days).
+  missing?: string[];
 };
 export function detail(
   store: Store,
@@ -332,11 +334,13 @@ export function detail(
       datasets: [ds],
     };
   if (allowDaily) {
-    const each = dates(p).map((day) =>
+    const days = dates(p);
+    const each = days.map((day) =>
       exact(store, { from: day, to: day }, source, dataset),
     );
     const found = each.filter((d): d is Dataset => !!d);
     return {
+      missing: days.filter((_, i) => !each[i] || !valid(each[i]!) || !paginationComplete(each[i]!)),
       rows: found.flatMap((d) => d.rows),
       complete:
         found.length === each.length &&

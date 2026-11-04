@@ -58,6 +58,7 @@ export function Overview({ store, range, s, p, live, cohort, critical, report, h
           Online {currency(inv.online)} · Lojas físicas {currency(inv.physical)}
           {inv.shared ? ` · Partilhado ${currency(inv.shared)}` : ""}
         </p>
+        {inv.online === null && s.spend !== null && inv.split.note ? <p>Divisão por apurar · {inv.split.note}</p> : null}
         <div className="mer-line">
           <span>{inv.mer !== null ? "MER online" : "MER global"}</span>
           <b>{(inv.mer ?? s.mer) === null ? "—" : `${integer(inv.mer ?? s.mer)}×`}</b>
