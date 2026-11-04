@@ -832,7 +832,11 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "As datas vêm do grupo «Natal 2026» das definições do tema. A versão segue o mercado: Portugal (prazos, lojas e vales, de 1 de dezembro a 6 de janeiro), Espanha (prazos de Espanha para a Navidad e o Dia de Reis e vales, até 4 de janeiro) e Internacional (só o prazo internacional, até ao seu limite). Lojas e levantamento só aparecem em Portugal."
+      "content": "As datas vêm do grupo «Natal 2026» das definições do tema. A versão segue o mercado: Portugal (prazos, lojas e vales, de 1 de dezembro a 6 de janeiro), Espanha (prazos de Espanha para a Navidad e o Dia de Reis e vales, até 4 de janeiro) e Internacional (só o prazo internacional, até ao seu limite)."
+    },
+    {
+      "type": "paragraph",
+      "content": "Lojas e levantamento só aparecem em Portugal."
     },
     {
       "type": "text",
@@ -841,7 +845,10 @@
       "default": "prazos",
       "info": "Os links «Ver prazos» apontam para #prazos. Use um id diferente se houver duas secções na mesma página."
     },
-    { "type": "header", "content": "Prazos" },
+    {
+      "type": "header",
+      "content": "Prazos"
+    },
     {
       "type": "text",
       "id": "titulo",
@@ -862,7 +869,10 @@
       "default": true,
       "info": "Transfere um lembrete (.ics) do primeiro prazo que ainda não passou: Portugal continental; em Espanha, Navidad e depois Dia de Reis; no Internacional, o prazo internacional."
     },
-    { "type": "header", "content": "Levantar na loja (só Portugal)" },
+    {
+      "type": "header",
+      "content": "Levantar na loja (só Portugal)"
+    },
     {
       "type": "text",
       "id": "lojas_titulo",
@@ -908,7 +918,10 @@
       "default": "Abrimos a porta às Janeiras. De 2 a 6 de janeiro, grupos de Janeiras vêm cantar às nossas lojas.",
       "info": "Rascunho: confirme o texto antes de ligar «Janeiras confirmadas». Vazio = não mostra."
     },
-    { "type": "header", "content": "Vales-prenda" },
+    {
+      "type": "header",
+      "content": "Vales-prenda"
+    },
     {
       "type": "checkbox",
       "id": "mostrar_vales",
@@ -940,29 +953,120 @@
       "label": "Link do botão",
       "info": "Vazio = /collections/voucher-prenda."
     },
-    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
-    { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
-    { "type": "textarea", "id": "nota_en", "label": "Nota (EN)" },
-    { "type": "text", "id": "lojas_titulo_en", "label": "Lojas: título (EN)" },
-    { "type": "textarea", "id": "lojas_texto_en", "label": "Lojas: texto (EN)" },
-    { "type": "text", "id": "wa_texto_en", "label": "Mensagem do WhatsApp (EN)" },
-    { "type": "text", "id": "horarios_en", "label": "Horários de 24 e 31 dez. (EN)" },
-    { "type": "textarea", "id": "janeiras_en", "label": "Texto das Janeiras (EN)" },
-    { "type": "text", "id": "vales_titulo_en", "label": "Vales: título (EN)" },
-    { "type": "textarea", "id": "vales_texto_en", "label": "Vales: texto (EN)" },
-    { "type": "text", "id": "vales_botao_en", "label": "Vales: botão (EN)" },
-    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
-    { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
-    { "type": "textarea", "id": "nota_es", "label": "Nota (ES)" },
-    { "type": "text", "id": "lojas_titulo_es", "label": "Lojas: título (ES)" },
-    { "type": "textarea", "id": "lojas_texto_es", "label": "Lojas: texto (ES)" },
-    { "type": "text", "id": "wa_texto_es", "label": "Mensagem do WhatsApp (ES)" },
-    { "type": "text", "id": "horarios_es", "label": "Horários de 24 e 31 dez. (ES)" },
-    { "type": "textarea", "id": "janeiras_es", "label": "Texto das Janeiras (ES)" },
-    { "type": "text", "id": "vales_titulo_es", "label": "Vales: título (ES)" },
-    { "type": "textarea", "id": "vales_texto_es", "label": "Vales: texto (ES)" },
-    { "type": "text", "id": "vales_botao_es", "label": "Vales: botão (ES)" },
-    { "type": "header", "content": "Telemóvel" },
+    {
+      "type": "header",
+      "content": "Tradução — Inglês (EN)",
+      "info": "Deixe vazio para usar o português."
+    },
+    {
+      "type": "text",
+      "id": "titulo_en",
+      "label": "Título (EN)"
+    },
+    {
+      "type": "textarea",
+      "id": "nota_en",
+      "label": "Nota (EN)"
+    },
+    {
+      "type": "text",
+      "id": "lojas_titulo_en",
+      "label": "Lojas: título (EN)"
+    },
+    {
+      "type": "textarea",
+      "id": "lojas_texto_en",
+      "label": "Lojas: texto (EN)"
+    },
+    {
+      "type": "text",
+      "id": "wa_texto_en",
+      "label": "Mensagem do WhatsApp (EN)"
+    },
+    {
+      "type": "text",
+      "id": "horarios_en",
+      "label": "Horários de 24 e 31 dez. (EN)"
+    },
+    {
+      "type": "textarea",
+      "id": "janeiras_en",
+      "label": "Texto das Janeiras (EN)"
+    },
+    {
+      "type": "text",
+      "id": "vales_titulo_en",
+      "label": "Vales: título (EN)"
+    },
+    {
+      "type": "textarea",
+      "id": "vales_texto_en",
+      "label": "Vales: texto (EN)"
+    },
+    {
+      "type": "text",
+      "id": "vales_botao_en",
+      "label": "Vales: botão (EN)"
+    },
+    {
+      "type": "header",
+      "content": "Tradução — Espanhol (ES)",
+      "info": "Deixe vazio para usar o português."
+    },
+    {
+      "type": "text",
+      "id": "titulo_es",
+      "label": "Título (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "nota_es",
+      "label": "Nota (ES)"
+    },
+    {
+      "type": "text",
+      "id": "lojas_titulo_es",
+      "label": "Lojas: título (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "lojas_texto_es",
+      "label": "Lojas: texto (ES)"
+    },
+    {
+      "type": "text",
+      "id": "wa_texto_es",
+      "label": "Mensagem do WhatsApp (ES)"
+    },
+    {
+      "type": "text",
+      "id": "horarios_es",
+      "label": "Horários de 24 e 31 dez. (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "janeiras_es",
+      "label": "Texto das Janeiras (ES)"
+    },
+    {
+      "type": "text",
+      "id": "vales_titulo_es",
+      "label": "Vales: título (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "vales_texto_es",
+      "label": "Vales: texto (ES)"
+    },
+    {
+      "type": "text",
+      "id": "vales_botao_es",
+      "label": "Vales: botão (ES)"
+    },
+    {
+      "type": "header",
+      "content": "Telemóvel"
+    },
     {
       "type": "checkbox",
       "id": "mostrar_no_telemovel",
@@ -971,7 +1075,9 @@
     }
   ],
   "presets": [
-    { "name": "Natal · Prazos e lojas" }
+    {
+      "name": "Natal · Prazos e lojas"
+    }
   ]
 }
 {% endschema %}

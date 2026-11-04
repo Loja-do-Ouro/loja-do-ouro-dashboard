@@ -725,46 +725,211 @@
   "class": "lnat-hero-secao",
   "max_blocks": 12,
   "settings": [
-    { "type": "header", "content": "Fotografia" },
-    { "type": "image_picker", "id": "imagem", "label": "Imagem (computador)" },
-    { "type": "image_picker", "id": "imagem_telemovel", "label": "Imagem (telemóvel)", "info": "Vertical. Se ficar vazia, usa a do computador." },
-    { "type": "text", "id": "alt", "label": "Descrição da imagem (acessibilidade)", "default": "Três mulheres de diferentes gerações, de fato creme, com joias em ouro, junto a uma árvore de Natal." },
     {
-      "type": "select", "id": "esquema", "label": "Esquema",
+      "type": "header",
+      "content": "Fotografia"
+    },
+    {
+      "type": "image_picker",
+      "id": "imagem",
+      "label": "Imagem (computador)"
+    },
+    {
+      "type": "image_picker",
+      "id": "imagem_telemovel",
+      "label": "Imagem (telemóvel)",
+      "info": "Vertical. Se ficar vazia, usa a do computador."
+    },
+    {
+      "type": "text",
+      "id": "alt",
+      "label": "Descrição da imagem (acessibilidade)",
+      "default": "Três mulheres de diferentes gerações, de fato creme, com joias em ouro, junto a uma árvore de Natal."
+    },
+    {
+      "type": "select",
+      "id": "esquema",
+      "label": "Esquema",
       "options": [
-        { "value": "foto-esquerda", "label": "Foto ao lado do cartão (não tapa as pessoas)" },
-        { "value": "foto-inteira", "label": "Foto a toda a largura, cartão por cima" }
+        {
+          "value": "foto-esquerda",
+          "label": "Foto ao lado do cartão (não tapa as pessoas)"
+        },
+        {
+          "value": "foto-inteira",
+          "label": "Foto a toda a largura, cartão por cima"
+        }
       ],
       "default": "foto-esquerda"
     },
     {
-      "type": "select", "id": "lado_cartao", "label": "Lado do cartão",
-      "options": [ { "value": "direita", "label": "Direita" }, { "value": "esquerda", "label": "Esquerda" } ],
+      "type": "select",
+      "id": "lado_cartao",
+      "label": "Lado do cartão",
+      "options": [
+        {
+          "value": "direita",
+          "label": "Direita"
+        },
+        {
+          "value": "esquerda",
+          "label": "Esquerda"
+        }
+      ],
       "default": "direita"
     },
-    { "type": "range", "id": "foco_x", "min": 0, "max": 100, "step": 1, "unit": "%", "label": "Ponto de foco horizontal (computador)", "info": "100% corta mais do lado esquerdo da foto (onde está a placa).", "default": 100 },
-    { "type": "range", "id": "foco_y", "min": 0, "max": 100, "step": 1, "unit": "%", "label": "Ponto de foco vertical (computador)", "default": 30 },
-    { "type": "range", "id": "foco_y_tablet", "min": 0, "max": 100, "step": 1, "unit": "%", "label": "Ponto de foco vertical (tablet)", "info": "No tablet a foto fica mais baixa para o título e o botão caberem no primeiro ecrã. 0% mostra o topo da foto.", "default": 20 },
-    { "type": "range", "id": "corte_tablet", "min": 0, "max": 30, "step": 1, "unit": "%", "label": "Cortar à esquerda (tablet)", "info": "Tira do enquadramento a borda esquerda da foto do computador no tablet (na foto de Natal, a placa e o marco do correio).", "default": 0 },
-    { "type": "range", "id": "foco_y_tel", "min": 0, "max": 100, "step": 1, "unit": "%", "label": "Ponto de foco vertical (telemóvel)", "default": 20 },
-    { "type": "header", "content": "Cartão" },
-    { "type": "checkbox", "id": "mostrar_estrela", "label": "Mostrar estrela de filigrana", "default": true },
-    { "type": "checkbox", "id": "titulo_h1", "label": "Título como H1 (título principal da página)", "default": true },
-    { "type": "text", "id": "assinatura", "label": "Assinatura pequena", "default": "Seleção Loja do Ouro" },
-    { "type": "text", "id": "marca_lateral", "label": "Texto vertical (computador)", "default": "Loja do Ouro · Natal 2026" },
-    { "type": "textarea", "id": "faixa", "label": "Faixa de baixo (uma frase por linha)", "info": "Só serviços da loja. Não ponha aqui a garantia legal: é um direito do cliente, não uma vantagem. Fora de Portugal, sem lojas nem levantamento em loja.", "default": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\n13 lojas em Portugal, levantamento com marcação" },
-    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true },
-    { "type": "paragraph", "content": "Nos textos pode usar as datas das definições do tema › Natal 2026. Portugal: {continente}, {loja}, {reis}, {retoma}, {trocas}, {gravacao}. Espanha: {es_navidad}, {es_reyes}, {es_noche}. Internacional: {int}. As datas saem na língua da página. Na faixa vermelha, {contagem} mostra o tempo que falta para o prazo principal da fase do bloco (Portugal continental; Espanha Navidad ou Reyes; Internacional); {contagem:loja}, {contagem:reis}, {contagem:es_navidad}, {contagem:es_reyes} e {contagem:int} escolhem o prazo. Quando o prazo acaba, a faixa desaparece." },
-    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português. A marca em inglês é Gold Store Premium." },
-    { "type": "text", "id": "alt_en", "label": "Descrição da imagem (EN)" },
-    { "type": "text", "id": "assinatura_en", "label": "Assinatura pequena (EN)" },
-    { "type": "text", "id": "marca_lateral_en", "label": "Texto vertical (EN)" },
-    { "type": "textarea", "id": "faixa_en", "label": "Faixa de baixo (EN)" },
-    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português. A marca em espanhol é Gold Store Premium." },
-    { "type": "text", "id": "alt_es", "label": "Descrição da imagem (ES)" },
-    { "type": "text", "id": "assinatura_es", "label": "Assinatura pequena (ES)" },
-    { "type": "text", "id": "marca_lateral_es", "label": "Texto vertical (ES)" },
-    { "type": "textarea", "id": "faixa_es", "label": "Faixa de baixo (ES)" }
+    {
+      "type": "range",
+      "id": "foco_x",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Ponto de foco horizontal (computador)",
+      "info": "100% corta mais do lado esquerdo da foto (onde está a placa).",
+      "default": 100
+    },
+    {
+      "type": "range",
+      "id": "foco_y",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Ponto de foco vertical (computador)",
+      "default": 30
+    },
+    {
+      "type": "range",
+      "id": "foco_y_tablet",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Ponto de foco vertical (tablet)",
+      "info": "No tablet a foto fica mais baixa para o título e o botão caberem no primeiro ecrã. 0% mostra o topo da foto.",
+      "default": 20
+    },
+    {
+      "type": "range",
+      "id": "corte_tablet",
+      "min": 0,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "label": "Cortar à esquerda (tablet)",
+      "info": "Tira do enquadramento a borda esquerda da foto do computador no tablet (na foto de Natal, a placa e o marco do correio).",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "foco_y_tel",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Ponto de foco vertical (telemóvel)",
+      "default": 20
+    },
+    {
+      "type": "header",
+      "content": "Cartão"
+    },
+    {
+      "type": "checkbox",
+      "id": "mostrar_estrela",
+      "label": "Mostrar estrela de filigrana",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "titulo_h1",
+      "label": "Título como H1 (título principal da página)",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "assinatura",
+      "label": "Assinatura pequena",
+      "default": "Seleção Loja do Ouro"
+    },
+    {
+      "type": "text",
+      "id": "marca_lateral",
+      "label": "Texto vertical (computador)",
+      "default": "Loja do Ouro · Natal 2026"
+    },
+    {
+      "type": "textarea",
+      "id": "faixa",
+      "label": "Faixa de baixo (uma frase por linha)",
+      "info": "Só serviços da loja. Não ponha aqui a garantia legal: é um direito do cliente, não uma vantagem. Fora de Portugal, sem lojas nem levantamento em loja.",
+      "default": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\n13 lojas em Portugal, levantamento com marcação"
+    },
+    {
+      "type": "checkbox",
+      "id": "mostrar_no_telemovel",
+      "label": "Mostrar no telemóvel",
+      "default": true
+    },
+    {
+      "type": "paragraph",
+      "content": "Nos textos pode usar as datas das definições do tema › Natal 2026. Portugal: {continente}, {loja}, {reis}, {retoma}, {trocas}, {gravacao}. Espanha: {es_navidad}, {es_reyes}, {es_noche}. Internacional: {int}. As datas saem na língua da página."
+    },
+    {
+      "type": "paragraph",
+      "content": "Na faixa vermelha, {contagem} mostra o tempo que falta para o prazo principal da fase do bloco (Portugal continental; Espanha Navidad ou Reyes; Internacional); {contagem:loja}, {contagem:reis}, {contagem:es_navidad}, {contagem:es_reyes} e {contagem:int} escolhem o prazo. Quando o prazo acaba, a faixa desaparece."
+    },
+    {
+      "type": "header",
+      "content": "Tradução — Inglês (EN)",
+      "info": "Deixe vazio para usar o português. A marca em inglês é Gold Store Premium."
+    },
+    {
+      "type": "text",
+      "id": "alt_en",
+      "label": "Descrição da imagem (EN)"
+    },
+    {
+      "type": "text",
+      "id": "assinatura_en",
+      "label": "Assinatura pequena (EN)"
+    },
+    {
+      "type": "text",
+      "id": "marca_lateral_en",
+      "label": "Texto vertical (EN)"
+    },
+    {
+      "type": "textarea",
+      "id": "faixa_en",
+      "label": "Faixa de baixo (EN)"
+    },
+    {
+      "type": "header",
+      "content": "Tradução — Espanhol (ES)",
+      "info": "Deixe vazio para usar o português. A marca em espanhol é Gold Store Premium."
+    },
+    {
+      "type": "text",
+      "id": "alt_es",
+      "label": "Descrição da imagem (ES)"
+    },
+    {
+      "type": "text",
+      "id": "assinatura_es",
+      "label": "Assinatura pequena (ES)"
+    },
+    {
+      "type": "text",
+      "id": "marca_lateral_es",
+      "label": "Texto vertical (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "faixa_es",
+      "label": "Faixa de baixo (ES)"
+    }
   ],
   "blocks": [
     {
@@ -772,68 +937,268 @@
       "name": "Mensagem de uma fase",
       "settings": [
         {
-          "type": "select", "id": "fase", "label": "Fase",
+          "type": "select",
+          "id": "fase",
+          "label": "Fase",
           "options": [
-            { "value": "ouro", "label": "Ouro, escolher (1 a 13 dez.)" },
-            { "value": "incenso", "label": "Incenso, a tempo (14 a 20 dez.)" },
-            { "value": "ultima", "label": "Última hora (até 24 dez., 13h)" },
-            { "value": "consoada", "label": "Consoada (24 e 25 dez.)" },
-            { "value": "mirra", "label": "Mirra, dos Reis (26 dez. a 6 jan.)" },
-            { "value": "navidad", "label": "Espanha ou Internacional, Natal (até ao prazo)" },
-            { "value": "reyes", "label": "Espanha, a tempo do Dia de Reis" },
-            { "value": "reyes_ultima", "label": "Espanha, depois do prazo de Reis (até 4 jan.)" },
-            { "value": "noche_reyes", "label": "Espanha, Noite e Dia de Reis (5 e 6 jan.)" }
+            {
+              "value": "ouro",
+              "label": "Ouro, escolher (1 a 13 dez.)"
+            },
+            {
+              "value": "incenso",
+              "label": "Incenso, a tempo (14 a 20 dez.)"
+            },
+            {
+              "value": "ultima",
+              "label": "Última hora (até 24 dez., 13h)"
+            },
+            {
+              "value": "consoada",
+              "label": "Consoada (24 e 25 dez.)"
+            },
+            {
+              "value": "mirra",
+              "label": "Mirra, dos Reis (26 dez. a 6 jan.)"
+            },
+            {
+              "value": "navidad",
+              "label": "Espanha ou Internacional, Natal (até ao prazo)"
+            },
+            {
+              "value": "reyes",
+              "label": "Espanha, a tempo do Dia de Reis"
+            },
+            {
+              "value": "reyes_ultima",
+              "label": "Espanha, depois do prazo de Reis (até 4 jan.)"
+            },
+            {
+              "value": "noche_reyes",
+              "label": "Espanha, Noite e Dia de Reis (5 e 6 jan.)"
+            }
           ],
           "default": "ouro"
         },
         {
-          "type": "select", "id": "mercado", "label": "Mercado",
+          "type": "select",
+          "id": "mercado",
+          "label": "Mercado",
           "options": [
-            { "value": "todos", "label": "Todos os mercados" },
-            { "value": "pt", "label": "Portugal" },
-            { "value": "es", "label": "Espanha" },
-            { "value": "int", "label": "Internacional" }
+            {
+              "value": "todos",
+              "label": "Todos os mercados"
+            },
+            {
+              "value": "pt",
+              "label": "Portugal"
+            },
+            {
+              "value": "es",
+              "label": "Espanha"
+            },
+            {
+              "value": "int",
+              "label": "Internacional"
+            }
           ],
           "default": "todos",
           "info": "A mensagem só aparece nas páginas deste mercado. As fases de Portugal só existem em Portugal; Natal (navidad) existe em Espanha e no Internacional."
         },
-        { "type": "checkbox", "id": "ligado", "label": "Mostrar esta mensagem", "info": "Desligada, a mensagem fica guardada mas não aparece no site (no editor pode vê-la ao selecionar o bloco).", "default": true },
-        { "type": "text", "id": "de", "label": "Mostrar a partir de", "info": "Opcional. AAAA-MM-DD HH:MM ou o nome de uma data das definições (ex.: reis = depois do prazo dos Reis). Com vários blocos da mesma fase, aparece o primeiro dentro das datas." },
-        { "type": "text", "id": "ate", "label": "Mostrar até", "info": "Opcional. AAAA-MM-DD HH:MM (o último minuto conta) ou o nome de uma data das definições (ex.: reis = até ao fim do prazo dos Reis)." },
-        { "type": "text", "id": "eyebrow", "label": "Texto pequeno por cima", "default": "Natal 2026 · Ouro de Reis" },
-        { "type": "text", "id": "titulo", "label": "Título", "default": "O primeiro presente de Natal foi ouro." },
-        { "type": "inline_richtext", "id": "texto", "label": "Texto", "info": "Prazos de entrega sempre com «prazo indicativo»." },
-        { "type": "inline_richtext", "id": "chip", "label": "Faixa vermelha (prazo)" },
-        { "type": "text", "id": "botao1_texto", "label": "Botão principal" },
-        { "type": "url", "id": "botao1_url", "label": "Ligação do botão principal" },
-        { "type": "checkbox", "id": "botao1_whatsapp", "label": "Botão principal abre o WhatsApp", "default": false },
-        { "type": "text", "id": "mensagem_whatsapp", "label": "Mensagem pré-escrita do WhatsApp", "default": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas." },
-        { "type": "text", "id": "botao2_texto", "label": "Botão secundário" },
-        { "type": "url", "id": "botao2_url", "label": "Ligação do botão secundário" },
-        { "type": "header", "content": "Botão secundário alternativo" },
-        { "type": "paragraph", "content": "Opcional. Entre as datas abaixo, este botão aparece no lugar do botão secundário." },
-        { "type": "text", "id": "botao2_alt_texto", "label": "Texto" },
-        { "type": "url", "id": "botao2_alt_url", "label": "Ligação" },
-        { "type": "text", "id": "botao2_alt_de", "label": "A partir de", "info": "AAAA-MM-DD HH:MM ou o nome de uma data das definições." },
-        { "type": "text", "id": "botao2_alt_ate", "label": "Até", "info": "AAAA-MM-DD HH:MM (o último minuto conta) ou o nome de uma data das definições." },
-        { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português. Prazos sempre «indicative»; marca Gold Store Premium." },
-        { "type": "text", "id": "eyebrow_en", "label": "Texto pequeno por cima (EN)" },
-        { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
-        { "type": "inline_richtext", "id": "texto_en", "label": "Texto (EN)" },
-        { "type": "inline_richtext", "id": "chip_en", "label": "Faixa vermelha (EN)" },
-        { "type": "text", "id": "botao1_texto_en", "label": "Botão principal (EN)" },
-        { "type": "text", "id": "mensagem_whatsapp_en", "label": "Mensagem do WhatsApp (EN)" },
-        { "type": "text", "id": "botao2_texto_en", "label": "Botão secundário (EN)" },
-        { "type": "text", "id": "botao2_alt_texto_en", "label": "Botão alternativo (EN)" },
-        { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português. Espanhol de Espanha, com «usted»; prazos sempre «orientativo»." },
-        { "type": "text", "id": "eyebrow_es", "label": "Texto pequeno por cima (ES)" },
-        { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
-        { "type": "inline_richtext", "id": "texto_es", "label": "Texto (ES)" },
-        { "type": "inline_richtext", "id": "chip_es", "label": "Faixa vermelha (ES)" },
-        { "type": "text", "id": "botao1_texto_es", "label": "Botão principal (ES)" },
-        { "type": "text", "id": "mensagem_whatsapp_es", "label": "Mensagem do WhatsApp (ES)" },
-        { "type": "text", "id": "botao2_texto_es", "label": "Botão secundário (ES)" },
-        { "type": "text", "id": "botao2_alt_texto_es", "label": "Botão alternativo (ES)" }
+        {
+          "type": "checkbox",
+          "id": "ligado",
+          "label": "Mostrar esta mensagem",
+          "info": "Desligada, a mensagem fica guardada mas não aparece no site (no editor pode vê-la ao selecionar o bloco).",
+          "default": true
+        },
+        {
+          "type": "text",
+          "id": "de",
+          "label": "Mostrar a partir de",
+          "info": "Opcional. AAAA-MM-DD HH:MM ou o nome de uma data das definições (ex.: reis = depois do prazo dos Reis). Com vários blocos da mesma fase, aparece o primeiro dentro das datas."
+        },
+        {
+          "type": "text",
+          "id": "ate",
+          "label": "Mostrar até",
+          "info": "Opcional. AAAA-MM-DD HH:MM (o último minuto conta) ou o nome de uma data das definições (ex.: reis = até ao fim do prazo dos Reis)."
+        },
+        {
+          "type": "text",
+          "id": "eyebrow",
+          "label": "Texto pequeno por cima",
+          "default": "Natal 2026 · Ouro de Reis"
+        },
+        {
+          "type": "text",
+          "id": "titulo",
+          "label": "Título",
+          "default": "O primeiro presente de Natal foi ouro."
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto",
+          "label": "Texto",
+          "info": "Prazos de entrega sempre com «prazo indicativo»."
+        },
+        {
+          "type": "inline_richtext",
+          "id": "chip",
+          "label": "Faixa vermelha (prazo)"
+        },
+        {
+          "type": "text",
+          "id": "botao1_texto",
+          "label": "Botão principal"
+        },
+        {
+          "type": "url",
+          "id": "botao1_url",
+          "label": "Ligação do botão principal"
+        },
+        {
+          "type": "checkbox",
+          "id": "botao1_whatsapp",
+          "label": "Botão principal abre o WhatsApp",
+          "default": false
+        },
+        {
+          "type": "text",
+          "id": "mensagem_whatsapp",
+          "label": "Mensagem pré-escrita do WhatsApp",
+          "default": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas."
+        },
+        {
+          "type": "text",
+          "id": "botao2_texto",
+          "label": "Botão secundário"
+        },
+        {
+          "type": "url",
+          "id": "botao2_url",
+          "label": "Ligação do botão secundário"
+        },
+        {
+          "type": "header",
+          "content": "Botão secundário alternativo"
+        },
+        {
+          "type": "paragraph",
+          "content": "Opcional. Entre as datas abaixo, este botão aparece no lugar do botão secundário."
+        },
+        {
+          "type": "text",
+          "id": "botao2_alt_texto",
+          "label": "Texto"
+        },
+        {
+          "type": "url",
+          "id": "botao2_alt_url",
+          "label": "Ligação"
+        },
+        {
+          "type": "text",
+          "id": "botao2_alt_de",
+          "label": "A partir de",
+          "info": "AAAA-MM-DD HH:MM ou o nome de uma data das definições."
+        },
+        {
+          "type": "text",
+          "id": "botao2_alt_ate",
+          "label": "Até",
+          "info": "AAAA-MM-DD HH:MM (o último minuto conta) ou o nome de uma data das definições."
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Inglês (EN)",
+          "info": "Deixe vazio para usar o português. Prazos sempre «indicative»; marca Gold Store Premium."
+        },
+        {
+          "type": "text",
+          "id": "eyebrow_en",
+          "label": "Texto pequeno por cima (EN)"
+        },
+        {
+          "type": "text",
+          "id": "titulo_en",
+          "label": "Título (EN)"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto_en",
+          "label": "Texto (EN)"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "chip_en",
+          "label": "Faixa vermelha (EN)"
+        },
+        {
+          "type": "text",
+          "id": "botao1_texto_en",
+          "label": "Botão principal (EN)"
+        },
+        {
+          "type": "text",
+          "id": "mensagem_whatsapp_en",
+          "label": "Mensagem do WhatsApp (EN)"
+        },
+        {
+          "type": "text",
+          "id": "botao2_texto_en",
+          "label": "Botão secundário (EN)"
+        },
+        {
+          "type": "text",
+          "id": "botao2_alt_texto_en",
+          "label": "Botão alternativo (EN)"
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Espanhol (ES)",
+          "info": "Deixe vazio para usar o português. Espanhol de Espanha, com «usted»; prazos sempre «orientativo»."
+        },
+        {
+          "type": "text",
+          "id": "eyebrow_es",
+          "label": "Texto pequeno por cima (ES)"
+        },
+        {
+          "type": "text",
+          "id": "titulo_es",
+          "label": "Título (ES)"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto_es",
+          "label": "Texto (ES)"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "chip_es",
+          "label": "Faixa vermelha (ES)"
+        },
+        {
+          "type": "text",
+          "id": "botao1_texto_es",
+          "label": "Botão principal (ES)"
+        },
+        {
+          "type": "text",
+          "id": "mensagem_whatsapp_es",
+          "label": "Mensagem do WhatsApp (ES)"
+        },
+        {
+          "type": "text",
+          "id": "botao2_texto_es",
+          "label": "Botão secundário (ES)"
+        },
+        {
+          "type": "text",
+          "id": "botao2_alt_texto_es",
+          "label": "Botão alternativo (ES)"
+        }
       ]
     }
   ],
@@ -841,7 +1206,23 @@
     {
       "name": "Natal · Banner principal",
       "blocks": [
-        { "type": "fase", "settings": { "fase": "ouro", "mercado": "pt", "eyebrow": "Natal 2026 · Ouro de Reis", "titulo": "O primeiro presente de Natal foi ouro.", "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família.", "chip": "Para o Natal em Portugal continental, encomende até <b>{continente}</b> (prazo indicativo).", "botao1_texto": "Encontrar a prenda", "botao2_texto": "Corações de Viana", "eyebrow_en": "Christmas 2026 · Gold of the Magi", "titulo_en": "The first Christmas gift was gold.", "eyebrow_es": "Navidad 2026 · Oro de Reyes", "titulo_es": "El primer regalo de Navidad fue oro." } }
+        {
+          "type": "fase",
+          "settings": {
+            "fase": "ouro",
+            "mercado": "pt",
+            "eyebrow": "Natal 2026 · Ouro de Reis",
+            "titulo": "O primeiro presente de Natal foi ouro.",
+            "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família.",
+            "chip": "Para o Natal em Portugal continental, encomende até <b>{continente}</b> (prazo indicativo).",
+            "botao1_texto": "Encontrar a prenda",
+            "botao2_texto": "Corações de Viana",
+            "eyebrow_en": "Christmas 2026 · Gold of the Magi",
+            "titulo_en": "The first Christmas gift was gold.",
+            "eyebrow_es": "Navidad 2026 · Oro de Reyes",
+            "titulo_es": "El primer regalo de Navidad fue oro."
+          }
+        }
       ]
     }
   ]

@@ -1348,77 +1348,325 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "Guia de prendas. Em Portugal aparece de 1 de dezembro ao Dia de Reis; em Espanha até ao Dia de Reis, com os prazos de Espanha; no Internacional só até ao prazo dos envios internacionais (datas nas definições do tema, Natal 2026). A ajuda por WhatsApp e o levantamento em loja só aparecem no mercado Portugal. Os resultados carregam quando a secção se aproxima do ecrã."
+      "content": "Guia de prendas. Em Portugal aparece de 1 de dezembro ao Dia de Reis; em Espanha até ao Dia de Reis, com os prazos de Espanha; no Internacional só até ao prazo dos envios internacionais (datas nas definições do tema, Natal 2026). A ajuda por WhatsApp e o levantamento em loja só aparecem no mercado Portugal."
     },
-    { "type": "header", "content": "Textos" },
-    { "type": "text", "id": "eyebrow", "label": "Etiqueta", "default": "Guia de prendas" },
-    { "type": "text", "id": "titulo", "label": "Título", "default": "Siga a estrela." },
-    { "type": "textarea", "id": "texto", "label": "Texto", "default": "Três escolhas e mostramos-lhe as peças certas — com prazo de entrega." },
-    { "type": "text", "id": "ajuda", "label": "Linha de ajuda", "default": "Prefere ajuda de uma pessoa?", "info": "Só aparece no mercado Portugal." },
-    { "type": "text", "id": "ajuda_link", "label": "Ligação de ajuda (WhatsApp)", "default": "Fale connosco por WhatsApp", "info": "Vazio esconde a linha de ajuda. Só aparece no mercado Portugal. O número vem das definições do tema (Natal 2026)." },
-    { "type": "text", "id": "ajuda_mensagem", "label": "Mensagem já escrita no WhatsApp", "default": "Olá! Estou a escolher uma prenda de Natal e gostava de ajuda." },
-    { "type": "text", "id": "titulo_resultados", "label": "Título dos resultados", "default": "A estrela parou aqui." },
-    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
-    { "type": "text", "id": "eyebrow_en", "label": "Etiqueta (EN)" },
-    { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
-    { "type": "textarea", "id": "texto_en", "label": "Texto (EN)" },
-    { "type": "text", "id": "ajuda_en", "label": "Linha de ajuda (EN)" },
-    { "type": "text", "id": "ajuda_link_en", "label": "Ligação de ajuda (EN)" },
-    { "type": "text", "id": "ajuda_mensagem_en", "label": "Mensagem no WhatsApp (EN)" },
-    { "type": "text", "id": "titulo_resultados_en", "label": "Título dos resultados (EN)" },
-    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
-    { "type": "text", "id": "eyebrow_es", "label": "Etiqueta (ES)" },
-    { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
-    { "type": "textarea", "id": "texto_es", "label": "Texto (ES)" },
-    { "type": "text", "id": "ajuda_es", "label": "Linha de ajuda (ES)" },
-    { "type": "text", "id": "ajuda_link_es", "label": "Ligação de ajuda (ES)" },
-    { "type": "text", "id": "ajuda_mensagem_es", "label": "Mensagem no WhatsApp (ES)" },
-    { "type": "text", "id": "titulo_resultados_es", "label": "Título dos resultados (ES)" },
-    { "type": "header", "content": "Ligações" },
-    { "type": "collection", "id": "colecao_vale", "label": "Coleção dos vales-prenda", "info": "Usada quando não há peças. Os vales seguem por correio: depois do prazo do correio só se sugerem se estiver ligada a opção O vale-prenda é entregue por email, nas definições do tema (Natal 2026). Vazio usa /collections/voucher-prenda." },
-    { "type": "checkbox", "id": "vale_fora_portugal", "label": "Sugerir vales-prenda em Espanha e no Internacional", "default": false, "info": "Os vales-prenda seguem por correio. Ligue só depois de confirmar que os vales servem aos clientes de Espanha e do Internacional." },
-    { "type": "text", "id": "ancora", "label": "Âncora da secção", "default": "siga-a-estrela", "info": "Endereço da secção: /#siga-a-estrela. As escolhas ficam a seguir, por exemplo #siga-a-estrela?para=ela&metal=ouro&valor=100-250" },
-    { "type": "header", "content": "Comportamento" },
+    {
+      "type": "paragraph",
+      "content": "Os resultados carregam quando a secção se aproxima do ecrã."
+    },
+    {
+      "type": "header",
+      "content": "Textos"
+    },
+    {
+      "type": "text",
+      "id": "eyebrow",
+      "label": "Etiqueta",
+      "default": "Guia de prendas"
+    },
+    {
+      "type": "text",
+      "id": "titulo",
+      "label": "Título",
+      "default": "Siga a estrela."
+    },
+    {
+      "type": "textarea",
+      "id": "texto",
+      "label": "Texto",
+      "default": "Três escolhas e mostramos-lhe as peças certas — com prazo de entrega."
+    },
+    {
+      "type": "text",
+      "id": "ajuda",
+      "label": "Linha de ajuda",
+      "default": "Prefere ajuda de uma pessoa?",
+      "info": "Só aparece no mercado Portugal."
+    },
+    {
+      "type": "text",
+      "id": "ajuda_link",
+      "label": "Ligação de ajuda (WhatsApp)",
+      "default": "Fale connosco por WhatsApp",
+      "info": "Vazio esconde a linha de ajuda. Só aparece no mercado Portugal. O número vem das definições do tema (Natal 2026)."
+    },
+    {
+      "type": "text",
+      "id": "ajuda_mensagem",
+      "label": "Mensagem já escrita no WhatsApp",
+      "default": "Olá! Estou a escolher uma prenda de Natal e gostava de ajuda."
+    },
+    {
+      "type": "text",
+      "id": "titulo_resultados",
+      "label": "Título dos resultados",
+      "default": "A estrela parou aqui."
+    },
+    {
+      "type": "header",
+      "content": "Tradução — Inglês (EN)",
+      "info": "Deixe vazio para usar o português."
+    },
+    {
+      "type": "text",
+      "id": "eyebrow_en",
+      "label": "Etiqueta (EN)"
+    },
+    {
+      "type": "text",
+      "id": "titulo_en",
+      "label": "Título (EN)"
+    },
+    {
+      "type": "textarea",
+      "id": "texto_en",
+      "label": "Texto (EN)"
+    },
+    {
+      "type": "text",
+      "id": "ajuda_en",
+      "label": "Linha de ajuda (EN)"
+    },
+    {
+      "type": "text",
+      "id": "ajuda_link_en",
+      "label": "Ligação de ajuda (EN)"
+    },
+    {
+      "type": "text",
+      "id": "ajuda_mensagem_en",
+      "label": "Mensagem no WhatsApp (EN)"
+    },
+    {
+      "type": "text",
+      "id": "titulo_resultados_en",
+      "label": "Título dos resultados (EN)"
+    },
+    {
+      "type": "header",
+      "content": "Tradução — Espanhol (ES)",
+      "info": "Deixe vazio para usar o português."
+    },
+    {
+      "type": "text",
+      "id": "eyebrow_es",
+      "label": "Etiqueta (ES)"
+    },
+    {
+      "type": "text",
+      "id": "titulo_es",
+      "label": "Título (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "texto_es",
+      "label": "Texto (ES)"
+    },
+    {
+      "type": "text",
+      "id": "ajuda_es",
+      "label": "Linha de ajuda (ES)"
+    },
+    {
+      "type": "text",
+      "id": "ajuda_link_es",
+      "label": "Ligação de ajuda (ES)"
+    },
+    {
+      "type": "text",
+      "id": "ajuda_mensagem_es",
+      "label": "Mensagem no WhatsApp (ES)"
+    },
+    {
+      "type": "text",
+      "id": "titulo_resultados_es",
+      "label": "Título dos resultados (ES)"
+    },
+    {
+      "type": "header",
+      "content": "Ligações"
+    },
+    {
+      "type": "collection",
+      "id": "colecao_vale",
+      "label": "Coleção dos vales-prenda",
+      "info": "Usada quando não há peças. Os vales seguem por correio: depois do prazo do correio só se sugerem se estiver ligada a opção O vale-prenda é entregue por email, nas definições do tema (Natal 2026). Vazio usa /collections/voucher-prenda."
+    },
+    {
+      "type": "checkbox",
+      "id": "vale_fora_portugal",
+      "label": "Sugerir vales-prenda em Espanha e no Internacional",
+      "default": false,
+      "info": "Os vales-prenda seguem por correio. Ligue só depois de confirmar que os vales servem aos clientes de Espanha e do Internacional."
+    },
+    {
+      "type": "text",
+      "id": "ancora",
+      "label": "Âncora da secção",
+      "default": "siga-a-estrela",
+      "info": "Endereço da secção: /#siga-a-estrela. As escolhas ficam a seguir, por exemplo #siga-a-estrela?para=ela&metal=ouro&valor=100-250"
+    },
+    {
+      "type": "header",
+      "content": "Comportamento"
+    },
     {
       "type": "select",
       "id": "estado_inicial",
       "label": "Ao abrir a página",
       "options": [
-        { "value": "fechado", "label": "Esperar pela primeira escolha" },
-        { "value": "primeira", "label": "Mostrar logo a primeira escolha" }
+        {
+          "value": "fechado",
+          "label": "Esperar pela primeira escolha"
+        },
+        {
+          "value": "primeira",
+          "label": "Mostrar logo a primeira escolha"
+        }
       ],
       "default": "fechado",
       "info": "Esperar pela primeira escolha evita mostrar as mesmas peças da secção Os mais oferecidos, que vem a seguir."
     },
-    { "type": "header", "content": "Telemóvel" },
-    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true },
-    { "type": "checkbox", "id": "barra_telemovel", "label": "Barra Ver prendas no fundo do ecrã", "default": true, "info": "Aparece depois da primeira escolha, enquanto as perguntas estão no ecrã e os resultados ainda não. Leva aos resultados." },
-    { "type": "range", "id": "barra_fundo", "label": "Distância da barra ao fundo do ecrã", "min": 0, "max": 240, "step": 4, "unit": "px", "default": 148, "info": "148 px deixa a barra acima do botão de chat (a 84 px do fundo, com 56 px de altura)." }
+    {
+      "type": "header",
+      "content": "Telemóvel"
+    },
+    {
+      "type": "checkbox",
+      "id": "mostrar_no_telemovel",
+      "label": "Mostrar no telemóvel",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "barra_telemovel",
+      "label": "Barra Ver prendas no fundo do ecrã",
+      "default": true,
+      "info": "Aparece depois da primeira escolha, enquanto as perguntas estão no ecrã e os resultados ainda não. Leva aos resultados."
+    },
+    {
+      "type": "range",
+      "id": "barra_fundo",
+      "label": "Distância da barra ao fundo do ecrã",
+      "min": 0,
+      "max": 240,
+      "step": 4,
+      "unit": "px",
+      "default": 148,
+      "info": "148 px deixa a barra acima do botão de chat (a 84 px do fundo, com 56 px de altura)."
+    }
   ],
   "blocks": [
     {
       "type": "destinatario",
       "name": "Para quem",
       "settings": [
-        { "type": "text", "id": "label", "label": "Nome da escolha", "default": "Para ela" },
-        { "type": "text", "id": "chave", "label": "Chave no endereço", "default": "ela", "info": "Curta, sem espaços nem acentos (ex. ela, ele, mae). Aparece em #siga-a-estrela?para=ela. É igual em todas as línguas." },
-        { "type": "text", "id": "resumo", "label": "Na frase dos resultados", "info": "Ex. para a mãe, que dá 12 prendas para a mãe, em prata. Vazio usa o nome da escolha em minúsculas." },
-        { "type": "text", "id": "descricao", "label": "Linha pequena por baixo do nome", "info": "Opcional. Ex. Brincos, fios, pulseiras e anéis" },
-        { "type": "checkbox", "id": "destaque", "label": "Escolha grande (em destaque)", "default": false },
-        { "type": "collection", "id": "colecao", "label": "Coleção principal" },
-        { "type": "collection", "id": "alternativa", "label": "Coleção alternativa", "info": "Junta-se aos resultados quando a principal dá menos de 4 peças com as escolhas feitas." },
-        { "type": "checkbox", "id": "saltar_metal", "label": "Saltar a pergunta Ouro ou prata", "default": false },
-        { "type": "textarea", "id": "aviso", "label": "Aviso nos resultados", "info": "Opcional. Aparece por cima das peças quando esta escolha está ativa." },
-        { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
-        { "type": "text", "id": "label_en", "label": "Nome da escolha (EN)" },
-        { "type": "text", "id": "resumo_en", "label": "Na frase dos resultados (EN)", "info": "Ex. for Mum, que dá 12 gifts for Mum, in silver. Vazio usa o nome da escolha (EN) em minúsculas." },
-        { "type": "text", "id": "descricao_en", "label": "Linha pequena (EN)" },
-        { "type": "textarea", "id": "aviso_en", "label": "Aviso nos resultados (EN)" },
-        { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
-        { "type": "text", "id": "label_es", "label": "Nome da escolha (ES)" },
-        { "type": "text", "id": "resumo_es", "label": "Na frase dos resultados (ES)", "info": "Ex. para mamá, que dá 12 regalos para mamá, en plata. Vazio usa o nome da escolha (ES) em minúsculas." },
-        { "type": "text", "id": "descricao_es", "label": "Linha pequena (ES)" },
-        { "type": "textarea", "id": "aviso_es", "label": "Aviso nos resultados (ES)" }
+        {
+          "type": "text",
+          "id": "label",
+          "label": "Nome da escolha",
+          "default": "Para ela"
+        },
+        {
+          "type": "text",
+          "id": "chave",
+          "label": "Chave no endereço",
+          "default": "ela",
+          "info": "Curta, sem espaços nem acentos (ex. ela, ele, mae). Aparece em #siga-a-estrela?para=ela. É igual em todas as línguas."
+        },
+        {
+          "type": "text",
+          "id": "resumo",
+          "label": "Na frase dos resultados",
+          "info": "Ex. para a mãe, que dá 12 prendas para a mãe, em prata. Vazio usa o nome da escolha em minúsculas."
+        },
+        {
+          "type": "text",
+          "id": "descricao",
+          "label": "Linha pequena por baixo do nome",
+          "info": "Opcional. Ex. Brincos, fios, pulseiras e anéis"
+        },
+        {
+          "type": "checkbox",
+          "id": "destaque",
+          "label": "Escolha grande (em destaque)",
+          "default": false
+        },
+        {
+          "type": "collection",
+          "id": "colecao",
+          "label": "Coleção principal"
+        },
+        {
+          "type": "collection",
+          "id": "alternativa",
+          "label": "Coleção alternativa",
+          "info": "Junta-se aos resultados quando a principal dá menos de 4 peças com as escolhas feitas."
+        },
+        {
+          "type": "checkbox",
+          "id": "saltar_metal",
+          "label": "Saltar a pergunta Ouro ou prata",
+          "default": false
+        },
+        {
+          "type": "textarea",
+          "id": "aviso",
+          "label": "Aviso nos resultados",
+          "info": "Opcional. Aparece por cima das peças quando esta escolha está ativa."
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Inglês (EN)",
+          "info": "Deixe vazio para usar o português."
+        },
+        {
+          "type": "text",
+          "id": "label_en",
+          "label": "Nome da escolha (EN)"
+        },
+        {
+          "type": "text",
+          "id": "resumo_en",
+          "label": "Na frase dos resultados (EN)",
+          "info": "Ex. for Mum, que dá 12 gifts for Mum, in silver. Vazio usa o nome da escolha (EN) em minúsculas."
+        },
+        {
+          "type": "text",
+          "id": "descricao_en",
+          "label": "Linha pequena (EN)"
+        },
+        {
+          "type": "textarea",
+          "id": "aviso_en",
+          "label": "Aviso nos resultados (EN)"
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Espanhol (ES)",
+          "info": "Deixe vazio para usar o português."
+        },
+        {
+          "type": "text",
+          "id": "label_es",
+          "label": "Nome da escolha (ES)"
+        },
+        {
+          "type": "text",
+          "id": "resumo_es",
+          "label": "Na frase dos resultados (ES)",
+          "info": "Ex. para mamá, que dá 12 regalos para mamá, en plata. Vazio usa o nome da escolha (ES) em minúsculas."
+        },
+        {
+          "type": "text",
+          "id": "descricao_es",
+          "label": "Linha pequena (ES)"
+        },
+        {
+          "type": "textarea",
+          "id": "aviso_es",
+          "label": "Aviso nos resultados (ES)"
+        }
       ]
     }
   ],
@@ -1442,13 +1690,102 @@
         "titulo_resultados_es": "La estrella se detuvo aquí."
       },
       "blocks": [
-        { "type": "destinatario", "settings": { "label": "Para ela", "chave": "ela", "resumo": "para ela", "descricao": "Brincos, fios, pulseiras e anéis", "destaque": true, "label_en": "For her", "resumo_en": "for her", "descricao_en": "Earrings, necklaces, bracelets and rings", "label_es": "Para ella", "resumo_es": "para ella", "descricao_es": "Pendientes, collares, pulseras y anillos" } },
-        { "type": "destinatario", "settings": { "label": "Para ele", "chave": "ele", "resumo": "para ele", "descricao": "Fios, pulseiras, anéis e relógios", "destaque": true, "label_en": "For him", "resumo_en": "for him", "descricao_en": "Chains, bracelets, rings and watches", "label_es": "Para él", "resumo_es": "para él", "descricao_es": "Cadenas, pulseras, anillos y relojes" } },
-        { "type": "destinatario", "settings": { "label": "Para a mãe", "chave": "mae", "resumo": "para a mãe", "label_en": "For Mum", "resumo_en": "for Mum", "label_es": "Para mamá", "resumo_es": "para mamá" } },
-        { "type": "destinatario", "settings": { "label": "Para a avó", "chave": "avo", "resumo": "para a avó", "label_en": "For Grandma", "resumo_en": "for Grandma", "label_es": "Para la abuela", "resumo_es": "para la abuela" } },
-        { "type": "destinatario", "settings": { "label": "Para os mais pequenos", "chave": "pequenos", "resumo": "para os mais pequenos", "label_en": "For little ones", "resumo_en": "for little ones", "label_es": "Para los más pequeños", "resumo_es": "para los más pequeños" } },
-        { "type": "destinatario", "settings": { "label": "Batizado e afilhados", "chave": "batizado", "resumo": "para batizados e afilhados", "label_en": "Christenings and godchildren", "resumo_en": "for christenings and godchildren", "label_es": "Bautizos y ahijados", "resumo_es": "para bautizos y ahijados" } },
-        { "type": "destinatario", "settings": { "label": "Para guardar", "chave": "guardar", "resumo": "para guardar", "saltar_metal": true, "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento.", "label_en": "To treasure", "resumo_en": "to treasure", "aviso_en": "The price of gold varies with the market. This is commercial information and does not constitute investment advice.", "label_es": "Para atesorar", "resumo_es": "para atesorar", "aviso_es": "El precio del oro varía según el mercado. Información comercial; no constituye asesoramiento de inversión." } }
+        {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para ela",
+            "chave": "ela",
+            "resumo": "para ela",
+            "descricao": "Brincos, fios, pulseiras e anéis",
+            "destaque": true,
+            "label_en": "For her",
+            "resumo_en": "for her",
+            "descricao_en": "Earrings, necklaces, bracelets and rings",
+            "label_es": "Para ella",
+            "resumo_es": "para ella",
+            "descricao_es": "Pendientes, collares, pulseras y anillos"
+          }
+        },
+        {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para ele",
+            "chave": "ele",
+            "resumo": "para ele",
+            "descricao": "Fios, pulseiras, anéis e relógios",
+            "destaque": true,
+            "label_en": "For him",
+            "resumo_en": "for him",
+            "descricao_en": "Chains, bracelets, rings and watches",
+            "label_es": "Para él",
+            "resumo_es": "para él",
+            "descricao_es": "Cadenas, pulseras, anillos y relojes"
+          }
+        },
+        {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para a mãe",
+            "chave": "mae",
+            "resumo": "para a mãe",
+            "label_en": "For Mum",
+            "resumo_en": "for Mum",
+            "label_es": "Para mamá",
+            "resumo_es": "para mamá"
+          }
+        },
+        {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para a avó",
+            "chave": "avo",
+            "resumo": "para a avó",
+            "label_en": "For Grandma",
+            "resumo_en": "for Grandma",
+            "label_es": "Para la abuela",
+            "resumo_es": "para la abuela"
+          }
+        },
+        {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para os mais pequenos",
+            "chave": "pequenos",
+            "resumo": "para os mais pequenos",
+            "label_en": "For little ones",
+            "resumo_en": "for little ones",
+            "label_es": "Para los más pequeños",
+            "resumo_es": "para los más pequeños"
+          }
+        },
+        {
+          "type": "destinatario",
+          "settings": {
+            "label": "Batizado e afilhados",
+            "chave": "batizado",
+            "resumo": "para batizados e afilhados",
+            "label_en": "Christenings and godchildren",
+            "resumo_en": "for christenings and godchildren",
+            "label_es": "Bautizos y ahijados",
+            "resumo_es": "para bautizos y ahijados"
+          }
+        },
+        {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para guardar",
+            "chave": "guardar",
+            "resumo": "para guardar",
+            "saltar_metal": true,
+            "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento.",
+            "label_en": "To treasure",
+            "resumo_en": "to treasure",
+            "aviso_en": "The price of gold varies with the market. This is commercial information and does not constitute investment advice.",
+            "label_es": "Para atesorar",
+            "resumo_es": "para atesorar",
+            "aviso_es": "El precio del oro varía según el mercado. Información comercial; no constituye asesoramiento de inversión."
+          }
+        }
       ]
     }
   ]

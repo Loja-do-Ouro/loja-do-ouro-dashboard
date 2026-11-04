@@ -730,7 +730,11 @@
   "name": "Natal · Barra de avisos",
   "tag": "section",
   "class": "lnat-bar-section",
-  "enabled_on": { "groups": ["header"] },
+  "enabled_on": {
+    "groups": [
+      "header"
+    ]
+  },
   "max_blocks": 20,
   "settings": [
     {
@@ -743,11 +747,20 @@
       "label": "Mercado desta barra",
       "default": "pt",
       "options": [
-        { "value": "pt", "label": "Portugal (Ouro de Reis)" },
-        { "value": "spain", "label": "Espanha (Oro de Reyes)" },
-        { "value": "internacional", "label": "Internacional e outros mercados" }
+        {
+          "value": "pt",
+          "label": "Portugal (Ouro de Reis)"
+        },
+        {
+          "value": "spain",
+          "label": "Espanha (Oro de Reyes)"
+        },
+        {
+          "value": "internacional",
+          "label": "Internacional e outros mercados"
+        }
       ],
-      "info": "Ponha uma barra por mercado no cabeçalho. Cada uma só aparece nas visitas do seu mercado e segue as fases e os prazos dele. Espanha: sem lojas nem levantamento em loja. Internacional: qualquer mercado que não seja Portugal nem Espanha. No editor, a barra de outro mercado aparece ao selecioná-la."
+      "info": "Uma barra por mercado no cabeçalho; cada uma só aparece no seu mercado. Espanha: sem lojas nem levantamento. Internacional: os outros mercados."
     },
     {
       "type": "checkbox",
@@ -760,15 +773,23 @@
       "id": "janeiras_confirmadas",
       "label": "Janeiras confirmadas",
       "default": false,
-      "info": "Desligado, as mensagens com «Mostrar: Só se as Janeiras estiverem confirmadas» não aparecem. Ligue só quando as lojas, os dias e as horas das Janeiras estiverem decididos. Ligue também «Janeiras confirmadas» no calendário e nos Prazos, e a mensagem «Abrimos a porta às Janeiras» do banner. Só faz sentido na barra de Portugal."
+      "info": "Desligado, as mensagens «Só se as Janeiras estiverem confirmadas» não aparecem. Ligue também no calendário, nos Prazos e no banner. Só na barra de Portugal."
     },
     {
       "type": "paragraph",
-      "content": "Datas das mensagens (hora de Lisboa): AAAA-MM-DD HH:MM, ou o nome de uma data das definições. Portugal: inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma, reis, fim, trocas. Espanha: es_navidad, es_reyes, es_noche (5 de janeiro, 00:00). Internacional: int. Num «De», um prazo quer dizer «depois desse prazo»; num «Até», inicio, fase2, loja, retoma ou es_noche quer dizer «até ao minuto antes». Depois do prazo da contagem, a mensagem desaparece."
+      "content": "Datas das mensagens (hora de Lisboa): AAAA-MM-DD HH:MM, ou o nome de uma data das definições. Portugal: inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma, reis, fim, trocas. Espanha: es_navidad, es_reyes, es_noche (5 de janeiro, 00:00). Internacional: int."
     },
     {
       "type": "paragraph",
-      "content": "No texto, {continente} escreve «20 de dezembro» (em inglês «20 December», em espanhol «20 de diciembre»); {continente:longo} «domingo, 20 de dezembro»; {continente:abrev} «20 dez.»; {loja} ou {loja:hora} «24 de dezembro, 13h»; {loja:abrev-hora} «24 dez., 13h»; {trocas:ano} «15 de janeiro de 2027». Em Espanha e no Internacional use só o dia, sem hora: {es_reyes}, {es_reyes:longo}, {int}. As palavras a negrito ficam em ouro. Nos prazos de entrega escreva sempre «prazo indicativo» (EN «indicative deadline», ES «plazo orientativo»)."
+      "content": "Num «De», um prazo quer dizer «depois desse prazo»; num «Até», inicio, fase2, loja, retoma ou es_noche quer dizer «até ao minuto antes». Depois do prazo da contagem, a mensagem desaparece."
+    },
+    {
+      "type": "paragraph",
+      "content": "No texto, {continente} escreve «20 de dezembro» (em inglês «20 December», em espanhol «20 de diciembre»); {continente:longo} «domingo, 20 de dezembro»; {continente:abrev} «20 dez.»; {loja} ou {loja:hora} «24 de dezembro, 13h»; {loja:abrev-hora} «24 dez., 13h»; {trocas:ano} «15 de janeiro de 2027»."
+    },
+    {
+      "type": "paragraph",
+      "content": "Em Espanha e no Internacional use só o dia, sem hora: {es_reyes}, {es_reyes:longo}, {int}. As palavras a negrito ficam em ouro. Nos prazos de entrega escreva sempre «prazo indicativo» (EN «indicative deadline», ES «plazo orientativo»)."
     }
   ],
   "blocks": [
@@ -821,13 +842,34 @@
           "label": "Contagem decrescente",
           "default": "nenhuma",
           "options": [
-            { "value": "nenhuma", "label": "Nenhuma" },
-            { "value": "continente", "label": "Prazo de Portugal continental" },
-            { "value": "loja", "label": "Levantamento na loja" },
-            { "value": "reis", "label": "Prazo do Dia de Reis" },
-            { "value": "es_navidad", "label": "Espanha, prazo da Navidad" },
-            { "value": "es_reyes", "label": "Espanha, prazo do Dia de Reis" },
-            { "value": "int", "label": "Prazo internacional" }
+            {
+              "value": "nenhuma",
+              "label": "Nenhuma"
+            },
+            {
+              "value": "continente",
+              "label": "Prazo de Portugal continental"
+            },
+            {
+              "value": "loja",
+              "label": "Levantamento na loja"
+            },
+            {
+              "value": "reis",
+              "label": "Prazo do Dia de Reis"
+            },
+            {
+              "value": "es_navidad",
+              "label": "Espanha, prazo da Navidad"
+            },
+            {
+              "value": "es_reyes",
+              "label": "Espanha, prazo do Dia de Reis"
+            },
+            {
+              "value": "int",
+              "label": "Prazo internacional"
+            }
           ],
           "info": "Use {contagem} no texto para escolher o sítio; sem isso, vai para o fim. A mensagem desaparece quando o prazo passa."
         },
@@ -837,10 +879,22 @@
           "label": "Mostrar",
           "default": "sempre",
           "options": [
-            { "value": "sempre", "label": "Sempre, nas datas acima" },
-            { "value": "vale_digital", "label": "Só se o vale prenda for digital" },
-            { "value": "trocas", "label": "Só se as trocas de Natal estiverem aprovadas" },
-            { "value": "janeiras", "label": "Só se as Janeiras estiverem confirmadas" }
+            {
+              "value": "sempre",
+              "label": "Sempre, nas datas acima"
+            },
+            {
+              "value": "vale_digital",
+              "label": "Só se o vale prenda for digital"
+            },
+            {
+              "value": "trocas",
+              "label": "Só se as trocas de Natal estiverem aprovadas"
+            },
+            {
+              "value": "janeiras",
+              "label": "Só se as Janeiras estiverem confirmadas"
+            }
           ],
           "info": "Depende das opções natal_vale_digital e natal_mostrar_trocas das definições do tema e de «Janeiras confirmadas» nesta secção."
         },
@@ -891,7 +945,9 @@
     {
       "name": "Natal · Barra de avisos",
       "blocks": [
-        { "type": "mensagem" }
+        {
+          "type": "mensagem"
+        }
       ]
     }
   ]
