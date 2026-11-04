@@ -2,9 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { sendAccess } from "@/lib/access";
-import { grantableLevels, type Level } from "@/lib/permissions";
+import { grantableLevels, type CreatorsLevel, type Level } from "@/lib/permissions";
 import { rpc, userMessage } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
+
+// Campo "creators_access" do formulário; qualquer outro valor conta como sem acesso.
+const creatorsLevel = (value: FormDataEntryValue | null): CreatorsLevel =>
+  value === "view" || value === "manage" ? value : "none";
 
 // Store levels arrive as fields "loja:<store id>" = "" | "store" | "manager".
 // ldo_save_user re-checks every rule in the database.
@@ -49,6 +53,15 @@ export async function saveUser(form: FormData) {
         });
       if (viewer.isSuper)
         await rpc("ldo_support_set_user_access", { p_session: viewer.session, p_user_id: saved || id, p_access: form.get("support_access") === "on" });
+      // Influenciadores: nível e finanças (só o Super Admin; a BD recusa finanças sem acesso à área e regista
+      // user.creators_access em ldo_app_audit quando algo muda).
+      if (viewer.isSuper)
+        await rpc("ldo_cr_set_user_access", {
+          p_session: viewer.session,
+          p_user_id: saved || id,
+          p_level: creatorsLevel(form.get("creators_access")),
+          p_finance: form.get("creators_finance") === "on",
+        });
     } catch (e) {
       error = userMessage(e);
     }

@@ -3,7 +3,19 @@
 
 export type Level = "manager" | "store";
 export type StoreAccess = { id: string; code: string; name: string; level: Level; ads_keyword?: string | null };
-export type Access = { id: string; isSuper: boolean; online: boolean; support?: boolean; stores: StoreAccess[] };
+// Influenciadores (plataforma de criadores): none não vê, view consulta, manage decide e altera. O Super Admin é
+// sempre manage (o ldo_me já o devolve assim). As finanças (IBAN completo, dados fiscais e pagamentos) nunca são
+// implícitas, nem para o Super Admin, e só valem com acesso à área.
+export type CreatorsLevel = "none" | "view" | "manage";
+export type Access = {
+  id: string;
+  isSuper: boolean;
+  online: boolean;
+  support?: boolean;
+  creators?: CreatorsLevel;
+  creatorsFinance?: boolean;
+  stores: StoreAccess[];
+};
 
 export const canSeeOnline = (a: Access) => a.isSuper || a.online;
 // Private Selection (membros e senha de acesso): Super Admin e quem tem a Loja Online.
@@ -12,6 +24,10 @@ export const canManagePrivateSelection = (a: Access) => canSeeOnline(a);
 export const canManageAuction = (a: Access) => canSeeOnline(a);
 // Apoio ao Cliente: conversas e respostas. Só o Super Admin configura as integrações.
 export const canSupport = (a: Access) => a.isSuper || Boolean(a.support);
+// Influenciadores: a BD repete tudo em cada função (ldo_private.cr_require e cr_finance).
+export const canSeeCreators = (a: Access) => a.isSuper || (a.creators ?? "none") !== "none";
+export const canManageCreators = (a: Access) => a.isSuper || a.creators === "manage";
+export const canSeeCreatorFinance = (a: Access) => Boolean(a.creatorsFinance) && canSeeCreators(a);
 export const managedStores = (a: Access) => a.stores.filter((s) => s.level === "manager");
 export const canManageUsers = (a: Access) => a.isSuper || managedStores(a).length > 0;
 export const canManageStores = (a: Access) => a.isSuper;
@@ -22,6 +38,7 @@ export function homePath(a: Access): string | null {
   if (canSeeOnline(a)) return "/";
   if (a.stores.length) return "/lojas";
   if (canSupport(a)) return "/apoio";
+  if (canSeeCreators(a)) return "/influenciadores";
   return null;
 }
 

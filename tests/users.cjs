@@ -19,6 +19,40 @@ test("Each profile lands where it has access", () => {
   assert.equal(perm.canSeeOnline(manager), false);
 });
 
+test("Influenciadores: who sees, who manages and who sees the finances", () => {
+  const view = { ...nobody, creators: "view" };
+  const manage = { ...nobody, creators: "manage" };
+  // Quem só tem esta área entra em /influenciadores.
+  assert.equal(perm.homePath(view), "/influenciadores");
+  assert.equal(perm.homePath(manage), "/influenciadores");
+  assert.equal(perm.canSeeCreators(nobody), false);
+  assert.equal(perm.canSeeCreators({ ...nobody, creators: "none" }), false);
+  assert.equal(perm.canSeeCreators(view), true);
+  assert.equal(perm.canSeeCreators(superAdmin), true);
+  assert.equal(perm.canManageCreators(view), false);
+  assert.equal(perm.canManageCreators(manage), true);
+  assert.equal(perm.canManageCreators(superAdmin), true);
+  assert.equal(perm.canManageCreators(online), false);
+  // Finanças exigem a marca E acesso à área; nunca são implícitas, nem para o Super Admin.
+  assert.equal(perm.canSeeCreatorFinance(view), false);
+  assert.equal(perm.canSeeCreatorFinance({ ...view, creatorsFinance: true }), true);
+  assert.equal(perm.canSeeCreatorFinance({ ...manage, creatorsFinance: true }), true);
+  assert.equal(perm.canSeeCreatorFinance({ ...nobody, creatorsFinance: true }), false);
+  assert.equal(perm.canSeeCreatorFinance({ ...nobody, creators: "none", creatorsFinance: true }), false);
+  assert.equal(perm.canSeeCreatorFinance(superAdmin), false);
+  assert.equal(perm.canSeeCreatorFinance({ ...superAdmin, creatorsFinance: true }), true);
+  // Ordem: Loja Online → lojas → apoio → influenciadores.
+  assert.equal(perm.homePath({ ...online, creators: "manage" }), "/");
+  assert.equal(perm.homePath({ ...shop, creators: "manage" }), "/lojas");
+  assert.equal(perm.homePath({ ...nobody, support: true, creators: "manage" }), "/apoio");
+  assert.equal(perm.homePath({ ...nobody, support: false, creators: "view" }), "/influenciadores");
+  // Influenciadores não dá acesso a outras áreas.
+  assert.equal(perm.canSeeOnline(manage), false);
+  assert.equal(perm.canSupport(manage), false);
+  assert.equal(perm.canManageUsers(manage), false);
+  assert.equal(perm.canManageAuction(manage), false);
+});
+
 test("Only the Super Admin and Gestores manage users; only the Super Admin manages stores", () => {
   assert.equal(perm.canManageUsers(superAdmin), true);
   assert.equal(perm.canManageUsers(manager), true);
