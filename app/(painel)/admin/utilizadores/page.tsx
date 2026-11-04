@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { canManageUsers, grantableLevels, homePath, managedStores, type Level } from "@/lib/permissions";
+import { canManageUsers, grantableLevels, homePath, managedStores, type CreatorsLevel, type Level } from "@/lib/permissions";
 import { rpc } from "@/lib/supabase";
 import { requireViewer } from "@/lib/viewer";
 import { timestamp } from "@/components/dashboard/format";
@@ -18,6 +18,8 @@ type User = {
   is_super_admin: boolean;
   online_access: boolean;
   support_access?: boolean;
+  creators_access?: CreatorsLevel;
+  creators_finance?: boolean;
   active: boolean;
   store_access: Record<string, Level>;
   editable: boolean;
@@ -42,6 +44,14 @@ const OK: Record<string, string> = {
   updated_noemail: "Alterações guardadas. O acesso não foi enviado porque o campo do email está vazio.",
 };
 const LEVEL: Record<Level, string> = { manager: "Gestor", store: "Loja" };
+const CREATORS_LEVEL: Record<CreatorsLevel, string> = { none: "Sem acesso", view: "Consultar", manage: "Gerir" };
+// "Influenciadores: Gerir · Finanças". O Super Admin gere sempre a área; as finanças só se estiverem marcadas.
+function creatorsTag(u: User): string | null {
+  const level = u.is_super_admin ? "manage" : u.creators_access || "none";
+  if (level === "none") return null;
+  const finance = u.creators_finance ? " · Finanças" : "";
+  return u.is_super_admin ? (finance ? `Influenciadores${finance}` : null) : `Influenciadores: ${CREATORS_LEVEL[level]}${finance}`;
+}
 
 export default async function UsersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireViewer();
@@ -116,12 +126,15 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                       {u.is_super_admin && <span className="tag gold">Super Admin</span>}
                       {u.online_access && !u.is_super_admin && <span className="tag">Loja Online</span>}
                       {u.support_access && !u.is_super_admin && <span className="tag">Apoio ao Cliente</span>}
+                      {creatorsTag(u) && <span className="tag">{creatorsTag(u)}</span>}
                       {Object.entries(u.store_access).map(([storeId, level]) => (
                         <span key={storeId} className={level === "manager" ? "tag green" : "tag"}>
                           {LEVEL[level]} · {storeName.get(storeId) || "Loja"}
                         </span>
                       ))}
-                      {!u.is_super_admin && !u.online_access && !u.support_access && !Object.keys(u.store_access).length && <span className="muted">Sem acessos</span>}
+                      {!u.is_super_admin && !u.online_access && !u.support_access && !creatorsTag(u) && !Object.keys(u.store_access).length && (
+                        <span className="muted">Sem acessos</span>
+                      )}
                     </td>
                     <td>
                       {!u.active ? (
@@ -211,6 +224,25 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                 <label className="check">
                   <input type="checkbox" name="support_access" defaultChecked={editing?.support_access} />
                   <span><strong>Apoio ao Cliente</strong> — conversas Zendesk, Facebook e Instagram: responder, notas internas, atribuir e mudar o estado.</span>
+                </label>
+                <label>
+                  <span style={{ color: "#5f6c5a", lineHeight: 1.6 }}>
+                    <strong>Influenciadores</strong> — <em>Consultar</em>: vê criadores, perfis, mensagens e pedidos de privacidade, sem
+                    decidir. <em>Gerir</em>: aprova e recusa perfis, responde, trata os pedidos de privacidade e as definições. O Super
+                    Admin gere sempre esta área.
+                  </span>
+                  <select name="creators_access" defaultValue={editing?.creators_access || "none"} aria-label="Acesso a Influenciadores">
+                    {(["none", "view", "manage"] as const).map((l) => (
+                      <option key={l} value={l}>{CREATORS_LEVEL[l]}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="check">
+                  <input type="checkbox" name="creators_finance" defaultChecked={editing?.creators_finance} />
+                  <span>
+                    <strong>Finanças dos criadores</strong> — IBAN completo, dados fiscais e registo de pagamentos (cada consulta fica
+                    registada). Só funciona com acesso a Influenciadores; nunca é automático, nem para o Super Admin.
+                  </span>
                 </label>
               </fieldset>
             )}

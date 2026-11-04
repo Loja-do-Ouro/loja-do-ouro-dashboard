@@ -4,7 +4,19 @@ import { Icon } from "@/components/dashboard/ui";
 import { MenuToggle } from "@/components/menu-toggle";
 import { NavScroll } from "@/components/nav-scroll";
 import { MENU_COOKIE, menuCollapsed } from "@/lib/menu";
-import { canCompareStores, canManageAuction, canManagePrivateSelection, canManageStores, canManageUsers, canSeeOnline, canSupport, initials } from "@/lib/permissions";
+import {
+  canCompareStores,
+  canManageAuction,
+  canManageCreators,
+  canManagePrivateSelection,
+  canManageStores,
+  canManageUsers,
+  canSeeCreatorFinance,
+  canSeeCreators,
+  canSeeOnline,
+  canSupport,
+  initials,
+} from "@/lib/permissions";
 import type { Viewer } from "@/lib/viewer";
 
 export const ONLINE_SECTIONS = [
@@ -14,6 +26,21 @@ export const ONLINE_SECTIONS = [
   ["social", "Redes sociais", "heart"],
   ["audience", "Públicos e regiões", "globe"],
   ["quality", "Relatórios e qualidade", "check"],
+] as const;
+
+// Influenciadores (plataforma de criadores). Cada página passa os contadores do ldo_cr_overview em `badges`, pela
+// chave do item. As secções do PR2 (campanhas, pedidos, conteúdos e pagamentos) só aparecem quando CREATORS_PHASE
+// passar a 2, para o menu nunca levar a uma página que ainda não existe.
+export const CREATORS_PHASE: number = 1;
+export const CREATORS_SECTIONS = [
+  { key: "influenciadores", label: "Visão geral", href: "/influenciadores", icon: "star", need: "view", since: 1 },
+  { key: "influenciadores-criadores", label: "Criadores", href: "/influenciadores/criadores", icon: "people", need: "view", since: 1 },
+  { key: "influenciadores-campanhas", label: "Campanhas", href: "/influenciadores/campanhas", icon: "target", need: "view", since: 2 },
+  { key: "influenciadores-pedidos", label: "Pedidos de produto", href: "/influenciadores/pedidos", icon: "bag", need: "view", since: 2 },
+  { key: "influenciadores-conteudos", label: "Conteúdos", href: "/influenciadores/conteudos", icon: "check", need: "view", since: 2 },
+  { key: "influenciadores-pagamentos", label: "Pagamentos", href: "/influenciadores/pagamentos", icon: "sales", need: "finance", since: 2 },
+  { key: "influenciadores-privacidade", label: "Privacidade", href: "/influenciadores/privacidade", icon: "key", need: "view", since: 1 },
+  { key: "influenciadores-definicoes", label: "Definições", href: "/influenciadores/definicoes", icon: "plug", need: "manage", since: 1 },
 ] as const;
 
 type Item = { key: string; label: string; href: string; icon: string; badge?: number };
@@ -54,6 +81,13 @@ export async function AppShell({
         { key: "leilao-clientes", label: "Clientes do leilão", href: "/leilao/clientes", icon: "people" },
         { key: "leilao-definicoes", label: "Regras do leilão", href: "/leilao/definicoes", icon: "list" },
       ],
+    });
+  if (!locked && canSeeCreators(viewer))
+    groups.push({
+      label: "INFLUENCIADORES",
+      items: CREATORS_SECTIONS.filter(
+        (s) => s.since <= CREATORS_PHASE && (s.need === "view" || (s.need === "manage" ? canManageCreators(viewer) : canSeeCreatorFinance(viewer))),
+      ).map(({ key, label, href, icon }) => ({ key, label, href, icon, badge: badges[key] })),
     });
   if (!locked && canSupport(viewer))
     groups.push({

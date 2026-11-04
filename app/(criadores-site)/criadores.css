@@ -1,0 +1,435 @@
+/* Site dos criadores (criadores.lojadoouro.pt) — direção A, «Caderno de ouro» (especificação §1.3 e §10).
+   Uma revista de joalharia impressa: papel, tinta e ouro; estrutura por filetes, nunca por cartões.
+   Regras verificáveis (§10.6): sem gradientes, sem backdrop-filter, sem box-shadow, sem border-radius diferente de 0,
+   sem ícones decorativos, sem translateY no hover e sem maiúsculas espaçadas. Texto base 16 px; nada abaixo de 13 px.
+   Dados numéricos sempre em Archivo tabular; o Bodoni só entra em títulos e na numeração dos passos.
+   Letras por next/font (alojadas no próprio domínio): --cr-serif (Bodoni Moda) e --cr-grot (Archivo), postas no
+   <html> pelo layout. Classes com o prefixo cr-. Sem modo escuro na v1 (a metáfora é papel). */
+
+:root {
+  --cr-papel: #FBF8F2;
+  --cr-papel-2: #F2ECE1;
+  --cr-branco: #FFFFFF;
+  --cr-tinta: #1C1712;
+  --cr-tinta-2: #5C5247;
+  --cr-tinta-3: #6B6156;
+  --cr-fio: #D9CFBF;
+  --cr-ouro: #AD7B40;
+  --cr-ouro-texto: #7A5424;
+  --cr-vermelho: #70120F;
+  --cr-verde: #2E5136;
+  --cr-rodape-2: #C9BFB1;
+
+  --cr-margem: 72px;
+  --cr-cal: 24px;
+  --cr-max: 1296px;
+  color-scheme: light;
+}
+
+.cr-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+.cr-html *, .cr-html *::before, .cr-html *::after { box-sizing: border-box; }
+.cr-body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--cr-papel);
+  color: var(--cr-tinta);
+  font: 400 16px/1.55 var(--cr-grot), "Helvetica Neue", Arial, sans-serif;
+  font-kerning: normal;
+  overflow-wrap: break-word;
+}
+.cr-body img { display: block; max-width: 100%; height: auto; }
+.cr-body a { color: inherit; }
+.cr-body p { margin: 0 0 1em; }
+.cr-body h1, .cr-body h2, .cr-body h3, .cr-body h4 { margin: 0; font-weight: 400; text-wrap: balance; }
+.cr-body :focus-visible { outline: 2px solid var(--cr-ouro-texto); outline-offset: 3px; }
+.cr-body button, .cr-body input, .cr-body select, .cr-body textarea { font: inherit; color: inherit; border-radius: 0; }
+
+/* Texto só para leitores de ecrã (estado «feito», notas, contadores, final do IBAN). */
+.cr-sr { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+.cr-saltar { position: absolute; left: -9999px; top: 8px; }
+.cr-saltar:focus { left: 16px; z-index: 20; display: inline-flex; align-items: center; min-height: 44px; background: var(--cr-tinta); color: var(--cr-papel); padding: 12px 16px; }
+
+.cr-main { flex: 1 0 auto; padding-bottom: 32px; }
+
+/* ---------------------------------------------------------------- grelha */
+.cr-env { width: 100%; max-width: calc(var(--cr-max) + 2 * var(--cr-margem)); margin: 0 auto; padding: 0 var(--cr-margem); }
+.cr-grelha { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--cr-cal); align-items: start; }
+.cr-c1-12 { grid-column: 1 / -1; }
+.cr-c1-3 { grid-column: 1 / span 3; } .cr-c1-4 { grid-column: 1 / span 4; } .cr-c1-5 { grid-column: 1 / span 5; }
+.cr-c1-6 { grid-column: 1 / span 6; } .cr-c1-7 { grid-column: 1 / span 7; } .cr-c1-8 { grid-column: 1 / span 8; }
+.cr-c4-9 { grid-column: 4 / span 9; } .cr-c4-6 { grid-column: 4 / span 6; } .cr-c5-4 { grid-column: 5 / span 4; }
+.cr-c7-6 { grid-column: 7 / span 6; } .cr-c8-5 { grid-column: 8 / span 5; } .cr-c9-4 { grid-column: 9 / span 4; }
+
+/* ---------------------------------------------------------------- tipografia */
+.cr-d-xl { font: 400 clamp(48px, 6.67vw, 96px)/0.98 var(--cr-serif), Didot, Georgia, serif; letter-spacing: -0.02em; }
+.cr-d-l { font: 400 clamp(40px, 4.45vw, 64px)/1.02 var(--cr-serif), Didot, Georgia, serif; letter-spacing: -0.015em; }
+.cr-d-m { font: 400 40px/1.08 var(--cr-serif), Didot, Georgia, serif; letter-spacing: -0.01em; }
+.cr-d-s { font: 500 26px/1.18 var(--cr-serif), Didot, Georgia, serif; }
+.cr-d-xs { font: 500 20px/1.25 var(--cr-serif), Didot, Georgia, serif; }
+.cr-it { font-style: italic; }
+.cr-lead { font: italic 400 22px/1.45 var(--cr-serif), Didot, Georgia, serif; max-width: 34em; }
+/* Chapéu de revista, em itálico serifado (nunca maiúsculas espaçadas por cima do título). */
+.cr-chapeu { font: italic 400 18px/1.3 var(--cr-serif), Didot, Georgia, serif; color: var(--cr-tinta-2); }
+.cr-meta { font: 500 13px/1.45 var(--cr-grot), Arial, sans-serif; font-stretch: 90%; color: var(--cr-tinta-2); }
+.cr-pequeno { font-size: 14px; line-height: 1.5; color: var(--cr-tinta-2); }
+.cr-num { font-family: var(--cr-grot), Arial, sans-serif; font-variant-numeric: tabular-nums lining-nums; }
+.cr-grande-num { font: 500 56px/1 var(--cr-grot), Arial, sans-serif; font-stretch: 90%; font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
+.cr-nota { font: 600 13px/1 var(--cr-grot), Arial, sans-serif; color: var(--cr-ouro-texto); margin-left: 2px; vertical-align: super; line-height: 0; }
+/* Medidas e quilates dentro de títulos em serifa (§10.5 n.º 2). */
+.cr-alg { font: 500 0.84em/1 var(--cr-grot), Arial, sans-serif; font-variant-numeric: lining-nums; letter-spacing: 0; }
+/* Bodoni em corpo pequeno (≤ 26 px): tamanho ótico de texto, para os traços finos não desaparecerem. */
+.cr-d-s, .cr-d-xs, .cr-lead, .cr-chapeu, .cr-tab .cr-tit, .cr-estado dd, .cr-fazer h3, .cr-qa summary, .cr-semnota,
+.cr-logo-sub, .cr-passos .cr-pt, .cr-prosa h3, .cr-prosa h4 {
+  font-variation-settings: "opsz" 11;
+}
+
+/* ---------------------------------------------------------------- cabeçalho */
+.cr-cab { border-bottom: 1px solid var(--cr-tinta); background: var(--cr-papel); }
+.cr-cab-linha { display: flex; align-items: center; justify-content: space-between; min-height: 88px; gap: 24px; }
+.cr-logo { display: flex; align-items: center; gap: 18px; text-decoration: none; color: var(--cr-tinta); min-height: 44px; }
+.cr-logo-recorte { --h: 32px; display: block; width: calc(var(--h) * 483 / 87); height: var(--h); overflow: hidden; flex: none; }
+.cr-logo-recorte img { width: calc(var(--h) * 709 / 87); max-width: none !important; height: auto; margin-left: calc(var(--h) * -110 / 87); margin-top: calc(var(--h) * -45 / 87); }
+.cr-logo-sub { font: italic 400 26px/1 var(--cr-serif), Didot, Georgia, serif; padding-left: 18px; border-left: 1px solid var(--cr-tinta); height: 32px; display: flex; align-items: center; }
+.cr-nav { display: flex; align-items: center; gap: 26px; font: 500 15px/1 var(--cr-grot), Arial, sans-serif; }
+.cr-nav a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; border-bottom: 2px solid transparent; }
+.cr-nav a:hover { border-bottom-color: var(--cr-fio); }
+.cr-nav a[aria-current="page"] { border-bottom-color: var(--cr-tinta); }
+.cr-nav .cr-bt { border-bottom: 1px solid var(--cr-tinta); }
+.cr-nav-conta { display: flex; align-items: center; gap: 14px; padding-left: 22px; border-left: 1px solid var(--cr-fio); color: var(--cr-tinta-2); }
+.cr-nav-conta form { margin: 0; }
+.cr-contador { font: 600 13px/1 var(--cr-grot), Arial, sans-serif; font-variant-numeric: tabular-nums; margin-left: 6px; padding: 3px 6px; border: 1px solid currentColor; }
+
+/* Menu do telemóvel: <details> sem JavaScript. */
+.cr-menu { display: none; position: relative; }
+.cr-menu > summary { list-style: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--cr-tinta); font: 500 15px/1 var(--cr-grot), Arial, sans-serif; cursor: pointer; }
+.cr-menu > summary::-webkit-details-marker { display: none; }
+.cr-menu[open] > summary { background: var(--cr-tinta); color: var(--cr-papel); }
+.cr-menu-lista { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: min(320px, calc(100vw - 40px)); background: var(--cr-papel); border: 1px solid var(--cr-tinta); border-top-width: 3px; padding: 4px 16px 12px; }
+.cr-menu-lista a, .cr-menu-lista button { display: flex; align-items: center; width: 100%; min-height: 48px; border: 0; border-bottom: 1px solid var(--cr-fio); background: none; padding: 0; text-align: left; text-decoration: none; font: 500 16px/1.2 var(--cr-grot), Arial, sans-serif; cursor: pointer; }
+.cr-menu-lista a[aria-current="page"] { text-decoration: underline; text-underline-offset: 5px; }
+.cr-menu-lista form { margin: 0; }
+
+/* Barra inferior do telemóvel (área do criador): 5 destinos em texto, sem ícones. */
+.cr-barra { display: none; }
+
+/* Aviso de Política nova (não bloqueia nada, rev. R-M6). */
+.cr-faixa-aviso { background: var(--cr-papel-2); border-bottom: 1px solid var(--cr-fio); }
+.cr-faixa-aviso .cr-env { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; padding-top: 10px; padding-bottom: 10px; font-size: 15px; }
+.cr-faixa-aviso form { margin: 0; }
+
+/* ---------------------------------------------------------------- botões e ligações */
+.cr-bt { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 26px;
+  background: var(--cr-tinta); color: var(--cr-papel) !important; font: 500 15px/1.2 var(--cr-grot), Arial, sans-serif; text-decoration: none;
+  border: 1px solid var(--cr-tinta); border-radius: 0; cursor: pointer; text-align: center; }
+.cr-bt:hover { background: var(--cr-ouro-texto); border-color: var(--cr-ouro-texto); }
+.cr-bt:disabled, .cr-bt[aria-disabled="true"] { background: transparent; color: var(--cr-tinta-2) !important; border: 1px dashed var(--cr-tinta-3); cursor: not-allowed; }
+.cr-bt-pq { min-height: 44px; padding: 0 18px; font-size: 14px; }
+.cr-bt-sec { background: transparent; color: var(--cr-tinta) !important; }
+.cr-bt-sec:hover { background: var(--cr-tinta); color: var(--cr-papel) !important; border-color: var(--cr-tinta); }
+.cr-bt-perigo { background: var(--cr-vermelho); border-color: var(--cr-vermelho); }
+.cr-bt-perigo:hover { background: var(--cr-tinta); border-color: var(--cr-tinta); }
+.cr-bt-bloco { width: 100%; }
+/* Ligações de texto que são ações: alvo de 44 px (§10.5 n.º 3). */
+.cr-lig { display: inline-flex; align-items: center; min-height: 44px; font: 500 15px/1.4 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta);
+  text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 1px; background: none; border: 0; padding: 0; cursor: pointer; }
+.cr-lig:hover { color: var(--cr-ouro-texto); }
+.cr-prosa a, .cr-txt a, .cr-notas a, .cr-pequeno a, .cr-ajuda a, .cr-meta a { text-underline-offset: 4px; }
+.cr-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; }
+
+/* ---------------------------------------------------------------- secções e blocos */
+.cr-abre { padding-top: 56px; }
+.cr-abre .cr-meta { margin-bottom: 16px; }
+.cr-abre h1 { margin-bottom: 16px; }
+.cr-secao { padding-top: 96px; }
+.cr-secao-cab { border-top: 1px solid var(--cr-tinta); padding-top: 18px; }
+.cr-bloco { margin-top: 56px; }
+.cr-bloco-cab { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; border-top: 1px solid var(--cr-tinta); padding-top: 16px; margin-bottom: 16px; }
+.cr-filete { border: 0; border-top: 1px solid var(--cr-fio); margin: 24px 0; }
+.cr-estreito { max-width: 760px; }
+.cr-auth { max-width: 560px; padding-top: 56px; }
+.cr-auth h1 { margin-bottom: 12px; }
+
+/* ---------------------------------------------------------------- figuras */
+.cr-body figure { margin: 0; }
+.cr-body figcaption { font: 400 13px/1.45 var(--cr-grot), Arial, sans-serif; font-stretch: 92%; color: var(--cr-tinta-2); margin-top: 10px; max-width: 46em; }
+.cr-body figcaption b { font-weight: 600; color: var(--cr-tinta); }
+.cr-foto { width: 100%; object-fit: cover; background: var(--cr-papel-2); }
+.cr-r45 { aspect-ratio: 4 / 5; } .cr-r32 { aspect-ratio: 3 / 2; } .cr-r219 { aspect-ratio: 21 / 8; }
+
+/* ---------------------------------------------------------------- tabelas de revista */
+.cr-tab { width: 100%; border-collapse: collapse; }
+.cr-tab caption { text-align: left; font: 500 14px/1.3 var(--cr-grot), Arial, sans-serif; padding-bottom: 8px; border-bottom: 1px solid var(--cr-tinta); }
+.cr-tab th { font: 500 13px/1.3 var(--cr-grot), Arial, sans-serif; font-stretch: 90%; color: var(--cr-tinta-2); text-align: left; padding: 0 16px 10px 0; border-bottom: 1px solid var(--cr-tinta); vertical-align: bottom; }
+.cr-tab td { padding: 14px 16px 14px 0; border-bottom: 1px solid var(--cr-fio); vertical-align: top; }
+.cr-tab td:last-child, .cr-tab th:last-child { padding-right: 0; }
+.cr-tab .cr-n { text-align: right; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.cr-tab .cr-tit { font: 500 19px/1.25 var(--cr-serif), Didot, Georgia, serif; }
+.cr-tab .cr-passo-n { font: 400 40px/0.9 var(--cr-serif), Didot, Georgia, serif; width: 72px; }
+.cr-tab p { margin: 6px 0 0; color: var(--cr-tinta-2); font-size: 15px; }
+.cr-notas { font: 400 13px/1.5 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); margin-top: 12px; }
+.cr-notas p { margin: 0 0 4px; }
+.cr-semnota { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--cr-tinta); font: italic 400 17px/1.45 var(--cr-serif), Didot, Georgia, serif; }
+
+/* ---------------------------------------------------------------- etiquetas de estado (a palavra, nunca só a cor) */
+.cr-etq { display: inline-block; font: 500 13px/1 var(--cr-grot), Arial, sans-serif; padding: 5px 8px 6px; border: 1px solid currentColor; white-space: nowrap; }
+.cr-etq-dec { border-style: dashed; color: var(--cr-tinta-2); }
+.cr-ok { color: var(--cr-verde); } .cr-nao { color: var(--cr-vermelho); } .cr-anl { color: var(--cr-tinta-2); } .cr-tinta { color: var(--cr-tinta); }
+
+/* ---------------------------------------------------------------- avisos */
+.cr-aviso { border-top: 3px solid var(--cr-tinta); background: var(--cr-papel-2); padding: 14px 16px; margin: 0 0 24px; font-size: 15px; }
+.cr-aviso p:last-child { margin-bottom: 0; }
+.cr-aviso-ok { border-top-color: var(--cr-verde); }
+.cr-aviso-ok strong { color: var(--cr-verde); }
+.cr-aviso-erro { border-top-color: var(--cr-vermelho); }
+.cr-aviso-erro strong { color: var(--cr-vermelho); }
+.cr-aviso strong { display: block; margin-bottom: 4px; }
+
+/* ---------------------------------------------------------------- estado (início do criador) */
+.cr-estado { margin: 40px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--cr-cal); border-top: 1px solid var(--cr-tinta); }
+.cr-estado > div { padding: 14px 0 0; }
+.cr-estado dt { font: 500 13px/1.3 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); margin-bottom: 6px; }
+.cr-estado dd { margin: 0; font: 400 19px/1.3 var(--cr-serif), Didot, Georgia, serif; }
+.cr-estado dd small { display: block; font: 400 13px/1.45 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); margin-top: 4px; }
+.cr-estado dd .cr-num { font-size: 17px; }
+/* Ligações soltas do bloco de estado: letra de metadados, alvo de 44 px (§10.5 n.º 3). */
+.cr-estado small .cr-lig { font-size: 13px; min-height: 44px; }
+.cr-estado dd small.cr-acoes { display: flex; gap: 0 20px; margin-top: 0; }
+
+/* «A fazer»: tarefas com prazo e botão (§10.5 n.º 11). */
+.cr-fazer { list-style: none; margin: 0 0 48px; padding: 0; }
+.cr-fazer li { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; column-gap: 20px; align-items: start; padding: 22px 0; border-bottom: 1px solid var(--cr-fio); }
+.cr-fazer .cr-fn { font: 400 40px/0.9 var(--cr-serif), Didot, Georgia, serif; }
+.cr-fazer h3 { font: 500 20px/1.25 var(--cr-serif), Didot, Georgia, serif; margin-bottom: 6px; }
+.cr-fazer p { margin: 0; font-size: 15px; color: var(--cr-tinta-2); max-width: 36em; }
+.cr-fazer .cr-bt { white-space: nowrap; }
+.cr-vazio { padding: 18px 0; border-bottom: 1px solid var(--cr-fio); color: var(--cr-tinta-2); }
+
+/* Lista simples com filetes (notificações, documentos, secções da conta). */
+.cr-lista { list-style: none; margin: 0; padding: 0; }
+.cr-lista li { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; padding: 12px 0; border-bottom: 1px solid var(--cr-fio); }
+.cr-lista .cr-meta { white-space: nowrap; }
+.cr-lista-ligacoes li { padding: 0; }
+.cr-lista-ligacoes a { display: flex; justify-content: space-between; align-items: center; gap: 16px; width: 100%; min-height: 56px; text-decoration: none; }
+.cr-lista-ligacoes a:hover .cr-d-xs { text-decoration: underline; text-underline-offset: 5px; }
+
+/* Nota de margem: filete negro, numeral a ouro-texto. */
+.cr-nota-l { border-top: 1px solid var(--cr-tinta); padding: 12px 0 24px; font-size: 14px; line-height: 1.55; color: var(--cr-tinta-2); }
+.cr-nota-l h2 { font: 500 14px/1.4 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta); margin-bottom: 6px; }
+.cr-nota-l .cr-nn { font: 600 14px var(--cr-grot), Arial, sans-serif; color: var(--cr-ouro-texto); margin-right: 8px; }
+.cr-nota-l p:last-child { margin-bottom: 0; }
+
+/* ---------------------------------------------------------------- passos do onboarding */
+.cr-passos { margin-top: 32px; }
+.cr-passos ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--cr-cal); }
+.cr-passos li { border-top: 1px solid var(--cr-fio); }
+.cr-passos li.cr-feito { border-top-color: var(--cr-tinta); }
+.cr-passos li[aria-current="step"] { border-top: 3px solid var(--cr-tinta); }
+.cr-passos a { display: block; min-height: 44px; padding-top: 12px; text-decoration: none; }
+.cr-passos li[aria-current="step"] a { padding-top: 10px; }
+.cr-passos .cr-pn { font: 600 15px/1 var(--cr-grot), Arial, sans-serif; color: var(--cr-ouro-texto); margin-right: 8px; font-variant-numeric: tabular-nums; }
+.cr-passos .cr-pt { font: 500 15px/1.3 var(--cr-grot), Arial, sans-serif; }
+.cr-passos .cr-ps { display: block; font-size: 13px; color: var(--cr-tinta-2); margin-top: 4px; }
+
+/* ---------------------------------------------------------------- formulários */
+.cr-form { display: block; }
+.cr-campo { margin-bottom: 22px; }
+.cr-campo > label, .cr-rotulo { display: block; font: 500 14px/1.35 var(--cr-grot), Arial, sans-serif; margin-bottom: 8px; }
+.cr-ajuda { display: block; font-size: 13px; line-height: 1.45; color: var(--cr-tinta-2); margin-top: 6px; }
+.cr-inp { display: block; width: 100%; min-height: 48px; padding: 12px 14px; background: var(--cr-branco); border: 1px solid var(--cr-tinta-3); border-radius: 0; font: 400 16px/1.4 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta); appearance: none; }
+/* A seta do <select> é a do sistema (nada de gradientes desenhados). */
+select.cr-inp { appearance: auto; padding-right: 10px; }
+textarea.cr-inp { min-height: 128px; resize: vertical; }
+.cr-inp:focus { outline: 2px solid var(--cr-ouro-texto); outline-offset: 0; border-color: var(--cr-tinta); }
+.cr-inp[readonly] { background: var(--cr-papel-2); }
+.cr-prefixo { display: flex; }
+.cr-prefixo > span { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--cr-tinta-3); border-right: 0; background: var(--cr-papel-2); font-weight: 500; }
+.cr-prefixo .cr-inp { min-width: 0; }
+.cr-duas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--cr-cal); }
+.cr-tres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 16px; }
+.cr-fieldset { border: 0; padding: 0; margin: 0 0 28px; min-width: 0; }
+.cr-fieldset > legend { padding: 0; margin-bottom: 10px; font: 500 14px/1.35 var(--cr-grot), Arial, sans-serif; }
+/* Caixa de consentimento: uma por finalidade, desmarcada, com o tipo por baixo (§7.1, enxerto 4). */
+.cr-caixa { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 14px; align-items: start; padding: 14px 0; border-top: 1px solid var(--cr-fio); cursor: pointer; }
+.cr-caixa input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--cr-tinta); }
+.cr-caixa .cr-txt { font-size: 15px; line-height: 1.5; }
+.cr-caixa .cr-tipo { display: block; font: 500 13px/1.4 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); margin-top: 4px; }
+/* Escolhas múltiplas (temas, formatos, idiomas, lojas): opções de 44 px. */
+.cr-opcoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); column-gap: 16px; border-top: 1px solid var(--cr-fio); }
+.cr-opcao { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 0; border-bottom: 1px solid var(--cr-fio); font-size: 15px; cursor: pointer; }
+.cr-opcao input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--cr-tinta); }
+.cr-fim { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--cr-tinta); display: flex; justify-content: space-between; align-items: center; gap: 16px 24px; flex-wrap: wrap; }
+
+/* Contas de redes declaradas. */
+.cr-rede { border-top: 1px solid var(--cr-tinta); padding-top: 16px; margin-top: 40px; }
+.cr-rede-cab { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
+.cr-linha-rede { display: grid; grid-template-columns: 120px minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 1.4fr); column-gap: 16px; align-items: end; padding: 16px 0 0; border-top: 1px solid var(--cr-fio); }
+.cr-linha-rede .cr-nome { font: 400 24px/1 var(--cr-serif), Didot, Georgia, serif; padding-bottom: 34px; }
+/* Cada rede é um <fieldset> com o nome na <legend> (os campos «Utilizador» repetidos ficam distinguidos). A legenda
+   não entra na grelha por si: vai para a primeira coluna com float, ocupando o lugar do antigo <span>. */
+fieldset.cr-linha-rede { margin: 0; min-width: 0; border-left: 0; border-right: 0; border-bottom: 0; }
+.cr-linha-rede > legend.cr-nome { float: left; grid-column: 1; padding: 0 0 34px; margin: 0; }
+.cr-linha-rede .cr-campo label { font-size: 13px; }
+.cr-conta-rede { border-top: 1px solid var(--cr-fio); padding: 16px 0; }
+.cr-conta-rede > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 44px; cursor: pointer; list-style: none; }
+.cr-conta-rede > summary::-webkit-details-marker { display: none; }
+.cr-conta-rede > summary .cr-d-xs { margin-right: auto; }
+.cr-conta-rede > summary .cr-abrir { font: 500 14px var(--cr-grot), Arial, sans-serif; text-decoration: underline; text-underline-offset: 4px; }
+.cr-conta-rede[open] > summary .cr-abrir { visibility: hidden; }
+.cr-conta-rede > div { padding-top: 16px; }
+
+/* ---------------------------------------------------------------- mensagens */
+.cr-conversa { list-style: none; margin: 0 0 32px; padding: 0; }
+.cr-conversa li { padding: 16px 0; border-bottom: 1px solid var(--cr-fio); }
+.cr-conversa .cr-quem { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 6px; }
+.cr-conversa .cr-quem b { font-weight: 600; }
+.cr-conversa .cr-corpo { white-space: pre-wrap; max-width: 46em; }
+.cr-conversa li.cr-meu { padding-left: 32px; }
+.cr-conversa li.cr-sistema .cr-corpo { font-style: italic; color: var(--cr-tinta-2); }
+
+/* ---------------------------------------------------------------- documentos legais e textos longos */
+.cr-prosa { max-width: 46em; }
+.cr-prosa h2 { font: 400 32px/1.15 var(--cr-serif), Didot, Georgia, serif; margin: 48px 0 14px; padding-top: 14px; border-top: 1px solid var(--cr-tinta); }
+.cr-prosa h3 { font: 500 22px/1.25 var(--cr-serif), Didot, Georgia, serif; margin: 32px 0 10px; }
+.cr-prosa h4 { font: 500 19px/1.3 var(--cr-serif), Didot, Georgia, serif; margin: 24px 0 8px; }
+.cr-prosa ul, .cr-prosa ol { padding-left: 22px; margin: 0 0 1em; }
+.cr-prosa li { margin-bottom: 6px; }
+.cr-prosa hr { border: 0; border-top: 1px solid var(--cr-fio); margin: 32px 0; }
+.cr-prosa table { width: 100%; border-collapse: collapse; margin: 0 0 1.2em; font-size: 15px; }
+.cr-prosa th, .cr-prosa td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--cr-fio); }
+.cr-prosa thead th { border-bottom-color: var(--cr-tinta); font: 500 13px/1.3 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); }
+.cr-ficha { display: grid; grid-template-columns: minmax(120px, 200px) minmax(0, 1fr); margin: 0 0 24px; border-top: 1px solid var(--cr-tinta); }
+.cr-ficha dt, .cr-ficha dd { margin: 0; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--cr-fio); }
+.cr-ficha dt { font: 500 14px/1.4 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); }
+
+/* Perguntas em <details> fechados (§10.5 n.º 6). */
+.cr-qa { border-top: 1px solid var(--cr-tinta); }
+.cr-qa details { border-bottom: 1px solid var(--cr-fio); }
+.cr-qa summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; padding: 10px 0; cursor: pointer; list-style: none; font: 500 20px/1.3 var(--cr-serif), Didot, Georgia, serif; }
+.cr-qa summary::-webkit-details-marker { display: none; }
+/* O sinal vive num <span aria-hidden> dentro do summary: não entra no nome acessível (o <details> já diz se está aberto). */
+.cr-qa .cr-qa-sinal { flex: none; }
+.cr-qa .cr-qa-sinal::after { content: "+"; font: 400 24px/1 var(--cr-grot), Arial, sans-serif; color: var(--cr-ouro-texto); }
+.cr-qa details[open] .cr-qa-sinal::after { content: "–"; }
+.cr-qa details > div { padding: 0 0 18px; max-width: 42em; color: var(--cr-tinta-2); }
+
+/* Duas colunas «O que pedimos / O que garantimos». */
+.cr-acordo ol { list-style: none; margin: 14px 0 0; padding: 0; counter-reset: cr-acordo; }
+.cr-acordo li { display: grid; grid-template-columns: 36px minmax(0, 1fr); padding: 12px 0; border-bottom: 1px solid var(--cr-fio); font-size: 15px; counter-increment: cr-acordo; }
+.cr-acordo li::before { content: counter(cr-acordo, decimal-leading-zero); font: 600 13px/1.9 var(--cr-grot), Arial, sans-serif; color: var(--cr-ouro-texto); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- rodapé */
+.cr-rodape { margin-top: 96px; background: var(--cr-tinta); color: var(--cr-papel); padding: 48px 0 40px; flex: none; }
+.cr-rodape a { color: var(--cr-papel); text-underline-offset: 4px; }
+/* Foco visível sobre a tinta: papel (16,8:1), não o ouro (2,6:1). */
+.cr-rodape :focus-visible { outline-color: var(--cr-papel); }
+.cr-rodape .cr-meta a { display: inline-flex; align-items: center; min-height: 44px; }
+.cr-rodape .cr-meta { color: var(--cr-rodape-2); }
+.cr-rodape h2 { font: 500 13px/1.3 var(--cr-grot), Arial, sans-serif; font-stretch: 90%; color: var(--cr-rodape-2); margin-bottom: 8px; }
+.cr-rodape ul { list-style: none; padding: 0; margin: 0; font-size: 15px; }
+.cr-rodape li a { display: inline-flex; align-items: center; min-height: 44px; }
+.cr-rodape-legal { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--cr-tinta-2); }
+.cr-rodape-legal p { margin: 0 0 6px; }
+
+/* Entre o telemóvel e o computador largo: a coluna do texto de abertura alarga e a navegação da área do criador
+   (6 destinos e a conta) passa para o menu, para o cabeçalho nunca transbordar. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .cr-heroi .cr-c1-5 { grid-column: 1 / span 6; }
+  .cr-heroi .cr-c7-6 { grid-column: 7 / span 6; }
+}
+@media (max-width: 1240px) {
+  .cr-cab-criador .cr-nav { display: none; }
+  .cr-cab-criador .cr-menu { display: block; }
+}
+
+/* ======================================================================
+   Telemóvel (≤ 760 px): 4 colunas, margens de 20 px, uma coluna de texto,
+   navegação da área do criador numa barra inferior de texto.
+   ====================================================================== */
+@media (max-width: 760px) {
+  :root { --cr-margem: 20px; --cr-cal: 16px; }
+  .cr-grelha { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cr-grelha > * { grid-column: 1 / -1; }
+  .cr-d-xl { font-size: 48px; line-height: 1.02; }
+  .cr-d-l { font-size: 40px; }
+  .cr-d-m { font-size: 30px; }
+  .cr-d-s { font-size: 23px; }
+  .cr-lead { font-size: 19px; }
+  .cr-grande-num { font-size: 44px; }
+  .cr-abre { padding-top: 28px; }
+  .cr-secao { padding-top: 64px; }
+  .cr-bloco { margin-top: 40px; }
+  .cr-auth { padding-top: 28px; }
+
+  .cr-cab-linha { min-height: 64px; gap: 12px; }
+  .cr-logo { gap: 10px; }
+  .cr-logo-recorte { --h: 22px; }
+  .cr-logo-sub { font-size: 19px; height: 22px; padding-left: 10px; }
+  .cr-nav { display: none; }
+  .cr-menu { display: block; }
+
+  .cr-barra { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+    background: var(--cr-papel); border-top: 1px solid var(--cr-tinta); padding-bottom: env(safe-area-inset-bottom); }
+  .cr-barra a { display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 2px; text-align: center;
+    font: 500 13px/1.1 var(--cr-grot), Arial, sans-serif; text-decoration: none; color: var(--cr-tinta-2); border-top: 2px solid transparent; }
+  .cr-barra a[aria-current="page"] { color: var(--cr-tinta); border-top-color: var(--cr-tinta); }
+  .cr-com-barra .cr-rodape { padding-bottom: calc(40px + 56px); }
+
+  .cr-estado { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 16px; }
+  .cr-estado > div:nth-child(n+3) { border-top: 1px solid var(--cr-fio); }
+  .cr-estado dd { font-size: 17px; }
+  .cr-fazer li { grid-template-columns: 40px minmax(0, 1fr); }
+  .cr-fazer .cr-fn { font-size: 30px; grid-row: span 2; }
+  .cr-fazer .cr-bt { grid-column: 2; justify-self: start; margin-top: 14px; }
+
+  .cr-passos ol { column-gap: 8px; }
+  .cr-passos .cr-pt { display: block; font-size: 13px; margin-top: 4px; }
+  .cr-passos .cr-ps { display: none; }
+  .cr-passos .cr-ps.cr-ps-feito { display: block; margin-top: 2px; }
+
+  .cr-duas, .cr-tres { grid-template-columns: minmax(0, 1fr); }
+  .cr-linha-rede { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cr-linha-rede .cr-nome { grid-column: 1 / -1; padding-bottom: 12px; }
+  .cr-linha-rede > legend.cr-nome { grid-column: 1 / -1; padding-bottom: 12px; }
+  .cr-linha-rede .cr-url { grid-column: 1 / -1; }
+  .cr-opcoes { grid-template-columns: minmax(0, 1fr); }
+  .cr-fim .cr-bt { width: 100%; }
+  .cr-conversa li.cr-meu { padding-left: 16px; }
+  .cr-prosa h2 { font-size: 26px; }
+  .cr-ficha { grid-template-columns: minmax(0, 1fr); }
+  .cr-ficha dt { padding-bottom: 0; border-bottom: 0; }
+
+  /* Tabela de revista em pares rótulo/valor. */
+  .cr-tab-pilha thead { display: none; }
+  .cr-tab-pilha tr { display: block; border-bottom: 1px solid var(--cr-fio); padding: 12px 0; }
+  .cr-tab-pilha td { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; border: 0; padding: 3px 0; text-align: right; }
+  .cr-tab-pilha td::before { content: attr(data-r); font: 500 13px var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); text-align: left; flex: none; }
+  .cr-tab-pilha td.cr-tit, .cr-tab-pilha td.cr-passo-n { display: block; text-align: left; padding-bottom: 6px; }
+  .cr-tab-pilha td.cr-tit::before, .cr-tab-pilha td.cr-passo-n::before { content: none; }
+  .cr-tab-pilha td.cr-bloco-td { display: block; text-align: left; }
+  .cr-tab-pilha td.cr-bloco-td::before { content: none; }
+  .cr-tab .cr-passo-n { font-size: 30px; width: auto; }
+
+  .cr-rodape { margin-top: 72px; }
+  .cr-rodape .cr-grelha > * + * { margin-top: 20px; }
+}
+
+/* Sem animações; com reduced motion, nada se mexe (nem o deslocamento suave). */
+@media (prefers-reduced-motion: reduce) {
+  .cr-html { scroll-behavior: auto; }
+  .cr-body *, .cr-body *::before, .cr-body *::after { transition: none !important; animation: none !important; }
+}
+
+/* Contraste forçado (Windows): só filetes e texto. */
+@media (forced-colors: active) {
+  .cr-bt, .cr-etq, .cr-aviso, .cr-menu > summary { border: 1px solid CanvasText; }
+  .cr-bt:disabled, .cr-bt[aria-disabled="true"] { border-style: dashed; }
+  .cr-body :focus-visible { outline-color: Highlight; }
+}
+
+/* Palavra-passe ao lado do botão no fim de um formulário. */
+.cr-fim .cr-campo { margin-bottom: 0; flex: 1 1 260px; max-width: 380px; }
+.cr-body details > summary.cr-lig { list-style: none; }
+.cr-body details > summary.cr-lig::-webkit-details-marker { display: none; }
