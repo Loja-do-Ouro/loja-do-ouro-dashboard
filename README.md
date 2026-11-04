@@ -127,6 +127,106 @@ Página reservada da loja Shopify: **Loja do Ouro Private Selection** para quem 
 
 Variáveis novas: `KLAVIYO_WRITE_API_KEY` (chave privada da Klaviyo com Profiles, Lists e Subscriptions em Full Access; a `KLAVIYO_API_KEY` do BI continua só de leitura) e `KLAVIYO_PRIVATE_SELECTION_LIST_ID` (id da lista "Clientes Private Selection", criada à mão na Klaviyo com double opt-in), opcionais `PRIVATE_SELECTION_ORIGINS`, `PRIVATE_SELECTION_FROM_LDO`, `PRIVATE_SELECTION_FROM_GSP` e `PRIVATE_SELECTION_REPLY_TO`. Reutiliza `RESEND_API_KEY`, `SUPPORT_ENCRYPTION_KEY` (obrigatória para guardar a senha), `BI_INGEST_TOKEN` e `DASHBOARD_URL` (logótipos dos emails).
 
+### Plataforma de criadores
+
+Site dos criadores e influenciadores (`https://criadores.lojadoouro.pt`) e área **Influenciadores** do dashboard (`/influenciadores`), no mesmo repositório e no mesmo projeto Vercel. O `proxy.ts` reescreve o host `criadores.*` para `/c/…` (`app/(criadores-site)`), como o leilão faz com `leilao.*`. Os criadores têm contas próprias (`ldo_cr_creators`, sessões em `ldo_cr_logins`, cookie `__Host-ldo_criador`, nunca com `Domain`), sem Supabase Auth nem `service_role`: tudo passa pelas funções `ldo_cr_*` (`supabase/migrations/20261105100000_ldo_creators_a.sql`), chamadas só a partir de `lib/criadores/db.ts`. Regras puras em `lib/criadores-rules.ts`, `lib/criadores-site-rules.ts` e `lib/criadores-crypto-core.ts` (testadas em `tests/criadores*.cjs`); servidor em `lib/criadores/{db,site,emails,crypto}.ts`.
+
+- **Acessos**: Administração → Utilizadores (Super Admin) → «Influenciadores»: Sem acesso, Consultar ou Gerir, e a caixa «Finanças» (ver o IBAN e os dados fiscais completos; nunca é implícita, nem ao Super Admin). Ninguém tem acesso por omissão. Um Gestor de lojas não edita quem tenha acesso a esta área. As mudanças de acesso ficam em `ldo_app_audit` (`user.creators_access`); tudo o resto sobre criadores fica em `ldo_cr_audit` (só acrescento).
+- **Domínio**: antes do DNS, `/c` no endereço do dashboard serve só para testes internos (sem sessão da equipa, com a CSP do site e, em produção, as inscrições «em breve»). Depois do deploy: adicionar `criadores.lojadoouro.pt` ao projeto Vercel **loja-do-ouro-dashboard**, criar na Cloudflare o CNAME `criadores` → `cname.vercel-dns.com` em «DNS only» e definir `CREATORS_URL`. A partir daí o dashboard responde 308 de `/c/*` para o domínio próprio e 404 em `/api/c/*`, salvo `/api/c/tick`. O dashboard não pode ser posto num `iframe` (`X-Frame-Options: DENY` e `frame-ancestors 'none'` em `next.config.mjs`); no host `criadores.*` os cabeçalhos (CSP com nonce) vêm do `proxy.ts`.
+- **Região**: as funções correm em `fra1` (`vercel.json`), perto da BD (Frankfurt); a decifração do IBAN e dos dados fiscais corre na UE.
+- **Rotas de API**: `POST /api/c/export` («Descarregar os meus dados» em `/definicoes`: cookie do criador, palavra-passe no formulário, `Origin` do próprio site e `Sec-Fetch-Site: same-origin`; devolve um anexo JSON `no-store` com os dados fiscais e o IBAN do próprio decifrados e grava o pedido RGPD `access` como concluído; os erros voltam a `/definicoes?dados=senha|limite|bloqueado|erro`) e `POST /api/c/tick` (abaixo). A exportação pela equipa, para um pedido RGPD recebido por email, é `POST /api/influenciadores/export/[id]`, sem nada cifrado.
+- **Verificação automática** a cada 5 minutos (pg_cron + pg_net → `POST /api/c/tick`, `supabase/migrations/20261105100100_ldo_creators_tick_schedule.sql`, aplicada só depois do deploy da rota). O token é gerado pela BD e fica no Vault (`ldo_creators_tick`); a rota pede à BD que o confirme (`ldo_cr_tick_check`), responde 204 e trabalha a seguir (`after()`, 60 s): a fila de emails (`ldo_cr_outbox`: lotes de 20, 600 ms entre envios, para no 429 do Resend) e, só durante uma rotação da chave, a regravação da cifra. Sem `CREATORS_SERVER_TOKEN` responde 503; com um token errado, 401. Para parar: `select cron.unschedule('ldo-creators-tick');`. A limpeza pelos prazos de conservação (`ldo-creators-retention`, 03:41) corre só na BD e fica agendada pela migração A (parar: `select cron.unschedule('ldo-creators-retention');`).
+- **Emails** (Resend, `lib/criadores/emails.ts`): na hora, a confirmação do IBAN e «conta apagada»; logo a seguir à resposta (`after()`), a confirmação do email, a recuperação e «já tem conta»; os restantes avisos pela fila do tick. Em produção nenhum sai sem `CREATORS_URL`, `CREATORS_SERVER_TOKEN` e `CREATORS_ENCRYPTION_KEY`. As ligações levam o token depois de `#` (nunca no endereço que chega ao servidor). O logótipo vem sempre de `DASHBOARD_URL`.
+- **Cifra**: o IBAN e os dados fiscais são cifrados na aplicação (AES-256-GCM, subchave HKDF por finalidade, AAD `iban:<criador>` e `fiscal:<criador>`); a BD só vê `c1.…` e os 4 últimos algarismos do IBAN. Só quem tem «Finanças» revela, com motivo e a própria palavra-passe (`finance.reveal` na auditoria; no máximo 20 revelações por pessoa em 24 h; à 10.ª os Super Admin recebem um aviso).
+
+Variáveis (Vercel; nunca no Git, no chat nem na BD):
+
+| Variável | Onde | Para quê |
+|---|---|---|
+| `CREATORS_SERVER_TOKEN` | **Sensitive**, só Production | Token de servidor próprio (não o `BI_INGEST_TOKEN`): 32 bytes em hex. A BD guarda só o SHA-256 em `ldo_private.cr_token`; sem a linha, todas as funções do site e do tick recusam. Também é a chave-mãe (HKDF) do hash dos IP do site. |
+| `CREATORS_ENCRYPTION_KEY` | **Sensitive**, Production e Preview com valores diferentes | Anel de chaves da cifra: `c1:<32 bytes em base64>`; numa rotação, `c2:<nova>,c1:<antiga>`. Nunca igual à `SUPPORT_ENCRYPTION_KEY`. Sem ela, os dados de pagamento ficam «por configurar». |
+| `CREATORS_URL` | não sensível | `https://criadores.lojadoouro.pt`: ligações dos emails e redirecionamento de `/c`. Só depois do DNS. |
+| `CREATORS_RESEAL_FROM` | não sensível, opcional | Só durante uma rotação da chave: a versão a regravar (ex.: `c1`). |
+| `CREATORS_FROM`, `CREATORS_REPLY_TO` | não sensíveis, opcionais | Por omissão, `Loja do Ouro Criadores <criadores@lojadoouro.pt>` e `criadores@lojadoouro.pt`. |
+
+Reutiliza `SUPABASE_PUBLISHABLE_KEY`, `RESEND_API_KEY` e `DASHBOARD_URL`.
+
+Gerar as chaves no computador do dono (os valores vão diretamente para a Vercel):
+
+```sh
+# CREATORS_ENCRYPTION_KEY (começa por c1:)
+node -e "console.log('c1:'+require('crypto').randomBytes(32).toString('base64'))"
+# CREATORS_SERVER_TOKEN: a 1.ª linha vai para a Vercel; a 2.ª (o hash) vai para o SQL abaixo
+node -e "const c=require('crypto');const t=c.randomBytes(32).toString('hex');console.log(t);console.log(c.createHash('sha256').update(t).digest('hex'))"
+```
+
+Depois do merge, por esta ordem e com autorização: (1) a migração A (mais de 30 KB: pelo procedimento das migrações grandes, com o `pg_net` a buscar o ficheiro no GitHub pelo sha do merge e o md5 confirmado); (2) o hash do token, colando só o SHA-256 (o token em claro nunca vai para o SQL): `insert into ldo_private.cr_token values (1, decode('<sha256 hex>', 'hex'));`; (3) o deploy; (4) `…100100_ldo_creators_tick_schedule.sql`; (5) à parte, `…100200_ldo_bi_auth_unlink.sql`. Para abrir as inscrições (Influenciadores → Definições, Super Admin): preencher a identificação legal e publicar os Termos e a Política.
+
+**Rodar a chave de cifra** (também ação de incidente; nunca trocar o valor de uma vez): (1) gerar uma chave nova, pôr `CREATORS_ENCRYPTION_KEY=c2:<nova>,c1:<antiga>` na Vercel e publicar; (2) definir `CREATORS_RESEAL_FROM=c1` e publicar: o tick volta a cifrar com `c2`, em lotes, os valores ainda em `c1.` (a mesma AAD; `iban_changed_at` não muda); (3) quando já não houver nenhum (consulta abaixo), retirar `c1` e `CREATORS_RESEAL_FROM` e publicar.
+
+```sql
+-- Valores ainda na versão antiga (tudo a 0 = pode retirar-se c1)
+select count(*) filter (where fiscal_ct like 'c1.%') as fiscal,
+       count(*) filter (where iban_ct like 'c1.%') as iban,
+       count(*) filter (where iban_pending_ct like 'c1.%') as iban_pendente
+from public.ldo_cr_finance;
+```
+
+#### Incidentes
+
+Procedimento para violações de dados (arts. 33.º e 34.º do RGPD e termos da Meta, 6.b), aprovado pelo advogado antes de abrir as inscrições. O registo de incidentes guarda-se com a AIPD.
+
+| Passo | Quem | Prazo | O quê |
+|---|---|---|---|
+| 1. Conter | quem detetar avisa o Super Admin | logo | «Parar a plataforma» (abaixo) e as rotações que se apliquem |
+| 2. Avaliar | Super Admin (decide), com o advogado | nas primeiras 24 h | que dados, quantas pessoas, se estavam cifrados com uma chave que não foi exposta, que risco |
+| 3. CNPD | Super Admin, pelo formulário de notificação de violações da CNPD | até 72 h depois de ter conhecimento (art. 33.º, n.º 1); se for depois, com o motivo do atraso | salvo se for improvável que resulte risco para as pessoas |
+| 4. Criadores | Super Admin | sem demora injustificada, se o risco for elevado (art. 34.º, n.º 1) | email em linguagem clara: o que aconteceu, as consequências prováveis, as medidas e o contacto `privacidade@lojadoouro.pt`. Dispensa no art. 34.º, n.º 3 (por exemplo, IBAN cifrado com uma chave que não foi exposta) |
+| 5. Meta | Super Admin | logo que possível, nunca depois do prazo legal (termos da Meta, 6.b.i) | formulário da Meta, quando houver tratamento não autorizado de dados da plataforma Meta (tokens, séries, insights) ou um incidente que possa comprometer os nossos sistemas ou os de um subcontratante; remediar e cooperar (6.b.ii) |
+| 6. Registar | Super Admin | sempre, também quando não se notifica | registo de incidentes (art. 33.º, n.º 5): data, factos, dados e pessoas afetadas, efeitos, medidas e porque se notificou ou não |
+
+Os subcontratantes (Supabase, Vercel, Anthropic, Resend, Google) têm de nos avisar sem demora (art. 33.º, n.º 2, e os DPA); as 72 h contam a partir desse aviso.
+
+Ações preparadas (o SQL corre no SQL Editor do Supabase, com autorização do Super Admin):
+
+- **Parar a plataforma**: Influenciadores → Definições → «Parar a plataforma (incidente)» (Super Admin, com motivo; `ldo_cr_lockdown`). Termina todas as sessões dos criadores e fecha as inscrições, e fica `incident.lockdown` na auditoria; os callbacks da Meta continuam a responder. Se o dashboard não estiver acessível, o mesmo efeito em SQL:
+
+  ```sql
+  begin;
+  update public.ldo_cr_logins set revoked_at = now() where revoked_at is null;
+  update public.ldo_cr_settings set registrations_open = false, updated_at = now() where id = 1;
+  select ldo_private.cr_log('system', null, null, 'incident.lockdown', null,
+    jsonb_build_object('reason', '<motivo>', 'via', 'sql'));
+  commit;
+  -- Se for preciso, parar também a verificação automática (fila de emails):
+  select cron.unschedule('ldo-creators-tick');
+  ```
+
+  Para voltar: as inscrições abrem-se em Definições e os criadores voltam a entrar com a palavra-passe; o tick volta a agendar-se com `…100100_ldo_creators_tick_schedule.sql`.
+
+- **Rodar o `CREATORS_SERVER_TOKEN`** (sem mexer no código): gerar um novo (comando acima), trocar o hash na BD e logo a seguir o valor na Vercel, e publicar. Entre os dois passos o site recusa tudo (falha fechada). Invalida as ligações «Deixar de receber avisos» dos emails já enviados e muda o hash dos IP (os limites por IP recomeçam).
+
+  ```sql
+  update ldo_private.cr_token set token_hash = decode('<sha256 hex do token novo>', 'hex') where id = 1;
+  ```
+
+- **Rodar o segredo do tick** (`ldo_creators_tick`, no Vault; o agendamento lê-o em cada execução, por isso não é preciso voltar a agendar):
+
+  ```sql
+  select vault.update_secret((select id from vault.secrets where name = 'ldo_creators_tick'),
+    encode(extensions.gen_random_bytes(32), 'hex'));
+  ```
+
+- **Rodar a `CREATORS_ENCRYPTION_KEY`**: pela passagem a `c2` descrita acima (anel de chaves e regravação pelo tick), nunca trocando o valor de uma vez (os dados cifrados com a antiga ficariam ilegíveis).
+- **Meta** (a partir do PR 3A): revogar o token do System User no Business Manager e pôr um novo em `META_SYSTEM_USER_TOKEN`; rodar o `META_APP_SECRET`.
+- **Outros segredos**: rodar o `BLOB_READ_WRITE_TOKEN` (a partir do PR2) e a `RESEND_API_KEY` nos painéis respetivos e na Vercel.
+- **Conta da equipa suspeita**: terminar as sessões do dashboard dessa pessoa (e, se for preciso, desativá-la em Administração → Utilizadores):
+
+  ```sql
+  update public.ldo_app_sessions set revoked_at = now()
+  where revoked_at is null and user_id = (select id from public.ldo_app_users where username = '<utilizador>');
+  ```
+
 ### Relatórios por email
 
 Tarefas agendadas no Vercel (`vercel.json`, horas UTC) chamam `/api/cron/reports` com `CRON_SECRET`:
@@ -151,6 +251,7 @@ O build de produção verifica a configuração do login e o acesso às quatro f
 - `app/admin/` — utilizadores e lojas; `app/conta/` — mudar a própria palavra-passe.
 - `app/apoio/`, `app/api/support/`, `components/support/`, `lib/support/` — Apoio ao Cliente (adaptadores `zendesk`, `metricool`, `whatsapp`; `sync`, `service`, `rules`).
 - `app/private-selection/`, `app/api/private-selection/`, `lib/private-selection/` (`db`, `http`, `send`), `lib/private-selection-rules.ts`, `lib/private-selection-email.ts`, `lib/klaviyo-write.ts` — Private Selection.
+- `app/(criadores-site)/`, `app/(painel)/influenciadores/`, `app/api/c/`, `lib/criadores/` (`db`, `site`, `emails`, `crypto`), `lib/criadores-rules.ts`, `lib/criadores-site-rules.ts`, `lib/criadores-crypto-core.ts` — Plataforma de criadores.
 - `components/shell.tsx` — menu e barra superior, conforme as permissões. No computador, o botão no canto da barra (ou Ctrl+\\) recolhe o menu na coluna de ícones (`components/menu-toggle.tsx`, `lib/menu.ts`): preferência de cada browser no cookie `ldo_menu`, lido pelo layout do painel para a página abrir já no estado certo.
 - `lib/session.ts`, `lib/viewer.ts`, `lib/permissions.ts`, `lib/rate-limit.ts` — login, sessão e permissões; `lib/store-records.ts` — leitura dos formulários e totais das lojas físicas.
 - `components/dashboard/` — uma secção por ficheiro (`overview`, `sales`, `marketing`, `audience`, `quality`), mais `trend`, `ui` e `format`.
