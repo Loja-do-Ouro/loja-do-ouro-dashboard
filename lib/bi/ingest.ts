@@ -11,6 +11,7 @@ import { metricoolAccount, metricoolConfigured, metricoolDaily, metricoolPosts }
 import { closeStaleRuns, finishRun, startRun, upsert } from "./supabase-write";
 import { readDetail, readStore } from "./store";
 import { AD_DATASETS } from "./read-plan";
+import { AD_GAP_LIMIT, adDays, adLookback } from "./ad-days";
 
 export { ingestRange } from "./periods";
 const CONCURRENCY = 6;
@@ -63,21 +64,36 @@ export async function ingest(range: Period, trigger: string) {
       if (r.rows.length !== 1) throw new Error("Total de período ausente ou com granularidade inesperada.");
       pushDataset("ga4", "period_totals", p, r.rows, sourceMetadata("googleanalytics4", r.fields));
     }));
+  const isAd = (d: { source: string; dataset: string }) => AD_DATASETS.includes(`${d.source}/${d.dataset}`);
   // Klaviyo is read directly (below), not through Windsor.
-  for (const w of windows) for (const d of DETAILS.filter(x => x.source !== "klaviyo"))
+  for (const w of windows) for (const d of DETAILS.filter(x => x.source !== "klaviyo")) {
+    // Yesterday's campaign detail is the same dataset as that day's query below.
+    if (w.key === "day" && isAd(d) && days.includes(w.range.from)) continue;
     tasks.push(job(`${d.source} · ${d.dataset} ${w.key}`, async () => {
       const r = await readWindsor(d.connector, w.range, d.fields, { fresh: true });
       pushDataset(d.source, d.dataset, w.range, r.rows, sourceMetadata(d.connector, r.fields));
     }));
+  }
 
-  // Campaign spend per day, so any period (not only the closed windows) can be split
-  // into online and physical-store investment.
-  for (const d of DETAILS.filter(x => (x.source === "meta" && x.dataset === "ads") || (x.source === "google_ads" && x.dataset === "campaigns")))
-    tasks.push(job(`${d.source} · ${d.dataset} por dia`, async () => {
-      const r = await readWindsor(d.connector, range, d.fields, { fresh: true });
-      const meta = { ...sourceMetadata(d.connector, r.fields), daily: true, complete: true };
-      for (const day of days) pushDataset(d.source, d.dataset, { from: day, to: day }, r.rows.filter(x => String(x.date) === day), meta);
-    }));
+  // Campaign spend per day, so any period (not only the closed windows) can be split into online and physical-store
+  // investment: one query per day, for the range's days and the earlier days still missing (ad-days.ts).
+  const lookback = adLookback(range);
+  let storedAds: Dataset[] | null = null;
+  if (lookback)
+    try { storedAds = await readDetail(lookback, { exact: [], daily: AD_DATASETS }); }
+    catch (e) { errors.push(`Detalhe de campanhas guardado: ${e instanceof Error ? e.message : "indisponível"} (dias em falta por procurar).`); }
+  const gapNotes: string[] = [];
+  for (const d of DETAILS.filter(isAd)) {
+    const plan = adDays(range, storedAds, d.source, d.dataset);
+    if (plan.gaps.length)
+      gapNotes.push(`${d.source}/${d.dataset} sem detalhe em ${plan.gaps.length} dia(s) anteriores (${plan.gaps.slice(0, 10).join(", ")}${plan.gaps.length > 10 ? ", …" : ""}); pedidos de novo ${Math.min(plan.gaps.length, AD_GAP_LIMIT)}.`);
+    for (const day of plan.days)
+      tasks.push(job(`${d.source} · ${d.dataset} ${day}`, async () => {
+        const r = await readWindsor(d.connector, { from: day, to: day }, d.fields, { fresh: true });
+        const meta = { ...sourceMetadata(d.connector, r.fields), daily: true, complete: true };
+        pushDataset(d.source, d.dataset, { from: day, to: day }, r.rows.filter(x => String(x.date) === day), meta);
+      }));
+  }
 
   // Klaviyo API: email campaigns and flows, one window at a time (rate limited).
   const direct = { timezone: "Europe/Lisbon", currency: "EUR" };
@@ -181,6 +197,7 @@ export async function ingest(range: Period, trigger: string) {
 
   const status = errors.length ? "partial" : "completed";
   const notes = `Recolha ${range.from} a ${range.to}: ${daily.length} registos diários, ${datasets.length} conjuntos.` +
+    (gapNotes.length ? ` ${gapNotes.join(" ")}` : "") +
     (errors.length ? ` Falhas: ${errors.slice(0, 10).join(" | ")}` : " Sem falhas.") + " Dados provisórios; tracking não certificado.";
   await finishRun(runId, status, notes);
   revalidateTag(BI_CACHE_TAG, { expire: 0 });
