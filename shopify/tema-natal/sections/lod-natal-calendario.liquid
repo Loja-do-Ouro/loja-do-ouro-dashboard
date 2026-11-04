@@ -529,9 +529,15 @@
                       endfor
                     endif
 
-                    assign t_hist = hist | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int | newline_to_br
-                    assign t_sug = sug | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
-                    assign t_dica = dica_txt | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
+                    assign t_hist = hist | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja
+                    assign t_hist = t_hist | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav
+                    assign t_hist = t_hist | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int | newline_to_br
+                    assign t_sug = sug | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja
+                    assign t_sug = t_sug | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav
+                    assign t_sug = t_sug | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
+                    assign t_dica = dica_txt | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja
+                    assign t_dica = t_dica | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav
+                    assign t_dica = t_dica | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
 
                     assign cta_href = bs.cta_url
                     # Ligação escrita à mão («/collections/x», «/#siga-a-estrela», «/search?…»): junta o prefixo da língua/mercado
@@ -654,7 +660,9 @@
                     assign so_pt = true
                   endif
                 endif
-                assign cru = cru | remove: '{acores}' | remove: '{madeira}' | remove: '{gravacao}' | remove: '{continente}' | remove: '{loja}' | remove: '{reis}' | remove: '{retoma}' | remove: '{trocas}' | remove: '{hora_continente}' | remove: '{hora_reis}' | remove: '{es_navidad}' | remove: '{es_reyes}' | remove: '{es_noche}' | remove: '{int}'
+                assign cru = cru | remove: '{acores}' | remove: '{madeira}' | remove: '{gravacao}' | remove: '{continente}' | remove: '{loja}' | remove: '{reis}'
+                assign cru = cru | remove: '{retoma}' | remove: '{trocas}' | remove: '{hora_continente}' | remove: '{hora_reis}' | remove: '{es_navidad}' | remove: '{es_reyes}'
+                assign cru = cru | remove: '{es_noche}' | remove: '{int}'
               -%}
               {%- if bd.size != 10 or bd < cal_inicio or bd > cal_fim -%}
                 <li>Bloco «{{ bt }}»: a data «{{ bd | escape }}» está fora da grelha ({{ cal_inicio }} a {{ cal_fim }}) e não aparece.</li>
