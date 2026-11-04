@@ -1,0 +1,1552 @@
+{%- comment -%}
+  Natal 2026 · Ouro de Reis — «Calendário de Ouro, do Advento aos Reis».
+  Grelha de mês verdadeira (6 semanas, a começar à segunda); cada bloco «dia» é uma porta.
+  O conteúdo de cada porta fica num <template> e só entra na página (e carrega imagens) quando a porta abre.
+  As portas abrem no navegador com window.LOD_NATAL.hoje() (hora de Lisboa, respeita a data simulada).
+  No editor do tema todas as portas abrem. Sem prémios, sorteios nem descontos atrás de nenhuma porta.
+
+  Línguas e mercados (contrato: scratchpad/natal/i18n-contrato.md):
+  - A definição «Versão do calendário» diz de que mercado é a instância: «pt» (Portugal, «Ouro de Reis») ou «es»
+    (Espanha, «Oro de Reyes»). A instância só aparece no site quando a versão do mercado da visita é a mesma
+    (lod-natal-fase, mercado: 'auto'). O Internacional não tem calendário.
+  - Fases ativas: Portugal ouro, incenso, ultima, consoada, mirra; Espanha navidad, reyes, reyes_ultima, noche_reyes.
+  - Textos fixos do dicionário lod-natal-t; datas na língua da página. O conteúdo de cada porta tem o campo base
+    (português) e os campos _en e _es; um campo _en/_es vazio usa o campo base.
+  - Ligações escritas à mão («/collections/…», «/#…») ganham o prefixo da língua e do mercado (routes.root_url).
+
+  Textos das portas (história, frase das peças e dica) aceitam marcadores com as datas das definições
+  do tema › Natal 2026, como o banner: {acores}, {madeira}, {gravacao}, {continente}, {reis}, {retoma}
+  (ex.: «domingo, 20 de dezembro»), {loja} («24 de dezembro, 13h», como na barra, no banner e nos Prazos), {trocas} («15 de janeiro de 2027»),
+  {hora_continente} e {hora_reis} («23h59»). Espanha e Internacional (só o dia, nunca a hora): {es_navidad}, {es_reyes},
+  {es_noche} e {int}. Todas saem na língua da página.
+  A «frase das peças» só aparece quando todas as peças escolhidas estão à venda. Se nenhuma estiver,
+  a porta mostra duas peças à venda da coleção do bloco.
+  Um bloco pode depender de uma decisão (trocas de Natal aprovadas, Janeiras confirmadas): enquanto
+  estiver desligada, aparece o outro bloco da mesma data.
+  No editor, uma lista avisa de datas fora da grelha, peças esgotadas ou com 1 unidade, marcadores
+  desconhecidos e portas «hoje/amanhã é o último dia» cuja data já não bate com o prazo das definições.
+{%- endcomment -%}
+{%- liquid
+  capture lnat_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_lg = lnat_lg | strip
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnat_versao = lnat_versao | strip
+  capture lnat_fase
+    render 'lod-natal-fase', mercado: 'auto'
+  endcapture
+  assign lnat_fase = lnat_fase | strip
+
+  # Versão desta instância: o calendário de Portugal não aparece em Espanha, nem o de Espanha em Portugal.
+  assign cal_versao = section.settings.versao | default: 'pt'
+  assign cal_ativa = false
+  case lnat_versao
+    when 'pt'
+      case lnat_fase
+        when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+          assign cal_ativa = true
+      endcase
+    when 'es'
+      case lnat_fase
+        when 'navidad', 'reyes', 'reyes_ultima', 'noche_reyes'
+          assign cal_ativa = true
+      endcase
+  endcase
+  assign cal_mercado_ok = false
+  if lnat_versao == cal_versao
+    assign cal_mercado_ok = true
+  endif
+  assign cal_editor = false
+  if request.design_mode
+    assign cal_editor = true
+  endif
+  assign cal_mostrar = cal_editor
+  if cal_ativa and cal_mercado_ok
+    assign cal_mostrar = true
+  endif
+-%}
+{%- if cal_mostrar -%}
+{%- liquid
+  assign cal_id = section.settings.ancora | default: 'calendario' | handleize
+  assign cal_sid = 'lnat-cal-' | append: section.id
+
+  assign cal_hoje = 'now' | date: '%Y-%m-%d'
+  if settings.natal_data_simulada != blank and theme.role != 'main'
+    assign cal_hoje = settings.natal_data_simulada | strip | slice: 0, 10
+  endif
+
+  assign cal_inicio = section.settings.grelha_inicio | default: '2026-11-30' | strip | slice: 0, 10
+  assign cal_t0 = cal_inicio | append: ' 12:00' | date: '%s' | plus: 0
+  if cal_t0 < 1000000000
+    assign cal_inicio = '2026-11-30'
+    assign cal_t0 = '2026-11-30 12:00' | date: '%s' | plus: 0
+  endif
+  assign cal_tfim = cal_t0 | plus: 3542400
+  assign cal_fim = cal_tfim | date: '%Y-%m-%d'
+
+  # Textos fixos na língua da página (dicionário lod-natal-t), lidos uma vez antes do ciclo das 42 células
+  capture t_dias
+    render 'lod-natal-t', k: 'dias'
+  endcapture
+  capture t_dabr
+    render 'lod-natal-t', k: 'dias_abr'
+  endcapture
+  capture t_meses
+    render 'lod-natal-t', k: 'meses'
+  endcapture
+  capture t_mabr
+    render 'lod-natal-t', k: 'meses_abr'
+  endcapture
+  capture t_sem_ini
+    render 'lod-natal-t', k: 'semana_iniciais'
+  endcapture
+  capture t_sem_nomes
+    render 'lod-natal-t', k: 'semana_nomes'
+  endcapture
+  capture t_hoje
+    render 'lod-natal-t', k: 'hoje'
+  endcapture
+  capture t_hoje_min
+    render 'lod-natal-t', k: 'hoje_min'
+  endcapture
+  capture t_abrir
+    render 'lod-natal-t', k: 'abrir'
+  endcapture
+  capture t_abrir_hoje
+    render 'lod-natal-t', k: 'cal_abrir_hoje'
+  endcapture
+  capture t_ja_aberta
+    render 'lod-natal-t', k: 'ja_aberta'
+  endcapture
+  capture t_ja_aberta_min
+    render 'lod-natal-t', k: 'ja_aberta_min'
+  endcapture
+  capture t_fechada
+    render 'lod-natal-t', k: 'ainda_fechada'
+  endcapture
+  capture t_abre_a
+    render 'lod-natal-t', k: 'abre_a'
+  endcapture
+  capture t_abre_a_min
+    render 'lod-natal-t', k: 'abre_a_min'
+  endcapture
+  capture t_porta_abre_a
+    render 'lod-natal-t', k: 'porta_abre_a'
+  endcapture
+  capture t_porta_ant
+    render 'lod-natal-t', k: 'porta_anterior'
+  endcapture
+  capture t_porta_seg
+    render 'lod-natal-t', k: 'porta_seguinte'
+  endcapture
+  capture t_ver_colecao
+    render 'lod-natal-t', k: 'ver_colecao'
+  endcapture
+  capture t_saber_mais
+    render 'lod-natal-t', k: 'saber_mais'
+  endcapture
+  capture t_rot_dica
+    render 'lod-natal-t', k: 'dica'
+  endcapture
+  capture t_fechar
+    render 'lod-natal-t', k: 'fechar'
+  endcapture
+  capture t_partilhar
+    render 'lod-natal-t', k: 'partilhar'
+  endcapture
+  capture t_copiada
+    render 'lod-natal-t', k: 'ligacao_copiada'
+  endcapture
+  capture t_marca
+    render 'lod-natal-t', k: 'marca'
+  endcapture
+
+  # Listas: dias e dias_abr começam no domingo (índice = %w); meses e meses_abr ficam a contar de 1 (janeiro).
+  assign cal_dias = t_dias | split: ','
+  assign cal_dabr = t_dabr | split: ','
+  assign cal_meses = ',' | append: t_meses | split: ','
+  assign cal_mabr = ',' | append: t_mabr | split: ','
+  assign cal_sem_ini = t_sem_ini | split: ','
+  assign cal_sem_nomes = t_sem_nomes | split: ','
+  # «sexta, 18 de dezembro» / «Friday 18 December» / «viernes, 18 de diciembre» (como lod-natal-data)
+  assign cal_de = ' de '
+  assign cal_vg = ', '
+  if lnat_lg == 'en'
+    assign cal_de = ' '
+    assign cal_vg = ' '
+  endif
+  assign cal_ouro = section.settings.dias_ouro | default: '' | remove: ' ' | split: ','
+
+  assign cal_t_m1 = cal_t0 | plus: 604800
+  assign cal_m1 = cal_t_m1 | date: '%-m' | plus: 0
+  assign cal_a1 = cal_t_m1 | date: '%Y'
+  assign cal_m2 = cal_tfim | date: '%-m' | plus: 0
+  assign cal_a2 = cal_tfim | date: '%Y'
+  # Primeira letra em maiúscula sem «| capitalize» (que passava «December» a «december»)
+  assign cal_mn = cal_meses[cal_m1]
+  assign cal_mn_a = cal_mn | slice: 0 | upcase
+  assign cal_mn_b = cal_mn | slice: 1, 30
+  assign cal_meses_txt = cal_mn_a | append: cal_mn_b | append: ' ' | append: cal_a1
+  if cal_m2 != cal_m1
+    assign cal_mn = cal_meses[cal_m2]
+    assign cal_mn_a = cal_mn | slice: 0 | upcase
+    assign cal_mn_b = cal_mn | slice: 1, 30
+    assign cal_meses_txt = cal_meses_txt | append: ' · ' | append: cal_mn_a | append: cal_mn_b | append: ' ' | append: cal_a2
+  endif
+
+  # Cabeçalho: campo base em português; _en e _es quando preenchidos
+  assign cal_eb = section.settings.eyebrow
+  assign cal_titulo = section.settings.titulo
+  assign cal_texto = section.settings.texto
+  assign cal_nota = section.settings.nota
+  if lnat_lg != 'pt'
+    assign kx = 'eyebrow_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_eb = section.settings[kx]
+    endif
+    assign kx = 'titulo_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_titulo = section.settings[kx]
+    endif
+    assign kx = 'texto_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_texto = section.settings[kx]
+    endif
+    assign kx = 'nota_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_nota = section.settings[kx]
+    endif
+  endif
+  if cal_titulo == blank
+    capture cal_titulo
+      render 'lod-natal-t', k: 'cal_titulo'
+    endcapture
+  endif
+  assign cal_titulo_e = cal_titulo | escape
+  capture t_portas
+    render 'lod-natal-t', k: 'cal_portas', v1: cal_titulo_e
+  endcapture
+
+  # Campos por língua dos blocos (titulo_en, historia_es, …): nomes calculados uma vez
+  assign k_titulo = 'titulo_' | append: lnat_lg
+  assign k_rotulo = 'rotulo_' | append: lnat_lg
+  assign k_historia = 'historia_' | append: lnat_lg
+  assign k_sugestao = 'sugestao_' | append: lnat_lg
+  assign k_dica = 'dica_' | append: lnat_lg
+  assign k_cta = 'cta_texto_' | append: lnat_lg
+
+  # Ligações escritas à mão: prefixo da língua e do mercado («/en», «/es», «/pt-pt»), como as ligações da Shopify
+  assign cal_raiz = routes.root_url | default: '/'
+  assign cal_raiz_b = cal_raiz | append: '/'
+  assign cal_raiz_n = cal_raiz_b.size
+
+  # Datas das definições do tema para os marcadores dos textos (as mesmas do banner, da barra e dos Prazos)
+  capture cal_d_acores
+    render 'lod-natal-data', valor: settings.natal_limite_acores, formato: 'longo'
+  endcapture
+  capture cal_d_madeira
+    render 'lod-natal-data', valor: settings.natal_limite_madeira, formato: 'longo'
+  endcapture
+  capture cal_d_gravacao
+    render 'lod-natal-data', valor: settings.natal_limite_gravacao, formato: 'longo'
+  endcapture
+  capture cal_d_cont
+    render 'lod-natal-data', valor: settings.natal_limite_continente, formato: 'longo'
+  endcapture
+  capture cal_d_loja
+    render 'lod-natal-data', valor: settings.natal_limite_loja, formato: 'hora'
+  endcapture
+  capture cal_d_reis
+    render 'lod-natal-data', valor: settings.natal_limite_reis, formato: 'longo'
+  endcapture
+  capture cal_d_retoma
+    render 'lod-natal-data', valor: settings.natal_retoma_envios, formato: 'longo'
+  endcapture
+  capture cal_d_trocas
+    render 'lod-natal-data', valor: settings.natal_trocas_ate, formato: 'ano'
+  endcapture
+  capture cal_h_cont
+    render 'lod-natal-data', valor: settings.natal_limite_continente, formato: 'hora'
+  endcapture
+  assign cal_h_cont = cal_h_cont | split: ', ' | last
+  capture cal_h_reis
+    render 'lod-natal-data', valor: settings.natal_limite_reis, formato: 'hora'
+  endcapture
+  assign cal_h_reis = cal_h_reis | split: ', ' | last
+  # Espanha e Internacional: só o dia (as 23:59 de Lisboa são 00:59 em Madrid). Envios para Espanha: só a Península
+  # (sem Baleares, Canárias, Ceuta e Melilla). Navidad 20 dez. confirmado pelo dono a 04-11-2026; Reyes e Internacional propostos.
+  assign cal_v_es_nav = settings.natal_es_limite_navidad | default: '2026-12-20 23:59'
+  assign cal_v_es_reyes = settings.natal_es_limite_reyes | default: '2026-12-29 23:59'
+  assign cal_v_es_noche = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y' | append: '-01-05 00:00'
+  assign cal_v_int = settings.natal_int_limite | default: '2026-12-10 23:59'
+  capture cal_d_es_nav
+    render 'lod-natal-data', valor: cal_v_es_nav, formato: 'longo'
+  endcapture
+  capture cal_d_es_reyes
+    render 'lod-natal-data', valor: cal_v_es_reyes, formato: 'longo'
+  endcapture
+  capture cal_d_es_noche
+    render 'lod-natal-data', valor: cal_v_es_noche, formato: 'longo'
+  endcapture
+  capture cal_d_int
+    render 'lod-natal-data', valor: cal_v_int, formato: 'longo'
+  endcapture
+
+  # Blocos que dependem de uma decisão (opção «Mostrar» do bloco)
+  assign cal_trocas = false
+  if settings.natal_mostrar_trocas == true
+    assign cal_trocas = true
+  endif
+  assign cal_janeiras = false
+  if section.settings.janeiras_confirmadas == true
+    assign cal_janeiras = true
+  endif
+-%}
+<section
+  class="lnat lnat-cal lnat-sec lnat-bg-verde lnat-azulejo-escuro{% unless section.settings.mostrar_no_telemovel %} lnat-cal--sem-telemovel{% endunless %}"
+  id="{{ cal_id }}"
+  aria-labelledby="{{ cal_id }}-titulo"
+  data-lnat-cal
+  data-secao="{{ section.id }}"
+  data-hoje-servidor="{{ cal_hoje }}"
+  data-versao="{{ cal_versao | escape }}"
+  {%- if cal_editor %} data-editor{% endif %}
+>
+  <script type="application/json" data-cal-t>{"hoje_min":{{ t_hoje_min | json }},"ja_aberta_min":{{ t_ja_aberta_min | json }},"abre_a_min":{{ t_abre_a_min | json }},"porta_abre_a":{{ t_porta_abre_a | json }},"porta_anterior":{{ t_porta_ant | json }},"porta_seguinte":{{ t_porta_seg | json }},"partilhar":{{ t_partilhar | json }},"ligacao_copiada":{{ t_copiada | json }},"nome":{{ cal_titulo | json }},"marca":{{ t_marca | json }}}</script>
+  <div class="lnat-wrap">
+    {%- if cal_editor -%}
+      {%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}
+      <div class="lnat-cal__editor" role="note">
+        <p>No editor do tema todas as portas abrem. Selecione um bloco «Dia» para ver a porta aberta.</p>
+        {%- unless cal_mercado_ok -%}
+          <p>Este é o calendário {% if cal_versao == 'es' %}de Espanha («Oro de Reyes»){% else %}de Portugal («Ouro de Reis»){% endif %}. Nesta pré-visualização o mercado é «{{ localization.market.handle | default: 'pt' | escape }}» (versão {{ lnat_versao | escape }}), por isso no site esta secção não aparece{% if lnat_versao == 'int' %}: o Internacional não tem calendário{% endif %}.</p>
+        {%- endunless -%}
+      </div>
+    {%- endif -%}
+
+    <div class="lnat-cal__grade">
+      <header class="lnat-cal__cab">
+        {%- if cal_eb != blank -%}
+          <p class="lnat-eb">{{ cal_eb | escape }}</p>
+        {%- endif -%}
+        <h2 class="lnat-h2 lnat-h2--serif lnat-cal__h2" id="{{ cal_id }}-titulo">{{ cal_titulo_e }}</h2>
+        {%- if cal_texto != blank -%}
+          <p class="lnat-lead lnat-cal__lead">{{ cal_texto | escape }}</p>
+        {%- endif -%}
+
+        <button type="button" class="lnat-cal__hoje" data-hoje-cartao hidden>
+          <span class="lnat-cal__hoje-num" data-hoje-num aria-hidden="true"></span>
+          <span class="lnat-cal__hoje-txt">
+            <span class="lnat-cal__hoje-data"><span class="lnat-sr">{{ t_abrir_hoje }}, </span><span aria-hidden="true">{{ t_hoje }} · </span><span data-hoje-data></span></span>
+            <span class="lnat-cal__hoje-tit" data-hoje-titulo></span>
+          </span>
+          <span class="lnat-cal__hoje-abrir" aria-hidden="true">{{ t_abrir }}{% render 'lod-natal-icon', nome: 'seta', tamanho: 18 %}</span>
+        </button>
+
+        <div class="lnat-cal__legenda lnat-cal__legenda--cab">
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-hoje" aria-hidden="true"></span>{{ t_hoje }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-selo" aria-hidden="true"></span>{{ t_ja_aberta }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-fechada" aria-hidden="true"></span>{{ t_fechada }}</span>
+        </div>
+        {%- if cal_nota != blank -%}
+          <p class="lnat-peq lnat-cal__nota">{{ cal_nota | escape }}</p>
+        {%- endif -%}
+      </header>
+
+      <div class="lnat-cal__corpo">
+        <p class="lnat-cal__meses" aria-hidden="true">{{ cal_meses_txt }}</p>
+        <div class="lnat-cal__semana">
+          {%- for ini in cal_sem_ini -%}<abbr title="{{ cal_sem_nomes[forloop.index0] }}">{{ ini }}</abbr>{%- endfor -%}
+        </div>
+
+        <ol class="lnat-cal__grelha" aria-label="{{ t_portas }}">
+          {%- for i in (0..41) -%}
+            {%- liquid
+              assign t = i | times: 86400 | plus: cal_t0
+              assign dia = t | date: '%Y-%m-%d'
+              assign d_num = t | date: '%-d'
+              assign w = t | date: '%w' | plus: 0
+              assign m = t | date: '%-m' | plus: 0
+              # Um bloco «Sempre» serve a data; um bloco cuja condição está ligada passa-lhe à frente.
+              assign bi = -1
+              for blk in section.blocks
+                assign bd = blk.settings.data | strip | slice: 0, 10
+                if bd == dia
+                  assign cond = blk.settings.condicao | default: 'sempre'
+                  if cond == 'trocas'
+                    if cal_trocas
+                      assign bi = forloop.index0
+                      break
+                    endif
+                  elsif cond == 'janeiras'
+                    if cal_janeiras
+                      assign bi = forloop.index0
+                      break
+                    endif
+                  elsif bi < 0
+                    assign bi = forloop.index0
+                  endif
+                endif
+              endfor
+            -%}
+            {%- if bi < 0 -%}
+              <li class="lnat-cal__cel lnat-cal__vazio" aria-hidden="true"><span>{{ d_num }}</span></li>
+            {%- else -%}
+              {%- liquid
+                assign bloco = section.blocks[bi]
+                assign bs = bloco.settings
+                assign abre = d_num | append: cal_de | append: cal_meses[m]
+                assign longo = cal_dias[w] | append: cal_vg | append: abre
+                assign curto = d_num | append: ' ' | append: cal_mabr[m]
+                assign longo_a = longo | slice: 0 | upcase
+                assign longo_b = longo | slice: 1, 80
+                assign longo_ini = longo_a | append: longo_b
+
+                # Conteúdo na língua da página: campo _en/_es preenchido, senão o campo base (português)
+                assign titulo = bs.titulo
+                assign rot_bs = bs.rotulo
+                assign hist = bs.historia
+                assign sug = bs.sugestao
+                assign dica_txt = bs.dica
+                assign cta_txt = bs.cta_texto
+                if lnat_lg != 'pt'
+                  if bs[k_titulo] != blank
+                    assign titulo = bs[k_titulo]
+                  endif
+                  if bs[k_rotulo] != blank
+                    assign rot_bs = bs[k_rotulo]
+                  endif
+                  if bs[k_historia] != blank
+                    assign hist = bs[k_historia]
+                  endif
+                  if bs[k_sugestao] != blank
+                    assign sug = bs[k_sugestao]
+                  endif
+                  if bs[k_dica] != blank
+                    assign dica_txt = bs[k_dica]
+                  endif
+                  if bs[k_cta] != blank
+                    assign cta_txt = bs[k_cta]
+                  endif
+                endif
+                if titulo == blank
+                  assign titulo = abre
+                endif
+                assign icone = bs.icone | default: 'estrela'
+                assign rotulo = cal_dabr[w]
+                if d_num == '1'
+                  assign rotulo = cal_mabr[m]
+                endif
+                if rot_bs != blank
+                  assign rotulo = rot_bs | strip
+                endif
+                assign t_tip = t_abre_a | replace: '{1}', abre
+                assign e_ouro = false
+                if cal_ouro contains dia
+                  assign e_ouro = true
+                endif
+                assign livre = true
+                if cal_editor == false and dia > cal_hoje
+                  assign livre = false
+                endif
+                assign cls = 'lnat-cal__porta'
+                if e_ouro
+                  assign cls = cls | append: ' is-ouro'
+                endif
+                if dia == cal_hoje
+                  assign cls = cls | append: ' is-hoje'
+                endif
+                if livre == false
+                  assign cls = cls | append: ' is-futura'
+                elsif dia < cal_hoje
+                  assign cls = cls | append: ' is-passada'
+                endif
+              -%}
+              <li class="lnat-cal__cel" id="dia-{{ dia }}">
+                {%- capture cal_sr -%}{% if livre %}: {{ titulo | escape }}{% if dia == cal_hoje %} ({{ t_hoje_min }}){% endif %}{% else %}, {{ t_abre_a_min | replace: '{1}', abre }}{% endif %}{%- endcapture -%}
+                <button type="button" class="{{ cls }}" data-dia="{{ dia }}" data-bloco="{{ bloco.id }}" data-titulo="{{ titulo | escape }}" data-longo="{{ longo }}" data-abre="{{ abre }}" data-curto="{{ curto }}"{% unless livre %} aria-disabled="true"{% endunless %} {{ bloco.shopify_attributes }}><span class="lnat-cal__face" aria-hidden="true"><span class="lnat-cal__sem{% if rot_bs != blank %} lnat-cal__sem--rot{% endif %}">{{ rotulo | escape }}</span><span class="lnat-cal__num">{{ d_num }}</span></span><span class="lnat-cal__folha" aria-hidden="true"></span><span class="lnat-cal__tip" aria-hidden="true">{{ t_tip }}</span><span class="lnat-sr">{{ longo }}<span data-estado>{{ cal_sr }}</span></span></button>
+                <template data-tpl="{{ dia }}">
+                  {%- liquid
+                    assign vende = true
+                    if bs.sem_venda
+                      assign vende = false
+                    endif
+
+                    # Peças: só aparecem as que estão à venda.
+                    assign p1 = bs.produto
+                    assign p2 = bs.produto_2
+                    assign mostra1 = false
+                    assign mostra2 = false
+                    assign nconf = 0
+                    assign np = 0
+                    if p1 != blank
+                      assign nconf = 1
+                      if p1.available
+                        assign mostra1 = true
+                        assign np = 1
+                      endif
+                    endif
+                    if p2 != blank
+                      assign igual = false
+                      if p1 != blank and p2.id == p1.id
+                        assign igual = true
+                      endif
+                      unless igual
+                        assign nconf = nconf | plus: 1
+                        if p2.available
+                          assign mostra2 = true
+                          assign np = np | plus: 1
+                        endif
+                      endunless
+                    endif
+
+                    # A frase das peças só aparece se todas as peças escolhidas estiverem à venda.
+                    assign mostra_sug = false
+                    if vende and sug != blank and np == nconf
+                      assign mostra_sug = true
+                    endif
+
+                    # Nenhuma das peças escolhidas à venda: duas peças à venda da coleção do bloco.
+                    assign col = bs.colecao
+                    if vende and nconf > 0 and np == 0 and col != blank
+                      for rp in col.products limit: 24
+                        if rp.available
+                          if np == 0
+                            assign p1 = rp
+                            assign mostra1 = true
+                          else
+                            assign p2 = rp
+                            assign mostra2 = true
+                          endif
+                          assign np = np | plus: 1
+                          if np > 1
+                            break
+                          endif
+                        endif
+                      endfor
+                    endif
+
+                    assign t_hist = hist | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int | newline_to_br
+                    assign t_sug = sug | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
+                    assign t_dica = dica_txt | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
+
+                    assign cta_href = bs.cta_url
+                    # Ligação escrita à mão («/collections/x», «/#siga-a-estrela», «/search?…»): junta o prefixo da língua/mercado
+                    if cal_raiz != '/' and cta_href != blank
+                      assign c1 = cta_href | slice: 0, 1
+                      assign c2 = cta_href | slice: 0, 2
+                      assign cpre = cta_href | slice: 0, cal_raiz_n
+                      if c1 == '/' and c2 != '//' and cpre != cal_raiz_b and cta_href != cal_raiz
+                        if c2 == '/#' or c2 == '/?' or cta_href == '/'
+                          assign c_resto = cta_href | slice: 1, 500
+                          assign cta_href = cal_raiz | append: c_resto
+                        else
+                          assign cta_href = cal_raiz | append: cta_href
+                        endif
+                      endif
+                    endif
+                    assign cta_txt = cta_txt | strip
+                    assign col_sec = false
+                    if cta_href == blank and col != blank
+                      assign cta_href = col.url
+                    elsif cta_href != blank and col != blank
+                      if cta_href != col.url
+                        assign col_sec = true
+                      endif
+                    endif
+                    if cta_txt == blank
+                      if col != blank
+                        assign cta_txt = t_ver_colecao
+                      else
+                        assign cta_txt = t_saber_mais
+                      endif
+                    endif
+                  -%}
+                  {%- if bs.imagem != blank -%}
+                    {%- assign img_alt = bs.imagem.alt | default: titulo -%}
+                    <div class="lnat-cal__media">{{ bs.imagem | image_url: width: 960 | image_tag: loading: 'lazy', widths: '480, 720, 960', sizes: '(min-width: 750px) 416px, 100vw', alt: img_alt }}</div>
+                  {%- else -%}
+                    <div class="lnat-cal__media lnat-cal__media--icone{% if e_ouro %} lnat-cal__media--ouro{% endif %}" data-icone="{{ icone }}" aria-hidden="true"></div>
+                  {%- endif -%}
+                  <p class="lnat-eb lnat-eb--simples lnat-cal__data">{{ longo_ini }}</p>
+                  {%- comment -%} O mesmo id em todos os modelos: só um está na página de cada vez (dentro do diálogo). {%- endcomment -%}
+                  <h2 class="lnat-cal__titulo" id="{{ cal_sid }}-titulo" tabindex="-1">{{ titulo | escape }}</h2>
+                  {%- if t_hist != blank -%}<p class="lnat-cal__historia">{{ t_hist }}</p>{%- endif -%}
+                  {%- if mostra_sug -%}<p class="lnat-cal__historia lnat-cal__sugestao">{{ t_sug }}</p>{%- endif -%}
+                  {%- if vende -%}
+                    {%- if np > 0 -%}
+                      <div class="lnat-cal__produtos" data-n="{{ np }}">
+                        {%- if mostra1 -%}{%- render 'lod-natal-card', product: p1, largura: 480, carregar: 'lazy', classe: 'lnat-cal__card' -%}{%- endif -%}
+                        {%- if mostra2 -%}{%- render 'lod-natal-card', product: p2, largura: 480, carregar: 'lazy', classe: 'lnat-cal__card' -%}{%- endif -%}
+                      </div>
+                    {%- endif -%}
+                    {%- if cta_href != blank -%}
+                      <div class="lnat-btns lnat-cal__btns"><a class="lnat-btn lnat-btn--tinta" href="{{ cta_href | escape }}">{{ cta_txt | escape }}</a>
+                        {%- if col_sec %} <a class="lnat-link lnat-cal__link" href="{{ col.url }}">{{ t_ver_colecao }}</a>{% endif -%}
+                      </div>
+                    {%- endif -%}
+                  {%- endif -%}
+                  {%- if t_dica != blank -%}<p class="lnat-cal__dica"><span><b>{{ t_rot_dica }}:</b> {{ t_dica }}</span></p>{%- endif -%}
+                </template>
+              </li>
+            {%- endif -%}
+          {%- endfor -%}
+        </ol>
+
+        <div class="lnat-cal__legenda lnat-cal__legenda--pe">
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-hoje" aria-hidden="true"></span>{{ t_hoje }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-selo" aria-hidden="true"></span>{{ t_ja_aberta }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-fechada" aria-hidden="true"></span>{{ t_fechada }}</span>
+        </div>
+        <p class="lnat-sr" aria-live="polite" data-aviso></p>
+
+        {%- if cal_editor -%}
+          {%- capture cal_avisos -%}
+            {%- assign cal_chaves = 'produto,produto_2' | split: ',' -%}
+            {%- for blk in section.blocks -%}
+              {%- liquid
+                assign bd = blk.settings.data | strip | slice: 0, 10
+                assign bt = blk.settings.titulo | default: bd | escape
+                assign cond = blk.settings.condicao | default: 'sempre'
+                # Tamanho da história + frase das peças em cada língua (o _en/_es vazio usa o português)
+                assign tam_pt = blk.settings.historia.size | plus: blk.settings.sugestao.size
+                assign tam_en = blk.settings.historia_en.size | plus: blk.settings.sugestao_en.size
+                assign tam_es = blk.settings.historia_es.size | plus: blk.settings.sugestao_es.size
+                assign tam = tam_pt
+                assign tam_l = 'PT'
+                if tam_en > tam
+                  assign tam = tam_en
+                  assign tam_l = 'EN'
+                endif
+                if tam_es > tam
+                  assign tam = tam_es
+                  assign tam_l = 'ES'
+                endif
+                capture cru
+                  echo blk.settings.historia
+                  echo ' '
+                  echo blk.settings.sugestao
+                  echo ' '
+                  echo blk.settings.dica
+                  echo ' '
+                  echo blk.settings.historia_en
+                  echo ' '
+                  echo blk.settings.sugestao_en
+                  echo ' '
+                  echo blk.settings.dica_en
+                  echo ' '
+                  echo blk.settings.historia_es
+                  echo ' '
+                  echo blk.settings.sugestao_es
+                  echo ' '
+                  echo blk.settings.dica_es
+                endcapture
+                # Marcadores só de Portugal (lojas, ilhas, gravação, prazos de Portugal) num calendário de Espanha
+                assign so_pt = false
+                if cal_versao == 'es'
+                  if cru contains '{acores}' or cru contains '{madeira}' or cru contains '{gravacao}' or cru contains '{continente}'
+                    assign so_pt = true
+                  endif
+                  if cru contains '{loja}' or cru contains '{reis}' or cru contains '{hora_continente}' or cru contains '{hora_reis}'
+                    assign so_pt = true
+                  endif
+                endif
+                assign cru = cru | remove: '{acores}' | remove: '{madeira}' | remove: '{gravacao}' | remove: '{continente}' | remove: '{loja}' | remove: '{reis}' | remove: '{retoma}' | remove: '{trocas}' | remove: '{hora_continente}' | remove: '{hora_reis}' | remove: '{es_navidad}' | remove: '{es_reyes}' | remove: '{es_noche}' | remove: '{int}'
+              -%}
+              {%- if bd.size != 10 or bd < cal_inicio or bd > cal_fim -%}
+                <li>Bloco «{{ bt }}»: a data «{{ bd | escape }}» está fora da grelha ({{ cal_inicio }} a {{ cal_fim }}) e não aparece.</li>
+              {%- endif -%}
+              {%- if tam > 420 -%}
+                <li>{{ bd | escape }} «{{ bt }}»: a história e a frase das peças ({{ tam_l }}) têm {{ tam }} caracteres (máximo 420).</li>
+              {%- endif -%}
+              {%- if cru contains '{' or cru contains '}' -%}
+                <li>{{ bd | escape }} «{{ bt }}»: há um marcador entre chavetas que não existe (em PT, EN ou ES). Use só {acores}, {madeira}, {gravacao}, {continente}, {loja}, {reis}, {retoma}, {trocas}, {hora_continente}, {hora_reis}, {es_navidad}, {es_reyes}, {es_noche} ou {int}.</li>
+              {%- endif -%}
+              {%- if so_pt -%}
+                <li>{{ bd | escape }} «{{ bt }}»: este calendário é o de Espanha, mas o texto usa um prazo só de Portugal ({acores}, {madeira}, {gravacao}, {continente}, {loja}, {reis} ou as horas). Use {es_navidad} ou {es_reyes}.</li>
+              {%- endif -%}
+              {%- if cond == 'trocas' and cal_trocas == false -%}
+                <li>{{ bd | escape }} «{{ bt }}»: só aparece quando «Mostrar «Trocas de Natal até…»» estiver ligado nas definições do tema › Natal 2026. Até lá aparece o outro bloco desta data.</li>
+              {%- endif -%}
+              {%- if cond == 'janeiras' and cal_janeiras == false -%}
+                <li>{{ bd | escape }} «{{ bt }}»: só aparece com «Janeiras confirmadas» ligado nesta secção. Até lá aparece o outro bloco desta data.</li>
+              {%- endif -%}
+              {%- for ch in cal_chaves -%}
+                {%- assign pc = blk.settings[ch] -%}
+                {%- if pc != blank -%}
+                  {%- if pc.available == false -%}
+                    <li>{{ bd | escape }} «{{ bt }}»: «{{ pc.title | escape }}» está esgotada ou indisponível e não aparece; a frase das peças também não.</li>
+                  {%- else -%}
+                    {%- liquid
+                      assign stock = 0
+                      assign seguido = false
+                      for v in pc.variants
+                        if v.inventory_management == 'shopify'
+                          assign seguido = true
+                          if v.inventory_quantity > 0
+                            assign stock = stock | plus: v.inventory_quantity
+                          endif
+                        endif
+                      endfor
+                    -%}
+                    {%- if seguido and stock < 2 -%}
+                      <li>{{ bd | escape }} «{{ bt }}»: «{{ pc.title | escape }}» tem só {{ stock }} unidade. Se se vender, a frase das peças desaparece.</li>
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- liquid
+                assign pz = blk.settings.prazo | default: 'nenhum'
+                assign pz_v = ''
+                assign pz_nome = ''
+                case pz
+                  when 'acores'
+                    assign pz_v = settings.natal_limite_acores
+                    assign pz_nome = 'último dia para os Açores'
+                  when 'madeira'
+                    assign pz_v = settings.natal_limite_madeira
+                    assign pz_nome = 'último dia para a Madeira'
+                  when 'gravacao'
+                    assign pz_v = settings.natal_limite_gravacao
+                    assign pz_nome = 'último dia para peças gravadas'
+                  when 'continente'
+                    assign pz_v = settings.natal_limite_continente
+                    assign pz_nome = 'último dia para Portugal continental'
+                  when 'loja'
+                    assign pz_v = settings.natal_limite_loja
+                    assign pz_nome = 'levantamento em loja'
+                  when 'reis'
+                    assign pz_v = settings.natal_limite_reis
+                    assign pz_nome = 'último dia a tempo dos Reis'
+                  when 'retoma'
+                    assign pz_v = settings.natal_retoma_envios
+                    assign pz_nome = 'retoma dos envios'
+                  when 'es_navidad'
+                    assign pz_v = cal_v_es_nav
+                    assign pz_nome = 'Espanha, último dia para a Navidad'
+                  when 'es_reyes'
+                    assign pz_v = cal_v_es_reyes
+                    assign pz_nome = 'Espanha, último dia para o Dia de Reis'
+                endcase
+                assign pz_d = pz_v | strip | slice: 0, 10
+                assign pz_ok = true
+                assign quando = blk.settings.prazo_quando | default: 'dia'
+                assign quando_txt = 'no próprio dia'
+                if pz != 'nenhum' and pz_d.size == 10 and bd.size == 10
+                  case quando
+                    when 'dia'
+                      if bd != pz_d
+                        assign pz_ok = false
+                      endif
+                    when 'vespera'
+                      assign quando_txt = 'na véspera'
+                      assign pz_vesp = pz_d | append: ' 12:00' | date: '%s' | minus: 86400 | date: '%Y-%m-%d'
+                      if bd != pz_vesp
+                        assign pz_ok = false
+                      endif
+                    when 'antes'
+                      assign quando_txt = 'antes'
+                      if bd >= pz_d
+                        assign pz_ok = false
+                      endif
+                    when 'depois'
+                      assign quando_txt = 'depois'
+                      if bd <= pz_d
+                        assign pz_ok = false
+                      endif
+                  endcase
+                endif
+              -%}
+              {%- unless pz_ok -%}
+                <li>{{ bd | escape }} «{{ bt }}»: o texto foi escrito para uma porta {{ quando_txt }} do prazo «{{ pz_nome }}», que nas definições do tema passou a {{ pz_d }}. Mude a data do bloco ou reescreva o «hoje/amanhã» do texto.</li>
+              {%- endunless -%}
+            {%- endfor -%}
+          {%- endcapture -%}
+          {%- if cal_avisos != blank -%}
+            <ul class="lnat-cal__editor lnat-cal__editor--lista">{{ cal_avisos }}</ul>
+          {%- endif -%}
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+
+  <dialog class="lnat-cal__dialogo" aria-labelledby="{{ cal_sid }}-titulo" data-dialogo>
+    <div class="lnat-cal__painel">
+      <div class="lnat-cal__topo">
+        <span class="lnat-cal__marca">{% render 'lod-natal-icon', nome: 'estrela', tamanho: 20 %}<span>{{ cal_titulo_e }}</span></span>
+        <button type="button" class="lnat-cal__fechar" data-fechar aria-label="{{ t_fechar }}">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6L18 18M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="lnat-cal__conteudo" data-conteudo></div>
+      <template data-icones>
+        {%- assign cal_icones = 'estrela,coracao,sapatinho,coroa,ouro,incenso,mirra,laco,porta' | split: ',' -%}
+        {%- for nome in cal_icones -%}<span data-icone="{{ nome }}">{%- render 'lod-natal-icon', nome: nome, tamanho: 96, traco: 1.2 -%}</span>{%- endfor -%}
+      </template>
+      <div class="lnat-cal__nav">
+        <button type="button" class="lnat-cal__seta lnat-cal__seta--ant" data-ant>
+          {%- render 'lod-natal-icon', nome: 'seta', tamanho: 18, classe: 'lnat-cal__seta-ico' -%}<span data-rot></span>
+        </button>
+        <button type="button" class="lnat-btn lnat-btn--contorno lnat-cal__partilhar" data-partilhar>{{ t_partilhar }}</button>
+        <button type="button" class="lnat-cal__seta lnat-cal__seta--seg" data-seg>
+          <span data-rot></span>{%- render 'lod-natal-icon', nome: 'seta', tamanho: 18 -%}
+        </button>
+      </div>
+      <p class="lnat-sr" aria-live="polite" data-aviso-dialogo></p>
+    </div>
+  </dialog>
+</section>
+
+<style>
+  .lnat-cal{overflow:hidden}
+  html.lnat-cal-aberto{overflow:hidden}
+  .lnat-cal__editor{margin:0 0 32px;padding:12px 16px;background:var(--lnat-papel);color:var(--lnat-texto);font-size:14px;line-height:20px;border-left:3px solid var(--lnat-ouro)}
+  .lnat-cal__editor p{margin:0}
+  .lnat-cal__editor p+p{margin-top:4px}
+  .lnat-cal__editor--lista{margin:24px 0 0;padding-left:32px}
+  .lnat-cal__editor--lista li+li{margin-top:4px}
+  .lnat-cal__grade{display:grid;gap:32px}
+  .lnat-cal__cab{display:flex;flex-direction:column;align-items:flex-start;gap:16px;min-width:0}
+  .lnat-cal__h2{color:var(--lnat-ouro-claro)}
+  .lnat-cal__lead{color:rgba(255,253,250,.86);max-width:40ch}
+  .lnat-cal__nota{margin-top:4px}
+  .lnat-cal__corpo{min-width:0}
+  .lnat-cal__meses{margin:0 0 16px;font:500 12px/16px var(--lnat-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--lnat-ouro-claro)}
+  .lnat-cal__semana,.lnat-cal__grelha{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+  .lnat-cal__semana{margin-bottom:8px;font:600 12px/16px var(--lnat-sans);letter-spacing:.18em;color:var(--lnat-cinza-noite);text-align:center}
+  .lnat-cal__semana abbr{text-decoration:none;border:0;cursor:help}
+  .lnat-cal__grelha{list-style:none;margin:0;padding:0}
+  .lnat-cal__cel{position:relative;min-width:0;margin:0;padding:0}
+  .lnat-cal__vazio{display:flex;align-items:center;justify-content:center;height:92px;border:1px dashed rgba(229,201,142,.16);color:rgba(229,201,142,.32);font-family:var(--lnat-serif);font-size:22px;line-height:1}
+  .lnat-cal__porta{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:92px;margin:0;padding:0;border:1px solid rgba(229,201,142,.34);border-radius:0;background:rgba(11,11,9,.14);color:var(--lnat-ouro-claro);font-family:var(--lnat-sans);cursor:pointer;perspective:420px;transition:border-color .2s,background .2s;-webkit-tap-highlight-color:transparent}
+  .lnat-cal__porta:hover{border-color:var(--lnat-ouro);background:rgba(11,11,9,.24)}
+  .lnat-cal__face{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;max-width:100%;transition:opacity .2s}
+  .lnat-cal__sem{max-width:100%;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;line-height:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--lnat-cinza-noite)}
+  .lnat-cal__sem--rot{padding:0 2px;letter-spacing:.06em}
+  .lnat-cal__num{font-family:var(--lnat-serif);font-style:normal;font-weight:500;font-size:clamp(24px,2.2vw,32px);line-height:1;font-variant-numeric:lining-nums}
+  .lnat-cal__porta.is-ouro{background:var(--lnat-ouro);border-color:var(--lnat-ouro);color:var(--lnat-tinta)}
+  .lnat-cal__porta.is-ouro .lnat-cal__sem{color:var(--lnat-tinta)}
+  .lnat-cal__porta.is-ouro:hover{background:var(--lnat-ouro-claro)}
+  .lnat-cal__porta.is-hoje{border:2px solid var(--lnat-ouro)}
+  .lnat-cal__porta.is-hoje::before{content:"";position:absolute;inset:-7px;border:2px solid var(--lnat-ouro);pointer-events:none;opacity:0;animation:lnatCalAnel 2.4s ease-out infinite}
+  @keyframes lnatCalAnel{0%{opacity:.75;transform:scale(.94)}70%{opacity:0;transform:scale(1.06)}100%{opacity:0;transform:scale(1.06)}}
+  .lnat-cal__porta.is-passada::after,.lnat-cal__porta.is-vista::after{content:"";position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--lnat-ouro);box-shadow:0 0 0 2px var(--lnat-verde),0 0 0 3px rgba(229,201,142,.5)}
+  .lnat-cal__porta.is-ouro.is-passada::after,.lnat-cal__porta.is-ouro.is-vista::after{background:var(--lnat-tinta);box-shadow:0 0 0 2px var(--lnat-ouro)}
+  .lnat-cal__porta.is-futura{cursor:default;border-color:rgba(229,201,142,.2);background:transparent}
+  .lnat-cal__porta.is-futura .lnat-cal__face{opacity:.42}
+  .lnat-cal__porta.is-futura.is-ouro{background:var(--lnat-ouro);border-color:var(--lnat-ouro)}
+  .lnat-cal__porta.is-futura.is-ouro .lnat-cal__face{opacity:1}
+  .lnat-cal__porta.is-futura .lnat-cal__face::after{content:"";position:absolute;top:6px;right:6px;width:11px;height:11px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23e5c98e' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M4 7.5C4 6.7 4.6 6.5 5 6.5H11C11.4 6.5 12 6.7 12 7.5V12.5C12 13.3 11.4 13.5 11 13.5H5C4.6 13.5 4 13.3 4 12.5Z'/%3E%3Cpath d='M5.8 6.5V5A2.2 2.2 0 0 1 10.2 5V6.5'/%3E%3C/svg%3E") center/contain no-repeat}
+  .lnat-cal__porta.is-futura.is-ouro .lnat-cal__face::after{filter:brightness(.2)}
+  .lnat-cal__folha{position:absolute;inset:-1px;border:1px solid var(--lnat-ouro);background:var(--lnat-verde-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='%23bc914c' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M32 22C33 28 36 31 42 32C36 33 33 36 32 42C31 36 28 33 22 32C28 31 31 28 32 22Z'/%3E%3C/svg%3E") center/42% no-repeat;transform-origin:left center;backface-visibility:hidden;opacity:0;pointer-events:none}
+  .lnat-cal__porta.is-a-abrir .lnat-cal__folha{animation:lnatCalPorta .45s cubic-bezier(.4,.1,.3,1) forwards}
+  @keyframes lnatCalPorta{0%{opacity:1;transform:rotateY(0)}100%{opacity:1;transform:rotateY(-105deg)}}
+  .lnat-cal__tip{position:absolute;z-index:4;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);padding:6px 10px;background:var(--lnat-tinta);border:1px solid var(--lnat-ouro);color:var(--lnat-papel);font:500 12px/16px var(--lnat-sans);letter-spacing:0;text-transform:none;white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s,visibility .15s}
+  .lnat-cal__grelha>li:nth-child(7n+1) .lnat-cal__tip{left:0;transform:none}
+  .lnat-cal__grelha>li:nth-child(7n) .lnat-cal__tip{left:auto;right:0;transform:none}
+  .lnat-cal__porta.is-futura:hover .lnat-cal__tip,.lnat-cal__porta.is-futura:focus-visible .lnat-cal__tip,.lnat-cal__porta.is-futura.is-aviso .lnat-cal__tip{opacity:1;visibility:visible}
+  .lnat-cal__legenda{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;line-height:20px;color:rgba(255,253,250,.8)}
+  .lnat-cal__legenda--pe{display:none;margin-top:16px}
+  .lnat-cal__leg{display:inline-flex;align-items:center;gap:8px}
+  .lnat-cal__leg-selo{width:9px;height:9px;border-radius:50%;background:var(--lnat-ouro)}
+  .lnat-cal__leg-hoje{width:14px;height:14px;border:2px solid var(--lnat-ouro)}
+  .lnat-cal__leg-fechada{width:14px;height:14px;border:1px solid rgba(229,201,142,.3);background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23e5c98e' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M4 7.5C4 6.7 4.6 6.5 5 6.5H11C11.4 6.5 12 6.7 12 7.5V12.5C12 13.3 11.4 13.5 11 13.5H5C4.6 13.5 4 13.3 4 12.5Z'/%3E%3Cpath d='M5.8 6.5V5A2.2 2.2 0 0 1 10.2 5V6.5'/%3E%3C/svg%3E") center/10px no-repeat}
+  .lnat-cal__hoje{display:none}
+  .lnat-cal__hoje:not([hidden]){display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:16px;width:100%;min-height:96px;margin:8px 0 0;padding:16px;border:2px solid var(--lnat-ouro);border-radius:0;background:rgba(11,11,9,.2);color:var(--lnat-papel);font-family:var(--lnat-sans);text-align:left;cursor:pointer;transition:background .2s}
+  .lnat-cal__hoje:hover{background:rgba(11,11,9,.32)}
+  .lnat-cal__hoje-num{font-family:var(--lnat-serif);font-weight:500;font-size:56px;line-height:1;color:var(--lnat-ouro-claro)}
+  .lnat-cal__hoje-txt{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .lnat-cal__hoje-data{font:500 12px/16px var(--lnat-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--lnat-ouro-claro)}
+  .lnat-cal__hoje-tit{font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:22px;line-height:27px;text-wrap:balance}
+  .lnat-cal__hoje-abrir{display:inline-flex;align-items:center;gap:6px;font:500 12px/16px var(--lnat-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--lnat-ouro-claro)}
+  .lnat-cal__dialogo{box-sizing:border-box;padding:0;margin:0;border:0;border-radius:0;max-width:none;max-height:none;background:var(--lnat-papel);color:var(--lnat-texto);font-family:var(--lnat-sans);overflow:hidden;box-shadow:-12px 0 40px rgba(0,0,0,.35)}
+  .lnat-cal__dialogo::backdrop{background:rgba(11,11,9,.62)}
+  .lnat-cal__dialogo.is-sem-modal{position:fixed;z-index:2147482000}
+  .lnat-cal__painel{display:flex;flex-direction:column;height:100%;min-height:0}
+  .lnat-cal__topo{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px 8px 32px;border-bottom:1px solid var(--lnat-linha)}
+  .lnat-cal__marca{display:inline-flex;align-items:center;gap:8px;font:500 12px/16px var(--lnat-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--lnat-ouro-velho)}
+  .lnat-cal__fechar{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;background:none;color:var(--lnat-tinta);cursor:pointer}
+  .lnat-cal__conteudo{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:24px 32px 32px;display:flex;flex-direction:column;gap:14px}
+  .lnat-cal__conteudo>*{flex-shrink:0}
+  .lnat-cal__media{margin:0 0 6px;aspect-ratio:4/3;background:var(--lnat-linho);overflow:hidden}
+  .lnat-cal__media img{display:block;width:100%;height:100%;object-fit:cover}
+  .lnat-cal__media--icone{aspect-ratio:auto;height:168px;display:flex;align-items:center;justify-content:center;color:var(--lnat-ouro-velho);background-color:var(--lnat-linho)}
+  .lnat-cal__media--ouro{background:var(--lnat-ouro);color:var(--lnat-tinta)}
+  .lnat-cal__data{margin:0}
+  .lnat-cal__titulo{margin:0;font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:34px;line-height:38px;color:var(--lnat-tinta);text-wrap:balance;outline:none}
+  .lnat-cal__titulo:focus-visible{outline:2px solid var(--lnat-ouro-velho);outline-offset:3px}
+  .lnat-cal__historia{margin:0;font-size:16px;line-height:26px}
+  .lnat-cal__produtos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:4px}
+  .lnat-cal__produtos[data-n="1"]{grid-template-columns:minmax(0,1fr)}
+  .lnat-cal__produtos[data-n="1"] .lnat-card{display:grid;grid-template-columns:112px minmax(0,1fr);grid-template-rows:auto auto;align-content:center;column-gap:16px;row-gap:6px;padding:10px;border:1px solid var(--lnat-linha)}
+  .lnat-cal__produtos[data-n="1"] .lnat-card__img{grid-row:1 / span 2;align-self:center}
+  .lnat-cal__produtos[data-n="1"] .lnat-card__titulo{align-self:end}
+  .lnat-cal__produtos[data-n="1"] .lnat-card__preco{align-self:start}
+  .lnat-cal__btns{align-items:center;margin-top:4px}
+  .lnat-cal__btns .lnat-btn{flex:1 1 auto}
+  .lnat-cal__dica{display:flex;align-items:flex-start;gap:12px;margin:4px 0 0;padding:12px 14px;background:var(--lnat-linho);font-size:14px;line-height:21px;color:var(--lnat-texto)}
+  .lnat-cal__dica::before{content:"";flex:0 0 24px;width:24px;height:24px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='%237d5a22' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 44C8 38 12 35 18 34C22 33 24 30 25 26C26 22 30 21 34 22C38 23 39 27 41 30C44 34 50 35 54 38C58 41 58 46 54 48C40 50 22 50 12 49C9 48.5 8 46.5 8 44Z'/%3E%3Cpath d='M26 31C30 34 35 34 39 31'/%3E%3Cpath d='M46 4C47 9 49 11 54 12C49 13 47 15 46 20C45 15 43 13 38 12C43 11 45 9 46 4Z'/%3E%3C/svg%3E") center/contain no-repeat}
+  .lnat-cal__dica b{font-weight:600}
+  .lnat-cal__nav{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-top:1px solid var(--lnat-linha);background:var(--lnat-papel)}
+  .lnat-cal__seta{display:inline-flex;align-items:center;gap:8px;min-width:44px;min-height:44px;padding:0 8px;border:0;background:none;color:var(--lnat-tinta);font:600 14px/1 var(--lnat-sans);cursor:pointer;white-space:nowrap}
+  .lnat-cal__seta-ico{transform:scaleX(-1)}
+  .lnat-cal__seta.is-vazio{visibility:hidden}
+  .lnat-cal__partilhar{min-height:44px;padding:0 18px}
+  .lnat-cal .lnat-cal__dialogo .lnat-eb{color:var(--lnat-ouro-velho)}
+  .lnat-cal .lnat-cal__dialogo .lnat-card{color:var(--lnat-texto)!important}
+  .lnat-cal .lnat-cal__dialogo .lnat-link{color:var(--lnat-ouro-velho)!important}
+  .lnat-cal .lnat-cal__dialogo a:focus-visible,.lnat-cal .lnat-cal__dialogo button:focus-visible{outline:2px solid var(--lnat-ouro-velho);outline-offset:3px}
+  @media (min-width:750px){
+    .lnat-cal__dialogo{position:fixed;top:0;right:0;bottom:0;left:auto;width:480px;height:100%;height:100dvh}
+    .lnat-cal__dialogo[open] .lnat-cal__painel{animation:lnatCalLado .32s ease-out}
+    @keyframes lnatCalLado{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+  }
+  @media (min-width:990px){
+    .lnat-cal__grade{grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:48px;align-items:start}
+    .lnat-cal__cab{padding-top:28px}
+    .lnat-cal__hoje:not([hidden]){grid-template-columns:auto minmax(0,1fr);row-gap:10px;column-gap:16px;margin-top:16px}
+    .lnat-cal__hoje-num{font-size:48px}
+    .lnat-cal__hoje-abrir{grid-column:2}
+  }
+  @media (max-width:989px){
+    .lnat-cal__legenda--cab{display:none}
+    .lnat-cal__legenda--pe{display:flex}
+  }
+  @media (max-width:749px){
+    .lnat-cal--sem-telemovel{display:none!important}
+    .lnat-cal .lnat-wrap{padding-left:16px;padding-right:16px}
+    .lnat-cal__grade{gap:24px}
+    .lnat-cal__semana,.lnat-cal__grelha{gap:4px}
+    .lnat-cal__semana{letter-spacing:0}
+    .lnat-cal__porta,.lnat-cal__vazio{height:auto;aspect-ratio:1/1;min-height:44px}
+    .lnat-cal__vazio{font-size:16px}
+    .lnat-cal__sem{display:none}
+    .lnat-cal__num{font-size:20px}
+    .lnat-cal__porta.is-passada::after,.lnat-cal__porta.is-vista::after{top:3px;right:3px;width:7px;height:7px}
+    .lnat-cal__porta.is-futura .lnat-cal__face::after{top:3px;right:3px;width:9px;height:9px}
+    .lnat-cal__porta.is-hoje::before{inset:-5px}
+    .lnat-cal__dialogo{position:fixed;top:auto;right:0;bottom:0;left:0;width:100%;height:auto;max-height:85vh;max-height:85dvh;box-shadow:0 -12px 40px rgba(0,0,0,.35)}
+    .lnat-cal__painel{max-height:85vh;max-height:85dvh}
+    .lnat-cal__dialogo[open] .lnat-cal__painel{animation:lnatCalBaixo .32s ease-out}
+    @keyframes lnatCalBaixo{from{transform:translateY(48px);opacity:0}to{transform:none;opacity:1}}
+    .lnat-cal__topo{padding-left:16px}
+    .lnat-cal__conteudo{padding:16px 16px 24px}
+    .lnat-cal__titulo{font-size:28px;line-height:32px}
+    .lnat-cal__media--icone{height:132px}
+    .lnat-cal__nav{padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px))}
+    .lnat-cal__btns .lnat-btn{width:100%}
+  }
+  @media (max-width:379px){
+    .lnat-cal__semana,.lnat-cal__grelha{gap:3px}
+    .lnat-cal__num{font-size:18px}
+    .lnat-cal__hoje:not([hidden]){gap:12px;padding:12px}
+    .lnat-cal__hoje-num{font-size:44px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .lnat-cal__porta.is-hoje::before{animation:none;opacity:.55;transform:none}
+    .lnat-cal__porta.is-a-abrir .lnat-cal__folha,.lnat-cal__dialogo[open] .lnat-cal__painel{animation:none}
+  }
+</style>
+
+<script>
+(function () {
+  'use strict';
+  var html = document.documentElement;
+  if (html.hasAttribute('data-lnat-cal-js')) return;
+  html.setAttribute('data-lnat-cal-js', '');
+
+  var CHAVE = 'lnat-cal-abertas';
+  var instancias = [];
+  var calmo = false;
+  try { calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  function hojeLisboa() {
+    var N = window.LOD_NATAL;
+    if (N && typeof N.hoje === 'function') { try { return N.hoje(); } catch (e) {} }
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon' }).format(new Date()); }
+    catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function lerVistas() {
+    try { var v = JSON.parse(window.localStorage.getItem(CHAVE) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function guardarVista(dia) {
+    try {
+      var v = lerVistas();
+      if (v.indexOf(dia) < 0) { v.push(dia); window.localStorage.setItem(CHAVE, JSON.stringify(v.slice(-80))); }
+    } catch (e) {}
+  }
+
+  function iniciar(root) {
+    if (!root || root.hasAttribute('data-pronto')) return;
+    root.setAttribute('data-pronto', '');
+    var editor = root.hasAttribute('data-editor') || !!(window.Shopify && window.Shopify.designMode);
+    var N = window.LOD_NATAL;
+    /* Repete a decisão do servidor (páginas em cache, ?natal_data=): versão do mercado = versão desta instância
+       e fase ativa dessa versão. O Internacional não tem calendário. */
+    var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'] };
+    if (!editor && N && typeof N.fase === 'function') {
+      var v = N.versao || 'pt';
+      var f = '';
+      try { f = N.fase(v); } catch (e) {}
+      if (v !== (root.getAttribute('data-versao') || 'pt') || !ATIVAS[v] || ATIVAS[v].indexOf(f) < 0) { root.hidden = true; return; }
+    }
+    /* Textos fixos na língua da página (dicionário lod-natal-t, escritos pelo servidor) */
+    var TT = {};
+    try { var tj = root.querySelector('script[data-cal-t]'); if (tj) TT = JSON.parse(tj.textContent) || {}; } catch (e) {}
+    function tx(k, v1) { var s = TT[k] == null ? '' : String(TT[k]); return v1 == null ? s : s.split('{1}').join(v1); }
+
+    var portas = Array.prototype.slice.call(root.querySelectorAll('.lnat-cal__porta[data-dia]'));
+    var dlg = root.querySelector('[data-dialogo]');
+    var conteudo = root.querySelector('[data-conteudo]');
+    var btnAnt = root.querySelector('[data-ant]');
+    var btnSeg = root.querySelector('[data-seg]');
+    var btnPart = root.querySelector('[data-partilhar]');
+    var avisoGrelha = root.querySelector('[data-aviso]');
+    var avisoDlg = root.querySelector('[data-aviso-dialogo]');
+    var cartao = root.querySelector('[data-hoje-cartao]');
+    var icones = root.querySelector('template[data-icones]');
+    var hoje = '';
+    var atual = null;
+    var abrindo = false;
+    var tAviso = null;
+    var tPart = null;
+    if (!dlg || !conteudo) return;
+
+    function livre(p) { return p.getAttribute('aria-disabled') !== 'true'; }
+
+    function estado() {
+      hoje = hojeLisboa();
+      var vistas = lerVistas();
+      var pHoje = null;
+      portas.forEach(function (p) {
+        var dia = p.getAttribute('data-dia');
+        var aberta = editor || dia <= hoje;
+        var vista = aberta && vistas.indexOf(dia) > -1;
+        p.classList.toggle('is-hoje', dia === hoje);
+        p.classList.toggle('is-passada', aberta && dia < hoje);
+        p.classList.toggle('is-futura', !aberta);
+        p.classList.toggle('is-vista', vista);
+        if (aberta) p.removeAttribute('aria-disabled'); else p.setAttribute('aria-disabled', 'true');
+        var est = p.querySelector('[data-estado]');
+        if (est) {
+          est.textContent = aberta
+            ? ': ' + p.getAttribute('data-titulo') + (dia === hoje ? ' (' + tx('hoje_min') + ')' : (vista ? ' (' + tx('ja_aberta_min') + ')' : ''))
+            : ', ' + tx('abre_a_min', p.getAttribute('data-abre'));
+        }
+        if (dia === hoje) pHoje = p;
+      });
+      if (cartao) {
+        if (pHoje) {
+          var n = pHoje.querySelector('.lnat-cal__num');
+          cartao.querySelector('[data-hoje-num]').textContent = n ? n.textContent : '';
+          cartao.querySelector('[data-hoje-data]').textContent = pHoje.getAttribute('data-longo');
+          cartao.querySelector('[data-hoje-titulo]').textContent = pHoje.getAttribute('data-titulo');
+          cartao.hidden = false;
+        } else {
+          cartao.hidden = true;
+        }
+      }
+    }
+
+    function anunciar(alvo, txt) {
+      if (!alvo) return;
+      alvo.textContent = '';
+      setTimeout(function () { alvo.textContent = txt; }, 40);
+    }
+
+    function avisar(p) {
+      anunciar(avisoGrelha, tx('porta_abre_a', p.getAttribute('data-abre')));
+      portas.forEach(function (x) { x.classList.remove('is-aviso'); });
+      p.classList.add('is-aviso');
+      clearTimeout(tAviso);
+      tAviso = setTimeout(function () { p.classList.remove('is-aviso'); }, 2600);
+    }
+
+    function nav(btn, alvo, chave) {
+      if (!btn) return;
+      var rot = btn.querySelector('[data-rot]');
+      if (alvo) {
+        btn.classList.remove('is-vazio');
+        btn.disabled = false;
+        btn.setAttribute('data-alvo', alvo.getAttribute('data-dia'));
+        btn.setAttribute('aria-label', tx(chave, alvo.getAttribute('data-longo')));
+        if (rot) rot.textContent = alvo.getAttribute('data-curto');
+      } else {
+        btn.classList.add('is-vazio');
+        btn.disabled = true;
+        btn.removeAttribute('data-alvo');
+        btn.removeAttribute('aria-label');
+        if (rot) rot.textContent = '';
+      }
+    }
+
+    function preencher(p) {
+      var dia = p.getAttribute('data-dia');
+      var tpl = root.querySelector('template[data-tpl="' + dia + '"]');
+      if (!tpl || !tpl.content) return false;
+      conteudo.textContent = '';
+      conteudo.appendChild(document.importNode(tpl.content, true));
+      var alvoIco = conteudo.querySelector('[data-icone]');
+      if (alvoIco && icones && icones.content) {
+        var ico = icones.content.querySelector('[data-icone="' + alvoIco.getAttribute('data-icone') + '"] svg');
+        if (ico) alvoIco.appendChild(ico.cloneNode(true));
+      }
+      conteudo.scrollTop = 0;
+      atual = p;
+      var abertas = portas.filter(livre);
+      var i = abertas.indexOf(p);
+      nav(btnAnt, i > 0 ? abertas[i - 1] : null, 'porta_anterior');
+      nav(btnSeg, i > -1 && i < abertas.length - 1 ? abertas[i + 1] : null, 'porta_seguinte');
+      if (btnPart) btnPart.textContent = tx('partilhar');
+      guardarVista(dia);
+      p.classList.add('is-vista');
+      try {
+        if (window.Shopify && window.Shopify.analytics && typeof window.Shopify.analytics.publish === 'function') {
+          window.Shopify.analytics.publish('lod_calendario_abrir', { dia: dia });
+        }
+      } catch (e) {}
+      try { if (typeof window.clarity === 'function') window.clarity('set', 'calendario_dia', dia); } catch (e) {}
+      return true;
+    }
+
+    function focarTitulo() {
+      var h = conteudo.querySelector('.lnat-cal__titulo');
+      if (h) { try { h.focus({ preventScroll: true }); } catch (e) { h.focus(); } }
+    }
+
+    function focarFechar() {
+      var b = dlg.querySelector('[data-fechar]');
+      if (b) { try { b.focus({ preventScroll: true }); } catch (e) { b.focus(); } }
+    }
+
+    function mostrar() {
+      abrindo = false;
+      if (dlg.open) return;
+      if (typeof dlg.showModal === 'function') {
+        try { dlg.showModal(); } catch (e) { dlg.setAttribute('open', ''); dlg.classList.add('is-sem-modal'); }
+      } else {
+        dlg.setAttribute('open', '');
+        dlg.classList.add('is-sem-modal');
+      }
+      html.classList.add('lnat-cal-aberto');
+      focarFechar();
+    }
+
+    /* Ligação partilhada (#dia-…): ao tratar o fragmento, o navegador tenta focar o <li> da porta,
+       que não é focável e fica por trás do diálogo, e o foco cai no body. Nos primeiros segundos,
+       se o foco sair do diálogo para lado nenhum, volta ao botão «Fechar». */
+    function prenderFoco() {
+      var ate = Date.now() + 4000;
+      function repor() { if (dlg.open && !dlg.contains(document.activeElement)) focarFechar(); }
+      function aoSair(e) {
+        if (Date.now() > ate || !dlg.open) { dlg.removeEventListener('focusout', aoSair); return; }
+        if (!e.relatedTarget) setTimeout(repor, 0);
+      }
+      dlg.addEventListener('focusout', aoSair);
+      if (document.readyState !== 'complete') {
+        window.addEventListener('load', function () { setTimeout(repor, 0); setTimeout(repor, 300); }, { once: true });
+      } else {
+        setTimeout(repor, 0);
+      }
+    }
+
+    function abrir(p, animar) {
+      if (!p || abrindo) return;
+      if (!livre(p)) { avisar(p); return; }
+      if (!dlg.open && document.querySelector('.lnat-cal__dialogo[open]')) return;
+      if (!preencher(p)) return;
+      if (dlg.open) { focarTitulo(); return; }
+      if (animar && !calmo) {
+        abrindo = true;
+        p.classList.add('is-a-abrir');
+        setTimeout(mostrar, 300);
+      } else {
+        mostrar();
+      }
+    }
+
+    function depoisDeFechar() {
+      html.classList.remove('lnat-cal-aberto');
+      dlg.classList.remove('is-sem-modal');
+      portas.forEach(function (x) { x.classList.remove('is-a-abrir'); });
+      estado();
+      if (atual) { try { atual.focus({ preventScroll: true }); } catch (e) { atual.focus(); } }
+    }
+
+    function fechar() {
+      if (!dlg.open && !dlg.hasAttribute('open')) return;
+      if (typeof dlg.close === 'function' && !dlg.classList.contains('is-sem-modal')) { dlg.close(); return; }
+      dlg.removeAttribute('open');
+      depoisDeFechar();
+    }
+
+    function copiar(url) {
+      function ok() {
+        if (btnPart) btnPart.textContent = tx('ligacao_copiada');
+        anunciar(avisoDlg, tx('ligacao_copiada') + '.');
+        clearTimeout(tPart);
+        tPart = setTimeout(function () { if (btnPart) btnPart.textContent = tx('partilhar'); }, 2500);
+      }
+      function manual() {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = url;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.top = '0';
+          ta.style.opacity = '0';
+          dlg.appendChild(ta);
+          ta.select();
+          var r = document.execCommand('copy');
+          dlg.removeChild(ta);
+          if (r) ok(); else anunciar(avisoDlg, url);
+        } catch (e) { anunciar(avisoDlg, url); }
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, manual);
+      else manual();
+    }
+
+    function partilhar() {
+      if (!atual) return;
+      var dia = atual.getAttribute('data-dia');
+      var tit = atual.getAttribute('data-titulo');
+      var url = location.origin + location.pathname + '#dia-' + dia;
+      if (navigator.share) {
+        navigator.share({ title: tit, text: tit + ' · ' + tx('nome') + ', ' + tx('marca'), url: url }).catch(function () {});
+        return;
+      }
+      copiar(url);
+    }
+
+    function deHash() {
+      var m = /^#dia-(\d{4}-\d{2}-\d{2})$/.exec(location.hash || '');
+      if (!m) return false;
+      var p = root.querySelector('.lnat-cal__porta[data-dia="' + m[1] + '"]');
+      if (!p) return false;
+      if (!livre(p)) {
+        try { p.scrollIntoView({ block: 'center' }); } catch (e) {}
+        try { p.focus({ preventScroll: true }); } catch (e) {}
+        avisar(p);
+        return true;
+      }
+      abrir(p, false);
+      if (dlg.open) prenderFoco();
+      return true;
+    }
+
+    root.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var p = t.closest('.lnat-cal__porta[data-dia]');
+      if (p && root.contains(p)) { abrir(p, true); return; }
+      if (t.closest('[data-hoje-cartao]')) {
+        var ph = root.querySelector('.lnat-cal__porta.is-hoje');
+        if (ph) abrir(ph, false);
+        return;
+      }
+      if (t.closest('[data-fechar]')) { fechar(); return; }
+      var seta = t.closest('[data-ant],[data-seg]');
+      if (seta) {
+        var d = seta.getAttribute('data-alvo');
+        var alvo = d ? root.querySelector('.lnat-cal__porta[data-dia="' + d + '"]') : null;
+        if (alvo && livre(alvo) && preencher(alvo)) focarTitulo();
+        return;
+      }
+      if (t.closest('[data-partilhar]')) { partilhar(); return; }
+    });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) fechar(); });
+    dlg.addEventListener('close', depoisDeFechar);
+    function teclaEsc(e) {
+      if ((e.key === 'Escape' || e.key === 'Esc') && dlg.classList.contains('is-sem-modal') && dlg.hasAttribute('open')) fechar();
+    }
+    document.addEventListener('keydown', teclaEsc);
+
+    estado();
+    var relogio = setInterval(function () { if (hojeLisboa() !== hoje) estado(); }, 60000);
+
+    var inst = {
+      root: root,
+      secao: root.getAttribute('data-secao'),
+      abrir: abrir,
+      fechar: fechar,
+      deHash: deHash,
+      destruir: function () {
+        clearInterval(relogio);
+        document.removeEventListener('keydown', teclaEsc);
+        html.classList.remove('lnat-cal-aberto');
+      }
+    };
+    instancias.push(inst);
+    deHash();
+  }
+
+  function todas() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-lnat-cal]'), iniciar);
+  }
+
+  window.addEventListener('hashchange', function () {
+    for (var i = 0; i < instancias.length; i++) { if (instancias[i].deHash()) break; }
+  });
+  document.addEventListener('shopify:section:load', function (e) {
+    var r = e.target && e.target.querySelector ? e.target.querySelector('[data-lnat-cal]') : null;
+    if (r) iniciar(r);
+  });
+  document.addEventListener('shopify:section:unload', function (e) {
+    instancias = instancias.filter(function (it) {
+      if (e.target && e.target.contains(it.root)) { it.destruir(); return false; }
+      return true;
+    });
+  });
+  document.addEventListener('shopify:block:select', function (e) {
+    var d = e.detail || {};
+    instancias.forEach(function (it) {
+      if (it.secao !== d.sectionId) return;
+      var p = it.root.querySelector('.lnat-cal__porta[data-bloco="' + d.blockId + '"]');
+      if (p) it.abrir(p, false);
+    });
+  });
+  document.addEventListener('shopify:block:deselect', function (e) {
+    var d = e.detail || {};
+    instancias.forEach(function (it) { if (it.secao === d.sectionId) it.fechar(); });
+  });
+
+  todas();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', todas);
+})();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Natal · Calendário",
+  "tag": "section",
+  "class": "lnat-secao-calendario",
+  "max_blocks": 50,
+  "settings": [
+    {
+      "type": "header",
+      "content": "Cabeçalho"
+    },
+    {
+      "type": "text",
+      "id": "eyebrow",
+      "label": "Sobretítulo",
+      "default": "Do Advento aos Reis"
+    },
+    {
+      "type": "text",
+      "id": "titulo",
+      "label": "Título",
+      "default": "Calendário de Ouro"
+    },
+    {
+      "type": "textarea",
+      "id": "texto",
+      "label": "Texto",
+      "default": "Uma história do ouro português por dia, de 1 de dezembro a 6 de janeiro. Volte amanhã para abrir a porta seguinte."
+    },
+    {
+      "type": "text",
+      "id": "nota",
+      "label": "Nota curta",
+      "default": "Sem prémios nem sorteios: só histórias, peças e dicas."
+    },
+    {
+      "type": "header",
+      "content": "Grelha"
+    },
+    {
+      "type": "text",
+      "id": "grelha_inicio",
+      "label": "Primeira segunda-feira da grelha",
+      "info": "Formato AAAA-MM-DD. A grelha mostra 6 semanas (42 dias). Dias sem bloco ficam vazios.",
+      "default": "2026-11-30"
+    },
+    {
+      "type": "text",
+      "id": "dias_ouro",
+      "label": "Portas com fundo dourado",
+      "info": "Datas AAAA-MM-DD separadas por vírgulas.",
+      "default": "2026-12-24,2026-12-25,2027-01-06"
+    },
+    {
+      "type": "text",
+      "id": "ancora",
+      "label": "Âncora da secção",
+      "info": "Usada em ligações como /pages/natal#calendario.",
+      "default": "calendario"
+    },
+    {
+      "type": "checkbox",
+      "id": "mostrar_no_telemovel",
+      "label": "Mostrar no telemóvel",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Decisões por tomar"
+    },
+    {
+      "type": "checkbox",
+      "id": "janeiras_confirmadas",
+      "label": "Janeiras confirmadas",
+      "default": false,
+      "info": "Desligado, os blocos com «Mostrar: Só se as Janeiras estiverem confirmadas» não aparecem e fica o outro bloco da mesma data. Ligue só quando as lojas, os dias e as horas das Janeiras estiverem decididos (e também na barra, nos Prazos e na mensagem «Abrimos a porta às Janeiras» do banner). As trocas de Natal seguem a opção «Mostrar «Trocas de Natal até…»» das definições do tema."
+    }
+  ],
+  "blocks": [
+    {
+      "type": "dia",
+      "name": "Dia",
+      "settings": [
+        {
+          "type": "text",
+          "id": "data",
+          "label": "Data",
+          "info": "Formato AAAA-MM-DD, por exemplo 2026-12-08. A porta abre à meia-noite de Lisboa."
+        },
+        {
+          "type": "text",
+          "id": "titulo",
+          "label": "Título"
+        },
+        {
+          "type": "text",
+          "id": "rotulo",
+          "label": "Rótulo da porta (computador)",
+          "info": "Palavra curta por cima do número, em vez do dia da semana. Ex.: Consoada, Natal, Reis."
+        },
+        {
+          "type": "textarea",
+          "id": "historia",
+          "label": "História",
+          "info": "Até 420 caracteres com a frase das peças. Lendas com «conta a tradição»; prazos sempre indicativos. Datas das definições do tema: {acores}, {madeira}, {gravacao}, {continente}, {reis}, {retoma}, {loja}, {trocas}, {hora_continente}, {hora_reis}."
+        },
+        {
+          "type": "textarea",
+          "id": "sugestao",
+          "label": "Frase das peças",
+          "info": "Ex.: «Hoje: umas argolas e um fio, em ouro de 19,2 quilates.» Só aparece quando todas as peças escolhidas estão à venda."
+        },
+        {
+          "type": "select",
+          "id": "icone",
+          "label": "Ícone (quando não há imagem)",
+          "default": "estrela",
+          "options": [
+            { "value": "estrela", "label": "Estrela" },
+            { "value": "coracao", "label": "Coração" },
+            { "value": "sapatinho", "label": "Sapatinho" },
+            { "value": "coroa", "label": "Coroa" },
+            { "value": "ouro", "label": "Ouro" },
+            { "value": "incenso", "label": "Incenso" },
+            { "value": "mirra", "label": "Mirra" },
+            { "value": "laco", "label": "Laço" },
+            { "value": "porta", "label": "Porta" }
+          ]
+        },
+        {
+          "type": "image_picker",
+          "id": "imagem",
+          "label": "Imagem (opcional)",
+          "info": "4:3, 800 x 600, até 80 KB."
+        },
+        {
+          "type": "product",
+          "id": "produto",
+          "label": "Produto"
+        },
+        {
+          "type": "product",
+          "id": "produto_2",
+          "label": "Segundo produto"
+        },
+        {
+          "type": "collection",
+          "id": "colecao",
+          "label": "Coleção",
+          "info": "Se nenhuma das peças escolhidas estiver à venda, a porta mostra duas peças à venda desta coleção."
+        },
+        {
+          "type": "text",
+          "id": "cta_texto",
+          "label": "Texto do botão"
+        },
+        {
+          "type": "url",
+          "id": "cta_url",
+          "label": "Ligação do botão",
+          "info": "Se ficar vazia, o botão leva à coleção."
+        },
+        {
+          "type": "text",
+          "id": "dica",
+          "label": "Dica",
+          "info": "Aceita os mesmos marcadores de datas da história."
+        },
+        {
+          "type": "checkbox",
+          "id": "sem_venda",
+          "label": "Sem venda",
+          "info": "Esconde produtos e botões (Consoada e Natal).",
+          "default": false
+        },
+        {
+          "type": "header",
+          "content": "Quando aparece"
+        },
+        {
+          "type": "select",
+          "id": "condicao",
+          "label": "Mostrar",
+          "default": "sempre",
+          "options": [
+            { "value": "sempre", "label": "Sempre" },
+            { "value": "trocas", "label": "Só se as trocas de Natal estiverem aprovadas" },
+            { "value": "janeiras", "label": "Só se as Janeiras estiverem confirmadas" }
+          ],
+          "info": "Um bloco com condição ligada passa à frente do bloco «Sempre» da mesma data; desligada, aparece o bloco «Sempre»."
+        },
+        {
+          "type": "select",
+          "id": "prazo",
+          "label": "Prazo de que o texto fala",
+          "default": "nenhum",
+          "options": [
+            { "value": "nenhum", "label": "Nenhum" },
+            { "value": "acores", "label": "Último dia para os Açores" },
+            { "value": "madeira", "label": "Último dia para a Madeira" },
+            { "value": "gravacao", "label": "Último dia para peças gravadas" },
+            { "value": "continente", "label": "Último dia para Portugal continental" },
+            { "value": "loja", "label": "Levantamento em loja" },
+            { "value": "reis", "label": "Último dia a tempo dos Reis" },
+            { "value": "retoma", "label": "Retoma dos envios" }
+          ]
+        },
+        {
+          "type": "select",
+          "id": "prazo_quando",
+          "label": "A porta é",
+          "default": "dia",
+          "options": [
+            { "value": "dia", "label": "No próprio dia do prazo" },
+            { "value": "vespera", "label": "Na véspera do prazo" },
+            { "value": "antes", "label": "Antes do prazo" },
+            { "value": "depois", "label": "Depois do prazo" }
+          ],
+          "info": "Só serve para o aviso do editor: se o prazo mudar nas definições do tema e um texto com «hoje» ou «amanhã» deixar de bater certo, aparece um aviso por baixo do calendário."
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Natal · Calendário"
+    }
+  ]
+}
+{% endschema %}
