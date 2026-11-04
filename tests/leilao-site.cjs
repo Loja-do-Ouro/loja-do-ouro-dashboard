@@ -26,6 +26,20 @@ test("return path after login stays on the site", () => {
   assert.equal(r.safeNext("https://evil.com", ""), "/conta");
   assert.equal(r.safeNext(`/${String.fromCharCode(92)}evil.com`, ""), "/conta");
   assert.equal(r.safeNext(undefined, ""), "/conta");
+  assert.equal(r.safeNext(42, "/l"), "/l/conta");
+  assert.equal(r.safeNext("/x".repeat(200), ""), "/conta");
+  // Caracteres de controlo a meio: o browser apaga-os ao ler o Location e «/\t/evil.com» passaria a «//evil.com».
+  assert.equal(r.safeNext("/\t/evil.com", ""), "/conta");
+  assert.equal(r.safeNext("/\n/evil.com", "/l"), "/l/conta");
+  assert.equal(r.safeNext(decodeURIComponent("/%09/evil.com"), ""), "/conta");
+  assert.equal(r.safeNext("/\r\n/evil.com", ""), "/conta");
+  assert.equal(r.safeNext("/conta\r\nSet-Cookie: x=1", ""), "/conta");
+  assert.equal(r.safeNext("/a b", "/l"), "/l/conta");
+  assert.equal(r.safeNext("/a b", ""), "/conta");
+  assert.equal(r.safeNext("/a\u007f/evil.com", ""), "/conta");
+  // Caminho do próprio site com query e âncora: passa tal como está.
+  assert.equal(r.safeNext("/l/outono-2026/3?ver=lances#licitar", "/l"), "/l/outono-2026/3?ver=lances#licitar");
+  assert.equal(r.safeNext("/outono-2026?x=1&y=2#topo", ""), "/outono-2026?x=1&y=2#topo");
 });
 
 test("countdown splits the time left and stops at zero", () => {

@@ -17,11 +17,20 @@ export function auctionHostRoute(path: string): { rewrite: string } | { redirect
   return { rewrite: path === "/" ? "/l" : `/l${path}` };
 }
 
-// Volta depois de entrar: só caminhos do próprio site, nunca outro domínio.
+// Volta depois de entrar: só caminhos do próprio site, nunca outro domínio. Recusa espaços e caracteres de controlo
+// em qualquer ponto (o browser apaga TAB/CR/LF ao ler o Location, e «/<TAB>/evil.com» passaria a «//evil.com») e
+// confirma a origem com o parser de URL, como o browser faria.
 export function safeNext(value: unknown, base: string): string {
+  const fallback = `${base}/conta`;
   const v = typeof value === "string" ? value.trim() : "";
-  if (!v.startsWith("/") || v.startsWith("//") || v.includes("\\") || v.length > 300) return `${base}/conta`;
-  return v;
+  if (!v.startsWith("/") || v.startsWith("//") || /[\\\s\u0000-\u001f\u007f]/.test(v) || v.length > 300) return fallback;
+  try {
+    const u = new URL(v, "https://x.invalid");
+    if (u.origin !== "https://x.invalid") return fallback;
+    return u.pathname + u.search + u.hash;
+  } catch {
+    return fallback;
+  }
 }
 
 // ---------------------------------------------------------------- tempo
