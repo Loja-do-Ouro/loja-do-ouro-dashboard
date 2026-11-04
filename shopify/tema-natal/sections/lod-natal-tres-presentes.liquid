@@ -4,15 +4,44 @@
   computador; linhas com o ícone à esquerda no telemóvel (sem imagens).
   Um bloco pode abrir a janela de embrulho (<dialog> desta secção) com os preços reais de 3 produtos.
   Nos textos dos blocos, {trocas} passa a data de settings.natal_trocas_ate (ex.: «15 de janeiro»).
+  Línguas: campos base em português e campos _en/_es (vazios → português); «Fechar» e «Esgotado» vêm do
+  dicionário lod-natal-t. Versões: Portugal e Espanha (no Internacional a secção não aparece), cada uma nas
+  suas fases (contrato i18n, secção 5). Ligações começadas por «/» ganham o prefixo da língua e do mercado.
 {%- endcomment -%}
 {%- liquid
+  # Língua da página, versão da campanha (mercado da visita) e fase dessa versão
+  capture lnat_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_lg = lnat_lg | strip
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnat_versao = lnat_versao | strip
   capture lnat_fase
-    render 'lod-natal-fase'
+    render 'lod-natal-fase', mercado: 'auto'
   endcapture
   assign lnat_fase = lnat_fase | strip
-  assign oculta = false
-  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
-    assign oculta = true
+  # Versões em que esta secção existe: Portugal e Espanha
+  assign versoes = ',pt,es,'
+  case lnat_versao
+    when 'es'
+      assign fases_versao = ',navidad,reyes,reyes_ultima,noche_reyes,'
+    when 'int'
+      assign fases_versao = ',navidad,'
+    else
+      assign lnat_versao = 'pt'
+      assign fases_versao = ',ouro,incenso,ultima,consoada,mirra,'
+  endcase
+  assign k_v = ',' | append: lnat_versao | append: ','
+  assign k_f = ',' | append: lnat_fase | append: ','
+  assign suporta = false
+  if versoes contains k_v
+    assign suporta = true
+  endif
+  assign oculta = true
+  if suporta and fases_versao contains k_f
+    assign oculta = false
   endif
   assign mostrar = true
   if oculta
@@ -21,6 +50,50 @@
       assign mostrar = true
     endif
   endif
+
+  # Textos na língua da página
+  assign s = section.settings
+  assign t_eyebrow = s.eyebrow
+  assign t_titulo = s.titulo
+  assign t_lead = s.lead
+  assign t_emb_titulo = s.embrulho_titulo
+  assign t_emb_nota = s.embrulho_nota
+  assign suf = ''
+  if lnat_lg != 'pt'
+    assign suf = '_' | append: lnat_lg
+    assign k = 'eyebrow' | append: suf
+    if s[k] != blank
+      assign t_eyebrow = s[k]
+    endif
+    assign k = 'titulo' | append: suf
+    if s[k] != blank
+      assign t_titulo = s[k]
+    endif
+    assign k = 'lead' | append: suf
+    if s[k] != blank
+      assign t_lead = s[k]
+    endif
+    assign k = 'embrulho_titulo' | append: suf
+    if s[k] != blank
+      assign t_emb_titulo = s[k]
+    endif
+    assign k = 'embrulho_nota' | append: suf
+    if s[k] != blank
+      assign t_emb_nota = s[k]
+    endif
+  endif
+  capture t_fechar
+    render 'lod-natal-t', k: 'fechar'
+  endcapture
+  capture t_esgotado
+    render 'lod-natal-t', k: 'esgotado'
+  endcapture
+  assign t_fechar = t_fechar | strip
+  assign t_esgotado = t_esgotado | strip
+
+  # Prefixo da língua e do mercado para as ligações (routes.root_url é «/» na língua principal de cada domínio)
+  assign raiz = routes.root_url | default: '/'
+  assign raiz_pre = raiz | append: '/'
 
   capture d_trocas
     render 'lod-natal-data', valor: settings.natal_trocas_ate, formato: 'curto'
@@ -40,7 +113,7 @@
     endif
   endfor
   assign tem_embrulho = false
-  if n_emb > 0 or section.settings.embrulho_nota != blank
+  if n_emb > 0 or t_emb_nota != blank
     assign tem_embrulho = true
   endif
 -%}
@@ -52,15 +125,19 @@
 >
   <span id="embrulho" aria-hidden="true"></span>
   <div class="lnat-wrap">
-    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+    {%- if request.design_mode and suporta == false -%}
+      <p class="lnat-aviso-fase" style="margin:0 0 24px;padding:8px 12px;background:#fff3cd;color:#3d2f00;font:13px/1.4 var(--lnat-sans,system-ui,sans-serif);text-align:left">Pré-visualização no editor: esta secção não aparece no mercado Internacional (só em Portugal e em Espanha).</p>
+    {%- elsif oculta -%}
+      {%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}
+    {%- endif -%}
 
     <header class="lnat-tp__cab">
-      {%- if section.settings.eyebrow != blank -%}
-        <p class="lnat-eb">{{ section.settings.eyebrow | escape }}</p>
+      {%- if t_eyebrow != blank -%}
+        <p class="lnat-eb">{{ t_eyebrow | escape }}</p>
       {%- endif -%}
-      <h2 class="lnat-h2 lnat-tp__h" id="lnat-tp-h-{{ section.id }}">{{ section.settings.titulo | escape }}</h2>
-      {%- if section.settings.lead != blank -%}
-        <p class="lnat-cg lnat-tp__lead">{{ section.settings.lead | escape }}</p>
+      <h2 class="lnat-h2 lnat-tp__h" id="lnat-tp-h-{{ section.id }}">{{ t_titulo | escape }}</h2>
+      {%- if t_lead != blank -%}
+        <p class="lnat-cg lnat-tp__lead">{{ t_lead | escape }}</p>
       {%- endif -%}
     </header>
 
@@ -69,25 +146,64 @@
         {%- for block in section.blocks -%}
           {%- liquid
             assign b = block.settings
+            assign b_eyebrow = b.eyebrow
+            assign b_titulo = b.titulo
             assign texto = b.texto
-            if com_trocas and b.texto_trocas != blank
-              assign texto = b.texto_trocas
+            assign texto_trocas = b.texto_trocas
+            assign img_alt = b.imagem_alt
+            assign b_link = b.link_texto
+            if suf != ''
+              assign k = 'eyebrow' | append: suf
+              if b[k] != blank
+                assign b_eyebrow = b[k]
+              endif
+              assign k = 'titulo' | append: suf
+              if b[k] != blank
+                assign b_titulo = b[k]
+              endif
+              assign k = 'texto' | append: suf
+              if b[k] != blank
+                assign texto = b[k]
+              endif
+              assign k = 'texto_trocas' | append: suf
+              if b[k] != blank
+                assign texto_trocas = b[k]
+              endif
+              assign k = 'imagem_alt' | append: suf
+              if b[k] != blank
+                assign img_alt = b[k]
+              endif
+              assign k = 'link_texto' | append: suf
+              if b[k] != blank
+                assign b_link = b[k]
+              endif
+            endif
+            if com_trocas and texto_trocas != blank
+              assign texto = texto_trocas
             endif
             assign texto = texto | replace: '{trocas}', d_trocas
             assign img = b.imagem
-            assign img_alt = b.imagem_alt
             if img_alt == blank and img
               assign img_alt = img.alt
+            endif
+            assign u = b.link_url
+            if u != blank and raiz != '/'
+              assign u1 = u | slice: 0, 1
+              assign u2 = u | slice: 0, 2
+              assign u_pre = u | slice: 0, raiz_pre.size
+              if u1 == '/' and u2 != '//' and u_pre != raiz_pre and u != raiz
+                assign u = raiz | append: u
+              endif
             endif
           -%}
           <li class="lnat-tp__item" {{ block.shopify_attributes }}>
             <span class="lnat-tp__ico">{%- render 'lod-natal-icon', nome: b.icone, tamanho: 48 -%}</span>
             <div class="lnat-tp__corpo">
-              {%- if b.numeral != blank or b.eyebrow != blank -%}
-                <p class="lnat-eb lnat-eb--simples lnat-tp__num">{{ b.numeral | escape }}{% if b.numeral != blank and b.eyebrow != blank %} · {% endif %}{{ b.eyebrow | escape }}</p>
+              {%- if b.numeral != blank or b_eyebrow != blank -%}
+                <p class="lnat-eb lnat-eb--simples lnat-tp__num">{{ b.numeral | escape }}{% if b.numeral != blank and b_eyebrow != blank %} · {% endif %}{{ b_eyebrow | escape }}</p>
               {%- endif -%}
-              {%- if b.titulo != blank -%}
-                <h3 class="lnat-h3 lnat-tp__titulo">{{ b.titulo | escape }}</h3>
+              {%- if b_titulo != blank -%}
+                <h3 class="lnat-h3 lnat-tp__titulo">{{ b_titulo | escape }}</h3>
               {%- endif -%}
               {%- if img -%}
                 <div class="lnat-tp__img">
@@ -97,11 +213,11 @@
               {%- if texto != blank -%}
                 <p class="lnat-txt lnat-tp__txt">{{ texto }}</p>
               {%- endif -%}
-              {%- if b.link_texto != blank -%}
+              {%- if b_link != blank -%}
                 {%- if b.abre_embrulho and tem_embrulho -%}
-                  <button type="button" class="lnat-link lnat-tp__link" data-lnat-tp-abrir="{{ dlg_id }}" aria-haspopup="dialog" aria-controls="{{ dlg_id }}">{{ b.link_texto | escape }} <span aria-hidden="true">→</span></button>
-                {%- elsif b.link_url != blank -%}
-                  <a class="lnat-link lnat-tp__link" href="{{ b.link_url }}">{{ b.link_texto | escape }} <span aria-hidden="true">→</span></a>
+                  <button type="button" class="lnat-link lnat-tp__link" data-lnat-tp-abrir="{{ dlg_id }}" aria-haspopup="dialog" aria-controls="{{ dlg_id }}">{{ b_link | escape }} <span aria-hidden="true">→</span></button>
+                {%- elsif u != blank -%}
+                  <a class="lnat-link lnat-tp__link" href="{{ u }}">{{ b_link | escape }} <span aria-hidden="true">→</span></a>
                 {%- endif -%}
               {%- endif -%}
             </div>
@@ -117,9 +233,9 @@
     <dialog class="lnat-tp__dlg" id="{{ dlg_id }}" aria-labelledby="{{ dlg_id }}-h">
       <div class="lnat-tp__dlg-topo">
         <span class="lnat-tp__dlg-ico">{%- render 'lod-natal-icon', nome: 'laco', tamanho: 40 -%}</span>
-        <h2 class="lnat-h3 lnat-tp__dlg-h" id="{{ dlg_id }}-h">{{ section.settings.embrulho_titulo | escape }}</h2>
+        <h2 class="lnat-h3 lnat-tp__dlg-h" id="{{ dlg_id }}-h">{{ t_emb_titulo | escape }}</h2>
         <form method="dialog" class="lnat-tp__dlg-form">
-          <button type="submit" class="lnat-tp__fechar" aria-label="Fechar">
+          <button type="submit" class="lnat-tp__fechar" aria-label="{{ t_fechar | escape }}">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6L18 18M18 6L6 18"/></svg>
           </button>
         </form>
@@ -135,6 +251,12 @@
             {%- if p != blank -%}
               {%- liquid
                 assign desc = section.settings[chave_t]
+                if suf != ''
+                  assign k = chave_t | append: suf
+                  if section.settings[k] != blank
+                    assign desc = section.settings[k]
+                  endif
+                endif
                 if desc == blank
                   assign desc = p.description | strip_html | strip_newlines | truncatewords: 18
                 endif
@@ -154,15 +276,15 @@
                 </span>
                 <span class="lnat-tp__opcao-preco">
                   {{- p.price | money -}}
-                  {%- unless p.available -%}<span class="lnat-tp__opcao-esg">Esgotado</span>{%- endunless -%}
+                  {%- unless p.available -%}<span class="lnat-tp__opcao-esg">{{ t_esgotado | escape }}</span>{%- endunless -%}
                 </span>
               </li>
             {%- endif -%}
           {%- endfor -%}
         </ul>
       {%- endif -%}
-      {%- if section.settings.embrulho_nota != blank -%}
-        <p class="lnat-tp__nota">{{ section.settings.embrulho_nota | escape | newline_to_br }}</p>
+      {%- if t_emb_nota != blank -%}
+        <p class="lnat-tp__nota">{{ t_emb_nota | escape | newline_to_br }}</p>
       {%- endif -%}
     </dialog>
   {%- endif -%}
@@ -229,13 +351,16 @@
 <script>
 (function(){
   var doc = document.documentElement;
+  // Fases em que a secção aparece, por versão da campanha (contrato i18n, secção 5); no Internacional não aparece
+  var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'] };
   function ini(sec){
     if (sec.getAttribute('data-lnat-pronto')) return;
     sec.setAttribute('data-lnat-pronto', '1');
     var N = window.LOD_NATAL;
     if (N && !sec.classList.contains('lnat-tp--editor')) {
-      var f = N.fase();
-      if (f === 'off' || f === 'antes' || f === 'fim') sec.hidden = true;
+      var v = N.versao || 'pt';
+      var f = N.fase(v);
+      if (!ATIVAS[v] || ATIVAS[v].indexOf(f) < 0) sec.hidden = true;
     }
   }
   function todos(){
@@ -289,6 +414,24 @@
     { "type": "product", "id": "embrulho_3", "label": "Opção 3" },
     { "type": "text", "id": "embrulho_3_texto", "label": "Descrição da opção 3", "info": "Vazio: usa a descrição do produto." },
     { "type": "textarea", "id": "embrulho_nota", "label": "Nota", "default": "Escolha no carrinho, antes de finalizar a encomenda. Também podemos enviar diretamente para quem recebe: indique essa morada no checkout." },
+    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_en", "label": "Sobretítulo (EN)" },
+    { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
+    { "type": "textarea", "id": "lead_en", "label": "Texto de abertura (EN)" },
+    { "type": "text", "id": "embrulho_titulo_en", "label": "Título da janela (EN)" },
+    { "type": "text", "id": "embrulho_1_texto_en", "label": "Descrição da opção 1 (EN)" },
+    { "type": "text", "id": "embrulho_2_texto_en", "label": "Descrição da opção 2 (EN)" },
+    { "type": "text", "id": "embrulho_3_texto_en", "label": "Descrição da opção 3 (EN)" },
+    { "type": "textarea", "id": "embrulho_nota_en", "label": "Nota (EN)" },
+    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_es", "label": "Sobretítulo (ES)" },
+    { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
+    { "type": "textarea", "id": "lead_es", "label": "Texto de abertura (ES)" },
+    { "type": "text", "id": "embrulho_titulo_es", "label": "Título da janela (ES)" },
+    { "type": "text", "id": "embrulho_1_texto_es", "label": "Descrição da opção 1 (ES)" },
+    { "type": "text", "id": "embrulho_2_texto_es", "label": "Descrição da opção 2 (ES)" },
+    { "type": "text", "id": "embrulho_3_texto_es", "label": "Descrição da opção 3 (ES)" },
+    { "type": "textarea", "id": "embrulho_nota_es", "label": "Nota (ES)" },
     { "type": "header", "content": "Telemóvel" },
     { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
   ],
@@ -321,7 +464,21 @@
         { "type": "text", "id": "imagem_alt", "label": "Texto alternativo da imagem" },
         { "type": "text", "id": "link_texto", "label": "Texto do link", "default": "Ver mais" },
         { "type": "url", "id": "link_url", "label": "Link" },
-        { "type": "checkbox", "id": "abre_embrulho", "label": "O link abre as opções de embrulho", "default": false }
+        { "type": "checkbox", "id": "abre_embrulho", "label": "O link abre as opções de embrulho", "default": false },
+        { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
+        { "type": "text", "id": "eyebrow_en", "label": "Sobretítulo (EN)" },
+        { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
+        { "type": "inline_richtext", "id": "texto_en", "label": "Texto (EN)" },
+        { "type": "inline_richtext", "id": "texto_trocas_en", "label": "Texto com as trocas de Natal ligadas (EN)" },
+        { "type": "text", "id": "imagem_alt_en", "label": "Texto alternativo da imagem (EN)" },
+        { "type": "text", "id": "link_texto_en", "label": "Texto do link (EN)" },
+        { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
+        { "type": "text", "id": "eyebrow_es", "label": "Sobretítulo (ES)" },
+        { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
+        { "type": "inline_richtext", "id": "texto_es", "label": "Texto (ES)" },
+        { "type": "inline_richtext", "id": "texto_trocas_es", "label": "Texto com as trocas de Natal ligadas (ES)" },
+        { "type": "text", "id": "imagem_alt_es", "label": "Texto alternativo da imagem (ES)" },
+        { "type": "text", "id": "link_texto_es", "label": "Texto do link (ES)" }
       ]
     }
   ],

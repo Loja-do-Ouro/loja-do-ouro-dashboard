@@ -1,32 +1,42 @@
 {%- comment -%}
-  Natal 2026 · Ouro de Reis — bloco de Natal na ficha de produto.
-  Uso (sections/lod-main-product.liquid, logo a seguir a lod-installments):
+  Natal 2026 · Ouro de Reis — bloco de Natal na ficha de produto, por mercado e na língua da página.
+  Uso (sections/lod-main-product.liquid, logo a seguir a lod-installments, nas páginas pt, en e es):
     {%- render 'lod-natal-pdp', product: product -%}
 
-  Mostra, num painel linho discreto:
-    1. «Para o Natal»: a mensagem de entrega da fase (antes do prazo do continente / levantar na loja até 24 dez.,
-       13h / Boas Festas / a tempo dos Reis), sempre com a nota de prazo indicativo. Escolhida no servidor e
-       corrigida no navegador com window.LOD_NATAL.
-    2. Gravação:
-       - «grave-o-seu-fio» (verificada primeiro; estes fios também estão em «para-gravacao»): o cliente
-         personaliza nas opções da própria página (Cloudlift). Sem WhatsApp.
-       - «para-gravacao»: gravação pela equipa, com orçamento por WhatsApp.
-       Antes do prazo de gravação: «Grave uma lembrança de Natal» e o prazo indicativo. Depois: «Grave uma
-       lembrança», o aviso de que o prazo de Natal terminou (até à última hora) e, na mirra, «Reis 2027».
-    3. «Embrulho de oferta e mensagem: escolha no carrinho.»
-    4. «Trocas de Natal até …» só com a definição natal_mostrar_trocas e em peças não gravadas.
-    5. «Sabia que?» do Dicionário para Corações de Viana, Contas de Viana e filigrana. «Trabalhado à mão» só
-       em peças com o metafield custom.filigrana_certificada = verdadeiro.
+  A versão vem do mercado (lod-natal-fase, mercado: 'auto'); a língua só decide os textos (dicionário
+  lod-natal-t e, para as frases novas, o dicionário local pdpx_ deste ficheiro). Contrato: scratchpad/natal/i18n-contrato.md.
+
+  Portugal (pt), fases ouro → mirra, como sempre:
+    1. Entrega: antes do prazo do continente (com Madeira e Açores) / levantar na loja até 24 dez., 13h /
+       Boas Festas (as encomendas seguem a partir de 28 dez.) / a tempo dos Reis. Sempre com a nota de prazo indicativo.
+    2. Gravação: «grave-o-seu-fio» (verificada primeiro; estes fios também estão em «para-gravacao»): o cliente
+       personaliza nas opções da página (Cloudlift), sem WhatsApp. «para-gravacao»: gravação pela equipa, com
+       orçamento por WhatsApp. Antes do prazo de gravação: «Grave uma lembrança de Natal» e o prazo; depois: o aviso
+       de que o prazo de Natal terminou (até à última hora) e, na mirra, «Reis 2027».
+    3. Embrulho. 4. Trocas de Natal (só com natal_mostrar_trocas e em peças não gravadas). 5. «Sabia que?».
+  Espanha (es), fases navidad, reyes, reyes_ultima e noche_reyes, com os prazos de Espanha (natal_es_limite_*):
+    1. navidad: chega antes da Navidad (e o prazo do Dia de Reis por baixo). reyes: chega antes do Dia de Reis; até
+       25 dez. diz que já não chega para a Navidad e, de 24 dez., 13h, a 25 dez., que as encomendas seguem a partir
+       de 28 dez. reyes_ultima: já não chega a tempo do Dia de Reis. noche_reyes: sem prazos (momento calmo).
+       Só o dia, nunca a hora: as 23:59 de Lisboa são 00:59 em Madrid.
+    2. Só a personalização nas opções da página («grave-o-seu-fio»), com o aviso de que precisa de mais dias
+       (não há prazo de gravação para Espanha). Sem gravação por WhatsApp, lojas, levantamento nem trocas de Natal.
+    3. Embrulho. 5. «Sabia que?».
+  Internacional (int), fase navidad (até natal_int_limite; depois o bloco desaparece): só o prazo internacional
+  (com o aviso de mais dias nas peças personalizadas) e o embrulho.
+
   Peça esgotada (variante escolhida, ou todas as variantes): sem prazos, gravação, embrulho nem trocas; fica só o
   «Sabia que?» (se não houver, o painel não aparece). Ao mudar de variante, a ficha emite 'lodp:variant-change'
   em [data-lodp] e o painel atualiza-se.
-  Não aparece: fora das fases ouro→mirra, fora do mercado Portugal, em ouro de investimento
-  (coleção moedas-de-investimento ou etiqueta ouro-investimento) e em produtos do tipo Voucher, Gift,
-  Gift Message ou wrapin. No editor aparece sempre (com uma nota) se a fase ainda não tiver começado.
+  Não aparece: fora das fases da versão, em ouro de investimento (coleção moedas-de-investimento ou etiqueta
+  ouro-investimento), em vales e embrulhos (tipo Voucher, Gift, Gift Message, wrapin e as traduções, ou etiqueta
+  voucher). No editor aparece sempre (com uma nota) se a fase ainda não tiver começado.
+  Coleções: comparadas pelo handle original e pelo id (as traduções em espanhol mudam alguns handles:
+  graba-tu-cadena, personalizacion, cuentas-de-viana, tradicion-filigrana-plata; em inglês filigree…).
 
-  Atributos lidos pelo script: data-lnp-fases (fases em que aparece), data-lnp-ate (esconde depois dessa data
-  de LOD_NATAL.d), data-lnp-desde (só aparece depois dessa data), data-lnp-senao (aparece só quando o elemento
-  anterior está escondido), data-lnp-stock (esconde com a peça esgotada).
+  Atributos lidos pelo script: data-lnp-versao (pt | es | int), data-lnp-fases (fases em que aparece),
+  data-lnp-ate (esconde depois dessa data de LOD_NATAL.d), data-lnp-desde (só aparece depois dessa data),
+  data-lnp-senao (aparece só quando o elemento anterior está escondido), data-lnp-stock (esconde com a peça esgotada).
 {%- endcomment -%}
 
 {%- liquid
@@ -34,39 +44,61 @@
   if product != blank
     assign lnp_render = true
   endif
-  if localization.market.handle != 'pt' and request.design_mode == false
-    assign lnp_render = false
-  endif
 
+  # Vales e embrulhos: o tipo vem traduzido nas páginas en/es (Gift voucher, Vale regalo, Regalo, Envoltorio de regalo…)
   assign lnp_tipo = product.type | downcase | strip
-  if lnp_tipo == 'voucher' or lnp_tipo == 'gift' or lnp_tipo == 'gift message' or lnp_tipo == 'wrapin'
+  assign lnp_tipo = ',' | append: lnp_tipo | append: ','
+  assign lnp_sem = ',voucher,gift,gift message,wrapin,gift voucher,gift wrapping,vale regalo,regalo,envoltorio de regalo,'
+  if lnp_sem contains lnp_tipo
     assign lnp_render = false
   endif
-  if product.tags contains 'ouro-investimento'
+  if product.tags contains 'ouro-investimento' or product.tags contains 'voucher'
     assign lnp_render = false
   endif
 
+  # Coleções por handle e por id: ,handle,id,handle,id,
   assign lnp_cols = ','
   for lnp_c in product.collections
-    assign lnp_cols = lnp_cols | append: lnp_c.handle | append: ','
+    assign lnp_cols = lnp_cols | append: lnp_c.handle | append: ',' | append: lnp_c.id | append: ','
   endfor
-  if lnp_cols contains ',moedas-de-investimento,'
+  if lnp_cols contains ',moedas-de-investimento,' or lnp_cols contains ',707886973312,'
     assign lnp_render = false
   endif
 
-  # lnp_vf = fase usada para escolher o texto no servidor
+  # lnp_versao = pt | es | int (mercado da visita); lnp_vf = fase usada para escolher o texto no servidor
+  assign lnp_versao = 'pt'
   assign lnp_vf = 'ouro'
   assign lnp_esconder = false
   assign lnp_nota = false
   if lnp_render
+    capture lnp_versao
+      render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+    endcapture
+    assign lnp_versao = lnp_versao | strip
     capture lnp_fase
-      render 'lod-natal-fase'
+      render 'lod-natal-fase', mercado: 'auto'
     endcapture
     assign lnp_fase = lnp_fase | strip
     assign lnp_ativa = false
-    case lnp_fase
-      when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
-        assign lnp_ativa = true
+    case lnp_versao
+      when 'pt'
+        assign lnp_vf = 'ouro'
+        case lnp_fase
+          when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+            assign lnp_ativa = true
+        endcase
+      when 'es'
+        assign lnp_vf = 'navidad'
+        case lnp_fase
+          when 'navidad', 'reyes', 'reyes_ultima', 'noche_reyes'
+            assign lnp_ativa = true
+        endcase
+      else
+        assign lnp_versao = 'int'
+        assign lnp_vf = 'navidad'
+        if lnp_fase == 'navidad'
+          assign lnp_ativa = true
+        endif
     endcase
     if lnp_ativa
       assign lnp_vf = lnp_fase
@@ -81,7 +113,76 @@
 -%}
 
 {%- if lnp_render -%}
+{%- comment -%} Frases novas (dicionário local; a equipa BASE junta-as a lod-natal-t no fim). {%- endcomment -%}
+{%- capture lnat_tl_pt -%}
+~~pdpx_es_navidad_html=<strong>Para chegar antes do Natal</strong>, encomende até <strong>{1}</strong> (envios para Espanha peninsular).
+~~pdpx_es_reyes_tb_html=Para o Dia de Reis, até <strong>{1}</strong>.
+~~pdpx_es_reyes_html=<strong>Para chegar antes do Dia de Reis</strong>, encomende até <strong>{1}</strong> (envios para Espanha peninsular).
+~~pdpx_navidad_ko=Já não chega a tempo do Natal.
+~~pdpx_int_html=<strong>Para chegar antes do Natal</strong>, encomende até <strong>{1}</strong> (envios internacionais).
+~~pdpx_int_nota=Prazo indicativo: o tempo de entrega pode variar consoante o destino e, fora da União Europeia, o desalfandegamento.
+~~pdpx_grav_margem=As peças personalizadas precisam de alguns dias a mais: tenha-o em conta ao encomendar.
+{%- endcapture -%}
+{%- capture lnat_tl_en -%}
+~~pdpx_es_navidad_html=<strong>To arrive before Christmas</strong>, order by <strong>{1}</strong> (delivery to mainland Spain).
+~~pdpx_es_reyes_tb_html=For Three Kings’ Day, by <strong>{1}</strong>.
+~~pdpx_es_reyes_html=<strong>To arrive before Three Kings’ Day</strong>, order by <strong>{1}</strong> (delivery to mainland Spain).
+~~pdpx_navidad_ko=It will no longer arrive by Christmas.
+~~pdpx_int_html=<strong>To arrive before Christmas</strong>, order by <strong>{1}</strong> (international delivery).
+~~pdpx_int_nota=Indicative deadline: delivery times may vary depending on the destination and, outside the European Union, on customs clearance.
+~~pdpx_grav_margem=Personalised pieces need a few extra days, so please allow for this when ordering.
+{%- endcapture -%}
+{%- capture lnat_tl_es -%}
+~~pdpx_es_navidad_html=<strong>Para que llegue antes de Navidad</strong>, haga su pedido hasta el <strong>{1}</strong> (envíos a la España peninsular).
+~~pdpx_es_reyes_tb_html=Para el Día de Reyes, hasta el <strong>{1}</strong>.
+~~pdpx_es_reyes_html=<strong>Para que llegue antes del Día de Reyes</strong>, haga su pedido hasta el <strong>{1}</strong> (envíos a la España peninsular).
+~~pdpx_navidad_ko=Ya no llega a tiempo para Navidad.
+~~pdpx_int_html=<strong>Para que llegue antes de Navidad</strong>, haga su pedido hasta el <strong>{1}</strong> (envíos internacionales).
+~~pdpx_int_nota=Plazo orientativo: el tiempo de entrega puede variar según el destino y, fuera de la Unión Europea, los trámites de aduana.
+~~pdpx_grav_margem=Las piezas personalizadas necesitan unos días más: téngalo en cuenta al hacer su pedido.
+{%- endcapture -%}
 {%- liquid
+  capture lnp_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnp_lg = lnp_lg | strip
+  case lnp_lg
+    when 'pt'
+      assign lnat_tl = lnat_tl_pt
+    when 'es'
+      assign lnat_tl = lnat_tl_es
+    else
+      assign lnat_tl = lnat_tl_en
+  endcase
+  assign tx_es_navidad = ''
+  assign tx_es_reyes_tb = ''
+  assign tx_es_reyes = ''
+  assign tx_navidad_ko = ''
+  assign tx_int = ''
+  assign tx_int_nota = ''
+  assign tx_grav_margem = ''
+  assign lnp_tl_e = lnat_tl | split: '~~'
+  for lnp_e in lnp_tl_e
+    assign lnp_ek = lnp_e | split: '=' | first | strip
+    assign lnp_ev = lnp_e | remove_first: lnp_ek | remove_first: '=' | strip
+    case lnp_ek
+      when 'pdpx_es_navidad_html'
+        assign tx_es_navidad = lnp_ev
+      when 'pdpx_es_reyes_tb_html'
+        assign tx_es_reyes_tb = lnp_ev
+      when 'pdpx_es_reyes_html'
+        assign tx_es_reyes = lnp_ev
+      when 'pdpx_navidad_ko'
+        assign tx_navidad_ko = lnp_ev
+      when 'pdpx_int_html'
+        assign tx_int = lnp_ev
+      when 'pdpx_int_nota'
+        assign tx_int_nota = lnp_ev
+      when 'pdpx_grav_margem'
+        assign tx_grav_margem = lnp_ev
+    endcase
+  endfor
+
   assign lnp_agora_txt = 'now'
   if settings.natal_data_simulada != blank and theme.role != 'main'
     assign lnp_agora_txt = settings.natal_data_simulada | strip
@@ -92,15 +193,20 @@
   assign lnp_agora = lnp_agora_txt | date: '%Y%m%d%H%M' | plus: 0
 
   assign lnp_inicio = settings.natal_inicio | default: '2026-12-01 00:00' | strip
-  assign lnp_acores = settings.natal_limite_acores | default: '2026-12-04 23:59' | strip
-  assign lnp_madeira = settings.natal_limite_madeira | default: '2026-12-11 23:59' | strip
+  assign lnp_acores = settings.natal_limite_acores | default: '2026-12-14 23:59' | strip
+  assign lnp_madeira = settings.natal_limite_madeira | default: '2026-12-14 23:59' | strip
   assign lnp_gravacao = settings.natal_limite_gravacao | default: '2026-12-16 23:59' | strip
-  assign lnp_continente = settings.natal_limite_continente | default: '2026-12-18 23:59' | strip
+  assign lnp_continente = settings.natal_limite_continente | default: '2026-12-20 23:59' | strip
   assign lnp_loja = settings.natal_limite_loja | default: '2026-12-24 13:00' | strip
+  assign lnp_festas = settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | strip
   assign lnp_retoma = settings.natal_retoma_envios | default: '2026-12-28' | strip
   assign lnp_reis = settings.natal_limite_reis | default: '2026-12-30 23:59' | strip
   assign lnp_trocas = settings.natal_trocas_ate | default: '2027-01-15' | strip
+  assign lnp_es_navidad = settings.natal_es_limite_navidad | default: '2026-12-20 23:59' | strip
+  assign lnp_es_reyes = settings.natal_es_limite_reyes | default: '2026-12-29 23:59' | strip
+  assign lnp_int = settings.natal_int_limite | default: '2026-12-10 23:59' | strip
 
+  # «passou» = depois do minuto indicado, como LOD_NATAL.passou()
   assign lnp_t = lnp_acores | date: '%Y%m%d%H%M' | plus: 0
   assign lnp_p_acores = false
   if lnp_agora > lnp_t
@@ -121,6 +227,16 @@
   if lnp_agora > lnp_t
     assign lnp_p_reis = true
   endif
+  assign lnp_t = lnp_loja | date: '%Y%m%d%H%M' | plus: 0
+  assign lnp_p_loja = false
+  if lnp_agora > lnp_t
+    assign lnp_p_loja = true
+  endif
+  assign lnp_t = lnp_festas | date: '%Y%m%d%H%M' | plus: 0
+  assign lnp_p_festas = false
+  if lnp_agora > lnp_t
+    assign lnp_p_festas = true
+  endif
 
   # Peça disponível? (variante do URL ou a primeira disponível; o script acompanha a mudança de variante)
   assign lnp_disp = true
@@ -128,40 +244,73 @@
     assign lnp_disp = false
   endif
 
-  # Mensagem de entrega visível no servidor
+  # Mensagem de entrega visível no servidor (uma por versão e fase)
   assign lnp_v_natal = false
   assign lnp_v_ultima = false
   assign lnp_v_consoada = false
   assign lnp_v_mirra = false
-  case lnp_vf
-    when 'ouro', 'incenso'
-      assign lnp_v_natal = true
-    when 'ultima'
-      assign lnp_v_ultima = true
-    when 'consoada'
-      assign lnp_v_consoada = true
-    when 'mirra'
-      unless lnp_p_reis
-        assign lnp_v_mirra = true
-      endunless
+  assign lnp_v_navidad = false
+  assign lnp_v_reyes = false
+  assign lnp_v_reyes_ko = false
+  assign lnp_v_int = false
+  case lnp_versao
+    when 'pt'
+      case lnp_vf
+        when 'ouro', 'incenso'
+          assign lnp_v_natal = true
+        when 'ultima'
+          assign lnp_v_ultima = true
+        when 'consoada'
+          assign lnp_v_consoada = true
+        when 'mirra'
+          unless lnp_p_reis
+            assign lnp_v_mirra = true
+          endunless
+      endcase
+    when 'es'
+      case lnp_vf
+        when 'navidad'
+          assign lnp_v_navidad = true
+        when 'reyes'
+          assign lnp_v_reyes = true
+        when 'reyes_ultima'
+          assign lnp_v_reyes_ko = true
+      endcase
+    else
+      if lnp_vf == 'navidad'
+        assign lnp_v_int = true
+      endif
   endcase
   assign lnp_entrega = false
-  if lnp_v_natal or lnp_v_ultima or lnp_v_consoada or lnp_v_mirra
+  if lnp_v_natal or lnp_v_ultima or lnp_v_consoada or lnp_v_mirra or lnp_v_navidad or lnp_v_reyes or lnp_v_reyes_ko or lnp_v_int
     assign lnp_entrega = true
   endif
   if lnp_disp == false
     assign lnp_entrega = false
   endif
+  # Espanha, fase reyes: «já não chega para a Navidad» até 25 dez.; «as encomendas de hoje seguem a partir de…» de 24 dez., 13h, a 25 dez.
+  assign lnp_es_pausa = false
+  if lnp_p_loja and lnp_p_festas == false
+    assign lnp_es_pausa = true
+  endif
 
   # Gravação: «grave-o-seu-fio» primeiro (estes fios também estão em «para-gravacao»)
   assign lnp_grav = false
   assign lnp_grav_fio = false
-  if lnp_cols contains ',grave-o-seu-fio,'
+  if lnp_cols contains ',grave-o-seu-fio,' or lnp_cols contains ',677132960128,'
     assign lnp_grav = true
     assign lnp_grav_fio = true
-  elsif lnp_cols contains ',para-gravacao,'
+  elsif lnp_cols contains ',para-gravacao,' or lnp_cols contains ',693760852352,'
     assign lnp_grav = true
   endif
+  # Bloco de gravação: Portugal (as duas); Espanha (só a personalização na página); Internacional (nenhum)
+  assign lnp_grav_bloco = false
+  case lnp_versao
+    when 'pt'
+      assign lnp_grav_bloco = lnp_grav
+    when 'es'
+      assign lnp_grav_bloco = lnp_grav_fio
+  endcase
   assign lnp_g_peca = 'gravadas'
   if lnp_grav_fio
     assign lnp_g_peca = 'personalizadas'
@@ -182,25 +331,43 @@
   if lnp_vf == 'mirra'
     assign lnp_g_reis = true
   endif
+  # Espanha: aviso de mais dias nas peças personalizadas enquanto há prazos à vista
+  assign lnp_g_margem = false
+  if lnp_vf == 'navidad' or lnp_vf == 'reyes'
+    assign lnp_g_margem = true
+  endif
 
-  # «Sabia que?» (Dicionário do Ouro Português)
+  # «Sabia que?» (Dicionário do Ouro Português): Portugal e Espanha
+  assign lnp_sabia_k = ''
+  assign lnp_sabia_i = 'estrela'
+  if lnp_versao != 'int'
+    if lnp_cols contains ',coracoes-de-viana,' or lnp_cols contains ',699829682560,'
+      assign lnp_sabia_k = 'sabia_coracao'
+      assign lnp_sabia_i = 'coracao'
+    elsif lnp_cols contains ',contas-de-viana,' or lnp_cols contains ',677124899200,'
+      assign lnp_sabia_k = 'sabia_contas'
+    elsif lnp_cols contains ',filigrana,' or lnp_cols contains ',677118116224,' or lnp_cols contains ',tradicao-filigrana-prata,' or lnp_cols contains ',677124604288,'
+      assign lnp_sabia_k = 'sabia_filigrana'
+    endif
+  endif
   assign lnp_sabia_t = ''
   assign lnp_sabia = ''
-  assign lnp_sabia_i = 'estrela'
-  if lnp_cols contains ',coracoes-de-viana,'
-    assign lnp_sabia_t = 'Coração de Viana'
-    assign lnp_sabia = 'Símbolo de devoção ao Sagrado Coração de Jesus. Conta a tradição que nasceu de um pedido de D. Maria I.'
-    assign lnp_sabia_i = 'coracao'
-  elsif lnp_cols contains ',contas-de-viana,'
-    assign lnp_sabia_t = 'Contas de Viana'
-    assign lnp_sabia = 'Contas tradicionalmente feitas em ouro, uma das mais antigas tradições do Minho.'
-  elsif lnp_cols contains ',filigrana,' or lnp_cols contains ',tradicao-filigrana-prata,'
-    assign lnp_sabia_t = 'Filigrana'
-    assign lnp_sabia = 'A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais.'
+  if lnp_sabia_k != blank
+    assign lnp_k = lnp_sabia_k | append: '_t'
+    capture lnp_sabia_t
+      render 'lod-natal-t', k: lnp_k
+    endcapture
+    assign lnp_k = lnp_sabia_k
     # «trabalhado à mão» só em peças certificadas
-    if product.metafields.custom.filigrana_certificada.value == true
-      assign lnp_sabia = 'Fio de ouro ou prata, torcido e trabalhado à mão em curvas e espirais.'
+    if lnp_sabia_k == 'sabia_filigrana' and product.metafields.custom.filigrana_certificada.value == true
+      assign lnp_k = 'sabia_filigrana_mao'
     endif
+    capture lnp_sabia
+      render 'lod-natal-t', k: lnp_k
+    endcapture
+    capture t_sabia_que
+      render 'lod-natal-t', k: 'sabia_que'
+    endcapture
   endif
 
   # Painel vazio: peça esgotada e sem «Sabia que?»
@@ -209,15 +376,187 @@
     assign lnp_vazio = true
   endif
 
-  # WhatsApp (sem dados pessoais: só a peça e o link)
-  assign lnp_wa = settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+' | remove: '-'
-  assign lnp_url = shop.url | append: product.url
-  assign lnp_m_loja = 'Olá! Gostava de levantar esta peça numa loja antes do Natal: ' | append: product.title | append: ' ' | append: lnp_url
-  assign lnp_m_loja = lnp_m_loja | url_encode | replace: '+', '%20'
-  assign lnp_m_grav = 'Olá! Gostava de gravar a peça ' | append: product.title | append: ' para o Natal. ' | append: lnp_url
-  assign lnp_m_grav = lnp_m_grav | url_encode | replace: '+', '%20'
-  assign lnp_m_grav2 = 'Olá! Gostava de gravar a peça ' | append: product.title | append: '. ' | append: lnp_url
-  assign lnp_m_grav2 = lnp_m_grav2 | url_encode | replace: '+', '%20'
+  # Textos comuns
+  capture t_para_natal
+    render 'lod-natal-t', k: 'pdp_para_natal'
+  endcapture
+  capture t_embrulho
+    render 'lod-natal-t', k: 'embrulho_carrinho'
+  endcapture
+  capture t_dia_reis
+    render 'lod-natal-t', k: 'dia_de_reis'
+  endcapture
+
+  case lnp_versao
+    when 'pt'
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_continente, formato: 'longo'
+      endcapture
+      capture t_chegar_natal
+        render 'lod-natal-t', k: 'pdp_chegar_natal_html', v1: lnp_d
+      endcapture
+      capture t_ilhas
+        render 'lod-natal-t', k: 'pdp_prazos_ilhas'
+      endcapture
+      capture t_madeira
+        render 'lod-natal-t', k: 'linha_madeira'
+      endcapture
+      capture t_acores
+        render 'lod-natal-t', k: 'linha_acores'
+      endcapture
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_madeira, formato: 'longo'
+      endcapture
+      capture t_ate_madeira
+        render 'lod-natal-t', k: 'ate_html', v1: lnp_d
+      endcapture
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_acores, formato: 'longo'
+      endcapture
+      capture t_ate_acores
+        render 'lod-natal-t', k: 'ate_html', v1: lnp_d
+      endcapture
+      capture t_natal_terminado
+        render 'lod-natal-t', k: 'prazo_natal_terminado'
+      endcapture
+      capture t_nota_n
+        render 'lod-natal-t', k: 'pdp_nota_23h59'
+      endcapture
+      capture t_nota_1
+        render 'lod-natal-t', k: 'pdp_nota_23h59_1'
+      endcapture
+      capture t_ultima_hora
+        render 'lod-natal-t', k: 'ultima_hora'
+      endcapture
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_loja, formato: 'hora'
+      endcapture
+      capture t_levantar
+        render 'lod-natal-t', k: 'pdp_levantar_html', v1: lnp_d
+      endcapture
+      capture t_reservar_wa
+        render 'lod-natal-t', k: 'reservar_whatsapp'
+      endcapture
+      capture t_abre_janela
+        render 'lod-natal-t', k: 'abre_janela'
+      endcapture
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_retoma, formato: 'longo'
+      endcapture
+      capture t_consoada
+        render 'lod-natal-t', k: 'pdp_consoada_html', v1: lnp_d
+      endcapture
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_reis, formato: 'longo'
+      endcapture
+      capture t_reis
+        render 'lod-natal-t', k: 'pdp_reis_html', v1: lnp_d
+      endcapture
+    when 'es'
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_es_navidad, formato: 'longo'
+      endcapture
+      assign tx_es_navidad = tx_es_navidad | replace: '{1}', lnp_d
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_es_reyes, formato: 'longo'
+      endcapture
+      assign tx_es_reyes_tb = tx_es_reyes_tb | replace: '{1}', lnp_d
+      assign tx_es_reyes = tx_es_reyes | replace: '{1}', lnp_d
+      capture t_esp_nota
+        render 'lod-natal-t', k: 'prazos_indicativos'
+      endcapture
+      capture t_esp_reyes_ko
+        render 'lod-natal-t', k: 'esp_reyes_ko'
+      endcapture
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_retoma, formato: 'longo'
+      endcapture
+      capture t_consoada
+        render 'lod-natal-t', k: 'pdp_consoada_html', v1: lnp_d
+      endcapture
+    else
+      capture lnp_d
+        render 'lod-natal-data', valor: lnp_int, formato: 'longo'
+      endcapture
+      assign tx_int = tx_int | replace: '{1}', lnp_d
+  endcase
+
+  if lnp_grav_bloco
+    capture t_grave_natal
+      render 'lod-natal-t', k: 'grave_natal'
+    endcapture
+    capture t_grave
+      render 'lod-natal-t', k: 'grave'
+    endcapture
+    capture t_grav_fio
+      render 'lod-natal-t', k: 'grav_fio'
+    endcapture
+    assign lnp_k = 'grav_sem_troca_' | append: lnp_g_peca
+    capture t_sem_troca
+      render 'lod-natal-t', k: lnp_k
+    endcapture
+  endif
+  if lnp_versao == 'pt' and lnp_grav
+    # «Natal 2026» / «Reis 2027» com as aspas da língua
+    assign lnp_q1 = '«'
+    assign lnp_q2 = '»'
+    if lnp_lg == 'en'
+      assign lnp_q1 = '“'
+      assign lnp_q2 = '”'
+    endif
+    capture t_natal_ano
+      render 'lod-natal-t', k: 'natal_ano'
+    endcapture
+    capture t_reis_ano
+      render 'lod-natal-t', k: 'reis_ano'
+    endcapture
+    capture lnp_d
+      render 'lod-natal-data', valor: lnp_gravacao, formato: 'longo'
+    endcapture
+    capture t_grav_prazo
+      render 'lod-natal-t', k: 'grav_prazo_html', v1: lnp_d
+    endcapture
+    capture lnp_d
+      render 'lod-natal-data', valor: lnp_gravacao, formato: 'curto'
+    endcapture
+    assign lnp_k = 'grav_terminou_' | append: lnp_g_peca
+    capture t_grav_terminou
+      render 'lod-natal-t', k: lnp_k, v1: lnp_d
+    endcapture
+    capture t_grav_wa
+      render 'lod-natal-t', k: 'gravacao_whatsapp'
+    endcapture
+    capture t_abre_janela
+      render 'lod-natal-t', k: 'abre_janela'
+    endcapture
+  endif
+  if lnp_versao == 'pt' and settings.natal_mostrar_trocas and lnp_grav == false
+    capture lnp_d
+      render 'lod-natal-data', valor: lnp_trocas, formato: 'ano'
+    endcapture
+    capture t_trocas
+      render 'lod-natal-t', k: 'trocas_ate_html', v1: lnp_d
+    endcapture
+  endif
+
+  # WhatsApp (só Portugal; sem dados pessoais: só a peça e o link), na língua da página
+  if lnp_versao == 'pt'
+    assign lnp_wa = settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+' | remove: '-'
+    assign lnp_url = shop.url | append: product.url
+    assign lnp_tu = product.title | append: ' ' | append: lnp_url
+    capture lnp_m_loja
+      render 'lod-natal-t', k: 'wa_pdp_loja', v1: lnp_tu
+    endcapture
+    assign lnp_m_loja = lnp_m_loja | url_encode | replace: '+', '%20'
+    capture lnp_m_grav
+      render 'lod-natal-t', k: 'wa_pdp_grav', v1: product.title, v2: lnp_url
+    endcapture
+    assign lnp_m_grav = lnp_m_grav | url_encode | replace: '+', '%20'
+    capture lnp_m_grav2
+      render 'lod-natal-t', k: 'wa_pdp_grav2', v1: product.title, v2: lnp_url
+    endcapture
+    assign lnp_m_grav2 = lnp_m_grav2 | url_encode | replace: '+', '%20'
+  endif
 -%}
 
 <style>
@@ -250,109 +589,161 @@
   }
 </style>
 
-<div class="lnat lnat-pdp" data-lnat-pdp data-lnp-disp="{{ lnp_disp }}"{% if lnp_esconder or lnp_vazio %} hidden{% endif %}>
+<div class="lnat lnat-pdp" data-lnat-pdp data-lnp-versao="{{ lnp_versao }}" data-lnp-disp="{{ lnp_disp }}"{% if lnp_esconder or lnp_vazio %} hidden{% endif %}>
   {%- if lnp_nota -%}
-    <p class="lnat-pdp__nota">Pré-visualização no editor · visível a partir de {% render 'lod-natal-data', valor: lnp_inicio, formato: 'curto' %}</p>
+    <p class="lnat-pdp__nota">Pré-visualização no editor ({{ lnp_versao }}) · visível a partir de {% render 'lod-natal-data', valor: lnp_inicio, formato: 'curto', lingua: 'pt' %}</p>
   {%- endif -%}
 
-  {%- comment -%} 1 · Entrega para o Natal (prazos sempre indicativos) {%- endcomment -%}
+  {%- comment -%} 1 · Entrega (prazos sempre indicativos) {%- endcomment -%}
   <div class="lnat-pdp__linha" data-lnp-grupo{% unless lnp_entrega %} hidden{% endunless %}>
-    <div class="lnat-pdp__var" data-lnp-fases="ouro incenso"{% unless lnp_v_natal %} hidden{% endunless %}>
-      {%- render 'lod-natal-icon', nome: 'sapatinho', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
-      <div class="lnat-pdp__corpo">
-        <p class="lnat-pdp__eb">Para o Natal</p>
-        <p><strong>Para chegar antes do Natal</strong>, encomende até <strong>{% render 'lod-natal-data', valor: lnp_continente, formato: 'longo' %}</strong> (Portugal continental).</p>
-        <details class="lnat-pdp__det">
-          <summary>Prazos para Madeira e Açores</summary>
-          <ul class="lnat-pdp__ilhas">
-            <li data-lnp-ilha data-valor="{{ lnp_madeira | escape }}">Madeira: <span data-lnp-sim{% if lnp_p_madeira %} hidden{% endif %}>até <strong>{% render 'lod-natal-data', valor: lnp_madeira, formato: 'longo' %}</strong></span><span data-lnp-nao{% unless lnp_p_madeira %} hidden{% endunless %}>prazo de Natal terminado</span></li>
-            <li data-lnp-ilha data-valor="{{ lnp_acores | escape }}">Açores: <span data-lnp-sim{% if lnp_p_acores %} hidden{% endif %}>até <strong>{% render 'lod-natal-data', valor: lnp_acores, formato: 'longo' %}</strong></span><span data-lnp-nao{% unless lnp_p_acores %} hidden{% endunless %}>prazo de Natal terminado</span></li>
-          </ul>
-        </details>
-        <p class="lnat-pdp__peq">Prazos indicativos, para encomendas pagas até às 23h59 do dia indicado.</p>
-      </div>
-    </div>
+    {%- case lnp_versao -%}
+      {%- when 'pt' -%}
+        <div class="lnat-pdp__var" data-lnp-fases="ouro incenso"{% unless lnp_v_natal %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'sapatinho', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p class="lnat-pdp__eb">{{ t_para_natal }}</p>
+            <p>{{ t_chegar_natal }}</p>
+            <details class="lnat-pdp__det">
+              <summary>{{ t_ilhas }}</summary>
+              <ul class="lnat-pdp__ilhas">
+                <li data-lnp-ilha data-valor="{{ lnp_madeira | escape }}">{{ t_madeira }}: <span data-lnp-sim{% if lnp_p_madeira %} hidden{% endif %}>{{ t_ate_madeira }}</span><span data-lnp-nao{% unless lnp_p_madeira %} hidden{% endunless %}>{{ t_natal_terminado }}</span></li>
+                <li data-lnp-ilha data-valor="{{ lnp_acores | escape }}">{{ t_acores }}: <span data-lnp-sim{% if lnp_p_acores %} hidden{% endif %}>{{ t_ate_acores }}</span><span data-lnp-nao{% unless lnp_p_acores %} hidden{% endunless %}>{{ t_natal_terminado }}</span></li>
+              </ul>
+            </details>
+            <p class="lnat-pdp__peq">{{ t_nota_n }}</p>
+          </div>
+        </div>
 
-    <div class="lnat-pdp__var" data-lnp-fases="ultima"{% unless lnp_v_ultima %} hidden{% endunless %}>
-      {%- render 'lod-natal-icon', nome: 'porta', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
-      <div class="lnat-pdp__corpo">
-        <p class="lnat-pdp__eb">Última hora</p>
-        <p>Para o Natal, levante esta peça numa das nossas lojas, com marcação, até <strong>{% render 'lod-natal-data', valor: lnp_loja, formato: 'hora' %}</strong>.</p>
-        <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_loja }}" target="_blank" rel="noopener" data-lnp-wa>
-          {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
-          <span>Reservar por WhatsApp</span><span class="lnat-sr"> (abre noutra janela)</span>
-        </a>
-      </div>
-    </div>
+        <div class="lnat-pdp__var" data-lnp-fases="ultima"{% unless lnp_v_ultima %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'porta', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p class="lnat-pdp__eb">{{ t_ultima_hora }}</p>
+            <p>{{ t_levantar }}</p>
+            <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_loja }}" target="_blank" rel="noopener" data-lnp-wa>
+              {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
+              <span>{{ t_reservar_wa }}</span><span class="lnat-sr"> {{ t_abre_janela }}</span>
+            </a>
+          </div>
+        </div>
 
-    <div class="lnat-pdp__var" data-lnp-fases="consoada"{% unless lnp_v_consoada %} hidden{% endunless %}>
-      {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
-      <div class="lnat-pdp__corpo">
-        <p><strong>Boas Festas!</strong> As encomendas feitas hoje seguem a partir de <strong>{% render 'lod-natal-data', valor: lnp_retoma, formato: 'longo' %}</strong>.</p>
-      </div>
-    </div>
+        <div class="lnat-pdp__var" data-lnp-fases="consoada"{% unless lnp_v_consoada %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p>{{ t_consoada }}</p>
+          </div>
+        </div>
 
-    <div class="lnat-pdp__var" data-lnp-fases="mirra" data-lnp-ate="reis"{% unless lnp_v_mirra %} hidden{% endunless %}>
-      {%- render 'lod-natal-icon', nome: 'coroa', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
-      <div class="lnat-pdp__corpo">
-        <p class="lnat-pdp__eb">Dia de Reis</p>
-        <p><strong>Para chegar a tempo dos Reis</strong>, encomende até <strong>{% render 'lod-natal-data', valor: lnp_reis, formato: 'longo' %}</strong> (Portugal continental).</p>
-        <p class="lnat-pdp__peq">Prazo indicativo, para encomendas pagas até às 23h59 do dia indicado.</p>
-      </div>
-    </div>
+        <div class="lnat-pdp__var" data-lnp-fases="mirra" data-lnp-ate="reis"{% unless lnp_v_mirra %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'coroa', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p class="lnat-pdp__eb">{{ t_dia_reis }}</p>
+            <p>{{ t_reis }}</p>
+            <p class="lnat-pdp__peq">{{ t_nota_1 }}</p>
+          </div>
+        </div>
+
+      {%- when 'es' -%}
+        <div class="lnat-pdp__var" data-lnp-fases="navidad"{% unless lnp_v_navidad %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'sapatinho', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p class="lnat-pdp__eb">{{ t_para_natal }}</p>
+            <p>{{ tx_es_navidad }}</p>
+            <p>{{ tx_es_reyes_tb }}</p>
+            <p class="lnat-pdp__peq">{{ t_esp_nota }}</p>
+          </div>
+        </div>
+
+        <div class="lnat-pdp__var" data-lnp-fases="reyes"{% unless lnp_v_reyes %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'coroa', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p class="lnat-pdp__eb">{{ t_dia_reis }}</p>
+            <p data-lnp-fases="reyes" data-lnp-desde="loja" data-lnp-ate="festas"{% unless lnp_es_pausa %} hidden{% endunless %}>{{ t_consoada }}</p>
+            <p>{{ tx_es_reyes }}</p>
+            <p class="lnat-pdp__peq"><span data-lnp-fases="reyes" data-lnp-ate="festas"{% if lnp_p_festas %} hidden{% endif %}>{{ tx_navidad_ko }} </span>{{ t_esp_nota }}</p>
+          </div>
+        </div>
+
+        <div class="lnat-pdp__var" data-lnp-fases="reyes_ultima"{% unless lnp_v_reyes_ko %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'coroa', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p class="lnat-pdp__eb">{{ t_dia_reis }}</p>
+            <p>{{ t_esp_reyes_ko }}</p>
+          </div>
+        </div>
+
+      {%- else -%}
+        <div class="lnat-pdp__var" data-lnp-fases="navidad"{% unless lnp_v_int %} hidden{% endunless %}>
+          {%- render 'lod-natal-icon', nome: 'sapatinho', tamanho: 30, traco: 2.2, classe: 'lnat-pdp__ico' -%}
+          <div class="lnat-pdp__corpo">
+            <p class="lnat-pdp__eb">{{ t_para_natal }}</p>
+            <p>{{ tx_int }}</p>
+            <p class="lnat-pdp__peq">{{ tx_int_nota }}</p>
+            {%- if lnp_grav_fio -%}
+              <p class="lnat-pdp__peq">{{ tx_grav_margem }}</p>
+            {%- endif -%}
+          </div>
+        </div>
+    {%- endcase -%}
   </div>
 
-  {%- comment -%} 2 · Gravação («grave-o-seu-fio»: opções da página; «para-gravacao»: equipa, por WhatsApp) {%- endcomment -%}
-  {%- if lnp_grav -%}
+  {%- comment -%} 2 · Gravação (Portugal: «grave-o-seu-fio» nas opções da página e «para-gravacao» por WhatsApp; Espanha: só a primeira) {%- endcomment -%}
+  {%- if lnp_grav_bloco -%}
     <div class="lnat-pdp__linha" data-lnp-stock{% unless lnp_disp %} hidden{% endunless %}>
       <svg class="lnat-ico lnat-pdp__ico" viewBox="0 0 64 64" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 50L40 24"/><path d="M40 24L46 14L50 18L40 24"/><path d="M10 54H24"/><path d="M47 37C47.6 39.4 48.6 40.4 51 41C48.6 41.6 47.6 42.6 47 45C46.4 42.6 45.4 41.6 43 41C45.4 40.4 46.4 39.4 47 37Z"/></svg>
       <div class="lnat-pdp__corpo">
-        <p class="lnat-pdp__titulo" data-lnp-fases="ouro incenso" data-lnp-ate="gravacao"{% unless lnp_g_natal %} hidden{% endunless %}>Grave uma lembrança de Natal</p>
-        <p class="lnat-pdp__titulo" data-lnp-senao{% if lnp_g_natal %} hidden{% endif %}>Grave uma lembrança</p>
-        <p>
-          {%- if lnp_grav_fio -%}
-            Personalize esta peça nas opções desta página, antes de a juntar ao carrinho.
-          {%- else -%}
-            Esta peça pode ser gravada pela nossa equipa, com orçamento por WhatsApp: um nome, uma data ou <span data-lnp-fases="ouro incenso ultima consoada"{% if lnp_g_reis %} hidden{% endif %}>«Natal 2026»</span><span data-lnp-senao{% unless lnp_g_reis %} hidden{% endunless %}>«Reis 2027»</span>.
-          {%- endif -%}
-          <span data-lnp-fases="ouro incenso" data-lnp-ate="gravacao"{% unless lnp_g_natal %} hidden{% endunless %}> Para chegar antes do Natal, encomende até <strong>{% render 'lod-natal-data', valor: lnp_gravacao, formato: 'longo' %}</strong> (prazo indicativo).</span>
-          <span data-lnp-fases="ouro incenso ultima" data-lnp-desde="gravacao"{% unless lnp_g_fim %} hidden{% endunless %}> O prazo indicativo das peças {{ lnp_g_peca }} para o Natal terminou a {% render 'lod-natal-data', valor: lnp_gravacao, formato: 'curto' %}.</span>
-        </p>
-        {%- unless lnp_grav_fio -%}
-          <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_grav }}" target="_blank" rel="noopener" data-lnp-wa data-lnp-fases="ouro incenso" data-lnp-ate="gravacao"{% unless lnp_g_natal %} hidden{% endunless %}>
-            {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
-            <span>Gravação por WhatsApp</span><span class="lnat-sr"> (abre noutra janela)</span>
-          </a>
-          <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_grav2 }}" target="_blank" rel="noopener" data-lnp-wa data-lnp-senao{% if lnp_g_natal %} hidden{% endif %}>
-            {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
-            <span>Gravação por WhatsApp</span><span class="lnat-sr"> (abre noutra janela)</span>
-          </a>
-        {%- endunless -%}
-        <p class="lnat-pdp__peq">Peças {{ lnp_g_peca }} são feitas para si: não têm troca nem devolução, salvo defeito.</p>
+        {%- if lnp_versao == 'pt' -%}
+          <p class="lnat-pdp__titulo" data-lnp-fases="ouro incenso" data-lnp-ate="gravacao"{% unless lnp_g_natal %} hidden{% endunless %}>{{ t_grave_natal }}</p>
+          <p class="lnat-pdp__titulo" data-lnp-senao{% if lnp_g_natal %} hidden{% endif %}>{{ t_grave }}</p>
+          <p>
+            {%- if lnp_grav_fio -%}
+              {{ t_grav_fio }}
+            {%- else -%}
+              {%- capture lnp_g_v1 -%}<span data-lnp-fases="ouro incenso ultima consoada"{% if lnp_g_reis %} hidden{% endif %}>{{ lnp_q1 }}{{ t_natal_ano }}{{ lnp_q2 }}</span><span data-lnp-senao{% unless lnp_g_reis %} hidden{% endunless %}>{{ lnp_q1 }}{{ t_reis_ano }}{{ lnp_q2 }}</span>{%- endcapture -%}
+              {%- render 'lod-natal-t', k: 'grav_equipa', v1: lnp_g_v1 -%}
+            {%- endif -%}
+            <span data-lnp-fases="ouro incenso" data-lnp-ate="gravacao"{% unless lnp_g_natal %} hidden{% endunless %}> {{ t_grav_prazo }}</span>
+            <span data-lnp-fases="ouro incenso ultima" data-lnp-desde="gravacao"{% unless lnp_g_fim %} hidden{% endunless %}> {{ t_grav_terminou }}</span>
+          </p>
+          {%- unless lnp_grav_fio -%}
+            <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_grav }}" target="_blank" rel="noopener" data-lnp-wa data-lnp-fases="ouro incenso" data-lnp-ate="gravacao"{% unless lnp_g_natal %} hidden{% endunless %}>
+              {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
+              <span>{{ t_grav_wa }}</span><span class="lnat-sr"> {{ t_abre_janela }}</span>
+            </a>
+            <a class="lnat-btn lnat-btn--contorno lnat-pdp__btn" href="https://wa.me/{{ lnp_wa }}?text={{ lnp_m_grav2 }}" target="_blank" rel="noopener" data-lnp-wa data-lnp-senao{% if lnp_g_natal %} hidden{% endif %}>
+              {%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}
+              <span>{{ t_grav_wa }}</span><span class="lnat-sr"> {{ t_abre_janela }}</span>
+            </a>
+          {%- endunless -%}
+        {%- else -%}
+          <p class="lnat-pdp__titulo">{{ t_grave }}</p>
+          <p>{{ t_grav_fio }}</p>
+          <p class="lnat-pdp__peq" data-lnp-fases="navidad reyes"{% unless lnp_g_margem %} hidden{% endunless %}>{{ tx_grav_margem }}</p>
+        {%- endif -%}
+        <p class="lnat-pdp__peq">{{ t_sem_troca }}</p>
       </div>
     </div>
   {%- endif -%}
 
-  {%- comment -%} 3 · Embrulho {%- endcomment -%}
+  {%- comment -%} 3 · Embrulho (todas as versões) {%- endcomment -%}
   <p class="lnat-pdp__linha lnat-pdp__mini" data-lnp-stock{% unless lnp_disp %} hidden{% endunless %}>
     {%- render 'lod-natal-icon', nome: 'laco', tamanho: 28, traco: 2.2, classe: 'lnat-pdp__ico' -%}
-    <span>Embrulho de oferta e mensagem: escolha no carrinho.</span>
+    <span>{{ t_embrulho }}</span>
   </p>
 
-  {%- comment -%} 4 · Trocas de Natal (só depois de aprovadas) {%- endcomment -%}
-  {%- if settings.natal_mostrar_trocas and lnp_grav == false -%}
+  {%- comment -%} 4 · Trocas de Natal (só Portugal, e só depois de aprovadas) {%- endcomment -%}
+  {%- if lnp_versao == 'pt' and settings.natal_mostrar_trocas and lnp_grav == false -%}
     <p class="lnat-pdp__linha lnat-pdp__mini" data-lnp-stock{% unless lnp_disp %} hidden{% endunless %}>
       <svg class="lnat-ico lnat-pdp__ico" viewBox="0 0 64 64" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 30C14 20 22 12 32 12C40 12 46 16 49 22"/><path d="M50 12V23H39"/><path d="M50 34C50 44 42 52 32 52C24 52 18 48 15 42"/><path d="M14 52V41H25"/></svg>
-      <span>Trocas de Natal até <strong>{% render 'lod-natal-data', valor: lnp_trocas, formato: 'ano' %}</strong>, com talão de oferta.</span>
+      <span>{{ t_trocas }}</span>
     </p>
   {%- endif -%}
 
-  {%- comment -%} 5 · Sabia que? {%- endcomment -%}
+  {%- comment -%} 5 · Sabia que? (Portugal e Espanha) {%- endcomment -%}
   {%- if lnp_sabia != blank -%}
     <div class="lnat-pdp__linha">
       {%- render 'lod-natal-icon', nome: lnp_sabia_i, tamanho: 28, traco: 2.2, classe: 'lnat-pdp__ico' -%}
       <div class="lnat-pdp__corpo">
-        <p class="lnat-pdp__eb">Sabia que?</p>
+        <p class="lnat-pdp__eb">{{ t_sabia_que }}</p>
         <p><span class="lnat-pdp__termo">{{ lnp_sabia_t }}.</span> {{ lnp_sabia }}</p>
       </div>
     </div>
@@ -361,15 +752,18 @@
 
 <script>
 (function () {
-  var ATIVAS = ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'];
+  // Fases em que o painel aparece, por versão (iguais às de lod-natal-fase / LOD_NATAL.fase(versao))
+  var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'], int: ['navidad'] };
   function aplicar(root) {
     var N = window.LOD_NATAL;
     if (!root || !N || !N.fase) return;
     var design = !!(window.Shopify && Shopify.designMode);
-    var f = N.fase();
-    if (ATIVAS.indexOf(f) < 0) {
+    var v = root.getAttribute('data-lnp-versao') || N.versao || 'pt';
+    if (!ATIVAS[v]) v = 'int';
+    var f = N.fase(v);
+    if (ATIVAS[v].indexOf(f) < 0) {
       if (!design) { root.hidden = true; return; }
-      f = 'ouro';
+      f = ATIVAS[v][0];
     }
     var disp = root.getAttribute('data-lnp-disp') !== 'false';
     function data(nome) { return nome && N.d ? N.d[nome] : null; }
@@ -392,7 +786,7 @@
       if (nao) nao.hidden = !p;
     });
     root.querySelectorAll('[data-lnp-grupo]').forEach(function (g) {
-      g.hidden = !disp || !g.querySelector('[data-lnp-fases]:not([hidden])');
+      g.hidden = !disp || !g.querySelector('.lnat-pdp__var:not([hidden])');
     });
     root.querySelectorAll('[data-lnp-stock]').forEach(function (el) { el.hidden = !disp; });
     root.hidden = !root.querySelector('.lnat-pdp__nota, .lnat-pdp__linha:not([hidden])');

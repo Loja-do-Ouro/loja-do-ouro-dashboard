@@ -1,0 +1,104 @@
+{
+  "type": "lod-natal-tres-presentes",
+  "settings": {
+    "eyebrow": "Ouro, incenso e mirra",
+    "titulo": "Três presentes para o Dia de Reis.",
+    "lead": "Conta o Evangelho de São Mateus que os Magos ofereceram ouro, incenso e mirra. Até ao Dia de Reis, cuidamos das suas prendas com o mesmo esmero.",
+    "azulejo": true,
+    "embrulho_titulo": "Embrulho e mensagem",
+    "embrulho_1": "saco-prenda",
+    "embrulho_1_texto": "",
+    "embrulho_2": "wrap",
+    "embrulho_2_texto": "",
+    "embrulho_3": "envie-uma-mensagem",
+    "embrulho_3_texto": "",
+    "embrulho_nota": "Escolha no carrinho, antes de finalizar a encomenda. Também podemos enviar diretamente para quem recebe: indique essa morada no checkout.",
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "Gold, frankincense and myrrh",
+    "titulo_en": "Three gifts for Three Kings’ Day.",
+    "lead_en": "St Matthew’s Gospel tells us that the Magi offered gold, frankincense and myrrh. All the way to Three Kings’ Day, we look after your gifts with the same care.",
+    "embrulho_titulo_en": "Gift wrapping and message",
+    "embrulho_nota_en": "Choose them in your bag before you check out. We can also send the gift straight to the recipient: just enter their address at checkout.",
+    "eyebrow_es": "Oro, incienso y mirra",
+    "titulo_es": "Tres regalos para el Día de Reyes.",
+    "lead_es": "Cuenta el Evangelio de san Mateo que los Magos ofrecieron oro, incienso y mirra. Hasta el Día de Reyes, cuidamos sus regalos con el mismo esmero.",
+    "embrulho_titulo_es": "Envoltorio y mensaje",
+    "embrulho_nota_es": "Elíjalos en la cesta antes de finalizar su pedido. También podemos enviar el regalo directamente a quien lo recibe: indique esa dirección al tramitar el pedido."
+  },
+  "blocks": {
+    "presente_ouro": {
+      "type": "presente",
+      "settings": {
+        "icone": "ouro",
+        "numeral": "I",
+        "eyebrow": "Ouro",
+        "titulo": "Escolher",
+        "texto": "O primeiro dos três presentes, digno de um rei. Joias em ouro português de 19,2 quilates, contrastadas, para quem mais gosta.",
+        "texto_trocas": "",
+        "imagem_alt": "",
+        "link_texto": "Ver ouro tradicional",
+        "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
+        "abre_embrulho": false,
+        "eyebrow_en": "Gold",
+        "titulo_en": "Choose",
+        "texto_en": "The first of the three gifts, fit for a king. Jewellery in 19.2-carat Portuguese gold, hallmarked, for the people you love most.",
+        "link_texto_en": "See traditional gold",
+        "eyebrow_es": "Oro",
+        "titulo_es": "Elegir",
+        "texto_es": "El primero de los tres regalos, digno de un rey. Joyas de oro portugués de 19,2 quilates, contrastadas, para las personas que más quiere.",
+        "link_texto_es": "Ver oro tradicional"
+      }
+    },
+    "presente_incenso": {
+      "type": "presente",
+      "settings": {
+        "icone": "incenso",
+        "numeral": "II",
+        "eyebrow": "Incenso",
+        "titulo": "Embrulhar",
+        "texto": "Saco de oferta, Pack Premium e uma mensagem escrita por si — escolha no carrinho. Também enviamos diretamente para quem recebe.",
+        "texto_trocas": "",
+        "imagem_alt": "",
+        "link_texto": "Ver opções de embrulho",
+        "link_url": "/cart",
+        "abre_embrulho": true,
+        "eyebrow_en": "Frankincense",
+        "titulo_en": "Wrap",
+        "texto_en": "A gift bag, the Premium Pack and a message written by you: choose them before you check out. We can also send the gift straight to the recipient.",
+        "link_texto_en": "See gift wrapping options",
+        "eyebrow_es": "Incienso",
+        "titulo_es": "Envolver",
+        "texto_es": "Bolsa de regalo, Pack Premium y un mensaje escrito por usted: elíjalos en la cesta. También enviamos el regalo directamente a quien lo recibe.",
+        "link_texto_es": "Ver opciones de envoltorio"
+      }
+    },
+    "presente_mirra": {
+      "type": "presente",
+      "settings": {
+        "icone": "mirra",
+        "numeral": "III",
+        "eyebrow": "Mirra",
+        "titulo": "Cuidar",
+        "texto": "Estamos ao seu dispor por WhatsApp para o que precisar. Em caso de defeito, aplica-se a garantia legal de 3 anos.",
+        "texto_trocas": "",
+        "imagem_alt": "",
+        "link_texto": "Fale connosco",
+        "link_url": "/pages/contact",
+        "abre_embrulho": false,
+        "eyebrow_en": "Myrrh",
+        "titulo_en": "Care",
+        "texto_en": "We are here to help via WhatsApp, whatever you need. If a piece is faulty, the 3-year legal guarantee applies.",
+        "link_texto_en": "Contact us",
+        "eyebrow_es": "Mirra",
+        "titulo_es": "Cuidar",
+        "texto_es": "Le atendemos por WhatsApp para lo que necesite. Si una pieza tiene algún defecto, se aplica la garantía legal de 3 años.",
+        "link_texto_es": "Contacte con nosotros"
+      }
+    }
+  },
+  "block_order": [
+    "presente_ouro",
+    "presente_incenso",
+    "presente_mirra"
+  ]
+}

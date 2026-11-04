@@ -1,28 +1,58 @@
 {%- comment -%}
-  Natal 2026 · Ouro de Reis — banner principal.
+  Natal 2026 · Ouro de Reis — banner principal (Portugal «Ouro de Reis», Espanha «Oro de Reyes», Internacional).
   Fotografia + cartão em vidro (estilo do banner «O universo do ouro»), com a mensagem de cada fase.
-  Esquemas: «foto-esquerda» (a foto ocupa ~2/3 e o cartão fica sobre a continuação desfocada da foto;
+  Esquemas: «foto-esquerda» (a foto ocupa ~2/3 e o cartão fica sobre um fundo neutro, do tom quente da foto ao verde;
   não tapa ninguém) e «foto-inteira» (foto a toda a largura e cartão por cima, como no banner do ouro).
 
-  Mensagens (blocos «fase»): aparece o PRIMEIRO bloco ligado cuja fase é a atual e que está dentro das suas
-  datas («Mostrar a partir de» / «Mostrar até»). As datas aceitam «AAAA-MM-DD HH:MM» (hora de Lisboa) ou o nome
-  de uma data das definições do Natal (inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma,
-  reis, fim, trocas), com a mesma regra da barra: num «a partir de», um prazo quer dizer «depois desse prazo»;
-  num «até», um início (inicio, fase2, loja, retoma) quer dizer «até ao minuto antes».
+  Línguas e mercados (contrato: scratchpad/natal/i18n-contrato.md):
+  - A língua da página (pt | en | es; outra língua → en) escolhe os textos: cada texto tem o campo base em português
+    e os campos _en e _es; um campo _en/_es vazio usa o campo base (ou a tradução da app Translate & Adapt).
+  - O mercado escolhe a versão (pt | es | int) e as fases: Portugal ouro, incenso, ultima, consoada, mirra;
+    Espanha navidad, reyes, reyes_ultima, noche_reyes; Internacional navidad. A secção só aparece nas fases da versão.
+  - Cada bloco tem um «Mercado» (todos, pt, es, int): um bloco de outro mercado nunca aparece (nem vai para a página).
+  - Ligações começadas por «/» ganham o prefixo da língua e do mercado (routes.root_url: /en, /es, /pt-pt…);
+    na página inicial, «/#ancora» passa a «#ancora» (a mesma página).
+
+  Mensagens (blocos «fase»): aparece o PRIMEIRO bloco ligado, do mercado da página, cuja fase é a atual e que está
+  dentro das suas datas («Mostrar a partir de» / «Mostrar até»). As datas aceitam «AAAA-MM-DD HH:MM» (hora de Lisboa)
+  ou o nome de uma data das definições do Natal (inicio, fase2, acores, madeira, gravacao, continente, loja, festas,
+  retoma, reis, fim, trocas, es_navidad, es_reyes, es_noche, int), com a mesma regra da barra: num «a partir de», um
+  prazo quer dizer «depois desse prazo»; num «até», um início (inicio, fase2, loja, retoma, es_noche) quer dizer
+  «até ao minuto antes».
   Ex.: na fase mirra, um bloco «até reis» (ainda a tempo dos Reis) e outro «a partir de reis» (levantar na loja).
   O botão secundário pode ter uma alternativa com datas próprias (ex.: «Luz de Ano Novo» só de 28 a 31 dez.).
   O servidor escolhe com a data do servidor (ou a simulada fora do tema publicado); o navegador volta a escolher
   com window.LOD_NATAL (página em cache, ?natal_data=) e repete a cada 30 s.
 {%- endcomment -%}
 {%- liquid
+  # Língua da página, versão da campanha do mercado da visita e fase dessa versão
+  capture lnat_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_lg = lnat_lg | strip
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnat_versao = lnat_versao | strip
   capture lnat_fase
-    render 'lod-natal-fase'
+    render 'lod-natal-fase', mercado: 'auto'
   endcapture
   assign lnat_fase = lnat_fase | strip
-  assign mostrar = true
-  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
-    assign mostrar = false
+  case lnat_versao
+    when 'es'
+      assign fases_versao = ',navidad,reyes,reyes_ultima,noche_reyes,'
+    when 'int'
+      assign fases_versao = ',navidad,'
+    else
+      assign lnat_versao = 'pt'
+      assign fases_versao = ',ouro,incenso,ultima,consoada,mirra,'
+  endcase
+  assign k_fase = ',' | append: lnat_fase | append: ','
+  assign fase_ativa = false
+  if fases_versao contains k_fase
+    assign fase_ativa = true
   endif
+  assign mostrar = fase_ativa
   if request.design_mode
     assign mostrar = true
   endif
@@ -30,24 +60,32 @@
   # Datas das definições (com os mesmos valores por omissão de lod-natal-config)
   assign v_inicio = settings.natal_inicio | default: '2026-12-01 00:00' | strip
   assign v_fase2 = settings.natal_fase2_inicio | default: '2026-12-14 00:00' | strip
-  assign v_acores = settings.natal_limite_acores | default: '2026-12-04 23:59' | strip
-  assign v_madeira = settings.natal_limite_madeira | default: '2026-12-11 23:59' | strip
+  assign v_acores = settings.natal_limite_acores | default: '2026-12-14 23:59' | strip
+  assign v_madeira = settings.natal_limite_madeira | default: '2026-12-14 23:59' | strip
   assign v_gravacao = settings.natal_limite_gravacao | default: '2026-12-16 23:59' | strip
-  assign v_cont = settings.natal_limite_continente | default: '2026-12-18 23:59' | strip
+  assign v_cont = settings.natal_limite_continente | default: '2026-12-20 23:59' | strip
   assign v_loja = settings.natal_limite_loja | default: '2026-12-24 13:00' | strip
   assign v_festas = settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | strip
   assign v_retoma = settings.natal_retoma_envios | default: '2026-12-28' | strip
   assign v_reis = settings.natal_limite_reis | default: '2026-12-30 23:59' | strip
   assign v_fim = settings.natal_fim | default: '2027-01-06 23:59' | strip
   assign v_trocas = settings.natal_trocas_ate | default: '2027-01-15' | strip
-  assign k_nomes = 'inicio,fase2,acores,madeira,gravacao,continente,loja,festas,retoma,reis,fim,trocas' | split: ','
-  assign k_inst = ',inicio,fase2,loja,retoma,'
+  # Espanha e Internacional (Navidad confirmada pela loja; Reyes e Internacional propostos; o texto diz sempre que são indicativos)
+  assign v_es_nav = settings.natal_es_limite_navidad | default: '2026-12-20 23:59' | strip
+  assign v_es_reyes = settings.natal_es_limite_reyes | default: '2026-12-29 23:59' | strip
+  assign v_es_noche = v_fim | date: '%Y' | append: '-01-05 00:00'
+  assign v_int = settings.natal_int_limite | default: '2026-12-10 23:59' | strip
+  assign k_nomes = 'inicio,fase2,acores,madeira,gravacao,continente,loja,festas,retoma,reis,fim,trocas,es_navidad,es_reyes,es_noche,int' | split: ','
+  assign k_inst = ',inicio,fase2,loja,retoma,es_noche,'
   assign k_v = v_inicio | append: '|' | append: v_fase2 | append: '|' | append: v_acores | append: '|' | append: v_madeira
   assign k_v = k_v | append: '|' | append: v_gravacao | append: '|' | append: v_cont | append: '|' | append: v_loja
   assign k_v = k_v | append: '|' | append: v_festas | append: '|' | append: v_retoma | append: '|' | append: v_reis
   assign k_v = k_v | append: '|' | append: v_fim | append: '|' | append: v_trocas
+  assign k_v = k_v | append: '|' | append: v_es_nav | append: '|' | append: v_es_reyes | append: '|' | append: v_es_noche
+  assign k_v = k_v | append: '|' | append: v_int
   assign k_v = k_v | split: '|'
 
+  # Datas para os textos, na língua da página. Espanha e Internacional: só o dia, nunca a hora (23:59 de Lisboa = 00:59 em Madrid).
   capture d_cont
     render 'lod-natal-data', valor: v_cont, formato: 'longo'
   endcapture
@@ -66,6 +104,18 @@
   capture d_gravacao
     render 'lod-natal-data', valor: v_gravacao, formato: 'longo'
   endcapture
+  capture d_es_nav
+    render 'lod-natal-data', valor: v_es_nav, formato: 'longo'
+  endcapture
+  capture d_es_reyes
+    render 'lod-natal-data', valor: v_es_reyes, formato: 'longo'
+  endcapture
+  capture d_es_noche
+    render 'lod-natal-data', valor: v_es_noche, formato: 'curto'
+  endcapture
+  capture d_int
+    render 'lod-natal-data', valor: v_int, formato: 'longo'
+  endcapture
   assign wa = settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+'
 
   # Agora (hora da loja), com a data simulada fora do tema publicado, como em lod-natal-fase
@@ -78,21 +128,60 @@
   endif
   assign agora = agora_txt | date: '%Y%m%d%H%M' | plus: 0
 
-  assign img_d = section.settings.imagem
-  assign img_m = section.settings.imagem_telemovel | default: section.settings.imagem
-  assign esquema = section.settings.esquema
+  # Textos da secção na língua da página (campo _en/_es preenchido substitui o português)
+  assign ss = section.settings
+  assign t_alt = ss.alt
+  assign t_assinatura = ss.assinatura
+  assign t_lateral = ss.marca_lateral
+  assign t_faixa = ss.faixa
+  if lnat_lg != 'pt'
+    assign k = 'alt_' | append: lnat_lg
+    if ss[k] != blank
+      assign t_alt = ss[k]
+    endif
+    assign k = 'assinatura_' | append: lnat_lg
+    if ss[k] != blank
+      assign t_assinatura = ss[k]
+    endif
+    assign k = 'marca_lateral_' | append: lnat_lg
+    if ss[k] != blank
+      assign t_lateral = ss[k]
+    endif
+    assign k = 'faixa_' | append: lnat_lg
+    if ss[k] != blank
+      assign t_faixa = ss[k]
+    endif
+  endif
+
+  assign img_d = ss.imagem
+  assign img_m = ss.imagem_telemovel | default: ss.imagem
+  assign esquema = ss.esquema
   assign tag_titulo = 'h2'
-  if section.settings.titulo_h1
+  if ss.titulo_h1
     assign tag_titulo = 'h1'
   endif
 
+  # Ligações: prefixo da língua/mercado (routes.root_url é «/» na língua principal de cada domínio)
+  assign raiz = routes.root_url | default: '/'
+  assign raiz_pre = raiz | append: '/'
+  assign na_inicial = false
+  if request.page_type == 'index'
+    assign na_inicial = true
+  endif
+  assign url_tipos = 'b1,b2,alt' | split: ','
+
   assign janelas = 'bloco,alt' | split: ','
-  assign cd_vazio = '<span class="lnat-hero__falta" data-lnat-falta="continente"></span>'
+  assign cd_cont = '<span class="lnat-hero__falta" data-lnat-falta="continente"></span>'
   assign cd_loja = '<span class="lnat-hero__falta" data-lnat-falta="loja"></span>'
   assign cd_reis = '<span class="lnat-hero__falta" data-lnat-falta="reis"></span>'
+  assign cd_es_nav = '<span class="lnat-hero__falta" data-lnat-falta="es_navidad"></span>'
+  assign cd_es_reyes = '<span class="lnat-hero__falta" data-lnat-falta="es_reyes"></span>'
+  assign cd_int = '<span class="lnat-hero__falta" data-lnat-falta="int"></span>'
   assign html_fases = ''
   assign id_mostrado = ''
   assign id_primeiro = ''
+  assign id_qualquer = ''
+  assign sem_bloco_da_fase = false
 -%}
 {%- if mostrar -%}
   {%- for block in section.blocks -%}
@@ -104,6 +193,19 @@
       endif
       # Um bloco desligado só vai para a página no editor (para se poder ver ao selecioná-lo)
       unless b_ligado or request.design_mode
+        continue
+      endunless
+
+      # Mercado do bloco e fase compatível com a versão da página; os blocos de outro mercado só vão para o editor
+      assign b_merc = b.mercado | default: 'todos'
+      assign b_compat = false
+      assign kb = ',' | append: b.fase | append: ','
+      if fases_versao contains kb
+        if b_merc == 'todos' or b_merc == lnat_versao
+          assign b_compat = true
+        endif
+      endif
+      unless b_compat or request.design_mode
         continue
       endunless
 
@@ -180,55 +282,146 @@
         endif
       endfor
 
-      if b_ligado and id_primeiro == blank
+      if b_ligado and id_qualquer == blank
+        assign id_qualquer = block.id
+      endif
+      if b_ligado and b_compat and id_primeiro == blank
         assign id_primeiro = block.id
       endif
-      if b_ligado and f_ok and id_mostrado == blank and b.fase == lnat_fase
+      if b_ligado and b_compat and f_ok and id_mostrado == blank and b.fase == lnat_fase
         assign id_mostrado = block.id
       endif
 
-      assign chip = b.chip | replace: '{continente}', d_cont | replace: '{loja}', d_loja | replace: '{reis}', d_reis | replace: '{retoma}', d_retoma | replace: '{trocas}', d_trocas | replace: '{gravacao}', d_gravacao
+      # Textos do bloco na língua da página
+      assign t_eb = b.eyebrow
+      assign t_tit = b.titulo
+      assign t_txt = b.texto
+      assign t_chip = b.chip
+      assign t_b1 = b.botao1_texto
+      assign t_msg = b.mensagem_whatsapp
+      assign t_b2 = b.botao2_texto
+      assign t_b2a = b.botao2_alt_texto
+      if lnat_lg != 'pt'
+        assign k = 'eyebrow_' | append: lnat_lg
+        if b[k] != blank
+          assign t_eb = b[k]
+        endif
+        assign k = 'titulo_' | append: lnat_lg
+        if b[k] != blank
+          assign t_tit = b[k]
+        endif
+        assign k = 'texto_' | append: lnat_lg
+        if b[k] != blank
+          assign t_txt = b[k]
+        endif
+        assign k = 'chip_' | append: lnat_lg
+        if b[k] != blank
+          assign t_chip = b[k]
+        endif
+        assign k = 'botao1_texto_' | append: lnat_lg
+        if b[k] != blank
+          assign t_b1 = b[k]
+        endif
+        assign k = 'mensagem_whatsapp_' | append: lnat_lg
+        if b[k] != blank
+          assign t_msg = b[k]
+        endif
+        assign k = 'botao2_texto_' | append: lnat_lg
+        if b[k] != blank
+          assign t_b2 = b[k]
+        endif
+        assign k = 'botao2_alt_texto_' | append: lnat_lg
+        if b[k] != blank
+          assign t_b2a = b[k]
+        endif
+      endif
+
+      # {contagem} sem nome: o prazo principal da fase do bloco (Portugal continente; Espanha Navidad ou Reyes; Internacional)
+      assign cd_def = cd_cont
+      case b.fase
+        when 'reyes', 'reyes_ultima', 'noche_reyes'
+          assign cd_def = cd_es_reyes
+        when 'navidad'
+          assign cd_def = cd_es_nav
+          if b_merc == 'int'
+            assign cd_def = cd_int
+          elsif b_merc == 'todos' and lnat_versao == 'int'
+            assign cd_def = cd_int
+          endif
+      endcase
+      assign chip = t_chip | replace: '{continente}', d_cont | replace: '{loja}', d_loja | replace: '{reis}', d_reis | replace: '{retoma}', d_retoma | replace: '{trocas}', d_trocas | replace: '{gravacao}', d_gravacao | replace: '{es_navidad}', d_es_nav | replace: '{es_reyes}', d_es_reyes | replace: '{es_noche}', d_es_noche | replace: '{int}', d_int
       assign tem_contagem = false
       if chip contains '{contagem'
         assign tem_contagem = true
-        assign chip = chip | replace: '{contagem:loja}', cd_loja | replace: '{contagem:reis}', cd_reis | replace: '{contagem}', cd_vazio
+        assign chip = chip | replace: '{contagem:loja}', cd_loja | replace: '{contagem:reis}', cd_reis | replace: '{contagem:continente}', cd_cont | replace: '{contagem:es_navidad}', cd_es_nav | replace: '{contagem:es_reyes}', cd_es_reyes | replace: '{contagem:int}', cd_int | replace: '{contagem}', cd_def
       endif
-      assign texto = b.texto | replace: '{continente}', d_cont | replace: '{loja}', d_loja | replace: '{reis}', d_reis | replace: '{retoma}', d_retoma | replace: '{trocas}', d_trocas | replace: '{gravacao}', d_gravacao
+      assign texto = t_txt | replace: '{continente}', d_cont | replace: '{loja}', d_loja | replace: '{reis}', d_reis | replace: '{retoma}', d_retoma | replace: '{trocas}', d_trocas | replace: '{gravacao}', d_gravacao | replace: '{es_navidad}', d_es_nav | replace: '{es_reyes}', d_es_reyes | replace: '{es_noche}', d_es_noche | replace: '{int}', d_int
       assign id_titulo = 'lnat-hero-t-' | append: block.id
       assign marca = '@@lnh-' | append: block.id | append: '@@'
       assign tem_b2 = false
-      if b.botao2_texto != blank or b.botao2_alt_texto != blank
+      if t_b2 != blank or t_b2a != blank
         assign tem_b2 = true
+      endif
+
+      # Ligações dos botões, com o prefixo da língua/mercado
+      assign url1 = b.botao1_url | default: '#siga-a-estrela'
+      assign url2 = b.botao2_url | default: '#prazos'
+      assign url3 = b.botao2_alt_url | default: '#prazos'
+      for j in url_tipos
+        case j
+          when 'b1'
+            assign u = url1
+          when 'b2'
+            assign u = url2
+          else
+            assign u = url3
+        endcase
+        assign u = u | append: '' | strip
+        assign u1 = u | slice: 0, 1
+        assign u2 = u | slice: 0, 2
+        if u2 == '/#' and na_inicial
+          assign u = u | remove_first: '/'
+        elsif u1 == '/' and u2 != '//' and raiz != '/'
+          assign u_pre = u | slice: 0, raiz_pre.size
+          if u_pre != raiz_pre and u != raiz
+            assign u = raiz | append: u
+          endif
+        endif
+        case j
+          when 'b1'
+            assign url1 = u
+          when 'b2'
+            assign url2 = u
+          else
+            assign url3 = u
+        endcase
+      endfor
+      if b.botao1_whatsapp
+        assign msg = t_msg | url_encode
+        assign url1 = 'https://wa.me/' | append: wa | append: '?text=' | append: msg
       endif
     -%}
     {%- capture html_bloco -%}
-      <div class="lnat-hero__fase" data-fase="{{ b.fase }}" data-bloco="{{ block.id }}"{{ f_attr }}{% unless b_ligado %} data-ligado="0"{% endunless %} {{ block.shopify_attributes }}{{ marca }}>
-        {%- if b.eyebrow != blank -%}<p class="lnat-hero__eb"><span aria-hidden="true"></span>{{ b.eyebrow }}</p>{%- endif -%}
-        <{{ tag_titulo }} class="lnat-hero__titulo" id="{{ id_titulo }}">{{ b.titulo }}</{{ tag_titulo }}>
+      <div class="lnat-hero__fase" data-fase="{{ b.fase }}" data-mercado="{{ b_merc }}" data-bloco="{{ block.id }}"{{ f_attr }}{% unless b_ligado %} data-ligado="0"{% endunless %} {{ block.shopify_attributes }}{{ marca }}>
+        {%- if t_eb != blank -%}<p class="lnat-hero__eb"><span aria-hidden="true"></span>{{ t_eb }}</p>{%- endif -%}
+        <{{ tag_titulo }} class="lnat-hero__titulo" id="{{ id_titulo }}">{{ t_tit }}</{{ tag_titulo }}>
         {%- if texto != blank -%}<p class="lnat-hero__texto">{{ texto }}</p>{%- endif -%}
         {%- if chip != blank -%}
           <p class="lnat-hero__chip"{% if tem_contagem %} data-lnat-cd hidden{% endif %}>{%- render 'lod-natal-icon', nome: 'sapatinho', tamanho: 20, traco: 2 -%}<span>{{ chip }}</span></p>
         {%- endif -%}
-        {%- if b.botao1_texto != blank or tem_b2 -%}
+        {%- if t_b1 != blank or tem_b2 -%}
           <div class="lnat-hero__btns">
-            {%- if b.botao1_texto != blank -%}
-              {%- liquid
-                assign url1 = b.botao1_url | default: '#siga-a-estrela'
-                if b.botao1_whatsapp
-                  assign msg = b.mensagem_whatsapp | url_encode
-                  assign url1 = 'https://wa.me/' | append: wa | append: '?text=' | append: msg
-                endif
-              -%}
+            {%- if t_b1 != blank -%}
               <a class="lnat-hero__btn lnat-hero__btn--ouro" href="{{ url1 }}"{% if b.botao1_whatsapp %} target="_blank" rel="noopener"{% endif %}>
                 {%- if b.botao1_whatsapp -%}{%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 18 -%}{%- endif -%}
-                <span>{{ b.botao1_texto }}</span>{%- render 'lod-natal-icon', nome: 'seta', tamanho: 18 -%}
+                <span>{{ t_b1 }}</span>{%- render 'lod-natal-icon', nome: 'seta', tamanho: 18 -%}
               </a>
             {%- endif -%}
-            {%- if b.botao2_texto != blank -%}
-              <a class="lnat-hero__btn lnat-hero__btn--vidro" href="{{ b.botao2_url | default: '#prazos' }}"{% if b.botao2_alt_texto != blank %} data-lnat-alt-par{% if a_ok %} hidden{% endif %}{% endif %}><span>{{ b.botao2_texto }}</span></a>
+            {%- if t_b2 != blank -%}
+              <a class="lnat-hero__btn lnat-hero__btn--vidro" href="{{ url2 }}"{% if t_b2a != blank %} data-lnat-alt-par{% if a_ok %} hidden{% endif %}{% endif %}><span>{{ t_b2 }}</span></a>
             {%- endif -%}
-            {%- if b.botao2_alt_texto != blank -%}
-              <a class="lnat-hero__btn lnat-hero__btn--vidro" href="{{ b.botao2_alt_url | default: '#prazos' }}" data-lnat-alt{{ a_attr }}{% unless a_ok %} hidden{% endunless %}><span>{{ b.botao2_alt_texto }}</span></a>
+            {%- if t_b2a != blank -%}
+              <a class="lnat-hero__btn lnat-hero__btn--vidro" href="{{ url3 }}" data-lnat-alt{{ a_attr }}{% unless a_ok %} hidden{% endunless %}><span>{{ t_b2a }}</span></a>
             {%- endif -%}
           </div>
         {%- endif -%}
@@ -237,9 +430,14 @@
     {%- assign html_fases = html_fases | append: html_bloco -%}
   {%- endfor -%}
   {%- liquid
-    # Nenhum bloco serve (editor antes de 1 dez., ou datas mal postas): fica o primeiro bloco ligado
+    # Nenhum bloco da fase atual: fica o primeiro bloco ligado do mercado da página (no editor, qualquer bloco ligado).
+    # Fora do editor, sem nenhum bloco do mercado, a secção não aparece.
     if id_mostrado == blank
+      assign sem_bloco_da_fase = true
       assign id_mostrado = id_primeiro
+    endif
+    if id_mostrado == blank and request.design_mode
+      assign id_mostrado = id_qualquer
     endif
     assign fase_mostrada = lnat_fase
     for block in section.blocks
@@ -252,28 +450,33 @@
       endif
     endfor
   -%}
+  {%- if id_mostrado != blank -%}
 <section
-  class="lnat lnat-hero lnat-hero--{{ esquema }} lnat-hero--cartao-{{ section.settings.lado_cartao }}{% unless section.settings.mostrar_no_telemovel %} lnat-hero--sem-tel{% endunless %}"
+  class="lnat lnat-hero lnat-hero--{{ esquema }} lnat-hero--cartao-{{ ss.lado_cartao }}{% unless ss.mostrar_no_telemovel %} lnat-hero--sem-tel{% endunless %}"
   id="lnat-hero-{{ section.id }}"
   data-fase-servidor="{{ lnat_fase }}"
+  data-versao="{{ lnat_versao }}"
   {%- if id_mostrado != blank %} aria-labelledby="lnat-hero-t-{{ id_mostrado }}"{% endif %}
-  style="--lnat-hero-x: {{ section.settings.foco_x }}%; --lnat-hero-y: {{ section.settings.foco_y }}%; --lnat-hero-yt: {{ section.settings.foco_y_tablet }}%; --lnat-hero-ct: {{ section.settings.corte_tablet }}; --lnat-hero-ym: {{ section.settings.foco_y_tel }}%;"
+  style="--lnat-hero-x: {{ ss.foco_x }}%; --lnat-hero-y: {{ ss.foco_y }}%; --lnat-hero-yt: {{ ss.foco_y_tablet }}%; --lnat-hero-ct: {{ ss.corte_tablet }}; --lnat-hero-ym: {{ ss.foco_y_tel }}%;"
 >
-  {%- if request.design_mode and lnat_fase == 'antes' -%}
-    <p class="lnat-hero__aviso-editor">Pré-visualização no editor: no site esta secção aparece a partir de {% render 'lod-natal-data', valor: v_inicio, formato: 'curto' %}. Fase simulada: {{ fase_mostrada }}.</p>
+  {%- if request.design_mode -%}
+    {%- if lnat_fase == 'antes' -%}
+      <p class="lnat-hero__aviso-editor">Pré-visualização no editor: no site esta secção aparece a partir de {% render 'lod-natal-data', valor: v_inicio, formato: 'curto', lingua: 'pt' %}. Fase simulada: {{ fase_mostrada }}.</p>
+    {%- elsif fase_ativa == false -%}
+      <p class="lnat-hero__aviso-editor">Pré-visualização no editor: nesta data a secção não aparece no site (mercado {{ lnat_versao }}, fase {{ lnat_fase }}). A mostrar: {{ fase_mostrada }}.</p>
+    {%- elsif sem_bloco_da_fase -%}
+      <p class="lnat-hero__aviso-editor">Pré-visualização no editor: não há nenhuma mensagem ligada para a fase {{ lnat_fase }} do mercado {{ lnat_versao }}. No site aparece a primeira mensagem ligada deste mercado.</p>
+    {%- endif -%}
   {%- endif -%}
 
   <div class="lnat-hero__palco">
     {%- if img_d -%}
-      <div class="lnat-hero__desfoque" aria-hidden="true">
-        {{ img_d | image_url: width: 480 | image_tag: loading: 'eager', alt: '', class: 'lnat-hero__desfoque-img' }}
-      </div>
       <div class="lnat-hero__foto">
         <picture>
           {%- if img_m -%}
             <source media="(max-width: 749px)" srcset="{{ img_m | image_url: width: 560 }} 560w, {{ img_m | image_url: width: 750 }} 750w, {{ img_m | image_url: width: 1000 }} 1000w" sizes="100vw">
           {%- endif -%}
-          {{ img_d | image_url: width: 1800 | image_tag: loading: 'eager', fetchpriority: 'high', widths: '960, 1200, 1500, 1800', sizes: '(min-width: 750px) 70vw, 100vw', alt: section.settings.alt, class: 'lnat-hero__foto-img' }}
+          {{ img_d | image_url: width: 1800 | image_tag: loading: 'eager', fetchpriority: 'high', widths: '960, 1200, 1500, 1800', sizes: '(min-width: 750px) 70vw, 100vw', alt: t_alt, class: 'lnat-hero__foto-img' }}
         </picture>
       </div>
     {%- else -%}
@@ -285,25 +488,25 @@
 
     <div class="lnat-hero__interior">
       <div class="lnat-hero__cartao">
-        {%- if section.settings.mostrar_estrela -%}
+        {%- if ss.mostrar_estrela -%}
           <span class="lnat-hero__estrela">{%- render 'lod-natal-icon', nome: 'estrela', tamanho: 52, traco: 1.4 -%}</span>
         {%- endif -%}
 
         {{ html_fases }}
 
-        {%- if section.settings.assinatura != blank -%}
-          <p class="lnat-hero__assinatura"><span aria-hidden="true">◇</span>{{ section.settings.assinatura }}</p>
+        {%- if t_assinatura != blank -%}
+          <p class="lnat-hero__assinatura"><span aria-hidden="true">◇</span>{{ t_assinatura }}</p>
         {%- endif -%}
       </div>
     </div>
 
-    {%- if section.settings.marca_lateral != blank -%}
-      <div class="lnat-hero__lateral" aria-hidden="true">{{ section.settings.marca_lateral }}</div>
+    {%- if t_lateral != blank -%}
+      <div class="lnat-hero__lateral" aria-hidden="true">{{ t_lateral }}</div>
     {%- endif -%}
   </div>
 
-  {%- assign linhas = section.settings.faixa | newline_to_br | split: '<br />' -%}
-  {%- if section.settings.faixa != blank -%}
+  {%- assign linhas = t_faixa | newline_to_br | split: '<br />' -%}
+  {%- if t_faixa != blank -%}
     <div class="lnat-hero__faixa">
       <ul class="lnat-hero__faixa-lista" role="list">
         {%- for l in linhas -%}
@@ -319,15 +522,16 @@
   .lnat-hero{--hero-h:clamp(600px,46vw,860px);--foto-w:min(calc(var(--hero-h) * 1.51),100%);background:var(--lnat-verde-2);color:var(--lnat-papel);overflow:hidden;isolation:isolate}
   .lnat-hero__aviso-editor{margin:0;padding:8px 16px;background:#fff3cd;color:#3d2f00;font-size:13px}
   .lnat-hero__palco{position:relative;min-height:var(--hero-h)}
-  .lnat-hero__desfoque{position:absolute;inset:0;overflow:hidden;z-index:0}
-  .lnat-hero__desfoque-img{width:100%;height:100%;object-fit:cover;object-position:var(--lnat-hero-x) var(--lnat-hero-y);filter:blur(34px) saturate(.75) brightness(.7);transform:scale(1.18)}
+  @media screen and (min-width:1200px){
+    .lnat-hero--foto-esquerda .lnat-hero__palco{background:radial-gradient(60% 70% at 84% 18%,rgba(229,201,142,.16) 0%,rgba(229,201,142,0) 70%),radial-gradient(70% 90% at 92% 100%,rgba(12,39,29,.55) 0%,rgba(12,39,29,0) 70%),linear-gradient(90deg,#6e5340 0%,#6e5340 52%,#5a4a38 60%,#33392c 68%,#173326 78%,#0f2b20 90%,#0c271d 100%)}
+    .lnat-hero--foto-esquerda.lnat-hero--cartao-esquerda .lnat-hero__palco{background:radial-gradient(60% 70% at 16% 18%,rgba(229,201,142,.16) 0%,rgba(229,201,142,0) 70%),radial-gradient(70% 90% at 8% 100%,rgba(12,39,29,.55) 0%,rgba(12,39,29,0) 70%),linear-gradient(270deg,#6e5340 0%,#6e5340 52%,#5a4a38 60%,#33392c 68%,#173326 78%,#0f2b20 90%,#0c271d 100%)}
+  }
   .lnat-hero__foto{position:absolute;top:0;bottom:0;left:0;width:var(--foto-w);z-index:1}
   .lnat-hero__foto picture,.lnat-hero__foto-img{display:block;width:100%;height:100%}
   .lnat-hero__foto-img{object-fit:cover;object-position:var(--lnat-hero-x) var(--lnat-hero-y);transform:scale(1.005);transition:transform 8s cubic-bezier(.2,.65,.25,1)}
   .lnat-hero--foto-esquerda .lnat-hero__foto{-webkit-mask-image:linear-gradient(90deg,#000 0,#000 86%,transparent 100%);mask-image:linear-gradient(90deg,#000 0,#000 86%,transparent 100%)}
   .lnat-hero--foto-esquerda.lnat-hero--cartao-esquerda .lnat-hero__foto{left:auto;right:0;-webkit-mask-image:linear-gradient(270deg,#000 0,#000 86%,transparent 100%);mask-image:linear-gradient(270deg,#000 0,#000 86%,transparent 100%)}
   .lnat-hero--foto-inteira .lnat-hero__foto{width:100%}
-  .lnat-hero--foto-inteira .lnat-hero__desfoque{display:none}
   .lnat-hero__foto--vazia{display:flex;align-items:center;justify-content:center;color:var(--lnat-ouro);background-color:var(--lnat-verde)}
   @media (hover:hover){.lnat-hero:hover .lnat-hero__foto-img{transform:scale(1.03)}}
   /* Véu: só no tablet e no telemóvel, para a foto acabar no verde. O base.css do tema esconde div:empty, daí .lnat-hero antes. */
@@ -371,7 +575,7 @@
   @media screen and (min-width:750px) and (max-width:1199px){
     .lnat-hero{--foto-h:max(280px,min(40vh,62vw))}
     .lnat-hero__palco{min-height:0;display:flex;flex-direction:column}
-    .lnat-hero__desfoque,.lnat-hero__lateral{display:none}
+    .lnat-hero__lateral{display:none}
     .lnat-hero__foto,.lnat-hero--foto-esquerda .lnat-hero__foto,.lnat-hero--foto-esquerda.lnat-hero--cartao-esquerda .lnat-hero__foto{position:relative;width:100%;height:var(--foto-h);min-height:0;overflow:hidden;-webkit-mask-image:none;mask-image:none;left:0;right:auto}
     .lnat-hero__foto-img{--lnat-hero-iw:calc(100% * 100 / (100 - var(--lnat-hero-ct, 0)));width:var(--lnat-hero-iw);max-width:none;margin-left:calc(100% - var(--lnat-hero-iw));object-position:100% var(--lnat-hero-yt)}
     .lnat-hero .lnat-hero__veu{display:block;height:var(--foto-h);background:linear-gradient(180deg,rgba(12,39,29,0) 0%,rgba(12,39,29,0) 55%,rgba(12,39,29,.75) 85%,var(--lnat-verde-2) 100%)}
@@ -389,7 +593,6 @@
   @media screen and (max-width:749px){
     .lnat-hero--sem-tel{display:none}
     .lnat-hero__palco{min-height:0;display:flex;flex-direction:column}
-    .lnat-hero__desfoque{display:none}
     .lnat-hero__foto,.lnat-hero--foto-esquerda .lnat-hero__foto,.lnat-hero--foto-esquerda.lnat-hero--cartao-esquerda .lnat-hero__foto{position:relative;width:100%;height:auto;aspect-ratio:4/5;min-height:0;overflow:hidden;-webkit-mask-image:none;mask-image:none;left:0;right:auto}
     .lnat-hero__foto-img{object-position:center var(--lnat-hero-ym);transform:none!important}
     .lnat-hero .lnat-hero__veu{display:block;height:auto;aspect-ratio:4/5;background:linear-gradient(180deg,rgba(12,39,29,0) 0%,rgba(12,39,29,0) 62%,rgba(12,39,29,.55) 88%,var(--lnat-verde-2) 100%)}
@@ -421,7 +624,10 @@
   var N = window.LOD_NATAL;
   if (!N) return;
   var editor = {{ request.design_mode | json }};
-  var ATIVAS = ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'];
+  // Fases em que a secção aparece, por versão da campanha (pt Portugal, es Espanha, int Internacional)
+  var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'], int: ['navidad'] };
+  var versao = ATIVAS[N.versao] ? N.versao : (raiz.getAttribute('data-versao') || 'pt');
+  var T = N.t || {};
   var st = raiz._lnatHero = { escolhido: null };
   var fases = Array.prototype.slice.call(raiz.querySelectorAll('.lnat-hero__fase'));
 
@@ -432,24 +638,36 @@
     if (ate && (b = N.lx(ate)) && t >= b.getTime() + (el.hasAttribute('data-ate-antes') ? 0 : 60000)) return false;
     return true;
   }
-  // Contagem no formato da barra: «2 d 14 h» com dias, «14 h 30 min» no último dia.
+  function doMercado(el){
+    var m = el.getAttribute('data-mercado') || 'todos';
+    return m === 'todos' || m === versao;
+  }
+  // Textos fixos do dicionário (snippets/lod-natal-t), com o português como reserva
+  function tx(k, pt){ return T[k] || pt; }
+  function esc(s){
+    return String(s).replace(/[&<>"]/g, function(c){ return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'; });
+  }
+  // Contagem no formato da barra: «2 d 14 h» com dias, «14 h 30 min» no último dia; por extenso para leitores de ecrã.
   function un(v, c, l1, l2){
-    return v + '<span aria-hidden="true"> ' + c + '</span><span class="lnat-sr"> ' + (v === 1 ? l1 : l2) + '</span>';
+    return v + '<span aria-hidden="true"> ' + esc(c) + '</span><span class="lnat-sr"> ' + esc(v === 1 ? l1 : l2) + '</span>';
   }
   function duracao(f){
-    return f.d > 0 ? un(f.d, 'd', 'dia', 'dias') + ' ' + un(f.h, 'h', 'hora', 'horas') : un(f.h, 'h', 'hora', 'horas') + ' ' + un(f.m, 'min', 'minuto', 'minutos');
+    var d = un(f.d, tx('un_d', 'd'), tx('dia_1', 'dia'), tx('dia_n', 'dias'));
+    var h = un(f.h, tx('un_h', 'h'), tx('hora_1', 'hora'), tx('hora_n', 'horas'));
+    var m = un(f.m, tx('un_min', 'min'), tx('minuto_1', 'minuto'), tx('minuto_n', 'minutos'));
+    return f.d > 0 ? d + ' ' + h : h + ' ' + m;
   }
 
   function atualizar(){
-    var fase = N.fase();
-    var ativa = ATIVAS.indexOf(fase) > -1;
+    var fase = N.fase(versao);
+    var ativa = (ATIVAS[versao] || []).indexOf(fase) > -1;
     if (!editor) {
       raiz.hidden = !ativa;
       if (!ativa) return;
     }
     var alvo = st.escolhido;
     if (!alvo) fases.forEach(function(el){
-      if (!alvo && el.getAttribute('data-ligado') !== '0' && el.getAttribute('data-fase') === fase && dentro(el)) alvo = el;
+      if (!alvo && el.getAttribute('data-ligado') !== '0' && doMercado(el) && el.getAttribute('data-fase') === fase && dentro(el)) alvo = el;
     });
     if (alvo) {
       fases.forEach(function(el){ el.hidden = el !== alvo; });
@@ -497,6 +715,7 @@
   });
 })();
 </script>
+  {%- endif -%}
 {%- endif -%}
 
 {% schema %}
@@ -504,7 +723,7 @@
   "name": "Natal · Banner principal",
   "tag": "div",
   "class": "lnat-hero-secao",
-  "max_blocks": 10,
+  "max_blocks": 12,
   "settings": [
     { "type": "header", "content": "Fotografia" },
     { "type": "image_picker", "id": "imagem", "label": "Imagem (computador)" },
@@ -533,9 +752,19 @@
     { "type": "checkbox", "id": "titulo_h1", "label": "Título como H1 (título principal da página)", "default": true },
     { "type": "text", "id": "assinatura", "label": "Assinatura pequena", "default": "Seleção Loja do Ouro" },
     { "type": "text", "id": "marca_lateral", "label": "Texto vertical (computador)", "default": "Loja do Ouro · Natal 2026" },
-    { "type": "textarea", "id": "faixa", "label": "Faixa de baixo (uma frase por linha)", "info": "Só serviços da loja. Não ponha aqui a garantia legal: é um direito do cliente, não uma vantagem.", "default": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\n13 lojas em Portugal, levantamento com marcação" },
+    { "type": "textarea", "id": "faixa", "label": "Faixa de baixo (uma frase por linha)", "info": "Só serviços da loja. Não ponha aqui a garantia legal: é um direito do cliente, não uma vantagem. Fora de Portugal, sem lojas nem levantamento em loja.", "default": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\n13 lojas em Portugal, levantamento com marcação" },
     { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true },
-    { "type": "paragraph", "content": "Nos textos pode usar {continente}, {loja}, {reis}, {retoma}, {trocas}, {gravacao} (datas das definições do tema › Natal 2026). Na faixa vermelha, {contagem} mostra o tempo que falta para o prazo do continente ({contagem:loja} e {contagem:reis} para os outros prazos); quando o prazo acaba, a faixa desaparece." }
+    { "type": "paragraph", "content": "Nos textos pode usar as datas das definições do tema › Natal 2026. Portugal: {continente}, {loja}, {reis}, {retoma}, {trocas}, {gravacao}. Espanha: {es_navidad}, {es_reyes}, {es_noche}. Internacional: {int}. As datas saem na língua da página. Na faixa vermelha, {contagem} mostra o tempo que falta para o prazo principal da fase do bloco (Portugal continental; Espanha Navidad ou Reyes; Internacional); {contagem:loja}, {contagem:reis}, {contagem:es_navidad}, {contagem:es_reyes} e {contagem:int} escolhem o prazo. Quando o prazo acaba, a faixa desaparece." },
+    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português. A marca em inglês é Gold Store Premium." },
+    { "type": "text", "id": "alt_en", "label": "Descrição da imagem (EN)" },
+    { "type": "text", "id": "assinatura_en", "label": "Assinatura pequena (EN)" },
+    { "type": "text", "id": "marca_lateral_en", "label": "Texto vertical (EN)" },
+    { "type": "textarea", "id": "faixa_en", "label": "Faixa de baixo (EN)" },
+    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português. A marca em espanhol é Gold Store Premium." },
+    { "type": "text", "id": "alt_es", "label": "Descrição da imagem (ES)" },
+    { "type": "text", "id": "assinatura_es", "label": "Assinatura pequena (ES)" },
+    { "type": "text", "id": "marca_lateral_es", "label": "Texto vertical (ES)" },
+    { "type": "textarea", "id": "faixa_es", "label": "Faixa de baixo (ES)" }
   ],
   "blocks": [
     {
@@ -546,12 +775,27 @@
           "type": "select", "id": "fase", "label": "Fase",
           "options": [
             { "value": "ouro", "label": "Ouro, escolher (1 a 13 dez.)" },
-            { "value": "incenso", "label": "Incenso, a tempo (14 a 18 dez.)" },
+            { "value": "incenso", "label": "Incenso, a tempo (14 a 20 dez.)" },
             { "value": "ultima", "label": "Última hora (até 24 dez., 13h)" },
             { "value": "consoada", "label": "Consoada (24 e 25 dez.)" },
-            { "value": "mirra", "label": "Mirra, dos Reis (26 dez. a 6 jan.)" }
+            { "value": "mirra", "label": "Mirra, dos Reis (26 dez. a 6 jan.)" },
+            { "value": "navidad", "label": "Espanha ou Internacional, Natal (até ao prazo)" },
+            { "value": "reyes", "label": "Espanha, a tempo do Dia de Reis" },
+            { "value": "reyes_ultima", "label": "Espanha, depois do prazo de Reis (até 4 jan.)" },
+            { "value": "noche_reyes", "label": "Espanha, Noite e Dia de Reis (5 e 6 jan.)" }
           ],
           "default": "ouro"
+        },
+        {
+          "type": "select", "id": "mercado", "label": "Mercado",
+          "options": [
+            { "value": "todos", "label": "Todos os mercados" },
+            { "value": "pt", "label": "Portugal" },
+            { "value": "es", "label": "Espanha" },
+            { "value": "int", "label": "Internacional" }
+          ],
+          "default": "todos",
+          "info": "A mensagem só aparece nas páginas deste mercado. As fases de Portugal só existem em Portugal; Natal (navidad) existe em Espanha e no Internacional."
         },
         { "type": "checkbox", "id": "ligado", "label": "Mostrar esta mensagem", "info": "Desligada, a mensagem fica guardada mas não aparece no site (no editor pode vê-la ao selecionar o bloco).", "default": true },
         { "type": "text", "id": "de", "label": "Mostrar a partir de", "info": "Opcional. AAAA-MM-DD HH:MM ou o nome de uma data das definições (ex.: reis = depois do prazo dos Reis). Com vários blocos da mesma fase, aparece o primeiro dentro das datas." },
@@ -571,7 +815,25 @@
         { "type": "text", "id": "botao2_alt_texto", "label": "Texto" },
         { "type": "url", "id": "botao2_alt_url", "label": "Ligação" },
         { "type": "text", "id": "botao2_alt_de", "label": "A partir de", "info": "AAAA-MM-DD HH:MM ou o nome de uma data das definições." },
-        { "type": "text", "id": "botao2_alt_ate", "label": "Até", "info": "AAAA-MM-DD HH:MM (o último minuto conta) ou o nome de uma data das definições." }
+        { "type": "text", "id": "botao2_alt_ate", "label": "Até", "info": "AAAA-MM-DD HH:MM (o último minuto conta) ou o nome de uma data das definições." },
+        { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português. Prazos sempre «indicative»; marca Gold Store Premium." },
+        { "type": "text", "id": "eyebrow_en", "label": "Texto pequeno por cima (EN)" },
+        { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
+        { "type": "inline_richtext", "id": "texto_en", "label": "Texto (EN)" },
+        { "type": "inline_richtext", "id": "chip_en", "label": "Faixa vermelha (EN)" },
+        { "type": "text", "id": "botao1_texto_en", "label": "Botão principal (EN)" },
+        { "type": "text", "id": "mensagem_whatsapp_en", "label": "Mensagem do WhatsApp (EN)" },
+        { "type": "text", "id": "botao2_texto_en", "label": "Botão secundário (EN)" },
+        { "type": "text", "id": "botao2_alt_texto_en", "label": "Botão alternativo (EN)" },
+        { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português. Espanhol de Espanha, com «usted»; prazos sempre «orientativo»." },
+        { "type": "text", "id": "eyebrow_es", "label": "Texto pequeno por cima (ES)" },
+        { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
+        { "type": "inline_richtext", "id": "texto_es", "label": "Texto (ES)" },
+        { "type": "inline_richtext", "id": "chip_es", "label": "Faixa vermelha (ES)" },
+        { "type": "text", "id": "botao1_texto_es", "label": "Botão principal (ES)" },
+        { "type": "text", "id": "mensagem_whatsapp_es", "label": "Mensagem do WhatsApp (ES)" },
+        { "type": "text", "id": "botao2_texto_es", "label": "Botão secundário (ES)" },
+        { "type": "text", "id": "botao2_alt_texto_es", "label": "Botão alternativo (ES)" }
       ]
     }
   ],
@@ -579,7 +841,7 @@
     {
       "name": "Natal · Banner principal",
       "blocks": [
-        { "type": "fase", "settings": { "fase": "ouro", "eyebrow": "Natal 2026 · Ouro de Reis", "titulo": "O primeiro presente de Natal foi ouro.", "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família.", "chip": "Para o Natal em Portugal continental, encomende até <b>{continente}</b> (prazo indicativo).", "botao1_texto": "Encontrar a prenda", "botao2_texto": "Corações de Viana" } }
+        { "type": "fase", "settings": { "fase": "ouro", "mercado": "pt", "eyebrow": "Natal 2026 · Ouro de Reis", "titulo": "O primeiro presente de Natal foi ouro.", "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família.", "chip": "Para o Natal em Portugal continental, encomende até <b>{continente}</b> (prazo indicativo).", "botao1_texto": "Encontrar a prenda", "botao2_texto": "Corações de Viana", "eyebrow_en": "Christmas 2026 · Gold of the Magi", "titulo_en": "The first Christmas gift was gold.", "eyebrow_es": "Navidad 2026 · Oro de Reyes", "titulo_es": "El primer regalo de Navidad fue oro." } }
       ]
     }
   ]

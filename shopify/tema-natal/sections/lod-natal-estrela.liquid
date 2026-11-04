@@ -2,44 +2,151 @@
   Natal 2026 · Ouro de Reis — «Siga a estrela», guia de prendas da página inicial.
   Três escolhas (para quem · ouro ou prata · quanto) e mostra as peças certas, com prazo de entrega.
   · Os blocos «Para quem» dizem que coleção usar (principal + alternativa quando a principal dá menos de 4 peças).
-  · As peças vêm da secção lod-natal-estrela-grelha pela Section Rendering API (mais vendidas, 48 por página,
+  · As peças vêm da secção lod-natal-estrela-grelha pela Section Rendering API (mais vendidos, 48 por página,
     no máximo 3 páginas por coleção) e são filtradas no navegador por metal, preço e disponibilidade.
   · Só começa a pedir peças quando a secção se aproxima do ecrã (IntersectionObserver).
   · As escolhas ficam no endereço: #siga-a-estrela?para=ela&metal=ouro&valor=100-250 (sem dados pessoais).
   · Sem JavaScript, as escolhas «Para quem» são ligações para as coleções.
-  · Fases off/antes/fim: não mostra nada (no editor mostra, com uma nota).
   · Estado inicial (definição estado_inicial): por omissão o painel de resultados só abre depois da primeira
     escolha «Para quem», para não repetir as peças de «Os mais oferecidos», que vem a seguir.
   · «Ouro» ou «Prata» ficam desativados («Sem peças») quando a escolha não tem peças disponíveis nesse metal.
   · No telemóvel, depois da primeira escolha, uma barra fixa «Ver N prendas» leva aos resultados
     (fica acima do botão de chat; distância ao fundo na definição barra_fundo).
-  · O vale-prenda só é sugerido quando ainda chega a tempo por correio ou quando natal_vale_digital está ligado.
+
+  Línguas e mercados (contrato: scratchpad/natal/i18n-contrato.md)
+  · Textos fixos: dicionário snippets/lod-natal-t (Liquid) e window.LOD_NATAL.t (JavaScript), mais o dicionário
+    local desta secção (lnat_tl_pt, lnat_tl_en, lnat_tl_es: chaves estx_*), que vai para o JavaScript em data-tl.
+  · Conteúdo editável: campo base em português e campos _en e _es (vazios usam o campo base).
+  · Versão pelo mercado (lod-natal-fase, mercado auto):
+      pt   fases ouro, incenso, ultima, consoada, mirra; prazos de Portugal, levantamento em loja e WhatsApp.
+      es   fases navidad, reyes, reyes_ultima, noche_reyes; prazos de Espanha (Navidad e Reyes), sem lojas nem WhatsApp.
+      int  fase navidad (até ao prazo internacional); prazo internacional, sem lojas nem WhatsApp.
+    Nas outras fases não mostra nada (no editor mostra, com uma nota).
+  · Faixas de preço: em euros; com outra moeda (Internacional com moedas locais) os limites são convertidos
+    pela taxa da loja e arredondados, e os rótulos passam a essa moeda.
+  · O vale-prenda só é sugerido quando ainda chega a tempo por correio ou quando natal_vale_digital está ligado;
+    fora de Portugal, só com a definição vale_fora_portugal ligada.
 {%- endcomment -%}
 {%- liquid
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnat_versao = lnat_versao | strip
   capture lnat_fase
-    render 'lod-natal-fase'
+    render 'lod-natal-fase', mercado: 'auto'
   endcapture
   assign lnat_fase = lnat_fase | strip
-  assign est_escondida = false
-  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
-    assign est_escondida = true
-  endif
+  assign est_escondida = true
+  case lnat_versao
+    when 'pt'
+      case lnat_fase
+        when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+          assign est_escondida = false
+      endcase
+    when 'es'
+      case lnat_fase
+        when 'navidad', 'reyes', 'reyes_ultima', 'noche_reyes'
+          assign est_escondida = false
+      endcase
+    else
+      if lnat_fase == 'navidad'
+        assign est_escondida = false
+      endif
+  endcase
 -%}
 {%- if est_escondida == false or request.design_mode -%}
+{%- capture lnat_lg -%}{%- render 'lod-natal-t', k: '_lingua' -%}{%- endcapture -%}
+{%- capture lnat_tl_pt -%}
+~~estx_es_ate=Para chegar a tempo, encomende até:
+~~estx_v_ate=Até {1}
+~~estx_v_entre={1} a {2}
+~~estx_v_mais=Mais de {1}
+~~estx_f_ate=até {1}
+~~estx_f_entre=de {1} a {2}
+~~estx_f_mais=acima de {1}
+{%- endcapture -%}
+{%- capture lnat_tl_en -%}
+~~estx_es_ate=To arrive in time, order by:
+~~estx_v_ate=Up to {1}
+~~estx_v_entre={1} to {2}
+~~estx_v_mais=Over {1}
+~~estx_f_ate=up to {1}
+~~estx_f_entre={1} to {2}
+~~estx_f_mais=over {1}
+{%- endcapture -%}
+{%- capture lnat_tl_es -%}
+~~estx_es_ate=Para que llegue a tiempo, haga su pedido hasta el:
+~~estx_v_ate=Hasta {1}
+~~estx_v_entre=De {1} a {2}
+~~estx_v_mais=Más de {1}
+~~estx_f_ate=hasta {1}
+~~estx_f_entre=de {1} a {2}
+~~estx_f_mais=de más de {1}
+{%- endcapture -%}
 {%- liquid
+  assign lnat_lg = lnat_lg | strip
+  case lnat_lg
+    when 'pt'
+      assign lnat_tl = lnat_tl_pt
+    when 'es'
+      assign lnat_tl = lnat_tl_es
+    else
+      assign lnat_tl = lnat_tl_en
+  endcase
+  assign est_sfx = ''
+  if lnat_lg != 'pt'
+    assign est_sfx = '_' | append: lnat_lg
+  endif
+
   assign est_id = section.id
   assign est_ancora = section.settings.ancora | default: 'siga-a-estrela' | handleize
   assign est_titulo_id = 'lnat-est-t-' | append: est_id
   assign est_res_id = 'lnat-est-r-' | append: est_id
   assign est_wa = settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+'
-  assign est_wa_msg = section.settings.ajuda_mensagem | default: 'Olá! Estou a escolher uma prenda de Natal e gostava de ajuda.' | url_encode | replace: '+', '%20'
   assign est_vale_url = routes.collections_url | append: '/voucher-prenda'
   if section.settings.colecao_vale != blank
     assign est_vale_url = section.settings.colecao_vale.url
   endif
-  assign est_titulo_res = section.settings.titulo_resultados | default: 'A estrela parou aqui.'
   assign est_inicial = section.settings.estado_inicial | default: 'fechado'
   assign est_fundo = section.settings.barra_fundo | default: 148
+
+  assign est_eyebrow = section.settings.eyebrow
+  assign est_titulo = section.settings.titulo
+  assign est_texto = section.settings.texto
+  assign est_ajuda = section.settings.ajuda
+  assign est_ajuda_link = section.settings.ajuda_link
+  assign est_ajuda_msg = section.settings.ajuda_mensagem
+  assign est_titulo_res = section.settings.titulo_resultados
+  if est_sfx != ''
+    assign k = 'eyebrow' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_eyebrow = section.settings[k]
+    endif
+    assign k = 'titulo' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_titulo = section.settings[k]
+    endif
+    assign k = 'texto' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_texto = section.settings[k]
+    endif
+    assign k = 'ajuda' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_ajuda = section.settings[k]
+    endif
+    assign k = 'ajuda_link' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_ajuda_link = section.settings[k]
+    endif
+    assign k = 'ajuda_mensagem' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_ajuda_msg = section.settings[k]
+    endif
+    assign k = 'titulo_resultados' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_titulo_res = section.settings[k]
+    endif
+  endif
 
   assign est_html_d = ''
   assign est_html_o = ''
@@ -47,6 +154,31 @@
   assign est_marcado = false
   assign est_todas = ''
 -%}
+{%- if est_titulo == blank -%}{%- capture est_titulo -%}{%- render 'lod-natal-t', k: 'est_titulo' -%}{%- endcapture -%}{%- endif -%}
+{%- if est_titulo_res == blank -%}{%- capture est_titulo_res -%}{%- render 'lod-natal-t', k: 'est_titulo_res' -%}{%- endcapture -%}{%- endif -%}
+{%- capture t_marco_1 -%}{%- render 'lod-natal-t', k: 'est_marco_1' -%}{%- endcapture -%}
+{%- capture t_marco_2 -%}{%- render 'lod-natal-t', k: 'est_marco_2' -%}{%- endcapture -%}
+{%- capture t_marco_3 -%}{%- render 'lod-natal-t', k: 'est_marco_3' -%}{%- endcapture -%}
+{%- capture t_p1 -%}{%- render 'lod-natal-t', k: 'est_p1' -%}{%- endcapture -%}
+{%- capture t_p2 -%}{%- render 'lod-natal-t', k: 'est_p2' -%}{%- endcapture -%}
+{%- capture t_p3 -%}{%- render 'lod-natal-t', k: 'est_p3' -%}{%- endcapture -%}
+{%- capture t_ouro -%}{%- render 'lod-natal-t', k: 'ouro' -%}{%- endcapture -%}
+{%- capture t_prata -%}{%- render 'lod-natal-t', k: 'prata' -%}{%- endcapture -%}
+{%- capture t_sem_pecas -%}{%- render 'lod-natal-t', k: 'sem_pecas' -%}{%- endcapture -%}
+{%- capture t_tanto_faz -%}{%- render 'lod-natal-t', k: 'tanto_faz' -%}{%- endcapture -%}
+{%- capture t_nao_aplica -%}{%- render 'lod-natal-t', k: 'nao_aplica' -%}{%- endcapture -%}
+{%- capture t_v_ate_50 -%}{%- render 'lod-natal-t', k: 'valor_ate_50' -%}{%- endcapture -%}
+{%- capture t_v_50_100 -%}{%- render 'lod-natal-t', k: 'valor_50_100' -%}{%- endcapture -%}
+{%- capture t_v_100_250 -%}{%- render 'lod-natal-t', k: 'valor_100_250' -%}{%- endcapture -%}
+{%- capture t_v_250_500 -%}{%- render 'lod-natal-t', k: 'valor_250_500' -%}{%- endcapture -%}
+{%- capture t_v_mais_500 -%}{%- render 'lod-natal-t', k: 'valor_mais_500' -%}{%- endcapture -%}
+{%- capture t_v_qualquer -%}{%- render 'lod-natal-t', k: 'valor_qualquer' -%}{%- endcapture -%}
+{%- capture t_escolha -%}{%- render 'lod-natal-t', k: 'est_escolha_passo1' -%}{%- endcapture -%}
+{%- capture t_ver_mais -%}{%- render 'lod-natal-t', k: 'ver_mais_colecao' -%}{%- endcapture -%}
+{%- capture t_recomecar -%}{%- render 'lod-natal-t', k: 'recomecar' -%}{%- endcapture -%}
+{%- capture t_ver_vales -%}{%- render 'lod-natal-t', k: 'ver_vales' -%}{%- endcapture -%}
+{%- capture t_tentar -%}{%- render 'lod-natal-t', k: 'tentar_novo' -%}{%- endcapture -%}
+{%- capture t_mostrar_mais -%}{%- render 'lod-natal-t', k: 'mostrar_mais' -%}{%- endcapture -%}
 {%- for block in section.blocks -%}
   {%- liquid
     assign est_c1 = block.settings.colecao
@@ -59,7 +191,38 @@
   {%- if est_c1 != blank -%}
     {%- liquid
       assign est_chave = block.settings.chave | default: block.id | handleize
-      assign est_rotulo = block.settings.label | default: est_c1.title
+      assign est_rotulo = block.settings.label
+      assign est_resumo = block.settings.resumo
+      assign est_desc = block.settings.descricao
+      assign est_aviso = block.settings.aviso
+      if est_sfx != ''
+        assign k = 'label' | append: est_sfx
+        assign est_rotulo_l = block.settings[k]
+        assign k = 'resumo' | append: est_sfx
+        assign est_resumo_l = block.settings[k]
+        if est_rotulo_l != blank
+          assign est_rotulo = est_rotulo_l
+        endif
+        if est_resumo_l != blank
+          assign est_resumo = est_resumo_l
+        elsif est_rotulo_l != blank
+          assign est_resumo = est_rotulo_l | downcase
+        endif
+        assign k = 'descricao' | append: est_sfx
+        if block.settings[k] != blank
+          assign est_desc = block.settings[k]
+        endif
+        assign k = 'aviso' | append: est_sfx
+        if block.settings[k] != blank
+          assign est_aviso = block.settings[k]
+        endif
+      endif
+      if est_rotulo == blank
+        assign est_rotulo = est_c1.title
+      endif
+      if est_resumo == blank
+        assign est_resumo = est_rotulo | downcase
+      endif
       assign est_pag1 = est_c1.products_count | plus: 47 | divided_by: 48
       assign est_pag2 = 0
       assign est_url2 = ''
@@ -67,7 +230,6 @@
         assign est_pag2 = est_c2.products_count | plus: 47 | divided_by: 48
         assign est_url2 = est_c2.url
       endif
-      assign est_resumo = block.settings.resumo | default: est_rotulo | downcase
       assign est_marcar = false
       if est_marcado == false
         assign est_marcado = true
@@ -79,8 +241,8 @@
     -%}
     {%- capture est_chip -%}
       <label class="lnat-est__op{% if block.settings.destaque %} lnat-est__op--destaque{% endif %}" {{ block.shopify_attributes }}>
-        <input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-para" value="{{ est_chave }}" data-grupo="para" data-bloco="{{ block.id }}" data-url="{{ est_c1.url }}" data-pag="{{ est_pag1 }}" data-alt="{{ est_url2 }}" data-alt-pag="{{ est_pag2 }}" data-resumo="{{ est_resumo | escape }}" data-aviso="{{ block.settings.aviso | escape }}"{% if block.settings.saltar_metal %} data-saltar-metal{% endif %}{% if est_marcar %} data-inicial checked{% endif %}>
-        <span class="lnat-est__chip"><span class="lnat-est__chip-nome">{{ est_rotulo | escape }}</span>{%- if block.settings.descricao != blank -%}<span class="lnat-est__chip-desc">{{ block.settings.descricao | escape }}</span>{%- endif -%}</span>
+        <input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-para" value="{{ est_chave }}" data-grupo="para" data-bloco="{{ block.id }}" data-url="{{ est_c1.url }}" data-pag="{{ est_pag1 }}" data-alt="{{ est_url2 }}" data-alt-pag="{{ est_pag2 }}" data-resumo="{{ est_resumo | escape }}" data-aviso="{{ est_aviso | escape }}"{% if block.settings.saltar_metal %} data-saltar-metal{% endif %}{% if est_marcar %} data-inicial checked{% endif %}>
+        <span class="lnat-est__chip"><span class="lnat-est__chip-nome">{{ est_rotulo | escape }}</span>{%- if est_desc != blank -%}<span class="lnat-est__chip-desc">{{ est_desc | escape }}</span>{%- endif -%}</span>
       </label>
     {%- endcapture -%}
     {%- capture est_link -%}
@@ -97,14 +259,17 @@
   {%- endif -%}
 {%- endfor -%}
 
-<section class="lnat lnat-est lnat-sec lnat-bg-tinta lnat-azulejo-escuro{% unless section.settings.mostrar_no_telemovel %} lnat-est--sem-tel{% endunless %}" id="{{ est_ancora }}" aria-labelledby="{{ est_titulo_id }}" data-passo="1" data-wa="{{ est_wa }}" data-vale="{{ est_vale_url }}" data-vale-digital="{{ settings.natal_vale_digital }}" data-inicial="{{ est_inicial | escape }}" data-fundo="{{ est_fundo }}" style="--lnat-est-fundo:{{ est_fundo }}px">
+<section class="lnat lnat-est lnat-sec lnat-bg-tinta lnat-azulejo-escuro{% unless section.settings.mostrar_no_telemovel %} lnat-est--sem-tel{% endunless %}" id="{{ est_ancora }}" aria-labelledby="{{ est_titulo_id }}" data-passo="1" data-versao="{{ lnat_versao }}"{% if lnat_versao == 'pt' %} data-wa="{{ est_wa }}"{% endif %} data-vale="{{ est_vale_url }}" data-vale-digital="{{ settings.natal_vale_digital }}" data-vale-fora="{{ section.settings.vale_fora_portugal }}" data-inicial="{{ est_inicial | escape }}" data-fundo="{{ est_fundo }}" data-tl="{{ lnat_tl | escape }}" style="--lnat-est-fundo:{{ est_fundo }}px">
   {%- if est_escondida -%}
     <p class="lnat-est__editor">
       {%- case lnat_fase -%}
         {%- when 'off' -%}Natal desligado nas definições do tema. Esta secção não aparece na loja.
-        {%- when 'fim' -%}A campanha de Natal terminou. Esta secção já não aparece na loja.
+        {%- when 'fim' -%}
+          {%- if lnat_versao == 'int' -%}A versão internacional do Natal terminou no prazo dos envios internacionais. Neste mercado, esta secção já não aparece na loja.
+          {%- else -%}A campanha de Natal terminou. Esta secção já não aparece na loja.
+          {%- endif -%}
         {%- else -%}
-          {%- capture est_inicio -%}{%- render 'lod-natal-data', valor: settings.natal_inicio, formato: 'curto' -%}{%- endcapture -%}
+          {%- capture est_inicio -%}{%- render 'lod-natal-data', valor: settings.natal_inicio, formato: 'curto', lingua: 'pt' -%}{%- endcapture -%}
           Visível a partir de {{ est_inicio | strip | default: '1 de dezembro' }}. Por agora só aparece aqui no editor.
       {%- endcase -%}
     </p>
@@ -114,26 +279,29 @@
     <div class="lnat-est__trilho" aria-hidden="true">
       <div class="lnat-est__ceu">
         <svg class="lnat-est__curva" viewBox="0 0 1000 100" preserveAspectRatio="none" focusable="false"><path d="M0 75C40 66 70 55 100 55C230 55 350 88 500 62C650 36 770 48 900 48C940 48 975 40 1000 32" vector-effect="non-scaling-stroke"/></svg>
-        <span class="lnat-est__marco lnat-est__marco--1" style="--x:10%;--y:55%"><span class="lnat-est__marco-txt">I<span class="lnat-est__marco-nome"> · Para quem</span></span></span>
-        <span class="lnat-est__marco lnat-est__marco--2" style="--x:50%;--y:62%"><span class="lnat-est__marco-txt">II<span class="lnat-est__marco-nome"> · Ouro ou prata</span></span></span>
-        <span class="lnat-est__marco lnat-est__marco--3" style="--x:90%;--y:48%"><span class="lnat-est__marco-txt">III<span class="lnat-est__marco-nome"> · Quanto</span></span></span>
+        <span class="lnat-est__marco lnat-est__marco--1" style="--x:10%;--y:55%"><span class="lnat-est__marco-txt">I<span class="lnat-est__marco-nome"> · {{ t_marco_1 }}</span></span></span>
+        <span class="lnat-est__marco lnat-est__marco--2" style="--x:50%;--y:62%"><span class="lnat-est__marco-txt">II<span class="lnat-est__marco-nome"> · {{ t_marco_2 }}</span></span></span>
+        <span class="lnat-est__marco lnat-est__marco--3" style="--x:90%;--y:48%"><span class="lnat-est__marco-txt">III<span class="lnat-est__marco-nome"> · {{ t_marco_3 }}</span></span></span>
         <span class="lnat-est__viajante"><span class="lnat-est__viajante-y"><span class="lnat-est__astro">{%- render 'lod-natal-icon', nome: 'estrela', tamanho: 40 -%}</span></span></span>
       </div>
     </div>
 
     <div class="lnat-est__topo">
       <div class="lnat-est__cabecalho">
-        {%- if section.settings.eyebrow != blank -%}<p class="lnat-eb">{{ section.settings.eyebrow | escape }}</p>{%- endif -%}
-        <h2 class="lnat-h2" id="{{ est_titulo_id }}">{{ section.settings.titulo | default: 'Siga a estrela.' | escape }}</h2>
-        {%- if section.settings.texto != blank -%}<p class="lnat-lead lnat-est__lead">{{ section.settings.texto | escape }}</p>{%- endif -%}
-        {%- if section.settings.ajuda_link != blank -%}
-          <p class="lnat-est__ajuda">{{ section.settings.ajuda | escape }} <a class="lnat-link" href="https://wa.me/{{ est_wa }}?text={{ est_wa_msg }}" target="_blank" rel="noopener">{%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 16 -%}{{ section.settings.ajuda_link | escape }}<span class="lnat-sr"> (abre noutra janela)</span></a>.</p>
+        {%- if est_eyebrow != blank -%}<p class="lnat-eb">{{ est_eyebrow | escape }}</p>{%- endif -%}
+        <h2 class="lnat-h2" id="{{ est_titulo_id }}">{{ est_titulo | escape }}</h2>
+        {%- if est_texto != blank -%}<p class="lnat-lead lnat-est__lead">{{ est_texto | escape }}</p>{%- endif -%}
+        {%- if lnat_versao == 'pt' and est_ajuda_link != blank -%}
+          {%- if est_ajuda_msg == blank -%}{%- capture est_ajuda_msg -%}{%- render 'lod-natal-t', k: 'wa_ajuda' -%}{%- endcapture -%}{%- endif -%}
+          {%- capture t_janela -%}{%- render 'lod-natal-t', k: 'abre_janela' -%}{%- endcapture -%}
+          {%- assign est_wa_msg = est_ajuda_msg | url_encode | replace: '+', '%20' -%}
+          <p class="lnat-est__ajuda">{{ est_ajuda | escape }} <a class="lnat-link" href="https://wa.me/{{ est_wa }}?text={{ est_wa_msg }}" target="_blank" rel="noopener">{%- render 'lod-natal-icon', nome: 'whatsapp', tamanho: 16 -%}{{ est_ajuda_link | escape }}<span class="lnat-sr"> {{ t_janela }}</span></a>.</p>
         {%- endif -%}
       </div>
 
       <div class="lnat-est__passos lnat-est__js" data-est-form>
         <fieldset class="lnat-est__passo" data-est-passo="1">
-          <legend class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">I</span>Para quem é a prenda?</legend>
+          <legend class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">I</span>{{ t_p1 }}</legend>
           {%- if est_html_d != '' -%}<div class="lnat-est__ops lnat-est__ops--destaque">{{ est_html_d }}</div>{%- endif -%}
           {%- if est_html_o != '' -%}<div class="lnat-est__ops lnat-est__ops--outros">{{ est_html_o }}</div>{%- endif -%}
           {%- if est_html_d == '' and est_html_o == '' and request.design_mode -%}
@@ -142,37 +310,37 @@
         </fieldset>
 
         <fieldset class="lnat-est__passo" data-est-passo="2">
-          <legend class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">II</span>Ouro ou prata?</legend>
+          <legend class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">II</span>{{ t_p2 }}</legend>
           <div class="lnat-est__ops lnat-est__ops--3">
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="ouro" data-grupo="metal"><span class="lnat-est__chip"><span class="lnat-est__chip-nome">Ouro</span><span class="lnat-est__chip-desc lnat-est__sem">Sem peças</span></span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="prata" data-grupo="metal"><span class="lnat-est__chip"><span class="lnat-est__chip-nome">Prata</span><span class="lnat-est__chip-desc lnat-est__sem">Sem peças</span></span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="tanto-faz" data-grupo="metal" data-inicial checked><span class="lnat-est__chip">Tanto faz</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="ouro" data-grupo="metal"><span class="lnat-est__chip"><span class="lnat-est__chip-nome">{{ t_ouro }}</span><span class="lnat-est__chip-desc lnat-est__sem">{{ t_sem_pecas }}</span></span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="prata" data-grupo="metal"><span class="lnat-est__chip"><span class="lnat-est__chip-nome">{{ t_prata }}</span><span class="lnat-est__chip-desc lnat-est__sem">{{ t_sem_pecas }}</span></span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-metal" value="tanto-faz" data-grupo="metal" data-inicial checked><span class="lnat-est__chip">{{ t_tanto_faz }}</span></label>
           </div>
-          <p class="lnat-est__nota" data-est-nota-metal hidden>Não se aplica a esta escolha.</p>
+          <p class="lnat-est__nota" data-est-nota-metal hidden>{{ t_nao_aplica }}</p>
         </fieldset>
 
         <fieldset class="lnat-est__passo" data-est-passo="3">
-          <legend class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">III</span>Quanto quer gastar?</legend>
+          <legend class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">III</span>{{ t_p3 }}</legend>
           <div class="lnat-est__ops lnat-est__ops--3">
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="ate-50" data-grupo="valor"><span class="lnat-est__chip">Até 50&nbsp;€</span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="50-100" data-grupo="valor"><span class="lnat-est__chip">50 a 100&nbsp;€</span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="100-250" data-grupo="valor"><span class="lnat-est__chip">100 a 250&nbsp;€</span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="250-500" data-grupo="valor"><span class="lnat-est__chip">250 a 500&nbsp;€</span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="mais-500" data-grupo="valor"><span class="lnat-est__chip">Mais de 500&nbsp;€</span></label>
-            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="qualquer" data-grupo="valor" data-inicial checked><span class="lnat-est__chip">Qualquer valor</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="ate-50" data-grupo="valor"><span class="lnat-est__chip">{{ t_v_ate_50 }}</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="50-100" data-grupo="valor"><span class="lnat-est__chip">{{ t_v_50_100 }}</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="100-250" data-grupo="valor"><span class="lnat-est__chip">{{ t_v_100_250 }}</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="250-500" data-grupo="valor"><span class="lnat-est__chip">{{ t_v_250_500 }}</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="mais-500" data-grupo="valor"><span class="lnat-est__chip">{{ t_v_mais_500 }}</span></label>
+            <label class="lnat-est__op"><input class="lnat-est__radio" type="radio" name="lnat-est-{{ est_id }}-valor" value="qualquer" data-grupo="valor" data-inicial checked><span class="lnat-est__chip">{{ t_v_qualquer }}</span></label>
           </div>
         </fieldset>
       </div>
 
       <div class="lnat-est__nojs">
-        <p class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">I</span>Para quem é a prenda?</p>
+        <p class="lnat-est__leg"><span class="lnat-est__num" aria-hidden="true">I</span>{{ t_p1 }}</p>
         <ul class="lnat-est__ops lnat-est__ops--links">{{ est_html_links }}</ul>
       </div>
 
       {%- if section.settings.barra_telemovel -%}
         <div class="lnat-est__fixa lnat-est__js" data-est-fixa data-modo="para">
           <button type="button" class="lnat-est__fixa-btn" data-est-fixa-btn>
-            <span class="lnat-est__fixa-txt"><span class="lnat-est__fixa-tit" data-est-fixa-tit>Para quem é a prenda?</span><span class="lnat-est__fixa-sub" data-est-fixa-sub>Escolha no passo I para ver as peças.</span></span>
+            <span class="lnat-est__fixa-txt"><span class="lnat-est__fixa-tit" data-est-fixa-tit>{{ t_p1 }}</span><span class="lnat-est__fixa-sub" data-est-fixa-sub>{{ t_escolha }}</span></span>
             <span class="lnat-est__fixa-ico" aria-hidden="true">{%- render 'lod-natal-icon', nome: 'seta', tamanho: 20 -%}</span>
           </button>
         </div>
@@ -187,24 +355,24 @@
         <p class="lnat-est__aviso" data-est-aviso hidden></p>
       </div>
       <div class="lnat-est__acoes">
-        <a class="lnat-btn lnat-btn--tinta" data-est-todas href="{{ est_todas }}?sort_by=best-selling">Ver mais na coleção</a>
-        <button type="button" class="lnat-btn lnat-btn--contorno" data-est-recomecar>Recomeçar</button>
+        <a class="lnat-btn lnat-btn--tinta" data-est-todas href="{{ est_todas }}?sort_by=best-selling">{{ t_ver_mais }}</a>
+        <button type="button" class="lnat-btn lnat-btn--contorno" data-est-recomecar>{{ t_recomecar }}</button>
       </div>
       <div class="lnat-est__grelha" data-est-grelha>
         {%- for i in (1..8) -%}<span class="lnat-est__esq" aria-hidden="true"><span></span><span></span><span></span></span>{%- endfor -%}
       </div>
       <div class="lnat-est__vazio" data-est-vazio hidden>
         <div class="lnat-est__sugestoes" data-est-sugestoes></div>
-        <div class="lnat-btns" data-est-vale><a class="lnat-btn lnat-btn--tinta" href="{{ est_vale_url }}">Ver vales-prenda</a></div>
+        <div class="lnat-btns" data-est-vale hidden><a class="lnat-btn lnat-btn--tinta" href="{{ est_vale_url }}">{{ t_ver_vales }}</a></div>
       </div>
       <div class="lnat-est__vazio" data-est-erro hidden>
         <div class="lnat-btns">
-          <button type="button" class="lnat-btn lnat-btn--tinta" data-est-tentar>Tentar de novo</button>
-          <a class="lnat-btn lnat-btn--contorno" data-est-vale href="{{ est_vale_url }}">Ver vales-prenda</a>
+          <button type="button" class="lnat-btn lnat-btn--tinta" data-est-tentar>{{ t_tentar }}</button>
+          <a class="lnat-btn lnat-btn--contorno" data-est-vale href="{{ est_vale_url }}" hidden>{{ t_ver_vales }}</a>
         </div>
       </div>
       <div class="lnat-est__mais" hidden>
-        <button type="button" class="lnat-btn lnat-btn--contorno" data-est-mais>Mostrar mais</button>
+        <button type="button" class="lnat-btn lnat-btn--contorno" data-est-mais>{{ t_mostrar_mais }}</button>
       </div>
       <div class="lnat-est__entrega" data-est-entrega hidden></div>
     </div>
@@ -381,33 +549,25 @@
 (function () {
   'use strict';
   var RAIZ = document.documentElement;
-  var MES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-  var DIA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-  /* Faixas de preço em cêntimos: (mínimo exclusivo, máximo inclusivo]. */
-  var FAIXAS = { 'ate-50': [-1, 5000], '50-100': [5000, 10000], '100-250': [10000, 25000], '250-500': [25000, 50000], 'mais-500': [50000, Infinity] };
-  var FRASE_VALOR = { 'ate-50': 'até 50 €', '50-100': 'de 50 a 100 €', '100-250': 'de 100 a 250 €', '250-500': 'de 250 a 500 €', 'mais-500': 'acima de 500 €' };
+  /* Faixas de preço: limites em euros; valor «mínimo exclusivo, máximo inclusivo». */
+  var VALORES = ['ate-50', '50-100', '100-250', '250-500', 'mais-500'];
+  var LIM_EUR = [50, 100, 250, 500];
+  var CHAVE_VALOR = { 'ate-50': 'ate_50', '50-100': '50_100', '100-250': '100_250', '250-500': '250_500', 'mais-500': 'mais_500' };
+  /* Fases em que a secção aparece, por versão da campanha (contrato, secção 5). */
+  var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'], int: ['navidad'] };
   var POR = 8, MAX_PAGINAS = 3, MINIMO = 4;
   var GRELHA = 'lod-natal-estrela-grelha';
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  function partes(s) {
-    var m = String(s || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/);
-    return m ? { a: +m[1], m: +m[2], d: +m[3], h: m[4] != null ? +m[4] : null, mi: m[5] || '00' } : null;
-  }
-  function dataLonga(s) {
-    var p = partes(s);
-    if (!p) return '';
-    return DIA[new Date(Date.UTC(p.a, p.m - 1, p.d)).getUTCDay()] + ', ' + p.d + ' de ' + MES[p.m - 1];
-  }
-  function dataHora(s) {
-    var p = partes(s);
-    if (!p) return '';
-    return p.d + ' de ' + MES[p.m - 1] + (p.h != null ? ', ' + p.h + 'h' + (p.mi !== '00' ? p.mi : '') : '');
-  }
-  function juntar(l) {
-    return l.length < 2 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' e ' + l[l.length - 1];
+  /* Limite convertido para outra moeda: dois algarismos significativos, múltiplos de 5 abaixo de 100 (43 → 45, 215 → 220). */
+  function redondo(x) {
+    if (!(x > 0)) return 0;
+    var p = Math.pow(10, Math.max(0, Math.floor(Math.log(x) / Math.LN10) - 1));
+    var r = Math.round(x / p) * p;
+    if (r < 100) r = Math.max(5, Math.round(x / 5) * 5);
+    return r;
   }
 
   function init(root) {
@@ -417,9 +577,10 @@
 
     var N = window.LOD_NATAL || null;
     var design = !!(window.Shopify && window.Shopify.designMode);
+    var versao = (N && N.versao) || root.getAttribute('data-versao') || 'pt';
+    if (!ATIVAS[versao]) versao = 'int';
     if (N && !design && typeof N.fase === 'function') {
-      var f0 = N.fase();
-      if (f0 === 'off' || f0 === 'antes' || f0 === 'fim') { root.hidden = true; return; }
+      if (ATIVAS[versao].indexOf(N.fase(versao)) < 0) { root.hidden = true; return; }
     }
 
     var form = root.querySelector('[data-est-form]');
@@ -445,15 +606,82 @@
     var fixaSub = fixa ? fixa.querySelector('[data-est-fixa-sub]') : null;
     var esqueleto = grelha.innerHTML;
     var ancora = root.id;
-    var wa = root.getAttribute('data-wa') || (N && N.wa) || '';
+    var wa = versao === 'pt' ? (root.getAttribute('data-wa') || (N && N.wa) || '') : '';
     var valeUrl = root.getAttribute('data-vale') || '/collections/voucher-prenda';
     var valeDigital = root.getAttribute('data-vale-digital') === 'true';
+    var valeFora = root.getAttribute('data-vale-fora') === 'true';
     var fundo = parseInt(root.getAttribute('data-fundo'), 10);
     if (isNaN(fundo)) fundo = 148;
-    var taxa = 1;
-    try { taxa = parseFloat(window.Shopify && Shopify.currency && Shopify.currency.rate) || 1; } catch (e) {}
     var preview = null;
     try { preview = new URLSearchParams(location.search).get('preview_theme_id'); } catch (e) {}
+
+    /* ---------- textos ----------
+       Dicionário da base (LOD_NATAL.t, na língua da página) e dicionário local da secção (data-tl, chaves estx_*). */
+    var TL = {};
+    String(root.getAttribute('data-tl') || '').split('~~').forEach(function (e) {
+      var i = e.indexOf('=');
+      if (i > 0) TL[e.slice(0, i).trim()] = e.slice(i + 1).trim();
+    });
+    var lingua = (N && N.lingua) || 'pt';
+    function cru(k) { return (N && N.t && N.t[k] != null) ? N.t[k] : TL[k]; }
+    /* texto simples (para textContent) */
+    function t(k, a, b) {
+      var s = cru(k);
+      if (s == null) return k;
+      if (a != null) s = s.split('{1}').join(String(a));
+      if (b != null) s = s.split('{2}').join(String(b));
+      return s;
+    }
+    /* texto para innerHTML: o texto é escapado; {1} e {2} entram como HTML (já escapado por quem chama) */
+    function th(k, a, b) {
+      var s = cru(k);
+      if (s == null) return esc(k);
+      s = esc(s);
+      if (a != null) s = s.split('{1}').join(a);
+      if (b != null) s = s.split('{2}').join(b);
+      return s;
+    }
+    function data(v, f) { return (N && typeof N.fmt === 'function') ? N.fmt(v, f) : String(v || '').slice(0, 10); }
+
+    /* ---------- moeda ----------
+       Em euros, os rótulos vêm do dicionário (valor_*, frase_*). Noutra moeda (Internacional com moedas locais),
+       os limites são convertidos pela taxa da loja e arredondados; filtro, rótulos e endereço usam os mesmos valores. */
+    var moeda = 'EUR', taxa = 1;
+    try {
+      if (window.Shopify && Shopify.currency) {
+        moeda = String(Shopify.currency.active || 'EUR').toUpperCase();
+        taxa = parseFloat(Shopify.currency.rate) || 1;
+      }
+    } catch (e) {}
+    var euro = moeda === 'EUR';
+    var lim = LIM_EUR.map(function (v) { return euro ? v * taxa : redondo(v * taxa); });
+    for (var q = 1; q < lim.length; q++) {
+      if (!(lim[q] > lim[q - 1])) { lim = LIM_EUR.map(function (v) { return v * taxa; }); break; }
+    }
+    /* em cêntimos da moeda da página (como data-preco dos cartões) */
+    var FAIXAS = {
+      'ate-50': [-1, lim[0] * 100],
+      '50-100': [lim[0] * 100, lim[1] * 100],
+      '100-250': [lim[1] * 100, lim[2] * 100],
+      '250-500': [lim[2] * 100, lim[3] * 100],
+      'mais-500': [lim[3] * 100, Infinity]
+    };
+    var nf = null;
+    if (!euro) {
+      try {
+        nf = new Intl.NumberFormat(lingua === 'pt' ? 'pt-PT' : (lingua === 'es' ? 'es-ES' : 'en-GB'), { style: 'currency', currency: moeda, minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      } catch (e) { nf = null; }
+    }
+    function dinheiro(v) { return nf ? nf.format(v) : Math.round(v) + ' ' + moeda; }
+    /* rótulo da escolha (frase = false) ou pedaço da frase dos resultados (frase = true) */
+    function textoValor(v, frase) {
+      if (!CHAVE_VALOR[v]) return '';
+      if (euro) return t((frase ? 'frase_' : 'valor_') + CHAVE_VALOR[v]);
+      var i = VALORES.indexOf(v), pre = frase ? 'estx_f_' : 'estx_v_';
+      if (i === 0) return t(pre + 'ate', dinheiro(lim[0]));
+      if (i === VALORES.length - 1) return t(pre + 'mais', dinheiro(lim[lim.length - 1]));
+      return t(pre + 'entre', dinheiro(lim[i - 1]), dinheiro(lim[i]));
+    }
 
     var cache = {};      /* url da coleção -> { itens, completo } (só respostas completas) */
     var emCurso = {};    /* url da coleção -> { pr, ctrl } */
@@ -472,6 +700,14 @@
         if (els[i].value === v && !els[i].disabled) { els[i].checked = true; return true; }
       }
       return false;
+    }
+    /* Rótulos das faixas de preço noutra moeda (o servidor escreve-os em euros). */
+    if (!euro) {
+      var vs = grupo('valor');
+      for (var iv = 0; iv < vs.length; iv++) {
+        var chip = vs[iv].nextElementSibling;
+        if (chip && CHAVE_VALOR[vs[iv].value]) chip.textContent = textoValor(vs[iv].value, false);
+      }
     }
     /* Sem escolha «Para quem» (estado inicial fechado), para = '' e o painel fica fechado. */
     function estado() {
@@ -495,12 +731,13 @@
       var n = s.querySelector('.lnat-est__chip-nome') || s;
       return n.textContent.replace(/\s+/g, ' ').trim();
     }
-    /* «para ela, em ouro, de 100 a 250 €» */
+    /* «para ela, em ouro, de 100 a 250 €» / «for her, in gold, €100 to €250» / «para ella, en oro, de 100 a 250 €» */
     function frase(s) {
       var p = [s.resumo];
-      if (!s.saltar && s.metal === 'ouro') p.push('em ouro');
-      if (!s.saltar && s.metal === 'prata') p.push('em prata');
-      if (FRASE_VALOR[s.valor]) p.push(FRASE_VALOR[s.valor]);
+      if (!s.saltar && s.metal === 'ouro') p.push(t('em_ouro'));
+      if (!s.saltar && s.metal === 'prata') p.push(t('em_prata'));
+      var fv = textoValor(s.valor, true);
+      if (fv) p.push(fv);
       return p.join(', ');
     }
 
@@ -585,13 +822,15 @@
       }
       var mexeu = false;
       function marca() { mexeu = true; }
-      ['wheel', 'touchstart', 'keydown'].forEach(function (t) { window.addEventListener(t, marca, { once: true, passive: true }); });
+      ['wheel', 'touchstart', 'keydown'].forEach(function (ev) { window.addEventListener(ev, marca, { once: true, passive: true }); });
       function depois() { setTimeout(function () { if (!mexeu) ir(); }, 0); }
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', depois, { once: true }); else depois();
       if (document.readyState !== 'complete') window.addEventListener('load', depois, { once: true });
     }
 
-    /* ---------- pedidos à grelha (Section Rendering API) ---------- */
+    /* ---------- pedidos à grelha (Section Rendering API) ----------
+       O endereço da coleção (collection.url) já traz a língua da página (/en/, /es/, /pt-pt/), por isso os cartões
+       chegam na língua e na moeda certas. */
     function urlPagina(base, p) {
       var u = base + (base.indexOf('?') > -1 ? '&' : '?') + 'section_id=' + GRELHA + '&sort_by=best-selling';
       if (p > 1) u += '&page=' + p;
@@ -659,7 +898,7 @@
       if (!it.disp || it.preco <= 0) return false;
       if (!saltar && metal !== 'tanto-faz' && it.metal !== metal) return false;
       var f = FAIXAS[valor];
-      if (f && !(it.preco > f[0] * taxa && it.preco <= f[1] * taxa)) return false;
+      if (f && !(it.preco > f[0] && it.preco <= f[1])) return false;
       return true;
     }
     function filtrar(itens, s) {
@@ -686,8 +925,8 @@
     }
     function resumo(n, s, completo) {
       var cauda = frase(s);
-      if (completo) return n + (n === 1 ? ' prenda ' : ' prendas ') + cauda;
-      return (n === 1 ? 'A prenda mais vendida ' : 'As ' + n + ' prendas mais vendidas ') + cauda;
+      if (completo) return n === 1 ? t('est_res_1', cauda) : t('est_res_n', n, cauda);
+      return n === 1 ? t('est_top_1', cauda) : t('est_top_n', n, cauda);
     }
     /* Conta como correr(): só a principal quando dá 4 ou mais peças; senão, principal + alternativa
        (sem repetir peças). Assim o número do botão é o que aparece depois do clique. */
@@ -705,7 +944,7 @@
         return (c1 >= MINIMO || !baseAlt) ? c1 : c1 + contaEm(u2, metal, valor);
       }
       function botao(g, v, txt, n) {
-        return '<button type="button" class="lnat-est__sug" data-sug-grupo="' + g + '" data-sug="' + esc(v) + '">' + esc(txt) + ' <span>· ' + n + (n === 1 ? ' peça' : ' peças') + '</span></button>';
+        return '<button type="button" class="lnat-est__sug" data-sug-grupo="' + g + '" data-sug="' + esc(v) + '">' + esc(txt) + ' <span>· ' + esc(n === 1 ? t('peca_1') : t('peca_n', n)) + '</span></button>';
       }
       var vals = grupo('valor');
       for (var i = 0; i < vals.length; i++) {
@@ -719,27 +958,30 @@
         var tf = form.querySelector('[data-grupo="metal"][value="tanto-faz"]');
         if (n2 && tf) html = botao('metal', 'tanto-faz', rotulo(tf), n2);
       }
-      sugEl.innerHTML = html ? '<p>Experimente:</p><div class="lnat-est__sugs">' + html + '</div>' : '';
+      sugEl.innerHTML = html ? '<p>' + esc(t('experimente')) + '</p><div class="lnat-est__sugs">' + html + '</div>' : '';
       return !!html;
     }
-    /* «Ver mais na coleção»: a coleção de onde vêm as peças, com o preço escolhido.
+    /* «Ver mais na coleção»: a coleção de onde vêm as peças, com o preço escolhido (na moeda da página).
        O metal não vai no endereço: os filtros da loja não têm o tipo de produto. */
     function urlTodas(base, s) {
       var u = base + (base.indexOf('?') > -1 ? '&' : '?') + 'sort_by=best-selling';
       var f = FAIXAS[s.valor];
       if (f) {
-        if (f[0] > 0) u += '&filter.v.price.gte=' + Math.floor(f[0] * taxa / 100);
-        if (isFinite(f[1])) u += '&filter.v.price.lte=' + Math.ceil(f[1] * taxa / 100);
+        if (f[0] > 0) u += '&filter.v.price.gte=' + Math.floor(f[0] / 100);
+        if (isFinite(f[1])) u += '&filter.v.price.lte=' + Math.ceil(f[1] / 100);
       }
       return u;
     }
     /* Os vales-prenda são físicos e seguem por correio: só se sugerem quando ainda chegam a tempo
-       (ou quando natal_vale_digital estiver ligado). */
+       (ou quando natal_vale_digital estiver ligado). Fora de Portugal, só com a definição vale_fora_portugal. */
     function valeOk() {
+      if (versao !== 'pt' && !valeFora) return false;
       if (valeDigital) return true;
       var L = window.LOD_NATAL;
-      if (!L || !L.d || typeof L.passou !== 'function' || typeof L.fase !== 'function') return true;
-      var f = L.fase();
+      if (!L || !L.d || typeof L.passou !== 'function' || typeof L.fase !== 'function') return versao === 'pt';
+      if (versao === 'es') return !L.passou(L.d.es_reyes);
+      if (versao === 'int') return !L.passou(L.d.int);
+      var f = L.fase('pt');
       if (f === 'consoada' || f === 'mirra') return !L.passou(L.d.reis);
       if (f === 'ultima' || f === 'fim') return false;
       return !L.passou(L.d.continente);
@@ -748,41 +990,84 @@
       var ok = valeOk();
       for (var i = 0; i < valeEls.length; i++) valeEls[i].hidden = !ok;
     }
+
+    /* ---------- caixa de entrega, por versão ---------- */
+    function juntar(l) {
+      return l.length < 2 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' ' + t('e') + ' ' + l[l.length - 1];
+    }
+    function paragrafo(html) { return '<p>' + html + '</p>'; }
+    function caixaKo(txt) { return '<p class="lnat-est__ent-ko">' + esc(txt) + '</p>'; }
+    function dataB(v, f) { return '<b>' + esc(data(v, f)) + '</b>'; }
+    /* linhas: [[rótulo, data], …] → lista com as datas (só o dia, sem hora) e a nota dos prazos indicativos */
+    function linhas(l, nota) {
+      var h = '<ul class="lnat-est__regioes">';
+      l.forEach(function (r) { h += '<li><span>' + esc(r[0]) + '</span>' + dataB(r[1], 'longo') + '</li>'; });
+      return h + '</ul><p class="lnat-peq lnat-est__ind">' + esc(nota) + '</p>';
+    }
     function waLink(msg) {
-      if (!wa) return '';
+      if (!wa || versao !== 'pt') return '';
       var u = 'https://wa.me/' + encodeURIComponent(wa) + '?text=' + encodeURIComponent(msg);
-      return ' <a class="lnat-link" href="' + esc(u) + '" target="_blank" rel="noopener">Marcar por WhatsApp<span class="lnat-sr"> (abre noutra janela)</span></a>';
+      return ' <a class="lnat-link" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t('marcar_whatsapp')) + '<span class="lnat-sr"> ' + esc(t('abre_janela')) + '</span></a>';
+    }
+    /* Vale-prenda só quando é entregue por email: os vales físicos seguem por correio e também já não chegam. */
+    function valeEmail() {
+      if (!valeDigital || (versao !== 'pt' && !valeFora)) return '';
+      return paragrafo(th('ent_vale_email', '<a class="lnat-link" href="' + esc(valeUrl) + '">' + esc(t('vale_prenda')) + '</a>'));
+    }
+    /* Espanha: prazos da Navidad e de Reyes (datas propostas, sempre indicativas); sem lojas nem WhatsApp. */
+    function entregaEs(L, D, f) {
+      var h = '';
+      if (f === 'reyes_ultima') return caixaKo(t('esp_reyes_ko')) + valeEmail();
+      if (f === 'noche_reyes' || f === 'fim') return valeEmail();   /* Noite e Dia de Reis: sem contagem nem prazos */
+      /* Encomendas de 24 e 25 de dezembro: a expedição (em Portugal) retoma depois do Natal. */
+      if (L.passou(D.loja) && !L.passou(D.festas)) h += paragrafo(th('ent_consoada', dataB(D.retoma, 'longo')));
+      var R = [];
+      if (!L.passou(D.es_navidad)) R.push([t('esp_prazo_navidad'), D.es_navidad]);
+      if (!L.passou(D.es_reyes)) R.push([t('esp_prazo_reyes'), D.es_reyes]);
+      if (!R.length) return h + caixaKo(t('esp_reyes_ko')) + valeEmail();
+      h += paragrafo(esc(t('estx_es_ate'))) + linhas(R, t('esp_nota'));
+      if (L.passou(D.es_navidad)) h += caixaKo(t('esp_navidad_ko'));
+      return h;
+    }
+    /* Internacional: só o prazo internacional; depois dele a secção desaparece (fase fim). */
+    function entregaInt(L, D) {
+      if (!L.passou(D.int) && !L.passou(D.fim)) return paragrafo(esc(t('ent_antes_natal'))) + linhas([[t('int_prazo'), D.int]], t('int_nota'));
+      return caixaKo(t('int_ko')) + valeEmail();
+    }
+    /* Portugal: continente, Madeira e Açores, levantamento em loja com marcação (WhatsApp), Consoada e Reis. */
+    function entregaPt(L, D, f) {
+      var h = '', vale = valeEmail();
+      var reis = paragrafo(th('ent_reis', dataB(D.reis, 'longo')));
+      if (f === 'mirra' || f === 'fim') {
+        h += !L.passou(D.reis) ? reis : caixaKo(t('ent_reis_ko')) + paragrafo(esc(t('ent_levantar')) + waLink(t('wa_loja_reis'))) + vale;
+      } else if (f === 'consoada') {
+        h += paragrafo(th('ent_consoada', dataB(D.retoma, 'longo')));
+        if (!L.passou(D.reis)) h += reis;
+      } else {
+        var R = [[t('linha_continente'), t('para_continente'), D.continente], [t('linha_madeira'), t('para_madeira'), D.madeira], [t('linha_acores'), t('para_acores'), D.acores]];
+        var ok = R.filter(function (r) { return !L.passou(r[2]); });
+        var ko = R.filter(function (r) { return L.passou(r[2]); });
+        if (ok.length) {
+          h += paragrafo(esc(t('ent_antes_natal'))) + linhas(ok.map(function (r) { return [r[0], r[2]]; }), t('prazos_indicativos'));
+        }
+        if (ko.length) {
+          h += caixaKo(ko.length === R.length ? t('ent_ko_todos') : t('ent_ko_para', juntar(ko.map(function (r) { return r[1]; }))));
+        }
+        if (!L.passou(D.loja)) {
+          h += paragrafo(th(ko.length === R.length ? 'ent_ainda_levantar' : 'ent_levantar_ate', dataB(D.loja, 'hora')) + waLink(t('wa_loja')));
+        }
+        if (ko.length) h += vale;
+      }
+      return h;
     }
     function entrega() {
       var L = window.LOD_NATAL;
       if (!entregaEl) return;
       if (!L || !L.d || typeof L.passou !== 'function' || typeof L.fase !== 'function') { entregaEl.hidden = true; return; }
-      var D = L.d, f = L.fase(), h = '';
-      /* Vale-prenda só quando é entregue por email: os vales físicos seguem por correio e também já não chegam. */
-      var vale = valeDigital ? '<p>Ou ofereça um <a class="lnat-link" href="' + esc(valeUrl) + '">vale-prenda</a>, entregue por email.</p>' : '';
-      var reis = '<p>Para chegar até ao Dia de Reis, encomende até <b>' + esc(dataLonga(D.reis)) + '</b> · Portugal continental (prazo indicativo).</p>';
-      if (f === 'mirra' || f === 'fim') {
-        h += !L.passou(D.reis) ? reis : '<p class="lnat-est__ent-ko">Já não chega a tempo do Dia de Reis por correio.</p><p>Pode levantar a prenda numa das nossas lojas, com marcação.' + waLink('Olá! Gostava de levantar uma prenda numa das vossas lojas.') + '</p>' + vale;
-      } else if (f === 'consoada') {
-        h += '<p>As encomendas feitas nestes dias seguem a partir de <b>' + esc(dataLonga(D.retoma)) + '</b>.</p>';
-        if (!L.passou(D.reis)) h += reis;
-      } else {
-        var R = [['Portugal continental', 'Portugal continental', D.continente], ['Madeira', 'a Madeira', D.madeira], ['Açores', 'os Açores', D.acores]];
-        var ok = R.filter(function (r) { return !L.passou(r[2]); });
-        var ko = R.filter(function (r) { return L.passou(r[2]); });
-        if (ok.length) {
-          h += '<p>Para chegar antes do Natal, encomende até:</p><ul class="lnat-est__regioes">';
-          ok.forEach(function (r) { h += '<li><span>' + r[0] + '</span><b>' + esc(dataLonga(r[2])) + '</b></li>'; });
-          h += '</ul><p class="lnat-peq lnat-est__ind">Prazos indicativos.</p>';
-        }
-        if (ko.length) {
-          h += '<p class="lnat-est__ent-ko">Já não chega a tempo por correio' + (ko.length === R.length ? '' : ' para ' + juntar(ko.map(function (r) { return r[1]; }))) + '.</p>';
-        }
-        if (!L.passou(D.loja)) {
-          h += '<p>' + (ko.length === R.length ? 'Ainda pode levantar a prenda numa das nossas lojas' : 'Levantar na loja') + ' até <b>' + esc(dataHora(D.loja)) + '</b>, com marcação.' + waLink('Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.') + '</p>';
-        }
-        if (ko.length) h += vale;
-      }
+      var f = L.fase(versao), h;
+      if (versao === 'es') h = entregaEs(L, L.d, f);
+      else if (versao === 'int') h = entregaInt(L, L.d);
+      else h = entregaPt(L, L.d, f);
       entregaEl.innerHTML = h;
       entregaEl.hidden = !h;
     }
@@ -791,7 +1076,7 @@
       tPub = setTimeout(function () {
         try {
           if (window.Shopify && Shopify.analytics && Shopify.analytics.publish) {
-            Shopify.analytics.publish('lod_natal_estrela', { para: s.para, metal: s.saltar ? 'n/a' : s.metal, valor: s.valor, n: n });
+            Shopify.analytics.publish('lod_natal_estrela', { para: s.para, metal: s.saltar ? 'n/a' : s.metal, valor: s.valor, n: n, versao: versao, lingua: lingua });
           }
         } catch (e) {}
       }, 1200);
@@ -807,9 +1092,9 @@
       if (fixaSub) { fixaSub.textContent = sub || ''; fixaSub.hidden = !sub; }
     }
     function barraRes(s, n) {
-      if (n == null) textoBarra('res', 'A procurar prendas…', frase(s));
-      else if (n) textoBarra('res', 'Ver ' + n + (n === 1 ? ' prenda' : ' prendas'), frase(s));
-      else textoBarra('res', 'Ver sugestões', 'Sem peças ' + frase(s));
+      if (n == null) textoBarra('res', t('est_a_procurar'), frase(s));
+      else if (n) textoBarra('res', n === 1 ? t('est_ver_1') : t('est_ver_n', n), frase(s));
+      else textoBarra('res', t('est_ver_sugestoes'), t('est_sem_frase', frase(s)));
     }
 
     function desenhar(r, s, origem) {
@@ -821,14 +1106,14 @@
       todasEl.href = urlTodas(r.todas, s);
       grelha.textContent = '';
       vales();
-      var pre = r.tirado ? 'Sem peças em ' + r.tirado + ' ' + s.resumo + '. ' : '';
+      var pre = r.tirado ? t('est_sem_metal', t('metal_' + r.tirado), s.resumo) + ' ' : '';
       if (!lista.length) {
         grelha.hidden = true;
         maisWrap.hidden = true;
         vazioEl.hidden = false;
         sugerir(r.base, r.baseAlt, s);
-        var tente = (!s.saltar && s.metal !== 'tanto-faz') ? 'outro valor ou outro metal' : 'outro valor';
-        estadoEl.textContent = pre + 'Não encontrámos peças com estas escolhas. Experimente ' + tente + (valeOk() ? ', ou ofereça um vale-prenda.' : '.');
+        var tente = (!s.saltar && s.metal !== 'tanto-faz') ? t('est_tente_valor_metal') : t('est_tente_valor');
+        estadoEl.textContent = pre + t(valeOk() ? 'est_vazio_vale' : 'est_vazio', tente);
       } else {
         vazioEl.hidden = true;
         grelha.hidden = false;
@@ -849,8 +1134,8 @@
       vazioEl.hidden = true;
       erroEl.hidden = false;
       vales();
-      estadoEl.textContent = 'Não conseguimos mostrar as peças agora. Tente de novo ou veja a coleção.';
-      textoBarra('res', 'Ver resultados', 'Não conseguimos mostrar as peças agora.');
+      estadoEl.textContent = t('est_erro');
+      textoBarra('res', t('est_ver_resultados'), t('est_erro_curto'));
     }
     function abrir() { if (painel.hidden) painel.hidden = false; }
     /* Sem escolha «Para quem»: painel fechado, pronto a reabrir com o esqueleto. */
@@ -867,7 +1152,7 @@
       maisWrap.hidden = true;
       estadoEl.textContent = '';
       if (entregaEl) entregaEl.hidden = true;
-      textoBarra('para', 'Para quem é a prenda?', 'Escolha no passo I para ver as peças.');
+      textoBarra('para', t('est_p1'), t('est_escolha_passo1'));
     }
     /* Estado inicial fechado: quando a secção se aproxima, já vai buscando a primeira escolha. */
     function preCarregar() {
@@ -943,9 +1228,9 @@
 
     /* ---------- eventos ---------- */
     form.addEventListener('change', function (e) {
-      var t = e.target;
-      if (!t || !t.hasAttribute || !t.hasAttribute('data-grupo')) return;
-      var fs = t.closest('[data-est-passo]');
+      var alvo = e.target;
+      if (!alvo || !alvo.hasAttribute || !alvo.hasAttribute('data-grupo')) return;
+      var fs = alvo.closest('[data-est-passo]');
       if (fs) passo(fs.getAttribute('data-est-passo'));
       ativar('utilizador');
     });
@@ -1063,18 +1348,35 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "Guia de prendas. Aparece de 1 de dezembro ao Dia de Reis (datas nas definições do tema, Natal 2026). Os resultados carregam quando a secção se aproxima do ecrã."
+      "content": "Guia de prendas. Em Portugal aparece de 1 de dezembro ao Dia de Reis; em Espanha até ao Dia de Reis, com os prazos de Espanha; no Internacional só até ao prazo dos envios internacionais (datas nas definições do tema, Natal 2026). A ajuda por WhatsApp e o levantamento em loja só aparecem no mercado Portugal. Os resultados carregam quando a secção se aproxima do ecrã."
     },
     { "type": "header", "content": "Textos" },
     { "type": "text", "id": "eyebrow", "label": "Etiqueta", "default": "Guia de prendas" },
     { "type": "text", "id": "titulo", "label": "Título", "default": "Siga a estrela." },
     { "type": "textarea", "id": "texto", "label": "Texto", "default": "Três escolhas e mostramos-lhe as peças certas — com prazo de entrega." },
-    { "type": "text", "id": "ajuda", "label": "Linha de ajuda", "default": "Prefere ajuda de uma pessoa?" },
-    { "type": "text", "id": "ajuda_link", "label": "Ligação de ajuda (WhatsApp)", "default": "Fale connosco por WhatsApp", "info": "Vazio esconde a linha de ajuda. O número vem das definições do tema (Natal 2026)." },
+    { "type": "text", "id": "ajuda", "label": "Linha de ajuda", "default": "Prefere ajuda de uma pessoa?", "info": "Só aparece no mercado Portugal." },
+    { "type": "text", "id": "ajuda_link", "label": "Ligação de ajuda (WhatsApp)", "default": "Fale connosco por WhatsApp", "info": "Vazio esconde a linha de ajuda. Só aparece no mercado Portugal. O número vem das definições do tema (Natal 2026)." },
     { "type": "text", "id": "ajuda_mensagem", "label": "Mensagem já escrita no WhatsApp", "default": "Olá! Estou a escolher uma prenda de Natal e gostava de ajuda." },
     { "type": "text", "id": "titulo_resultados", "label": "Título dos resultados", "default": "A estrela parou aqui." },
+    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_en", "label": "Etiqueta (EN)" },
+    { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
+    { "type": "textarea", "id": "texto_en", "label": "Texto (EN)" },
+    { "type": "text", "id": "ajuda_en", "label": "Linha de ajuda (EN)" },
+    { "type": "text", "id": "ajuda_link_en", "label": "Ligação de ajuda (EN)" },
+    { "type": "text", "id": "ajuda_mensagem_en", "label": "Mensagem no WhatsApp (EN)" },
+    { "type": "text", "id": "titulo_resultados_en", "label": "Título dos resultados (EN)" },
+    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_es", "label": "Etiqueta (ES)" },
+    { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
+    { "type": "textarea", "id": "texto_es", "label": "Texto (ES)" },
+    { "type": "text", "id": "ajuda_es", "label": "Linha de ajuda (ES)" },
+    { "type": "text", "id": "ajuda_link_es", "label": "Ligação de ajuda (ES)" },
+    { "type": "text", "id": "ajuda_mensagem_es", "label": "Mensagem no WhatsApp (ES)" },
+    { "type": "text", "id": "titulo_resultados_es", "label": "Título dos resultados (ES)" },
     { "type": "header", "content": "Ligações" },
     { "type": "collection", "id": "colecao_vale", "label": "Coleção dos vales-prenda", "info": "Usada quando não há peças. Os vales seguem por correio: depois do prazo do correio só se sugerem se estiver ligada a opção O vale-prenda é entregue por email, nas definições do tema (Natal 2026). Vazio usa /collections/voucher-prenda." },
+    { "type": "checkbox", "id": "vale_fora_portugal", "label": "Sugerir vales-prenda em Espanha e no Internacional", "default": false, "info": "Os vales-prenda seguem por correio. Ligue só depois de confirmar que os vales servem aos clientes de Espanha e do Internacional." },
     { "type": "text", "id": "ancora", "label": "Âncora da secção", "default": "siga-a-estrela", "info": "Endereço da secção: /#siga-a-estrela. As escolhas ficam a seguir, por exemplo #siga-a-estrela?para=ela&metal=ouro&valor=100-250" },
     { "type": "header", "content": "Comportamento" },
     {
@@ -1099,28 +1401,54 @@
       "name": "Para quem",
       "settings": [
         { "type": "text", "id": "label", "label": "Nome da escolha", "default": "Para ela" },
-        { "type": "text", "id": "chave", "label": "Chave no endereço", "default": "ela", "info": "Curta, sem espaços nem acentos (ex. ela, ele, mae). Aparece em #siga-a-estrela?para=ela" },
+        { "type": "text", "id": "chave", "label": "Chave no endereço", "default": "ela", "info": "Curta, sem espaços nem acentos (ex. ela, ele, mae). Aparece em #siga-a-estrela?para=ela. É igual em todas as línguas." },
         { "type": "text", "id": "resumo", "label": "Na frase dos resultados", "info": "Ex. para a mãe, que dá 12 prendas para a mãe, em prata. Vazio usa o nome da escolha em minúsculas." },
         { "type": "text", "id": "descricao", "label": "Linha pequena por baixo do nome", "info": "Opcional. Ex. Brincos, fios, pulseiras e anéis" },
         { "type": "checkbox", "id": "destaque", "label": "Escolha grande (em destaque)", "default": false },
         { "type": "collection", "id": "colecao", "label": "Coleção principal" },
         { "type": "collection", "id": "alternativa", "label": "Coleção alternativa", "info": "Junta-se aos resultados quando a principal dá menos de 4 peças com as escolhas feitas." },
         { "type": "checkbox", "id": "saltar_metal", "label": "Saltar a pergunta Ouro ou prata", "default": false },
-        { "type": "textarea", "id": "aviso", "label": "Aviso nos resultados", "info": "Opcional. Aparece por cima das peças quando esta escolha está ativa." }
+        { "type": "textarea", "id": "aviso", "label": "Aviso nos resultados", "info": "Opcional. Aparece por cima das peças quando esta escolha está ativa." },
+        { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
+        { "type": "text", "id": "label_en", "label": "Nome da escolha (EN)" },
+        { "type": "text", "id": "resumo_en", "label": "Na frase dos resultados (EN)", "info": "Ex. for Mum, que dá 12 gifts for Mum, in silver. Vazio usa o nome da escolha (EN) em minúsculas." },
+        { "type": "text", "id": "descricao_en", "label": "Linha pequena (EN)" },
+        { "type": "textarea", "id": "aviso_en", "label": "Aviso nos resultados (EN)" },
+        { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
+        { "type": "text", "id": "label_es", "label": "Nome da escolha (ES)" },
+        { "type": "text", "id": "resumo_es", "label": "Na frase dos resultados (ES)", "info": "Ex. para mamá, que dá 12 regalos para mamá, en plata. Vazio usa o nome da escolha (ES) em minúsculas." },
+        { "type": "text", "id": "descricao_es", "label": "Linha pequena (ES)" },
+        { "type": "textarea", "id": "aviso_es", "label": "Aviso nos resultados (ES)" }
       ]
     }
   ],
   "presets": [
     {
       "name": "Natal · Siga a estrela",
+      "settings": {
+        "eyebrow_en": "Gift guide",
+        "titulo_en": "Follow the star.",
+        "texto_en": "Make three choices and we will show you the right pieces, with indicative delivery deadlines.",
+        "ajuda_en": "Would you rather speak to one of our team?",
+        "ajuda_link_en": "Talk to us on WhatsApp",
+        "ajuda_mensagem_en": "Hello! I am choosing a Christmas gift and would like some help.",
+        "titulo_resultados_en": "The star stopped here.",
+        "eyebrow_es": "Guía de regalos",
+        "titulo_es": "Siga la estrella.",
+        "texto_es": "Elija tres opciones y le mostraremos las piezas adecuadas, con plazos de entrega orientativos.",
+        "ajuda_es": "¿Prefiere que le atienda una persona?",
+        "ajuda_link_es": "Escríbanos por WhatsApp",
+        "ajuda_mensagem_es": "¡Hola! Estoy eligiendo un regalo de Navidad y me gustaría recibir ayuda.",
+        "titulo_resultados_es": "La estrella se detuvo aquí."
+      },
       "blocks": [
-        { "type": "destinatario", "settings": { "label": "Para ela", "chave": "ela", "resumo": "para ela", "descricao": "Brincos, fios, pulseiras e anéis", "destaque": true } },
-        { "type": "destinatario", "settings": { "label": "Para ele", "chave": "ele", "resumo": "para ele", "descricao": "Fios, pulseiras, anéis e relógios", "destaque": true } },
-        { "type": "destinatario", "settings": { "label": "Para a mãe", "chave": "mae", "resumo": "para a mãe" } },
-        { "type": "destinatario", "settings": { "label": "Para a avó", "chave": "avo", "resumo": "para a avó" } },
-        { "type": "destinatario", "settings": { "label": "Para os mais pequenos", "chave": "pequenos", "resumo": "para os mais pequenos" } },
-        { "type": "destinatario", "settings": { "label": "Batizado e afilhados", "chave": "batizado", "resumo": "para batizados e afilhados" } },
-        { "type": "destinatario", "settings": { "label": "Para guardar", "chave": "guardar", "resumo": "para guardar", "saltar_metal": true, "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento." } }
+        { "type": "destinatario", "settings": { "label": "Para ela", "chave": "ela", "resumo": "para ela", "descricao": "Brincos, fios, pulseiras e anéis", "destaque": true, "label_en": "For her", "resumo_en": "for her", "descricao_en": "Earrings, necklaces, bracelets and rings", "label_es": "Para ella", "resumo_es": "para ella", "descricao_es": "Pendientes, collares, pulseras y anillos" } },
+        { "type": "destinatario", "settings": { "label": "Para ele", "chave": "ele", "resumo": "para ele", "descricao": "Fios, pulseiras, anéis e relógios", "destaque": true, "label_en": "For him", "resumo_en": "for him", "descricao_en": "Chains, bracelets, rings and watches", "label_es": "Para él", "resumo_es": "para él", "descricao_es": "Cadenas, pulseras, anillos y relojes" } },
+        { "type": "destinatario", "settings": { "label": "Para a mãe", "chave": "mae", "resumo": "para a mãe", "label_en": "For Mum", "resumo_en": "for Mum", "label_es": "Para mamá", "resumo_es": "para mamá" } },
+        { "type": "destinatario", "settings": { "label": "Para a avó", "chave": "avo", "resumo": "para a avó", "label_en": "For Grandma", "resumo_en": "for Grandma", "label_es": "Para la abuela", "resumo_es": "para la abuela" } },
+        { "type": "destinatario", "settings": { "label": "Para os mais pequenos", "chave": "pequenos", "resumo": "para os mais pequenos", "label_en": "For little ones", "resumo_en": "for little ones", "label_es": "Para los más pequeños", "resumo_es": "para los más pequeños" } },
+        { "type": "destinatario", "settings": { "label": "Batizado e afilhados", "chave": "batizado", "resumo": "para batizados e afilhados", "label_en": "Christenings and godchildren", "resumo_en": "for christenings and godchildren", "label_es": "Bautizos y ahijados", "resumo_es": "para bautizos y ahijados" } },
+        { "type": "destinatario", "settings": { "label": "Para guardar", "chave": "guardar", "resumo": "para guardar", "saltar_metal": true, "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento.", "label_en": "To treasure", "resumo_en": "to treasure", "aviso_en": "The price of gold varies with the market. This is commercial information and does not constitute investment advice.", "label_es": "Para atesorar", "resumo_es": "para atesorar", "aviso_es": "El precio del oro varía según el mercado. Información comercial; no constituye asesoramiento de inversión." } }
       ]
     }
   ]

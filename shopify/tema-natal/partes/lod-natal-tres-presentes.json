@@ -13,7 +13,17 @@
     "embrulho_3": "envie-uma-mensagem",
     "embrulho_3_texto": "",
     "embrulho_nota": "Escolha no carrinho, antes de finalizar a encomenda. Também podemos enviar diretamente para quem recebe: indique essa morada no checkout.",
-    "mostrar_no_telemovel": true
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "Gold, frankincense and myrrh",
+    "titulo_en": "Three gifts. The whole of Christmas.",
+    "lead_en": "St Matthew’s Gospel tells us that the Magi offered gold, frankincense and myrrh. We look after Christmas in the same spirit.",
+    "embrulho_titulo_en": "Gift wrapping and message",
+    "embrulho_nota_en": "Choose them in your bag before you check out. We can also send the gift straight to the recipient: just enter their address at checkout.",
+    "eyebrow_es": "Oro, incienso y mirra",
+    "titulo_es": "Tres regalos. Toda una Navidad.",
+    "lead_es": "Cuenta el Evangelio de san Mateo que los Magos ofrecieron oro, incienso y mirra. Nosotros cuidamos sus regalos de Navidad con el mismo esmero.",
+    "embrulho_titulo_es": "Envoltorio y mensaje",
+    "embrulho_nota_es": "Elíjalos en la cesta antes de finalizar su pedido. También podemos enviar el regalo directamente a quien lo recibe: indique esa dirección al tramitar el pedido."
   },
   "blocks": {
     "presente_ouro": {
@@ -28,7 +38,15 @@
         "imagem_alt": "",
         "link_texto": "Ver ouro tradicional",
         "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
-        "abre_embrulho": false
+        "abre_embrulho": false,
+        "eyebrow_en": "Gold",
+        "titulo_en": "Choose",
+        "texto_en": "The first of the three gifts, fit for a king. Jewellery in 19.2-carat Portuguese gold, hallmarked, for the people you love most.",
+        "link_texto_en": "See traditional gold",
+        "eyebrow_es": "Oro",
+        "titulo_es": "Elegir",
+        "texto_es": "El primero de los tres regalos, digno de un rey. Joyas de oro portugués de 19,2 quilates, contrastadas, para las personas que más quiere.",
+        "link_texto_es": "Ver oro tradicional"
       }
     },
     "presente_incenso": {
@@ -43,7 +61,15 @@
         "imagem_alt": "",
         "link_texto": "Ver opções de embrulho",
         "link_url": "/cart",
-        "abre_embrulho": true
+        "abre_embrulho": true,
+        "eyebrow_en": "Frankincense",
+        "titulo_en": "Wrap",
+        "texto_en": "A gift bag, the Premium Pack and a message written by you: choose them before you check out. We can also send the gift straight to the recipient.",
+        "link_texto_en": "See gift wrapping options",
+        "eyebrow_es": "Incienso",
+        "titulo_es": "Envolver",
+        "texto_es": "Bolsa de regalo, Pack Premium y un mensaje escrito por usted: elíjalos en la cesta. También enviamos el regalo directamente a quien lo recibe.",
+        "link_texto_es": "Ver opciones de envoltorio"
       }
     },
     "presente_mirra": {
@@ -58,9 +84,23 @@
         "imagem_alt": "",
         "link_texto": "Encontrar uma loja",
         "link_url": "/pages/agencias",
-        "abre_embrulho": false
+        "abre_embrulho": false,
+        "eyebrow_en": "Myrrh",
+        "titulo_en": "Care",
+        "texto_en": "Support via WhatsApp and 13 stores across Portugal for whatever you need. If a piece is faulty, the 3-year legal guarantee applies.",
+        "texto_trocas_en": "Christmas exchanges until {trocas}, support via WhatsApp and 13 stores across Portugal for whatever you need. If a piece is faulty, the 3-year legal guarantee applies.",
+        "link_texto_en": "Find a store",
+        "eyebrow_es": "Mirra",
+        "titulo_es": "Cuidar",
+        "texto_es": "Atención por WhatsApp y 13 tiendas en Portugal para lo que necesite. Si una pieza tiene algún defecto, se aplica la garantía legal de 3 años.",
+        "texto_trocas_es": "Cambios de Navidad hasta el {trocas}, atención por WhatsApp y 13 tiendas en Portugal para lo que necesite. Si una pieza tiene algún defecto, se aplica la garantía legal de 3 años.",
+        "link_texto_es": "Encontrar una tienda"
       }
     }
   },
-  "block_order": ["presente_ouro", "presente_incenso", "presente_mirra"]
+  "block_order": [
+    "presente_ouro",
+    "presente_incenso",
+    "presente_mirra"
+  ]
 }

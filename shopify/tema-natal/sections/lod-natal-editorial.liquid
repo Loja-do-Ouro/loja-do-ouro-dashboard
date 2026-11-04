@@ -7,15 +7,45 @@
   Telemóvel: imagem 1:1 a toda a largura no topo; com grelha, o texto vem primeiro; as etiquetas
   (chips) partem em linhas e ocupam a largura toda, sem nada escondido fora do ecrã.
   Tablet (750–1199 px) com imagem: imagem 16:9 por cima e texto por baixo, sem faixas vazias.
+  Línguas: campos base em português e campos _en/_es (vazios → português); «Desde» e «Sabia que?» vêm do
+  dicionário lod-natal-t quando o campo da língua está vazio. Versões: Portugal e Espanha (no Internacional
+  a secção não aparece), cada uma nas suas fases (contrato i18n, secção 5). Ligações começadas por «/»
+  ganham o prefixo da língua e do mercado.
 {%- endcomment -%}
 {%- liquid
+  # Língua da página, versão da campanha (mercado da visita) e fase dessa versão
+  capture lnat_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_lg = lnat_lg | strip
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnat_versao = lnat_versao | strip
   capture lnat_fase
-    render 'lod-natal-fase'
+    render 'lod-natal-fase', mercado: 'auto'
   endcapture
   assign lnat_fase = lnat_fase | strip
-  assign oculta = false
-  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
-    assign oculta = true
+  # Versões em que esta secção existe: Portugal e Espanha
+  assign versoes = ',pt,es,'
+  case lnat_versao
+    when 'es'
+      assign fases_versao = ',navidad,reyes,reyes_ultima,noche_reyes,'
+    when 'int'
+      assign fases_versao = ',navidad,'
+    else
+      assign lnat_versao = 'pt'
+      assign fases_versao = ',ouro,incenso,ultima,consoada,mirra,'
+  endcase
+  assign k_v = ',' | append: lnat_versao | append: ','
+  assign k_f = ',' | append: lnat_fase | append: ','
+  assign suporta = false
+  if versoes contains k_v
+    assign suporta = true
+  endif
+  assign oculta = true
+  if suporta and fases_versao contains k_f
+    assign oculta = false
   endif
   assign mostrar = true
   if oculta
@@ -26,13 +56,93 @@
   endif
 
   assign s = section.settings
+
+  # Textos na língua da página
+  assign t_eyebrow = s.eyebrow
+  assign t_titulo = s.titulo
+  assign t_texto = s.texto
+  assign t_sabia_titulo = s.sabia_titulo
+  assign t_sabia = s.sabia
+  assign t_b1 = s.botao1_texto
+  assign t_b2 = s.botao2_texto
+  assign img_alt = s.imagem_alt
+  assign suf = ''
+  if lnat_lg != 'pt'
+    assign suf = '_' | append: lnat_lg
+    assign k = 'eyebrow' | append: suf
+    if s[k] != blank
+      assign t_eyebrow = s[k]
+    endif
+    assign k = 'titulo' | append: suf
+    if s[k] != blank
+      assign t_titulo = s[k]
+    endif
+    assign k = 'texto' | append: suf
+    if s[k] != blank
+      assign t_texto = s[k]
+    endif
+    assign k = 'sabia' | append: suf
+    if s[k] != blank
+      assign t_sabia = s[k]
+    endif
+    assign k = 'botao1_texto' | append: suf
+    if s[k] != blank
+      assign t_b1 = s[k]
+    endif
+    assign k = 'botao2_texto' | append: suf
+    if s[k] != blank
+      assign t_b2 = s[k]
+    endif
+    assign k = 'imagem_alt' | append: suf
+    if s[k] != blank
+      assign img_alt = s[k]
+    endif
+    assign k = 'sabia_titulo' | append: suf
+    if s[k] != blank
+      assign t_sabia_titulo = s[k]
+    elsif t_sabia_titulo == 'Sabia que?' or t_sabia_titulo == blank
+      capture t_sabia_titulo
+        render 'lod-natal-t', k: 'sabia_que'
+      endcapture
+    endif
+  endif
+  capture t_desde
+    render 'lod-natal-t', k: 'desde'
+  endcapture
+  assign t_desde = t_desde | strip
+
+  # Prefixo da língua e do mercado para as ligações (routes.root_url é «/» na língua principal de cada domínio)
+  assign raiz = routes.root_url | default: '/'
+  assign raiz_pre = raiz | append: '/'
+  assign u_b1 = s.botao1_url
+  assign u_b2 = s.botao2_url
+  if raiz != '/'
+    assign u = u_b1
+    if u != blank
+      assign u1 = u | slice: 0, 1
+      assign u2 = u | slice: 0, 2
+      assign u_pre = u | slice: 0, raiz_pre.size
+      if u1 == '/' and u2 != '//' and u_pre != raiz_pre and u != raiz
+        assign u_b1 = raiz | append: u
+      endif
+    endif
+    assign u = u_b2
+    if u != blank
+      assign u1 = u | slice: 0, 1
+      assign u2 = u | slice: 0, 2
+      assign u_pre = u | slice: 0, raiz_pre.size
+      if u1 == '/' and u2 != '//' and u_pre != raiz_pre and u != raiz
+        assign u_b2 = raiz | append: u
+      endif
+    endif
+  endif
+
   assign fundo = s.fundo | default: 'linho'
   assign lado = s.lado_imagem | default: 'esquerda'
   assign estilo = s.produtos_estilo | default: 'mini'
   assign pmax = s.produtos_max | default: 4
   assign img = s.imagem
   assign img_m = s.imagem_telemovel
-  assign img_alt = s.imagem_alt
   if img_alt == blank and img
     assign img_alt = img.alt
   endif
@@ -78,7 +188,7 @@
           </span>
           <span class="lnat-ed__mini-txt">
             <span class="lnat-ed__mini-titulo">{{ p.title | escape }}</span>
-            <span class="lnat-ed__mini-preco">{%- if p.price_varies -%}Desde {% endif -%}{{ p.price | money }}</span>
+            <span class="lnat-ed__mini-preco">{%- if p.price_varies -%}{{ t_desde }} {% endif -%}{{ p.price | money }}</span>
           </span>
         </a>
       </li>
@@ -97,11 +207,11 @@
   assign resto = celulas | modulo: 2
 
   assign tem_b1 = false
-  if s.botao1_texto != blank and s.botao1_url != blank
+  if t_b1 != blank and u_b1 != blank
     assign tem_b1 = true
   endif
   assign tem_b2 = false
-  if s.botao2_texto != blank and s.botao2_url != blank
+  if t_b2 != blank and u_b2 != blank
     assign tem_b2 = true
   endif
   assign tem_btns = false
@@ -113,7 +223,7 @@
     assign tem_acoes = true
   endif
 
-  assign sabia_t = s.sabia_titulo | escape
+  assign sabia_t = t_sabia_titulo | strip | escape
   assign sabia_ini = '<p><b>' | append: sabia_t | append: '</b> '
 -%}
 {%- if mostrar -%}
@@ -123,7 +233,11 @@
   aria-labelledby="lnat-ed-h-{{ section.id }}"
 >
   <div class="lnat-wrap">
-    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+    {%- if request.design_mode and suporta == false -%}
+      <p class="lnat-aviso-fase" style="margin:0 0 24px;padding:8px 12px;background:#fff3cd;color:#3d2f00;font:13px/1.4 var(--lnat-sans,system-ui,sans-serif);text-align:left">Pré-visualização no editor: esta secção não aparece no mercado Internacional (só em Portugal e em Espanha).</p>
+    {%- elsif oculta -%}
+      {%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}
+    {%- endif -%}
 
     <div class="lnat-ed__grelha">
       <div class="lnat-ed__media">
@@ -157,15 +271,15 @@
         {%- if s.icone != 'nenhum' and s.icone != blank -%}
           <span class="lnat-ed__ico lnat-ed__ico--{{ s.icone }}">{%- render 'lod-natal-icon', nome: s.icone, tamanho: ico_t -%}</span>
         {%- endif -%}
-        {%- if s.eyebrow != blank -%}
-          <p class="lnat-eb">{{ s.eyebrow | escape }}</p>
+        {%- if t_eyebrow != blank -%}
+          <p class="lnat-eb">{{ t_eyebrow | escape }}</p>
         {%- endif -%}
-        <h2 class="lnat-h2{% if s.estilo_titulo == 'serif' %} lnat-h2--serif{% endif %} lnat-ed__h" id="lnat-ed-h-{{ section.id }}">{{ s.titulo | escape }}</h2>
-        {%- if s.texto != blank -%}
-          <div class="lnat-ed__txt">{{ s.texto }}</div>
+        <h2 class="lnat-h2{% if s.estilo_titulo == 'serif' %} lnat-h2--serif{% endif %} lnat-ed__h" id="lnat-ed-h-{{ section.id }}">{{ t_titulo | escape }}</h2>
+        {%- if t_texto != blank -%}
+          <div class="lnat-ed__txt">{{ t_texto }}</div>
         {%- endif -%}
-        {%- if s.sabia != blank -%}
-          <aside class="lnat-ed__sabia" aria-label="{{ s.sabia_titulo | escape }}">{{ s.sabia | replace_first: '<p>', sabia_ini }}</aside>
+        {%- if t_sabia != blank -%}
+          <aside class="lnat-ed__sabia" aria-label="{{ sabia_t }}">{{ t_sabia | replace_first: '<p>', sabia_ini }}</aside>
         {%- endif -%}
         {%- if grelha == false and n > 0 -%}
           <ul class="lnat-ed__minis" role="list">{{- prods -}}</ul>
@@ -177,8 +291,26 @@
           {%- if section.blocks.size > 0 -%}
             <ul class="lnat-ed__chips" role="list">
               {%- for block in section.blocks -%}
-                {%- if block.settings.texto != blank -%}
-                  <li {{ block.shopify_attributes }}><a class="lnat-ed__chip" href="{{ block.settings.url | default: '#' }}">{{ block.settings.texto | escape }}</a></li>
+                {%- liquid
+                  assign c_texto = block.settings.texto
+                  if suf != ''
+                    assign k = 'texto' | append: suf
+                    if block.settings[k] != blank
+                      assign c_texto = block.settings[k]
+                    endif
+                  endif
+                  assign u = block.settings.url | default: '#'
+                  if raiz != '/'
+                    assign u1 = u | slice: 0, 1
+                    assign u2 = u | slice: 0, 2
+                    assign u_pre = u | slice: 0, raiz_pre.size
+                    if u1 == '/' and u2 != '//' and u_pre != raiz_pre and u != raiz
+                      assign u = raiz | append: u
+                    endif
+                  endif
+                -%}
+                {%- if c_texto != blank -%}
+                  <li {{ block.shopify_attributes }}><a class="lnat-ed__chip" href="{{ u }}">{{ c_texto | escape }}</a></li>
                 {%- endif -%}
               {%- endfor -%}
             </ul>
@@ -186,10 +318,10 @@
           {%- if tem_btns -%}
             <div class="lnat-btns lnat-ed__btns">
               {%- if tem_b1 -%}
-                <a class="lnat-btn lnat-btn--tinta" href="{{ s.botao1_url }}">{{ s.botao1_texto | escape }}</a>
+                <a class="lnat-btn lnat-btn--tinta" href="{{ u_b1 }}">{{ t_b1 | escape }}</a>
               {%- endif -%}
               {%- if tem_b2 -%}
-                <a class="lnat-btn lnat-btn--contorno" href="{{ s.botao2_url }}">{{ s.botao2_texto | escape }}</a>
+                <a class="lnat-btn lnat-btn--contorno" href="{{ u_b2 }}">{{ t_b2 | escape }}</a>
               {%- endif -%}
             </div>
           {%- endif -%}
@@ -292,13 +424,16 @@
 
 <script>
 (function(){
+  // Fases em que a secção aparece, por versão da campanha (contrato i18n, secção 5); no Internacional não aparece
+  var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'] };
   function ini(sec){
     if (sec.getAttribute('data-lnat-pronto')) return;
     sec.setAttribute('data-lnat-pronto', '1');
     var N = window.LOD_NATAL;
     if (N && !sec.classList.contains('lnat-ed--editor')) {
-      var f = N.fase();
-      if (f === 'off' || f === 'antes' || f === 'fim') sec.hidden = true;
+      var v = N.versao || 'pt';
+      var f = N.fase(v);
+      if (!ATIVAS[v] || ATIVAS[v].indexOf(f) < 0) sec.hidden = true;
     }
   }
   function todos(){
@@ -390,7 +525,25 @@
       ],
       "default": "linho"
     },
-    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true },
+    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_en", "label": "Sobretítulo (EN)" },
+    { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
+    { "type": "richtext", "id": "texto_en", "label": "Texto (EN)" },
+    { "type": "text", "id": "sabia_titulo_en", "label": "Título da caixa (EN)", "info": "Vazio: Did you know?" },
+    { "type": "richtext", "id": "sabia_en", "label": "Caixa Sabia que (EN)" },
+    { "type": "text", "id": "imagem_alt_en", "label": "Texto alternativo da imagem (EN)" },
+    { "type": "text", "id": "botao1_texto_en", "label": "Botão 1, texto (EN)" },
+    { "type": "text", "id": "botao2_texto_en", "label": "Botão 2, texto (EN)" },
+    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_es", "label": "Sobretítulo (ES)" },
+    { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
+    { "type": "richtext", "id": "texto_es", "label": "Texto (ES)" },
+    { "type": "text", "id": "sabia_titulo_es", "label": "Título da caixa (ES)", "info": "Vazio: ¿Sabía que…?" },
+    { "type": "richtext", "id": "sabia_es", "label": "Caixa Sabia que (ES)" },
+    { "type": "text", "id": "imagem_alt_es", "label": "Texto alternativo da imagem (ES)" },
+    { "type": "text", "id": "botao1_texto_es", "label": "Botão 1, texto (ES)" },
+    { "type": "text", "id": "botao2_texto_es", "label": "Botão 2, texto (ES)" }
   ],
   "blocks": [
     {
@@ -399,7 +552,9 @@
       "limit": 3,
       "settings": [
         { "type": "text", "id": "texto", "label": "Texto", "default": "Prendas até 50 €" },
-        { "type": "url", "id": "url", "label": "Link" }
+        { "type": "url", "id": "url", "label": "Link" },
+        { "type": "text", "id": "texto_en", "label": "Texto (EN)", "info": "Vazio: usa o português." },
+        { "type": "text", "id": "texto_es", "label": "Texto (ES)", "info": "Vazio: usa o português." }
       ]
     }
   ],

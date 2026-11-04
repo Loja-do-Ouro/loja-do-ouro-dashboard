@@ -10,30 +10,56 @@
     "botao2_url": "/collections/tradicao-filigrana-prata",
     "faulhas": true,
     "imagem_alt": "",
-    "mostrar_no_telemovel": true
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "A Portuguese art",
+    "titulo_en": "Strand by strand.",
+    "texto_en": "<p>In Gondomar and Póvoa de Lanhoso, the enchedeira, the filigree craftswoman, fills every outline by hand with twisted gold or silver wire: spirals, S-scrolls and rodilhões, always curved, never at a right angle. The filigree of these towns is listed in Portugal’s National Inventory of Intangible Cultural Heritage, and Filigrana de Portugal is a candidate for UNESCO’s Intangible Cultural Heritage of Humanity.</p>",
+    "botao1_texto_en": "See filigree",
+    "botao2_texto_en": "Silver filigree",
+    "eyebrow_es": "Un arte portugués",
+    "titulo_es": "Hilo a hilo.",
+    "texto_es": "<p>En Gondomar y en Póvoa de Lanhoso, la enchedeira, la artesana de la filigrana, rellena a mano cada contorno con hilo torcido de oro o plata: espirales, eses y rodilhões, siempre en curva, nunca en ángulo recto. La filigrana de estas tierras figura en el Inventario Nacional del Patrimonio Cultural Inmaterial de Portugal, y la Filigrana de Portugal es candidata a Patrimonio Cultural Inmaterial de la Humanidad.</p>",
+    "botao1_texto_es": "Ver filigrana",
+    "botao2_texto_es": "Filigrana de plata"
   },
   "blocks": {
     "numero_anos": {
       "type": "numero",
       "settings": {
         "valor": "+ 2000 anos",
-        "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana"
+        "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana",
+        "valor_en": "2,000+ years",
+        "legenda_en": "Iron Age gold arrecadas (earrings) already featured filigree",
+        "valor_es": "+ 2000 años",
+        "legenda_es": "las arracadas de oro de la Edad del Hierro ya tenían filigrana"
       }
     },
     "numero_seculo": {
       "type": "numero",
       "settings": {
         "valor": "Séc. XIX",
-        "legenda": "a filigrana torna-se arte autónoma em Gondomar e na Póvoa de Lanhoso"
+        "legenda": "a filigrana torna-se arte autónoma em Gondomar e na Póvoa de Lanhoso",
+        "valor_en": "19th century",
+        "legenda_en": "filigree becomes a craft in its own right in Gondomar and Póvoa de Lanhoso",
+        "valor_es": "Siglo XIX",
+        "legenda_es": "la filigrana se convierte en un arte propio en Gondomar y Póvoa de Lanhoso"
       }
     },
     "numero_fio": {
       "type": "numero",
       "settings": {
         "valor": "0,22 mm",
-        "legenda": "espessura máxima do fio na certificação Filigrana de Portugal"
+        "legenda": "espessura máxima do fio na certificação Filigrana de Portugal",
+        "valor_en": "0.22 mm",
+        "legenda_en": "maximum wire thickness under the Filigrana de Portugal certification",
+        "valor_es": "0,22 mm",
+        "legenda_es": "grosor máximo del hilo en la certificación Filigrana de Portugal"
       }
     }
   },
-  "block_order": ["numero_anos", "numero_seculo", "numero_fio"]
+  "block_order": [
+    "numero_anos",
+    "numero_seculo",
+    "numero_fio"
+  ]
 }

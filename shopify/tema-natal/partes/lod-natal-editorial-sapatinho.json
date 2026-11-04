@@ -21,30 +21,46 @@
     "botao1_texto": "",
     "botao2_texto": "",
     "fundo": "papel",
-    "mostrar_no_telemovel": true
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "For the Christmas shoe",
+    "titulo_en": "From a time when the Baby Jesus left the gifts in children’s shoes.",
+    "texto_en": "<p>Until the mid-1980s, Portuguese children wrote to the Baby Jesus and left a shoe by the fireplace, swept clean so that he would not dirty his feet. Small gifts are so often the ones we treasure most.</p>",
+    "eyebrow_es": "Para el zapatito",
+    "titulo_es": "De cuando era el Niño Jesús quien dejaba el regalo en el zapatito.",
+    "texto_es": "<p>Hasta mediados de los años ochenta, los niños portugueses escribían al Niño Jesús y dejaban el zapatito junto a la chimenea, bien limpia para que Él no se ensuciara los pies. Los regalos pequeños son, muchas veces, los que más se guardan.</p>"
   },
   "blocks": {
     "chip_ate_50": {
       "type": "chip",
       "settings": {
-        "texto": "Prendas até 50 €",
-        "url": "/collections/mulher?filter.v.price.lte=50&sort_by=best-selling"
+        "texto": "Prendas até 50 €",
+        "url": "/collections/mulher?filter.v.price.lte=50&sort_by=best-selling",
+        "texto_en": "Gifts up to €50",
+        "texto_es": "Regalos hasta 50 €"
       }
     },
     "chip_pequenos": {
       "type": "chip",
       "settings": {
         "texto": "Para os mais pequenos",
-        "url": "/collections/crianca-natal"
+        "url": "/collections/crianca-natal",
+        "texto_en": "For the little ones",
+        "texto_es": "Para los más pequeños"
       }
     },
     "chip_medalhas": {
       "type": "chip",
       "settings": {
         "texto": "Medalhas em ouro",
-        "url": "/collections/medalhas-crianca-ouro"
+        "url": "/collections/medalhas-crianca-ouro",
+        "texto_en": "Gold medals",
+        "texto_es": "Medallas de oro"
       }
     }
   },
-  "block_order": ["chip_ate_50", "chip_pequenos", "chip_medalhas"]
+  "block_order": [
+    "chip_ate_50",
+    "chip_pequenos",
+    "chip_medalhas"
+  ]
 }

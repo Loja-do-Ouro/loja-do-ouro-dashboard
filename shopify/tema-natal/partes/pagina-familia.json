@@ -23,7 +23,15 @@
     "link_texto": "Ver todo o ouro tradicional",
     "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
     "fundo": "papel",
-    "mostrar_no_telemovel": true
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "For life",
+    "titulo_en": "Gold that stays in the family",
+    "descricao_en": "Pieces in 19.2-carat Portuguese gold, to pass down from generation to generation.",
+    "link_texto_en": "See all traditional gold",
+    "eyebrow_es": "Para toda la vida",
+    "titulo_es": "Oro que se queda en la familia",
+    "descricao_es": "Joyas de oro portugués de 19,2 quilates para pasar de generación en generación.",
+    "link_texto_es": "Ver todo el oro tradicional"
   },
   "blocks": {},
   "block_order": []

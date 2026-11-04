@@ -1,0 +1,154 @@
+{
+  "type": "lod-natal-dicionario",
+  "settings": {
+    "eyebrow": "Dicionário do Ouro Português",
+    "titulo": "As palavras do ouro português.",
+    "texto": "Os nomes das peças que as avós portuguesas usavam — e que continuam a passar de mão em mão.",
+    "azulejo": false,
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "A Dictionary of Portuguese Gold",
+    "titulo_en": "The words of Portuguese gold.",
+    "texto_en": "The names of the pieces Portuguese grandmothers wore, still passed from hand to hand.",
+    "eyebrow_es": "Diccionario del oro portugués",
+    "titulo_es": "Las palabras del oro portugués.",
+    "texto_es": "Los nombres de las joyas que llevaban las abuelas portuguesas y que siguen pasando de mano en mano."
+  },
+  "blocks": {
+    "termo_coracao": {
+      "type": "termo",
+      "settings": {
+        "icone": "coracao",
+        "termo": "Coração de Viana",
+        "definicao": "Símbolo de devoção ao Sagrado Coração de Jesus. Conta a tradição que nasceu de um pedido de D. Maria I.",
+        "link_texto": "Ver peças",
+        "link_url": "/collections/coracoes-de-viana",
+        "termo_en": "Coração de Viana",
+        "definicao_en": "The Viana Heart: a symbol of devotion to the Sacred Heart of Jesus. Tradition has it that it was created at the request of Queen Maria I.",
+        "link_texto_en": "See pieces",
+        "termo_es": "Coração de Viana",
+        "definicao_es": "El corazón de Viana, joya emblemática de Portugal: símbolo de devoción al Sagrado Corazón de Jesús. Cuenta la tradición que nació de un encargo de la reina María I.",
+        "link_texto_es": "Ver piezas"
+      }
+    },
+    "termo_filigrana": {
+      "type": "termo",
+      "settings": {
+        "icone": "filigrana",
+        "termo": "Filigrana",
+        "definicao": "A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais.",
+        "link_texto": "Ver peças",
+        "link_url": "/collections/filigrana",
+        "termo_en": "Filigrana",
+        "definicao_en": "Filigree: the art of working twisted gold or silver wire into curves and spirals.",
+        "link_texto_en": "See pieces",
+        "termo_es": "Filigrana",
+        "definicao_es": "En la tradición portuguesa, el arte de trabajar hilo de oro o plata, torcido, en curvas y espirales.",
+        "link_texto_es": "Ver piezas"
+      }
+    },
+    "termo_enchedeira": {
+      "type": "termo",
+      "settings": {
+        "icone": "enchedeira",
+        "termo": "Enchedeira",
+        "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana.",
+        "termo_en": "Enchedeira",
+        "definicao_en": "The craftswoman who fills the frame of a piece with twisted wire. Most of the value of filigree comes from her work.",
+        "termo_es": "Enchedeira",
+        "definicao_es": "En la filigrana portuguesa, la artesana que rellena el contorno de la pieza con hilo torcido. De su trabajo procede la mayor parte del valor de la filigrana."
+      }
+    },
+    "termo_rainha": {
+      "type": "termo",
+      "settings": {
+        "icone": "rainha",
+        "termo": "Brincos à rainha",
+        "definicao": "Diz-se que surgiram no tempo de D. Maria I e ganharam o nome com D. Maria II, a quem as raparigas de Viana ofereceram um par em 1852. Ainda hoje são usados por noivas.",
+        "link_texto": "Ver peças",
+        "link_url": "/search?q=brincos+rainha&type=product",
+        "termo_en": "Brincos à rainha",
+        "definicao_en": "Queen’s earrings. They are said to date from the time of Maria I and took their name from Maria II, who was given a pair by the young women of Viana in 1852. Brides still wear them today.",
+        "link_texto_en": "See pieces",
+        "link_url_en": "/search?q=rainha+earrings&type=product",
+        "termo_es": "Brincos à rainha",
+        "definicao_es": "Pendientes «a la reina». Se dice que surgieron en tiempos de María I y tomaron su nombre de María II, a quien las jóvenes de Viana regalaron un par en 1852. Todavía hoy los llevan las novias.",
+        "link_texto_es": "Ver piezas",
+        "link_url_es": "/search?q=pendientes+rainha&type=product"
+      }
+    },
+    "termo_arrecadas": {
+      "type": "termo",
+      "settings": {
+        "icone": "arrecadas",
+        "termo": "Arrecadas",
+        "definicao": "Brincos tradicionais do ouro do Minho, com antepassados nas arrecadas de ouro da Idade do Ferro.",
+        "link_texto": "Ver peças",
+        "link_url": "/search?q=arrecadas&type=product",
+        "termo_en": "Arrecadas",
+        "definicao_en": "Traditional earrings of Minho gold, descended from the gold arrecadas of the Iron Age.",
+        "link_texto_en": "See pieces",
+        "termo_es": "Arrecadas",
+        "definicao_es": "Pendientes tradicionales del oro del Miño portugués, herederos de las arracadas de oro de la Edad del Hierro.",
+        "link_texto_es": "Ver piezas"
+      }
+    },
+    "termo_contas": {
+      "type": "termo",
+      "settings": {
+        "icone": "contas",
+        "termo": "Contas de Viana",
+        "definicao": "Contas tradicionalmente feitas em ouro, uma das mais antigas tradições do Minho.",
+        "link_texto": "Ver peças",
+        "link_url": "/collections/contas-de-viana",
+        "termo_en": "Contas de Viana",
+        "definicao_en": "Viana beads, traditionally made in gold: one of the oldest traditions of the Minho region.",
+        "link_texto_en": "See pieces",
+        "termo_es": "Contas de Viana",
+        "definicao_es": "Cuentas de Viana, tradicionalmente hechas de oro: una de las tradiciones más antiguas del Miño portugués.",
+        "link_texto_es": "Ver piezas"
+      }
+    },
+    "termo_libra": {
+      "type": "termo",
+      "settings": {
+        "icone": "libra",
+        "termo": "Libra",
+        "definicao": "Moeda de ouro que em Portugal se oferece e se guarda; usa-se também com aro, ao peito.",
+        "link_texto": "Ver peças",
+        "link_url": "/collections/libras-com-aro",
+        "termo_en": "Libra",
+        "definicao_en": "The gold sovereign, given and treasured in Portugal; it is also worn as a pendant in a gold mount, close to the heart.",
+        "link_texto_en": "See pieces",
+        "termo_es": "Libra",
+        "definicao_es": "El soberano de oro, que en Portugal se regala y se guarda; también se lleva al pecho, montado en un aro.",
+        "link_texto_es": "Ver piezas"
+      }
+    },
+    "termo_ouro_portugues": {
+      "type": "termo",
+      "settings": {
+        "icone": "ouro-portugues",
+        "termo": "Ouro português",
+        "definicao": "Liga de 800 partes de ouro fino por mil, conhecida como 19,2 quilates, contrastada pela INCM.",
+        "link_texto": "Ver peças",
+        "link_url": "/collections/ouro",
+        "termo_en": "Ouro português",
+        "definicao_en": "An alloy of 800 parts of fine gold per thousand, known as 19.2-carat gold and hallmarked by the Portuguese Assay Office (INCM).",
+        "link_texto_en": "See pieces",
+        "termo_es": "Ouro português",
+        "definicao_es": "Aleación de 800 partes de oro fino por mil, conocida como 19,2 quilates y contrastada por la INCM.",
+        "link_texto_es": "Ver piezas"
+      }
+    }
+  },
+  "block_order": [
+    "termo_coracao",
+    "termo_filigrana",
+    "termo_enchedeira",
+    "termo_rainha",
+    "termo_arrecadas",
+    "termo_contas",
+    "termo_libra",
+    "termo_ouro_portugues"
+  ]
+}

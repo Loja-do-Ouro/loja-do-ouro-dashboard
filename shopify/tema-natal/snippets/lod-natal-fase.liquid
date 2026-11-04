@@ -1,43 +1,105 @@
 {%- comment -%}
-  Natal 2026 · Ouro de Reis — fase da campanha (hora de Lisboa).
-  Uso: {%- capture lnat_fase -%}{%- render 'lod-natal-fase' -%}{%- endcapture -%}
-  Devolve: off | antes | ouro | incenso | ultima | consoada | mirra | fim
+  Natal 2026 · Ouro de Reis — fase da campanha (hora de Lisboa), por mercado.
+  Uso: {%- capture lnat_fase -%}{%- render 'lod-natal-fase' -%}{%- endcapture -%}            → Portugal (como sempre)
+       {%- capture lnat_fase -%}{%- render 'lod-natal-fase', mercado: 'auto' -%}{%- endcapture -%}  → mercado da visita
+       {%- capture lnat_versao -%}{%- render 'lod-natal-fase', mercado: 'auto', devolve: 'versao' -%}{%- endcapture -%}
+  mercado: sem parâmetro → Portugal; 'auto' → localization.market.handle; 'pt' → Portugal; 'spain' ou 'es' → Espanha;
+           'internacional', 'int' ou qualquer outro mercado → Internacional.
+  devolve: 'versao' → pt | es | int (a versão da campanha desse mercado), em vez da fase.
+
+  Fases (iguais às de window.LOD_NATAL.fase(versao)):
+    Portugal (pt)       off | antes | ouro | incenso | ultima | consoada | mirra | fim   (lógica de sempre)
+    Espanha (es)        off | antes | navidad | reyes | reyes_ultima | noche_reyes | fim
+      antes        até natal_inicio
+      navidad      até natal_es_limite_navidad, inclusive (a tempo da Navidad)
+      reyes        até natal_es_limite_reyes, inclusive (a tempo do Dia de Reis)
+      reyes_ultima depois do limite de Reis e até 4 de janeiro (já não chega a tempo por correio)
+      noche_reyes  de 5 de janeiro, 00:00, até natal_fim (Noite e Dia de Reis; o ano é o de natal_fim)
+      fim          depois de natal_fim
+    Internacional (int) off | antes | navidad | fim
+      navidad      de natal_inicio até natal_int_limite, inclusive (e nunca depois de natal_fim)
+      fim          depois
+  Os prazos «até» contam o minuto indicado (23:59 inclui as 23:59), como LOD_NATAL.passou().
   A data simulada (definições do tema › Natal 2026) só conta fora do tema publicado;
   o JavaScript (window.LOD_NATAL) volta a calcular a fase no navegador.
   As datas vazias usam os mesmos valores por omissão de lod-natal-config: uma data apagada nas
   definições não pode pôr o servidor numa fase diferente da do navegador.
 {%- endcomment -%}
 {%- liquid
-  assign agora = 'now' | date: '%Y%m%d%H%M' | plus: 0
-  if settings.natal_data_simulada != blank and theme.role != 'main'
-    assign simulada = settings.natal_data_simulada | strip
-    if simulada.size == 10
-      assign simulada = simulada | append: ' 10:00'
+  assign lnf_v = 'pt'
+  if mercado != blank
+    assign lnf_m = mercado | append: '' | downcase | strip
+    if lnf_m == 'auto'
+      assign lnf_m = localization.market.handle | append: '' | downcase
     endif
-    assign agora = simulada | date: '%Y%m%d%H%M' | plus: 0
+    case lnf_m
+      when '', 'pt', 'portugal'
+        assign lnf_v = 'pt'
+      when 'spain', 'es', 'espanha'
+        assign lnf_v = 'es'
+      else
+        assign lnf_v = 'int'
+    endcase
   endif
-  assign t_inicio = settings.natal_inicio | default: '2026-12-01 00:00' | date: '%Y%m%d%H%M' | plus: 0
-  assign t_fase2 = settings.natal_fase2_inicio | default: '2026-12-14 00:00' | date: '%Y%m%d%H%M' | plus: 0
-  assign t_cont = settings.natal_limite_continente | default: '2026-12-18 23:59' | date: '%Y%m%d%H%M' | plus: 0
-  assign t_loja = settings.natal_limite_loja | default: '2026-12-24 13:00' | date: '%Y%m%d%H%M' | plus: 0
-  assign t_festas = settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | date: '%Y%m%d%H%M' | plus: 0
-  assign t_fim = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y%m%d%H%M' | plus: 0
 
-  if settings.natal_ativo == false
-    echo 'off'
-  elsif agora < t_inicio
-    echo 'antes'
-  elsif agora < t_fase2
-    echo 'ouro'
-  elsif agora <= t_cont
-    echo 'incenso'
-  elsif agora < t_loja
-    echo 'ultima'
-  elsif agora <= t_festas
-    echo 'consoada'
-  elsif agora <= t_fim
-    echo 'mirra'
+  if devolve == 'versao'
+    echo lnf_v
   else
-    echo 'fim'
+    assign agora = 'now' | date: '%Y%m%d%H%M' | plus: 0
+    if settings.natal_data_simulada != blank and theme.role != 'main'
+      assign simulada = settings.natal_data_simulada | strip
+      if simulada.size == 10
+        assign simulada = simulada | append: ' 10:00'
+      endif
+      assign agora = simulada | date: '%Y%m%d%H%M' | plus: 0
+    endif
+    assign t_inicio = settings.natal_inicio | default: '2026-12-01 00:00' | date: '%Y%m%d%H%M' | plus: 0
+    assign t_fim = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y%m%d%H%M' | plus: 0
+
+    if settings.natal_ativo == false
+      echo 'off'
+    elsif agora < t_inicio
+      echo 'antes'
+    elsif lnf_v == 'es'
+      assign t_es_nav = settings.natal_es_limite_navidad | default: '2026-12-20 23:59' | date: '%Y%m%d%H%M' | plus: 0
+      assign t_es_reyes = settings.natal_es_limite_reyes | default: '2026-12-29 23:59' | date: '%Y%m%d%H%M' | plus: 0
+      assign t_es_noche = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y' | append: '01050000' | plus: 0
+      if agora <= t_es_nav
+        echo 'navidad'
+      elsif agora <= t_es_reyes
+        echo 'reyes'
+      elsif agora < t_es_noche
+        echo 'reyes_ultima'
+      elsif agora <= t_fim
+        echo 'noche_reyes'
+      else
+        echo 'fim'
+      endif
+    elsif lnf_v == 'int'
+      assign t_int = settings.natal_int_limite | default: '2026-12-10 23:59' | date: '%Y%m%d%H%M' | plus: 0
+      if agora <= t_int and agora <= t_fim
+        echo 'navidad'
+      else
+        echo 'fim'
+      endif
+    else
+      assign t_fase2 = settings.natal_fase2_inicio | default: '2026-12-14 00:00' | date: '%Y%m%d%H%M' | plus: 0
+      assign t_cont = settings.natal_limite_continente | default: '2026-12-20 23:59' | date: '%Y%m%d%H%M' | plus: 0
+      assign t_loja = settings.natal_limite_loja | default: '2026-12-24 13:00' | date: '%Y%m%d%H%M' | plus: 0
+      assign t_festas = settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | date: '%Y%m%d%H%M' | plus: 0
+      if agora < t_fase2
+        echo 'ouro'
+      elsif agora <= t_cont
+        echo 'incenso'
+      elsif agora < t_loja
+        echo 'ultima'
+      elsif agora <= t_festas
+        echo 'consoada'
+      elsif agora <= t_fim
+        echo 'mirra'
+      else
+        echo 'fim'
+      endif
+    endif
   endif
 -%}

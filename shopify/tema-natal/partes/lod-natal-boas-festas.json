@@ -5,7 +5,11 @@
     "texto": "De todos nós, nas 13 lojas da Loja do Ouro.",
     "mostrar_coracao": true,
     "mostrar_fio": true,
-    "mostrar_no_telemovel": true
+    "mostrar_no_telemovel": true,
+    "titulo_en": "Season’s Greetings",
+    "texto_en": "From all of us at our 13 stores in Portugal.",
+    "titulo_es": "Felices fiestas",
+    "texto_es": "De parte de todo el equipo de nuestras 13 tiendas en Portugal."
   },
   "blocks": {},
   "block_order": []

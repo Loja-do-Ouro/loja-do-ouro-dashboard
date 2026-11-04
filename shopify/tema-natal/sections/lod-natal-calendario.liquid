@@ -5,10 +5,20 @@
   As portas abrem no navegador com window.LOD_NATAL.hoje() (hora de Lisboa, respeita a data simulada).
   No editor do tema todas as portas abrem. Sem prémios, sorteios nem descontos atrás de nenhuma porta.
 
+  Línguas e mercados (contrato: scratchpad/natal/i18n-contrato.md):
+  - A definição «Versão do calendário» diz de que mercado é a instância: «pt» (Portugal, «Ouro de Reis») ou «es»
+    (Espanha, «Oro de Reyes»). A instância só aparece no site quando a versão do mercado da visita é a mesma
+    (lod-natal-fase, mercado: 'auto'). O Internacional não tem calendário.
+  - Fases ativas: Portugal ouro, incenso, ultima, consoada, mirra; Espanha navidad, reyes, reyes_ultima, noche_reyes.
+  - Textos fixos do dicionário lod-natal-t; datas na língua da página. O conteúdo de cada porta tem o campo base
+    (português) e os campos _en e _es; um campo _en/_es vazio usa o campo base.
+  - Ligações escritas à mão («/collections/…», «/#…») ganham o prefixo da língua e do mercado (routes.root_url).
+
   Textos das portas (história, frase das peças e dica) aceitam marcadores com as datas das definições
   do tema › Natal 2026, como o banner: {acores}, {madeira}, {gravacao}, {continente}, {reis}, {retoma}
-  (ex.: «sexta, 18 de dezembro»), {loja} («24 de dezembro, 13h», como na barra, no banner e nos Prazos), {trocas} («15 de janeiro de 2027»),
-  {hora_continente} e {hora_reis} («23h59»).
+  (ex.: «domingo, 20 de dezembro»), {loja} («24 de dezembro, 13h», como na barra, no banner e nos Prazos), {trocas} («15 de janeiro de 2027»),
+  {hora_continente} e {hora_reis} («23h59»). Espanha e Internacional (só o dia, nunca a hora): {es_navidad}, {es_reyes},
+  {es_noche} e {int}. Todas saem na língua da página.
   A «frase das peças» só aparece quando todas as peças escolhidas estão à venda. Se nenhuma estiver,
   a porta mostra duas peças à venda da coleção do bloco.
   Um bloco pode depender de uma decisão (trocas de Natal aprovadas, Janeiras confirmadas): enquanto
@@ -17,21 +27,45 @@
   desconhecidos e portas «hoje/amanhã é o último dia» cuja data já não bate com o prazo das definições.
 {%- endcomment -%}
 {%- liquid
+  capture lnat_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_lg = lnat_lg | strip
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnat_versao = lnat_versao | strip
   capture lnat_fase
-    render 'lod-natal-fase'
+    render 'lod-natal-fase', mercado: 'auto'
   endcapture
   assign lnat_fase = lnat_fase | strip
-  assign cal_fora = false
-  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
-    assign cal_fora = true
+
+  # Versão desta instância: o calendário de Portugal não aparece em Espanha, nem o de Espanha em Portugal.
+  assign cal_versao = section.settings.versao | default: 'pt'
+  assign cal_ativa = false
+  case lnat_versao
+    when 'pt'
+      case lnat_fase
+        when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+          assign cal_ativa = true
+      endcase
+    when 'es'
+      case lnat_fase
+        when 'navidad', 'reyes', 'reyes_ultima', 'noche_reyes'
+          assign cal_ativa = true
+      endcase
+  endcase
+  assign cal_mercado_ok = false
+  if lnat_versao == cal_versao
+    assign cal_mercado_ok = true
   endif
   assign cal_editor = false
   if request.design_mode
     assign cal_editor = true
   endif
-  assign cal_mostrar = true
-  if cal_fora and cal_editor == false
-    assign cal_mostrar = false
+  assign cal_mostrar = cal_editor
+  if cal_ativa and cal_mercado_ok
+    assign cal_mostrar = true
   endif
 -%}
 {%- if cal_mostrar -%}
@@ -53,10 +87,97 @@
   assign cal_tfim = cal_t0 | plus: 3542400
   assign cal_fim = cal_tfim | date: '%Y-%m-%d'
 
-  assign cal_dias = 'domingo,segunda,terça,quarta,quinta,sexta,sábado' | split: ','
-  assign cal_dabr = 'dom,seg,ter,qua,qui,sex,sáb' | split: ','
-  assign cal_meses = ',janeiro,fevereiro,março,abril,maio,junho,julho,agosto,setembro,outubro,novembro,dezembro' | split: ','
-  assign cal_mabr = ',jan.,fev.,mar.,abr.,mai.,jun.,jul.,ago.,set.,out.,nov.,dez.' | split: ','
+  # Textos fixos na língua da página (dicionário lod-natal-t), lidos uma vez antes do ciclo das 42 células
+  capture t_dias
+    render 'lod-natal-t', k: 'dias'
+  endcapture
+  capture t_dabr
+    render 'lod-natal-t', k: 'dias_abr'
+  endcapture
+  capture t_meses
+    render 'lod-natal-t', k: 'meses'
+  endcapture
+  capture t_mabr
+    render 'lod-natal-t', k: 'meses_abr'
+  endcapture
+  capture t_sem_ini
+    render 'lod-natal-t', k: 'semana_iniciais'
+  endcapture
+  capture t_sem_nomes
+    render 'lod-natal-t', k: 'semana_nomes'
+  endcapture
+  capture t_hoje
+    render 'lod-natal-t', k: 'hoje'
+  endcapture
+  capture t_hoje_min
+    render 'lod-natal-t', k: 'hoje_min'
+  endcapture
+  capture t_abrir
+    render 'lod-natal-t', k: 'abrir'
+  endcapture
+  capture t_abrir_hoje
+    render 'lod-natal-t', k: 'cal_abrir_hoje'
+  endcapture
+  capture t_ja_aberta
+    render 'lod-natal-t', k: 'ja_aberta'
+  endcapture
+  capture t_ja_aberta_min
+    render 'lod-natal-t', k: 'ja_aberta_min'
+  endcapture
+  capture t_fechada
+    render 'lod-natal-t', k: 'ainda_fechada'
+  endcapture
+  capture t_abre_a
+    render 'lod-natal-t', k: 'abre_a'
+  endcapture
+  capture t_abre_a_min
+    render 'lod-natal-t', k: 'abre_a_min'
+  endcapture
+  capture t_porta_abre_a
+    render 'lod-natal-t', k: 'porta_abre_a'
+  endcapture
+  capture t_porta_ant
+    render 'lod-natal-t', k: 'porta_anterior'
+  endcapture
+  capture t_porta_seg
+    render 'lod-natal-t', k: 'porta_seguinte'
+  endcapture
+  capture t_ver_colecao
+    render 'lod-natal-t', k: 'ver_colecao'
+  endcapture
+  capture t_saber_mais
+    render 'lod-natal-t', k: 'saber_mais'
+  endcapture
+  capture t_rot_dica
+    render 'lod-natal-t', k: 'dica'
+  endcapture
+  capture t_fechar
+    render 'lod-natal-t', k: 'fechar'
+  endcapture
+  capture t_partilhar
+    render 'lod-natal-t', k: 'partilhar'
+  endcapture
+  capture t_copiada
+    render 'lod-natal-t', k: 'ligacao_copiada'
+  endcapture
+  capture t_marca
+    render 'lod-natal-t', k: 'marca'
+  endcapture
+
+  # Listas: dias e dias_abr começam no domingo (índice = %w); meses e meses_abr ficam a contar de 1 (janeiro).
+  assign cal_dias = t_dias | split: ','
+  assign cal_dabr = t_dabr | split: ','
+  assign cal_meses = ',' | append: t_meses | split: ','
+  assign cal_mabr = ',' | append: t_mabr | split: ','
+  assign cal_sem_ini = t_sem_ini | split: ','
+  assign cal_sem_nomes = t_sem_nomes | split: ','
+  # «sexta, 18 de dezembro» / «Friday 18 December» / «viernes, 18 de diciembre» (como lod-natal-data)
+  assign cal_de = ' de '
+  assign cal_vg = ', '
+  if lnat_lg == 'en'
+    assign cal_de = ' '
+    assign cal_vg = ' '
+  endif
   assign cal_ouro = section.settings.dias_ouro | default: '' | remove: ' ' | split: ','
 
   assign cal_t_m1 = cal_t0 | plus: 604800
@@ -64,12 +185,63 @@
   assign cal_a1 = cal_t_m1 | date: '%Y'
   assign cal_m2 = cal_tfim | date: '%-m' | plus: 0
   assign cal_a2 = cal_tfim | date: '%Y'
-  assign cal_meses_txt = cal_meses[cal_m1] | capitalize | append: ' ' | append: cal_a1
+  # Primeira letra em maiúscula sem «| capitalize» (que passava «December» a «december»)
+  assign cal_mn = cal_meses[cal_m1]
+  assign cal_mn_a = cal_mn | slice: 0 | upcase
+  assign cal_mn_b = cal_mn | slice: 1, 30
+  assign cal_meses_txt = cal_mn_a | append: cal_mn_b | append: ' ' | append: cal_a1
   if cal_m2 != cal_m1
-    assign cal_meses_txt = cal_meses_txt | append: ' · ' | append: cal_meses[cal_m2] | append: ' ' | append: cal_a2
+    assign cal_mn = cal_meses[cal_m2]
+    assign cal_mn_a = cal_mn | slice: 0 | upcase
+    assign cal_mn_b = cal_mn | slice: 1, 30
+    assign cal_meses_txt = cal_meses_txt | append: ' · ' | append: cal_mn_a | append: cal_mn_b | append: ' ' | append: cal_a2
   endif
 
-  assign cal_titulo = section.settings.titulo | default: 'Calendário de Ouro'
+  # Cabeçalho: campo base em português; _en e _es quando preenchidos
+  assign cal_eb = section.settings.eyebrow
+  assign cal_titulo = section.settings.titulo
+  assign cal_texto = section.settings.texto
+  assign cal_nota = section.settings.nota
+  if lnat_lg != 'pt'
+    assign kx = 'eyebrow_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_eb = section.settings[kx]
+    endif
+    assign kx = 'titulo_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_titulo = section.settings[kx]
+    endif
+    assign kx = 'texto_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_texto = section.settings[kx]
+    endif
+    assign kx = 'nota_' | append: lnat_lg
+    if section.settings[kx] != blank
+      assign cal_nota = section.settings[kx]
+    endif
+  endif
+  if cal_titulo == blank
+    capture cal_titulo
+      render 'lod-natal-t', k: 'cal_titulo'
+    endcapture
+  endif
+  assign cal_titulo_e = cal_titulo | escape
+  capture t_portas
+    render 'lod-natal-t', k: 'cal_portas', v1: cal_titulo_e
+  endcapture
+
+  # Campos por língua dos blocos (titulo_en, historia_es, …): nomes calculados uma vez
+  assign k_titulo = 'titulo_' | append: lnat_lg
+  assign k_rotulo = 'rotulo_' | append: lnat_lg
+  assign k_historia = 'historia_' | append: lnat_lg
+  assign k_sugestao = 'sugestao_' | append: lnat_lg
+  assign k_dica = 'dica_' | append: lnat_lg
+  assign k_cta = 'cta_texto_' | append: lnat_lg
+
+  # Ligações escritas à mão: prefixo da língua e do mercado («/en», «/es», «/pt-pt»), como as ligações da Shopify
+  assign cal_raiz = routes.root_url | default: '/'
+  assign cal_raiz_b = cal_raiz | append: '/'
+  assign cal_raiz_n = cal_raiz_b.size
 
   # Datas das definições do tema para os marcadores dos textos (as mesmas do banner, da barra e dos Prazos)
   capture cal_d_acores
@@ -104,6 +276,24 @@
     render 'lod-natal-data', valor: settings.natal_limite_reis, formato: 'hora'
   endcapture
   assign cal_h_reis = cal_h_reis | split: ', ' | last
+  # Espanha e Internacional: só o dia (as 23:59 de Lisboa são 00:59 em Madrid). Envios para Espanha: só a Península
+  # (sem Baleares, Canárias, Ceuta e Melilla). Navidad 20 dez. confirmado pelo dono a 04-11-2026; Reyes e Internacional propostos.
+  assign cal_v_es_nav = settings.natal_es_limite_navidad | default: '2026-12-20 23:59'
+  assign cal_v_es_reyes = settings.natal_es_limite_reyes | default: '2026-12-29 23:59'
+  assign cal_v_es_noche = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y' | append: '-01-05 00:00'
+  assign cal_v_int = settings.natal_int_limite | default: '2026-12-10 23:59'
+  capture cal_d_es_nav
+    render 'lod-natal-data', valor: cal_v_es_nav, formato: 'longo'
+  endcapture
+  capture cal_d_es_reyes
+    render 'lod-natal-data', valor: cal_v_es_reyes, formato: 'longo'
+  endcapture
+  capture cal_d_es_noche
+    render 'lod-natal-data', valor: cal_v_es_noche, formato: 'longo'
+  endcapture
+  capture cal_d_int
+    render 'lod-natal-data', valor: cal_v_int, formato: 'longo'
+  endcapture
 
   # Blocos que dependem de uma decisão (opção «Mostrar» do bloco)
   assign cal_trocas = false
@@ -122,52 +312,57 @@
   data-lnat-cal
   data-secao="{{ section.id }}"
   data-hoje-servidor="{{ cal_hoje }}"
+  data-versao="{{ cal_versao | escape }}"
   {%- if cal_editor %} data-editor{% endif %}
 >
+  <script type="application/json" data-cal-t>{"hoje_min":{{ t_hoje_min | json }},"ja_aberta_min":{{ t_ja_aberta_min | json }},"abre_a_min":{{ t_abre_a_min | json }},"porta_abre_a":{{ t_porta_abre_a | json }},"porta_anterior":{{ t_porta_ant | json }},"porta_seguinte":{{ t_porta_seg | json }},"partilhar":{{ t_partilhar | json }},"ligacao_copiada":{{ t_copiada | json }},"nome":{{ cal_titulo | json }},"marca":{{ t_marca | json }}}</script>
   <div class="lnat-wrap">
     {%- if cal_editor -%}
       {%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}
       <div class="lnat-cal__editor" role="note">
         <p>No editor do tema todas as portas abrem. Selecione um bloco «Dia» para ver a porta aberta.</p>
+        {%- unless cal_mercado_ok -%}
+          <p>Este é o calendário {% if cal_versao == 'es' %}de Espanha («Oro de Reyes»){% else %}de Portugal («Ouro de Reis»){% endif %}. Nesta pré-visualização o mercado é «{{ localization.market.handle | default: 'pt' | escape }}» (versão {{ lnat_versao | escape }}), por isso no site esta secção não aparece{% if lnat_versao == 'int' %}: o Internacional não tem calendário{% endif %}.</p>
+        {%- endunless -%}
       </div>
     {%- endif -%}
 
     <div class="lnat-cal__grade">
       <header class="lnat-cal__cab">
-        {%- if section.settings.eyebrow != blank -%}
-          <p class="lnat-eb">{{ section.settings.eyebrow | escape }}</p>
+        {%- if cal_eb != blank -%}
+          <p class="lnat-eb">{{ cal_eb | escape }}</p>
         {%- endif -%}
-        <h2 class="lnat-h2 lnat-h2--serif lnat-cal__h2" id="{{ cal_id }}-titulo">{{ cal_titulo | escape }}</h2>
-        {%- if section.settings.texto != blank -%}
-          <p class="lnat-lead lnat-cal__lead">{{ section.settings.texto | escape }}</p>
+        <h2 class="lnat-h2 lnat-h2--serif lnat-cal__h2" id="{{ cal_id }}-titulo">{{ cal_titulo_e }}</h2>
+        {%- if cal_texto != blank -%}
+          <p class="lnat-lead lnat-cal__lead">{{ cal_texto | escape }}</p>
         {%- endif -%}
 
         <button type="button" class="lnat-cal__hoje" data-hoje-cartao hidden>
           <span class="lnat-cal__hoje-num" data-hoje-num aria-hidden="true"></span>
           <span class="lnat-cal__hoje-txt">
-            <span class="lnat-cal__hoje-data"><span class="lnat-sr">Abrir a porta de hoje, </span><span aria-hidden="true">Hoje · </span><span data-hoje-data></span></span>
+            <span class="lnat-cal__hoje-data"><span class="lnat-sr">{{ t_abrir_hoje }}, </span><span aria-hidden="true">{{ t_hoje }} · </span><span data-hoje-data></span></span>
             <span class="lnat-cal__hoje-tit" data-hoje-titulo></span>
           </span>
-          <span class="lnat-cal__hoje-abrir" aria-hidden="true">Abrir{% render 'lod-natal-icon', nome: 'seta', tamanho: 18 %}</span>
+          <span class="lnat-cal__hoje-abrir" aria-hidden="true">{{ t_abrir }}{% render 'lod-natal-icon', nome: 'seta', tamanho: 18 %}</span>
         </button>
 
         <div class="lnat-cal__legenda lnat-cal__legenda--cab">
-          <span class="lnat-cal__leg"><span class="lnat-cal__leg-hoje" aria-hidden="true"></span>Hoje</span>
-          <span class="lnat-cal__leg"><span class="lnat-cal__leg-selo" aria-hidden="true"></span>Já aberta</span>
-          <span class="lnat-cal__leg"><span class="lnat-cal__leg-fechada" aria-hidden="true"></span>Ainda fechada</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-hoje" aria-hidden="true"></span>{{ t_hoje }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-selo" aria-hidden="true"></span>{{ t_ja_aberta }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-fechada" aria-hidden="true"></span>{{ t_fechada }}</span>
         </div>
-        {%- if section.settings.nota != blank -%}
-          <p class="lnat-peq lnat-cal__nota">{{ section.settings.nota | escape }}</p>
+        {%- if cal_nota != blank -%}
+          <p class="lnat-peq lnat-cal__nota">{{ cal_nota | escape }}</p>
         {%- endif -%}
       </header>
 
       <div class="lnat-cal__corpo">
         <p class="lnat-cal__meses" aria-hidden="true">{{ cal_meses_txt }}</p>
         <div class="lnat-cal__semana">
-          <abbr title="segunda-feira">S</abbr><abbr title="terça-feira">T</abbr><abbr title="quarta-feira">Q</abbr><abbr title="quinta-feira">Q</abbr><abbr title="sexta-feira">S</abbr><abbr title="sábado">S</abbr><abbr title="domingo">D</abbr>
+          {%- for ini in cal_sem_ini -%}<abbr title="{{ cal_sem_nomes[forloop.index0] }}">{{ ini }}</abbr>{%- endfor -%}
         </div>
 
-        <ol class="lnat-cal__grelha" aria-label="Portas do {{ cal_titulo | escape }}">
+        <ol class="lnat-cal__grelha" aria-label="{{ t_portas }}">
           {%- for i in (0..41) -%}
             {%- liquid
               assign t = i | times: 86400 | plus: cal_t0
@@ -203,18 +398,52 @@
               {%- liquid
                 assign bloco = section.blocks[bi]
                 assign bs = bloco.settings
-                assign longo = cal_dias[w] | append: ', ' | append: d_num | append: ' de ' | append: cal_meses[m]
-                assign abre = d_num | append: ' de ' | append: cal_meses[m]
+                assign abre = d_num | append: cal_de | append: cal_meses[m]
+                assign longo = cal_dias[w] | append: cal_vg | append: abre
                 assign curto = d_num | append: ' ' | append: cal_mabr[m]
-                assign titulo = bs.titulo | default: abre
+                assign longo_a = longo | slice: 0 | upcase
+                assign longo_b = longo | slice: 1, 80
+                assign longo_ini = longo_a | append: longo_b
+
+                # Conteúdo na língua da página: campo _en/_es preenchido, senão o campo base (português)
+                assign titulo = bs.titulo
+                assign rot_bs = bs.rotulo
+                assign hist = bs.historia
+                assign sug = bs.sugestao
+                assign dica_txt = bs.dica
+                assign cta_txt = bs.cta_texto
+                if lnat_lg != 'pt'
+                  if bs[k_titulo] != blank
+                    assign titulo = bs[k_titulo]
+                  endif
+                  if bs[k_rotulo] != blank
+                    assign rot_bs = bs[k_rotulo]
+                  endif
+                  if bs[k_historia] != blank
+                    assign hist = bs[k_historia]
+                  endif
+                  if bs[k_sugestao] != blank
+                    assign sug = bs[k_sugestao]
+                  endif
+                  if bs[k_dica] != blank
+                    assign dica_txt = bs[k_dica]
+                  endif
+                  if bs[k_cta] != blank
+                    assign cta_txt = bs[k_cta]
+                  endif
+                endif
+                if titulo == blank
+                  assign titulo = abre
+                endif
                 assign icone = bs.icone | default: 'estrela'
                 assign rotulo = cal_dabr[w]
                 if d_num == '1'
                   assign rotulo = cal_mabr[m]
                 endif
-                if bs.rotulo != blank
-                  assign rotulo = bs.rotulo | strip
+                if rot_bs != blank
+                  assign rotulo = rot_bs | strip
                 endif
+                assign t_tip = t_abre_a | replace: '{1}', abre
                 assign e_ouro = false
                 if cal_ouro contains dia
                   assign e_ouro = true
@@ -237,8 +466,8 @@
                 endif
               -%}
               <li class="lnat-cal__cel" id="dia-{{ dia }}">
-                {%- capture cal_sr -%}{% if livre %}: {{ titulo | escape }}{% if dia == cal_hoje %} (hoje){% endif %}{% else %}, abre a {{ abre }}{% endif %}{%- endcapture -%}
-                <button type="button" class="{{ cls }}" data-dia="{{ dia }}" data-bloco="{{ bloco.id }}" data-titulo="{{ titulo | escape }}" data-longo="{{ longo }}" data-abre="{{ abre }}" data-curto="{{ curto }}"{% unless livre %} aria-disabled="true"{% endunless %} {{ bloco.shopify_attributes }}><span class="lnat-cal__face" aria-hidden="true"><span class="lnat-cal__sem{% if bs.rotulo != blank %} lnat-cal__sem--rot{% endif %}">{{ rotulo | escape }}</span><span class="lnat-cal__num">{{ d_num }}</span></span><span class="lnat-cal__folha" aria-hidden="true"></span><span class="lnat-cal__tip" aria-hidden="true">Abre a {{ abre }}</span><span class="lnat-sr">{{ longo }}<span data-estado>{{ cal_sr }}</span></span></button>
+                {%- capture cal_sr -%}{% if livre %}: {{ titulo | escape }}{% if dia == cal_hoje %} ({{ t_hoje_min }}){% endif %}{% else %}, {{ t_abre_a_min | replace: '{1}', abre }}{% endif %}{%- endcapture -%}
+                <button type="button" class="{{ cls }}" data-dia="{{ dia }}" data-bloco="{{ bloco.id }}" data-titulo="{{ titulo | escape }}" data-longo="{{ longo }}" data-abre="{{ abre }}" data-curto="{{ curto }}"{% unless livre %} aria-disabled="true"{% endunless %} {{ bloco.shopify_attributes }}><span class="lnat-cal__face" aria-hidden="true"><span class="lnat-cal__sem{% if rot_bs != blank %} lnat-cal__sem--rot{% endif %}">{{ rotulo | escape }}</span><span class="lnat-cal__num">{{ d_num }}</span></span><span class="lnat-cal__folha" aria-hidden="true"></span><span class="lnat-cal__tip" aria-hidden="true">{{ t_tip }}</span><span class="lnat-sr">{{ longo }}<span data-estado>{{ cal_sr }}</span></span></button>
                 <template data-tpl="{{ dia }}">
                   {%- liquid
                     assign vende = true
@@ -276,7 +505,7 @@
 
                     # A frase das peças só aparece se todas as peças escolhidas estiverem à venda.
                     assign mostra_sug = false
-                    if vende and bs.sugestao != blank and np == nconf
+                    if vende and sug != blank and np == nconf
                       assign mostra_sug = true
                     endif
 
@@ -300,12 +529,26 @@
                       endfor
                     endif
 
-                    assign t_hist = bs.historia | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | newline_to_br
-                    assign t_sug = bs.sugestao | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis
-                    assign t_dica = bs.dica | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis
+                    assign t_hist = hist | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int | newline_to_br
+                    assign t_sug = sug | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
+                    assign t_dica = dica_txt | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
 
                     assign cta_href = bs.cta_url
-                    assign cta_txt = bs.cta_texto | strip
+                    # Ligação escrita à mão («/collections/x», «/#siga-a-estrela», «/search?…»): junta o prefixo da língua/mercado
+                    if cal_raiz != '/' and cta_href != blank
+                      assign c1 = cta_href | slice: 0, 1
+                      assign c2 = cta_href | slice: 0, 2
+                      assign cpre = cta_href | slice: 0, cal_raiz_n
+                      if c1 == '/' and c2 != '//' and cpre != cal_raiz_b and cta_href != cal_raiz
+                        if c2 == '/#' or c2 == '/?' or cta_href == '/'
+                          assign c_resto = cta_href | slice: 1, 500
+                          assign cta_href = cal_raiz | append: c_resto
+                        else
+                          assign cta_href = cal_raiz | append: cta_href
+                        endif
+                      endif
+                    endif
+                    assign cta_txt = cta_txt | strip
                     assign col_sec = false
                     if cta_href == blank and col != blank
                       assign cta_href = col.url
@@ -316,9 +559,9 @@
                     endif
                     if cta_txt == blank
                       if col != blank
-                        assign cta_txt = 'Ver a coleção'
+                        assign cta_txt = t_ver_colecao
                       else
-                        assign cta_txt = 'Saber mais'
+                        assign cta_txt = t_saber_mais
                       endif
                     endif
                   -%}
@@ -328,7 +571,7 @@
                   {%- else -%}
                     <div class="lnat-cal__media lnat-cal__media--icone{% if e_ouro %} lnat-cal__media--ouro{% endif %}" data-icone="{{ icone }}" aria-hidden="true"></div>
                   {%- endif -%}
-                  <p class="lnat-eb lnat-eb--simples lnat-cal__data">{{ longo | capitalize }}</p>
+                  <p class="lnat-eb lnat-eb--simples lnat-cal__data">{{ longo_ini }}</p>
                   {%- comment -%} O mesmo id em todos os modelos: só um está na página de cada vez (dentro do diálogo). {%- endcomment -%}
                   <h2 class="lnat-cal__titulo" id="{{ cal_sid }}-titulo" tabindex="-1">{{ titulo | escape }}</h2>
                   {%- if t_hist != blank -%}<p class="lnat-cal__historia">{{ t_hist }}</p>{%- endif -%}
@@ -342,11 +585,11 @@
                     {%- endif -%}
                     {%- if cta_href != blank -%}
                       <div class="lnat-btns lnat-cal__btns"><a class="lnat-btn lnat-btn--tinta" href="{{ cta_href | escape }}">{{ cta_txt | escape }}</a>
-                        {%- if col_sec %} <a class="lnat-link lnat-cal__link" href="{{ col.url }}">Ver a coleção</a>{% endif -%}
+                        {%- if col_sec %} <a class="lnat-link lnat-cal__link" href="{{ col.url }}">{{ t_ver_colecao }}</a>{% endif -%}
                       </div>
                     {%- endif -%}
                   {%- endif -%}
-                  {%- if t_dica != blank -%}<p class="lnat-cal__dica"><span><b>Dica:</b> {{ t_dica }}</span></p>{%- endif -%}
+                  {%- if t_dica != blank -%}<p class="lnat-cal__dica"><span><b>{{ t_rot_dica }}:</b> {{ t_dica }}</span></p>{%- endif -%}
                 </template>
               </li>
             {%- endif -%}
@@ -354,9 +597,9 @@
         </ol>
 
         <div class="lnat-cal__legenda lnat-cal__legenda--pe">
-          <span class="lnat-cal__leg"><span class="lnat-cal__leg-hoje" aria-hidden="true"></span>Hoje</span>
-          <span class="lnat-cal__leg"><span class="lnat-cal__leg-selo" aria-hidden="true"></span>Já aberta</span>
-          <span class="lnat-cal__leg"><span class="lnat-cal__leg-fechada" aria-hidden="true"></span>Ainda fechada</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-hoje" aria-hidden="true"></span>{{ t_hoje }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-selo" aria-hidden="true"></span>{{ t_ja_aberta }}</span>
+          <span class="lnat-cal__leg"><span class="lnat-cal__leg-fechada" aria-hidden="true"></span>{{ t_fechada }}</span>
         </div>
         <p class="lnat-sr" aria-live="polite" data-aviso></p>
 
@@ -368,18 +611,62 @@
                 assign bd = blk.settings.data | strip | slice: 0, 10
                 assign bt = blk.settings.titulo | default: bd | escape
                 assign cond = blk.settings.condicao | default: 'sempre'
-                assign tam = blk.settings.historia.size | plus: blk.settings.sugestao.size
-                assign cru = blk.settings.historia | append: ' ' | append: blk.settings.sugestao | append: ' ' | append: blk.settings.dica
-                assign cru = cru | remove: '{acores}' | remove: '{madeira}' | remove: '{gravacao}' | remove: '{continente}' | remove: '{loja}' | remove: '{reis}' | remove: '{retoma}' | remove: '{trocas}' | remove: '{hora_continente}' | remove: '{hora_reis}'
+                # Tamanho da história + frase das peças em cada língua (o _en/_es vazio usa o português)
+                assign tam_pt = blk.settings.historia.size | plus: blk.settings.sugestao.size
+                assign tam_en = blk.settings.historia_en.size | plus: blk.settings.sugestao_en.size
+                assign tam_es = blk.settings.historia_es.size | plus: blk.settings.sugestao_es.size
+                assign tam = tam_pt
+                assign tam_l = 'PT'
+                if tam_en > tam
+                  assign tam = tam_en
+                  assign tam_l = 'EN'
+                endif
+                if tam_es > tam
+                  assign tam = tam_es
+                  assign tam_l = 'ES'
+                endif
+                capture cru
+                  echo blk.settings.historia
+                  echo ' '
+                  echo blk.settings.sugestao
+                  echo ' '
+                  echo blk.settings.dica
+                  echo ' '
+                  echo blk.settings.historia_en
+                  echo ' '
+                  echo blk.settings.sugestao_en
+                  echo ' '
+                  echo blk.settings.dica_en
+                  echo ' '
+                  echo blk.settings.historia_es
+                  echo ' '
+                  echo blk.settings.sugestao_es
+                  echo ' '
+                  echo blk.settings.dica_es
+                endcapture
+                # Marcadores só de Portugal (lojas, ilhas, gravação, prazos de Portugal) num calendário de Espanha
+                assign so_pt = false
+                if cal_versao == 'es'
+                  if cru contains '{acores}' or cru contains '{madeira}' or cru contains '{gravacao}' or cru contains '{continente}'
+                    assign so_pt = true
+                  endif
+                  if cru contains '{loja}' or cru contains '{reis}' or cru contains '{hora_continente}' or cru contains '{hora_reis}'
+                    assign so_pt = true
+                  endif
+                endif
+                assign cru = cru | remove: '{acores}' | remove: '{madeira}' | remove: '{gravacao}' | remove: '{continente}' | remove: '{loja}' | remove: '{reis}' | remove: '{retoma}' | remove: '{trocas}' | remove: '{hora_continente}' | remove: '{hora_reis}' | remove: '{es_navidad}' | remove: '{es_reyes}' | remove: '{es_noche}' | remove: '{int}'
               -%}
               {%- if bd.size != 10 or bd < cal_inicio or bd > cal_fim -%}
                 <li>Bloco «{{ bt }}»: a data «{{ bd | escape }}» está fora da grelha ({{ cal_inicio }} a {{ cal_fim }}) e não aparece.</li>
               {%- endif -%}
               {%- if tam > 420 -%}
-                <li>{{ bd | escape }} «{{ bt }}»: a história e a frase das peças têm {{ tam }} caracteres (máximo 420).</li>
+                <li>{{ bd | escape }} «{{ bt }}»: a história e a frase das peças ({{ tam_l }}) têm {{ tam }} caracteres (máximo 420).</li>
               {%- endif -%}
               {%- if cru contains '{' or cru contains '}' -%}
-                <li>{{ bd | escape }} «{{ bt }}»: há um marcador entre chavetas que não existe. Use só {acores}, {madeira}, {gravacao}, {continente}, {loja}, {reis}, {retoma}, {trocas}, {hora_continente} ou {hora_reis}.</li>
+                <li>{{ bd | escape }} «{{ bt }}»: há um marcador entre chavetas que não existe (em PT, EN ou ES). Use só {acores}, {madeira}, {gravacao}, {continente}, {loja}, {reis}, {retoma}, {trocas}, {hora_continente}, {hora_reis}, {es_navidad}, {es_reyes}, {es_noche} ou {int}.</li>
+              {%- endif -%}
+              {%- if so_pt -%}
+                <li>{{ bd | escape }} «{{ bt }}»: este calendário é o de Espanha, mas o texto usa um prazo só de Portugal ({acores}, {madeira}, {gravacao}, {continente}, {loja}, {reis} ou as horas). Use {es_navidad} ou {es_reyes}.</li>
               {%- endif -%}
               {%- if cond == 'trocas' and cal_trocas == false -%}
                 <li>{{ bd | escape }} «{{ bt }}»: só aparece quando «Mostrar «Trocas de Natal até…»» estiver ligado nas definições do tema › Natal 2026. Até lá aparece o outro bloco desta data.</li>
@@ -437,6 +724,12 @@
                   when 'retoma'
                     assign pz_v = settings.natal_retoma_envios
                     assign pz_nome = 'retoma dos envios'
+                  when 'es_navidad'
+                    assign pz_v = cal_v_es_nav
+                    assign pz_nome = 'Espanha, último dia para a Navidad'
+                  when 'es_reyes'
+                    assign pz_v = cal_v_es_reyes
+                    assign pz_nome = 'Espanha, último dia para o Dia de Reis'
                 endcase
                 assign pz_d = pz_v | strip | slice: 0, 10
                 assign pz_ok = true
@@ -483,8 +776,8 @@
   <dialog class="lnat-cal__dialogo" aria-labelledby="{{ cal_sid }}-titulo" data-dialogo>
     <div class="lnat-cal__painel">
       <div class="lnat-cal__topo">
-        <span class="lnat-cal__marca">{% render 'lod-natal-icon', nome: 'estrela', tamanho: 20 %}<span>{{ cal_titulo | escape }}</span></span>
-        <button type="button" class="lnat-cal__fechar" data-fechar aria-label="Fechar">
+        <span class="lnat-cal__marca">{% render 'lod-natal-icon', nome: 'estrela', tamanho: 20 %}<span>{{ cal_titulo_e }}</span></span>
+        <button type="button" class="lnat-cal__fechar" data-fechar aria-label="{{ t_fechar }}">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6L18 18M18 6L6 18"/></svg>
         </button>
       </div>
@@ -497,7 +790,7 @@
         <button type="button" class="lnat-cal__seta lnat-cal__seta--ant" data-ant>
           {%- render 'lod-natal-icon', nome: 'seta', tamanho: 18, classe: 'lnat-cal__seta-ico' -%}<span data-rot></span>
         </button>
-        <button type="button" class="lnat-btn lnat-btn--contorno lnat-cal__partilhar" data-partilhar>Partilhar</button>
+        <button type="button" class="lnat-btn lnat-btn--contorno lnat-cal__partilhar" data-partilhar>{{ t_partilhar }}</button>
         <button type="button" class="lnat-cal__seta lnat-cal__seta--seg" data-seg>
           <span data-rot></span>{%- render 'lod-natal-icon', nome: 'seta', tamanho: 18 -%}
         </button>
@@ -692,11 +985,19 @@
     root.setAttribute('data-pronto', '');
     var editor = root.hasAttribute('data-editor') || !!(window.Shopify && window.Shopify.designMode);
     var N = window.LOD_NATAL;
+    /* Repete a decisão do servidor (páginas em cache, ?natal_data=): versão do mercado = versão desta instância
+       e fase ativa dessa versão. O Internacional não tem calendário. */
+    var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'] };
     if (!editor && N && typeof N.fase === 'function') {
+      var v = N.versao || 'pt';
       var f = '';
-      try { f = N.fase(); } catch (e) {}
-      if (f === 'off' || f === 'antes' || f === 'fim') { root.hidden = true; return; }
+      try { f = N.fase(v); } catch (e) {}
+      if (v !== (root.getAttribute('data-versao') || 'pt') || !ATIVAS[v] || ATIVAS[v].indexOf(f) < 0) { root.hidden = true; return; }
     }
+    /* Textos fixos na língua da página (dicionário lod-natal-t, escritos pelo servidor) */
+    var TT = {};
+    try { var tj = root.querySelector('script[data-cal-t]'); if (tj) TT = JSON.parse(tj.textContent) || {}; } catch (e) {}
+    function tx(k, v1) { var s = TT[k] == null ? '' : String(TT[k]); return v1 == null ? s : s.split('{1}').join(v1); }
 
     var portas = Array.prototype.slice.call(root.querySelectorAll('.lnat-cal__porta[data-dia]'));
     var dlg = root.querySelector('[data-dialogo]');
@@ -733,8 +1034,8 @@
         var est = p.querySelector('[data-estado]');
         if (est) {
           est.textContent = aberta
-            ? ': ' + p.getAttribute('data-titulo') + (dia === hoje ? ' (hoje)' : (vista ? ' (já aberta)' : ''))
-            : ', abre a ' + p.getAttribute('data-abre');
+            ? ': ' + p.getAttribute('data-titulo') + (dia === hoje ? ' (' + tx('hoje_min') + ')' : (vista ? ' (' + tx('ja_aberta_min') + ')' : ''))
+            : ', ' + tx('abre_a_min', p.getAttribute('data-abre'));
         }
         if (dia === hoje) pHoje = p;
       });
@@ -758,21 +1059,21 @@
     }
 
     function avisar(p) {
-      anunciar(avisoGrelha, 'Esta porta abre a ' + p.getAttribute('data-abre') + '.');
+      anunciar(avisoGrelha, tx('porta_abre_a', p.getAttribute('data-abre')));
       portas.forEach(function (x) { x.classList.remove('is-aviso'); });
       p.classList.add('is-aviso');
       clearTimeout(tAviso);
       tAviso = setTimeout(function () { p.classList.remove('is-aviso'); }, 2600);
     }
 
-    function nav(btn, alvo, prefixo) {
+    function nav(btn, alvo, chave) {
       if (!btn) return;
       var rot = btn.querySelector('[data-rot]');
       if (alvo) {
         btn.classList.remove('is-vazio');
         btn.disabled = false;
         btn.setAttribute('data-alvo', alvo.getAttribute('data-dia'));
-        btn.setAttribute('aria-label', prefixo + alvo.getAttribute('data-longo'));
+        btn.setAttribute('aria-label', tx(chave, alvo.getAttribute('data-longo')));
         if (rot) rot.textContent = alvo.getAttribute('data-curto');
       } else {
         btn.classList.add('is-vazio');
@@ -798,9 +1099,9 @@
       atual = p;
       var abertas = portas.filter(livre);
       var i = abertas.indexOf(p);
-      nav(btnAnt, i > 0 ? abertas[i - 1] : null, 'Porta anterior: ');
-      nav(btnSeg, i > -1 && i < abertas.length - 1 ? abertas[i + 1] : null, 'Porta seguinte: ');
-      if (btnPart) btnPart.textContent = 'Partilhar';
+      nav(btnAnt, i > 0 ? abertas[i - 1] : null, 'porta_anterior');
+      nav(btnSeg, i > -1 && i < abertas.length - 1 ? abertas[i + 1] : null, 'porta_seguinte');
+      if (btnPart) btnPart.textContent = tx('partilhar');
       guardarVista(dia);
       p.classList.add('is-vista');
       try {
@@ -885,10 +1186,10 @@
 
     function copiar(url) {
       function ok() {
-        if (btnPart) btnPart.textContent = 'Ligação copiada';
-        anunciar(avisoDlg, 'Ligação copiada.');
+        if (btnPart) btnPart.textContent = tx('ligacao_copiada');
+        anunciar(avisoDlg, tx('ligacao_copiada') + '.');
         clearTimeout(tPart);
-        tPart = setTimeout(function () { if (btnPart) btnPart.textContent = 'Partilhar'; }, 2500);
+        tPart = setTimeout(function () { if (btnPart) btnPart.textContent = tx('partilhar'); }, 2500);
       }
       function manual() {
         try {
@@ -915,7 +1216,7 @@
       var tit = atual.getAttribute('data-titulo');
       var url = location.origin + location.pathname + '#dia-' + dia;
       if (navigator.share) {
-        navigator.share({ title: tit, text: tit + ' · Calendário de Ouro, Loja do Ouro', url: url }).catch(function () {});
+        navigator.share({ title: tit, text: tit + ' · ' + tx('nome') + ', ' + tx('marca'), url: url }).catch(function () {});
         return;
       }
       copiar(url);
@@ -1056,6 +1357,71 @@
     },
     {
       "type": "header",
+      "content": "Tradução — Inglês (EN)",
+      "info": "Deixe vazio para usar o português. No mercado Espanha, a língua por omissão do site é o inglês."
+    },
+    {
+      "type": "text",
+      "id": "eyebrow_en",
+      "label": "Sobretítulo (EN)"
+    },
+    {
+      "type": "text",
+      "id": "titulo_en",
+      "label": "Título (EN)"
+    },
+    {
+      "type": "textarea",
+      "id": "texto_en",
+      "label": "Texto (EN)"
+    },
+    {
+      "type": "text",
+      "id": "nota_en",
+      "label": "Nota curta (EN)"
+    },
+    {
+      "type": "header",
+      "content": "Tradução — Espanhol (ES)",
+      "info": "Deixe vazio para usar o português. Espanhol de Espanha, tratamento por «usted»."
+    },
+    {
+      "type": "text",
+      "id": "eyebrow_es",
+      "label": "Sobretítulo (ES)"
+    },
+    {
+      "type": "text",
+      "id": "titulo_es",
+      "label": "Título (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "texto_es",
+      "label": "Texto (ES)"
+    },
+    {
+      "type": "text",
+      "id": "nota_es",
+      "label": "Nota curta (ES)"
+    },
+    {
+      "type": "header",
+      "content": "Mercado"
+    },
+    {
+      "type": "select",
+      "id": "versao",
+      "label": "Versão do calendário",
+      "default": "pt",
+      "options": [
+        { "value": "pt", "label": "Portugal, Ouro de Reis" },
+        { "value": "es", "label": "Espanha, Oro de Reyes" }
+      ],
+      "info": "A secção só aparece no site quando o mercado da visita é o desta versão (Portugal ou Espanha). O mercado Internacional não tem calendário. As fases seguem as datas de cada mercado nas definições do tema › Natal 2026."
+    },
+    {
+      "type": "header",
       "content": "Grelha"
     },
     {
@@ -1123,7 +1489,7 @@
           "type": "textarea",
           "id": "historia",
           "label": "História",
-          "info": "Até 420 caracteres com a frase das peças. Lendas com «conta a tradição»; prazos sempre indicativos. Datas das definições do tema: {acores}, {madeira}, {gravacao}, {continente}, {reis}, {retoma}, {loja}, {trocas}, {hora_continente}, {hora_reis}."
+          "info": "Até 420 caracteres com a frase das peças. Lendas com «conta a tradição»; prazos sempre indicativos. Datas das definições do tema: {acores}, {madeira}, {gravacao}, {continente}, {reis}, {retoma}, {loja}, {trocas}, {hora_continente}, {hora_reis}; Espanha (só a Península): {es_navidad}, {es_reyes}, {es_noche}. Saem na língua da página."
         },
         {
           "type": "textarea",
@@ -1191,8 +1557,78 @@
           "type": "checkbox",
           "id": "sem_venda",
           "label": "Sem venda",
-          "info": "Esconde produtos e botões (Consoada e Natal).",
+          "info": "Esconde produtos e botões (Consoada e Natal; em Espanha também 5 e 6 de janeiro).",
           "default": false
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Inglês (EN)",
+          "info": "Deixe vazio para usar o português. Mesmos marcadores de datas."
+        },
+        {
+          "type": "text",
+          "id": "titulo_en",
+          "label": "Título (EN)"
+        },
+        {
+          "type": "text",
+          "id": "rotulo_en",
+          "label": "Rótulo da porta (EN)"
+        },
+        {
+          "type": "textarea",
+          "id": "historia_en",
+          "label": "História (EN)"
+        },
+        {
+          "type": "textarea",
+          "id": "sugestao_en",
+          "label": "Frase das peças (EN)"
+        },
+        {
+          "type": "text",
+          "id": "cta_texto_en",
+          "label": "Texto do botão (EN)"
+        },
+        {
+          "type": "text",
+          "id": "dica_en",
+          "label": "Dica (EN)"
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Espanhol (ES)",
+          "info": "Deixe vazio para usar o português. Espanhol de Espanha, com «usted»."
+        },
+        {
+          "type": "text",
+          "id": "titulo_es",
+          "label": "Título (ES)"
+        },
+        {
+          "type": "text",
+          "id": "rotulo_es",
+          "label": "Rótulo da porta (ES)"
+        },
+        {
+          "type": "textarea",
+          "id": "historia_es",
+          "label": "História (ES)"
+        },
+        {
+          "type": "textarea",
+          "id": "sugestao_es",
+          "label": "Frase das peças (ES)"
+        },
+        {
+          "type": "text",
+          "id": "cta_texto_es",
+          "label": "Texto do botão (ES)"
+        },
+        {
+          "type": "text",
+          "id": "dica_es",
+          "label": "Dica (ES)"
         },
         {
           "type": "header",
@@ -1223,7 +1659,9 @@
             { "value": "continente", "label": "Último dia para Portugal continental" },
             { "value": "loja", "label": "Levantamento em loja" },
             { "value": "reis", "label": "Último dia a tempo dos Reis" },
-            { "value": "retoma", "label": "Retoma dos envios" }
+            { "value": "retoma", "label": "Retoma dos envios" },
+            { "value": "es_navidad", "label": "Espanha, último dia para a Navidad" },
+            { "value": "es_reyes", "label": "Espanha, último dia para o Dia de Reis" }
           ]
         },
         {

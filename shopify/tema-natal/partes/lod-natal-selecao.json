@@ -22,7 +22,13 @@
     "esconder_esgotados": true,
     "link_texto": "",
     "fundo": "papel",
-    "mostrar_no_telemovel": true
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "Last Christmas",
+    "titulo_en": "Our most-loved gifts",
+    "descricao_en": "Some of the pieces our customers chose most often at Christmas 2025.",
+    "eyebrow_es": "La Navidad pasada",
+    "titulo_es": "Los más regalados",
+    "descricao_es": "Algunas de las joyas más elegidas en nuestra Navidad de 2025."
   },
   "blocks": {},
   "block_order": []

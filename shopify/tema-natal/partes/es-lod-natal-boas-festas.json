@@ -1,0 +1,19 @@
+{
+  "type": "lod-natal-boas-festas",
+  "settings": {
+    "titulo": "Boas Festas",
+    "texto": "De todos nós, na Loja do Ouro.",
+    "titulo_reis": "Feliz Dia de Reis",
+    "mostrar_coracao": true,
+    "mostrar_fio": true,
+    "mostrar_no_telemovel": true,
+    "titulo_en": "Season’s Greetings",
+    "texto_en": "From all of us at Gold Store Premium.",
+    "titulo_reis_en": "Happy Three Kings’ Day",
+    "titulo_es": "Felices fiestas",
+    "texto_es": "De parte de todo el equipo de Gold Store Premium.",
+    "titulo_reis_es": "Feliz Día de Reyes"
+  },
+  "blocks": {},
+  "block_order": []
+}

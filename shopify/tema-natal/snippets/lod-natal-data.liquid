@@ -1,46 +1,110 @@
 {%- comment -%}
-  Natal 2026 — escreve uma data das definições em português.
+  Natal 2026 — escreve uma data das definições na língua da loja (pt; en britânico; es de Espanha; outra → en).
   {%- render 'lod-natal-data', valor: settings.natal_limite_continente, formato: 'longo' -%}
-  formato: longo  → sexta, 18 de dezembro
-           curto  → 18 de dezembro
-           abrev  → 18 dez.
-           hora   → 24 de dezembro, 13h
-           abrev-hora → 24 dez., 13h (listas curtas no telemóvel)
-           ano    → 15 de janeiro de 2027
+  formato        pt                          en                        es
+    longo        sexta, 18 de dezembro       Friday 18 December        viernes, 18 de diciembre
+    curto        18 de dezembro              18 December               18 de diciembre
+    abrev        18 dez.                     18 Dec                    18 dic.
+    hora         24 de dezembro, 13h         24 December, 1pm          24 de diciembre, 13:00 h
+    abrev-hora   24 dez., 13h                24 Dec, 1pm               24 dic., 13:00 h
+    ano          15 de janeiro de 2027       15 January 2027           15 de enero de 2027
+    semana       sexta                       Friday                    viernes
+  Opções: lingua: 'pt' | 'en' | 'es' (força a língua); inicial: true (primeira letra maiúscula: «Sexta, 18 de dezembro»).
+  Nunca usar «| capitalize» numa data: em inglês passava «December» a «december».
+  Os nomes dos dias e dos meses são os mesmos do dicionário lod-natal-t (dias, meses, meses_abr) e de LOD_NATAL.fmt.
+  Horas: 13:30 → pt «13h30», en «1:30pm», es «13:30 h»; em inglês 12:00 → «midday» e 00:00 → «midnight».
+  Sem formato (ou com um formato desconhecido) escreve o «curto». Valor vazio: não escreve nada.
 {%- endcomment -%}
 {%- liquid
-  if valor == blank
-    break
-  endif
-  assign dias = 'domingo,segunda,terça,quarta,quinta,sexta,sábado' | split: ','
-  assign meses = ',janeiro,fevereiro,março,abril,maio,junho,julho,agosto,setembro,outubro,novembro,dezembro' | split: ','
-  assign mabr = ',jan.,fev.,mar.,abr.,mai.,jun.,jul.,ago.,set.,out.,nov.,dez.' | split: ','
-  assign w = valor | date: '%w' | plus: 0
-  assign d = valor | date: '%-d'
-  assign m = valor | date: '%-m' | plus: 0
-  assign h = valor | date: '%-H'
-  assign mi = valor | date: '%M'
-  case formato
-    when 'longo'
-      echo dias[w] | append: ', ' | append: d | append: ' de ' | append: meses[m]
-    when 'abrev'
-      echo d | append: ' ' | append: mabr[m]
-    when 'hora'
-      assign hh = h | append: 'h'
-      if mi != '00'
-        assign hh = h | append: 'h' | append: mi
-      endif
-      echo d | append: ' de ' | append: meses[m] | append: ', ' | append: hh
-    when 'abrev-hora'
-      assign hh = h | append: 'h'
-      if mi != '00'
-        assign hh = h | append: 'h' | append: mi
-      endif
-      echo d | append: ' ' | append: mabr[m] | append: ', ' | append: hh
-    when 'ano'
-      assign ano = valor | date: '%Y'
-      echo d | append: ' de ' | append: meses[m] | append: ' de ' | append: ano
+  if valor != blank
+    assign ld_l = lingua | default: localization.language.iso_code | default: request.locale.iso_code | default: 'pt'
+    assign ld_l = ld_l | append: '' | downcase | slice: 0, 2
+    case ld_l
+      when 'pt'
+        assign dias = 'domingo,segunda,terça,quarta,quinta,sexta,sábado' | split: ','
+        assign meses = ',janeiro,fevereiro,março,abril,maio,junho,julho,agosto,setembro,outubro,novembro,dezembro' | split: ','
+        assign mabr = ',jan.,fev.,mar.,abr.,mai.,jun.,jul.,ago.,set.,out.,nov.,dez.' | split: ','
+      when 'es'
+        assign dias = 'domingo,lunes,martes,miércoles,jueves,viernes,sábado' | split: ','
+        assign meses = ',enero,febrero,marzo,abril,mayo,junio,julio,agosto,septiembre,octubre,noviembre,diciembre' | split: ','
+        assign mabr = ',ene.,feb.,mar.,abr.,may.,jun.,jul.,ago.,sept.,oct.,nov.,dic.' | split: ','
+      else
+        assign ld_l = 'en'
+        assign dias = 'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday' | split: ','
+        assign meses = ',January,February,March,April,May,June,July,August,September,October,November,December' | split: ','
+        assign mabr = ',Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec' | split: ','
+    endcase
+    assign w = valor | date: '%w' | plus: 0
+    assign d = valor | date: '%-d'
+    assign m = valor | date: '%-m' | plus: 0
+    assign h = valor | date: '%-H'
+    assign hn = h | plus: 0
+    assign mi = valor | date: '%M'
+    assign ano = valor | date: '%Y'
+
+    # Hora: pt «13h» ou «13h30»; es «13:00 h»; en «1pm», «11:59pm», «midday», «midnight»
+    case ld_l
+      when 'pt'
+        assign hh = h | append: 'h'
+        if mi != '00'
+          assign hh = hh | append: mi
+        endif
+      when 'es'
+        assign hh = h | append: ':' | append: mi | append: ' h'
+      else
+        assign h12 = hn | modulo: 12
+        if h12 == 0
+          assign h12 = 12
+        endif
+        assign suf = 'am'
+        if hn >= 12
+          assign suf = 'pm'
+        endif
+        assign hh = h12 | append: ''
+        if mi != '00'
+          assign hh = hh | append: ':' | append: mi
+        endif
+        assign hh = hh | append: suf
+        if hn == 12 and mi == '00'
+          assign hh = 'midday'
+        elsif hn == 0 and mi == '00'
+          assign hh = 'midnight'
+        endif
+    endcase
+
+    if ld_l == 'en'
+      assign curto = d | append: ' ' | append: meses[m]
+      assign longo = dias[w] | append: ' ' | append: curto
+      assign com_ano = curto | append: ' ' | append: ano
     else
-      echo d | append: ' de ' | append: meses[m]
-  endcase
+      assign curto = d | append: ' de ' | append: meses[m]
+      assign longo = dias[w] | append: ', ' | append: curto
+      assign com_ano = curto | append: ' de ' | append: ano
+    endif
+    assign abrev = d | append: ' ' | append: mabr[m]
+
+    case formato
+      when 'longo'
+        assign saida = longo
+      when 'abrev'
+        assign saida = abrev
+      when 'hora'
+        assign saida = curto | append: ', ' | append: hh
+      when 'abrev-hora'
+        assign saida = abrev | append: ', ' | append: hh
+      when 'ano'
+        assign saida = com_ano
+      when 'semana'
+        assign saida = dias[w]
+      else
+        assign saida = curto
+    endcase
+
+    if inicial
+      assign primeira = saida | slice: 0 | upcase
+      assign resto = saida | slice: 1, 200
+      assign saida = primeira | append: resto
+    endif
+    echo saida
+  endif
 -%}

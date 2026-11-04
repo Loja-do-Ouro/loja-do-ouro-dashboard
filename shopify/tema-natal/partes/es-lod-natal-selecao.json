@@ -1,0 +1,35 @@
+{
+  "type": "lod-natal-selecao",
+  "settings": {
+    "eyebrow": "Ideias para o Dia de Reis",
+    "titulo": "Os mais oferecidos",
+    "descricao": "Algumas das peças mais escolhidas pelos nossos clientes no Natal de 2025.",
+    "produtos": [
+      "medalha-nossa-senhora-em-ouro-19kl-0-9cm",
+      "brincos-flamma-em-prata-dourada",
+      "escapulario-em-prata-dourada-com-imagem-religiosa-em-madreperola-e-zirconias",
+      "fio-em-prata-dourada-com-coracao-de-viana",
+      "medalha-papiro-em-ouro-19kl-com-letras",
+      "brincos-sonhos-de-alfama-em-prata-dourada",
+      "conjunto-fio-e-brincos-em-prata-com-perolas-e-zirconias",
+      "brincos-maria-em-prata-dourada-5cm",
+      "brincos-portuguesa-em-prata-dourada-5-8cm",
+      "brincos-hortencia-em-prata-dourada-4cm",
+      "brincos-luminis-em-prata-dourada-e-perola-aqua",
+      "pulseira-ternura-em-prata-dourada-16-5cm"
+    ],
+    "limite": 8,
+    "esconder_esgotados": true,
+    "link_texto": "",
+    "fundo": "papel",
+    "mostrar_no_telemovel": true,
+    "eyebrow_en": "Ideas for Three Kings’ Day",
+    "titulo_en": "Our most-loved gifts",
+    "descricao_en": "Some of the pieces our customers chose most often at Christmas 2025.",
+    "eyebrow_es": "Ideas para Reyes",
+    "titulo_es": "Los más regalados",
+    "descricao_es": "Algunas de las joyas más elegidas por nuestros clientes en la Navidad de 2025."
+  },
+  "blocks": {},
+  "block_order": []
+}

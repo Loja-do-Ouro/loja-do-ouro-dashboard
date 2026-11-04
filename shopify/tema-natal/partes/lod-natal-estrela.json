@@ -8,7 +8,22 @@
     "ajuda_link": "Fale connosco por WhatsApp",
     "ajuda_mensagem": "Olá! Estou a escolher uma prenda de Natal e gostava de ajuda.",
     "titulo_resultados": "A estrela parou aqui.",
+    "eyebrow_en": "Gift guide",
+    "titulo_en": "Follow the star.",
+    "texto_en": "Make three choices and we will show you the right pieces, with indicative delivery deadlines.",
+    "ajuda_en": "Would you rather speak to one of our team?",
+    "ajuda_link_en": "Talk to us on WhatsApp",
+    "ajuda_mensagem_en": "Hello! I am choosing a Christmas gift and would like some help.",
+    "titulo_resultados_en": "The star stopped here.",
+    "eyebrow_es": "Guía de regalos",
+    "titulo_es": "Siga la estrella.",
+    "texto_es": "Elija tres opciones y le mostraremos las piezas adecuadas, con plazos de entrega orientativos.",
+    "ajuda_es": "¿Prefiere que le atienda una persona?",
+    "ajuda_link_es": "Escríbanos por WhatsApp",
+    "ajuda_mensagem_es": "¡Hola! Estoy eligiendo un regalo de Navidad y me gustaría recibir ayuda.",
+    "titulo_resultados_es": "La estrella se detuvo aquí.",
     "colecao_vale": "voucher-prenda",
+    "vale_fora_portugal": false,
     "ancora": "siga-a-estrela",
     "estado_inicial": "fechado",
     "mostrar_no_telemovel": true,
@@ -27,7 +42,13 @@
         "colecao": "para-ela-natal",
         "alternativa": "mulher",
         "saltar_metal": false,
-        "aviso": ""
+        "aviso": "",
+        "label_en": "For her",
+        "resumo_en": "for her",
+        "descricao_en": "Earrings, necklaces, bracelets and rings",
+        "label_es": "Para ella",
+        "resumo_es": "para ella",
+        "descricao_es": "Pendientes, collares, pulseras y anillos"
       }
     },
     "para_ele": {
@@ -41,7 +62,13 @@
         "colecao": "homem",
         "alternativa": "aneis-homem",
         "saltar_metal": false,
-        "aviso": ""
+        "aviso": "",
+        "label_en": "For him",
+        "resumo_en": "for him",
+        "descricao_en": "Chains, bracelets, rings and watches",
+        "label_es": "Para él",
+        "resumo_es": "para él",
+        "descricao_es": "Cadenas, pulseras, anillos y relojes"
       }
     },
     "para_mae": {
@@ -55,7 +82,11 @@
         "colecao": "para-a-mae-natal",
         "alternativa": "mulher",
         "saltar_metal": false,
-        "aviso": ""
+        "aviso": "",
+        "label_en": "For Mum",
+        "resumo_en": "for Mum",
+        "label_es": "Para mamá",
+        "resumo_es": "para mamá"
       }
     },
     "para_avo": {
@@ -69,7 +100,11 @@
         "colecao": "tradicao-ouro",
         "alternativa": "tradicao-prata-ouro-filigrana-viana",
         "saltar_metal": false,
-        "aviso": ""
+        "aviso": "",
+        "label_en": "For Grandma",
+        "resumo_en": "for Grandma",
+        "label_es": "Para la abuela",
+        "resumo_es": "para la abuela"
       }
     },
     "pequenos": {
@@ -83,7 +118,11 @@
         "colecao": "crianca-natal",
         "alternativa": "crianca",
         "saltar_metal": false,
-        "aviso": ""
+        "aviso": "",
+        "label_en": "For little ones",
+        "resumo_en": "for little ones",
+        "label_es": "Para los más pequeños",
+        "resumo_es": "para los más pequeños"
       }
     },
     "batizado": {
@@ -97,7 +136,11 @@
         "colecao": "batizados",
         "alternativa": "medalhas-crianca-ouro",
         "saltar_metal": false,
-        "aviso": ""
+        "aviso": "",
+        "label_en": "Christenings and godchildren",
+        "resumo_en": "for christenings and godchildren",
+        "label_es": "Bautizos y ahijados",
+        "resumo_es": "para bautizos y ahijados"
       }
     },
     "guardar": {
@@ -110,7 +153,13 @@
         "destaque": false,
         "colecao": "libras-com-aro",
         "saltar_metal": true,
-        "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento."
+        "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento.",
+        "label_en": "To treasure",
+        "resumo_en": "to treasure",
+        "aviso_en": "The price of gold varies with the market. This is commercial information and does not constitute investment advice.",
+        "label_es": "Para atesorar",
+        "resumo_es": "para atesorar",
+        "aviso_es": "El precio del oro varía según el mercado. Información comercial; no constituye asesoramiento de inversión."
       }
     }
   },

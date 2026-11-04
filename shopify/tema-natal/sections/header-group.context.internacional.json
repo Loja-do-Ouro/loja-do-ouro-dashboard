@@ -1,0 +1,33 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "context": {
+    "market": "internacional"
+  },
+  "parent": "header-group.json",
+  "sections": {
+    "lod_luxury_header_giJrAi": {
+      "settings": {
+        "mega_title": "Novas joias. Prata Intemporal."
+      },
+      "blocks": {}
+    },
+    "lod_natal_bar": {
+      "disabled": true,
+      "settings": {},
+      "blocks": {}
+    },
+    "lod_natal_bar_es": {
+      "disabled": true,
+      "settings": {},
+      "blocks": {}
+    }
+  }
+}

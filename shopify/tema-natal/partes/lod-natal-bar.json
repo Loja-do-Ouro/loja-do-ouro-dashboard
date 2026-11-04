@@ -1,7 +1,7 @@
 {
   "type": "lod-natal-bar",
   "settings": {
-    "so_portugal": true,
+    "mercado": "pt",
     "mostrar_no_telemovel": true,
     "janeiras_confirmadas": false
   },
@@ -16,20 +16,32 @@
         "de": "inicio",
         "ate": "fase2",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Christmas: order by <strong>{continente}</strong> to receive your gifts before Christmas (mainland Portugal, indicative deadline).",
+        "texto_telemovel_en": "Christmas: order by <strong>{continente:abrev}</strong> (mainland Portugal, indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Navidad: haga su pedido hasta el <strong>{continente}</strong> para recibirlo antes de Navidad (Portugal continental, plazo orientativo).",
+        "texto_telemovel_es": "Navidad: pedidos hasta el <strong>{continente:abrev}</strong> (Portugal continental, plazo orientativo)",
+        "link_texto_es": "Ver plazos"
       }
     },
     "msg_ilhas": {
       "type": "mensagem",
       "settings": {
-        "texto": "Açores: encomende até <strong>{acores}</strong> · Madeira: até <strong>{madeira}</strong> (prazos indicativos).",
-        "texto_telemovel": "Açores: até <strong>{acores:abrev}</strong> · Madeira: até <strong>{madeira:abrev}</strong> (prazos indicativos)",
+        "texto": "Açores e Madeira: encomende até <strong>{acores}</strong> para receber antes do Natal (prazo indicativo).",
+        "texto_telemovel": "Açores e Madeira: até <strong>{acores:abrev}</strong> para o Natal (prazo indicativo)",
         "link": "/#prazos",
         "link_texto": "Ver prazos",
         "de": "inicio",
         "ate": "acores",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Azores and Madeira: order by <strong>{acores}</strong> to receive your gifts before Christmas (indicative deadline).",
+        "texto_telemovel_en": "Azores and Madeira: order by <strong>{acores:abrev}</strong> for Christmas (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Azores y Madeira: haga su pedido hasta el <strong>{acores}</strong> para recibirlo antes de Navidad (plazo orientativo).",
+        "texto_telemovel_es": "Azores y Madeira: pedidos hasta el <strong>{acores:abrev}</strong> para Navidad (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
       }
     },
     "msg_madeira": {
@@ -42,7 +54,13 @@
         "de": "acores",
         "ate": "madeira",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Madeira: order by <strong>{madeira}</strong> to receive your gifts before Christmas (indicative deadline).",
+        "texto_telemovel_en": "Madeira: order by <strong>{madeira:abrev}</strong> for Christmas (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Madeira: haga su pedido hasta el <strong>{madeira}</strong> para recibirlo antes de Navidad (plazo orientativo).",
+        "texto_telemovel_es": "Madeira: pedidos hasta el <strong>{madeira:abrev}</strong> para Navidad (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
       }
     },
     "msg_ultimos_dias": {
@@ -55,7 +73,13 @@
         "de": "fase2",
         "ate": "continente",
         "contagem": "continente",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Final days: order by <strong>{continente:longo}</strong> (mainland Portugal, indicative deadline)",
+        "texto_telemovel_en": "Final days: order by <strong>{continente:abrev}</strong> (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Últimos días: haga su pedido hasta el <strong>{continente:longo}</strong> (Portugal continental, plazo orientativo)",
+        "texto_telemovel_es": "Últimos días: pedidos hasta el <strong>{continente:abrev}</strong> (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
       }
     },
     "msg_gravadas": {
@@ -68,7 +92,13 @@
         "de": "fase2",
         "ate": "gravacao",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Engraved pieces: order by <strong>{gravacao}</strong> to receive them before Christmas (indicative deadline).",
+        "texto_telemovel_en": "Engraved pieces: order by <strong>{gravacao:abrev}</strong> (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Piezas grabadas: haga su pedido hasta el <strong>{gravacao}</strong> para recibirlas antes de Navidad (plazo orientativo).",
+        "texto_telemovel_es": "Piezas grabadas: pedidos hasta el <strong>{gravacao:abrev}</strong> (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
       }
     },
     "msg_levantar_loja": {
@@ -81,20 +111,32 @@
         "de": "continente",
         "ate": "loja",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Too late for delivery by post? Collect your gift from one of our 13 stores, by appointment, until <strong>{loja:hora}</strong>.",
+        "texto_telemovel_en": "Collect from one of our 13 stores, by appointment, until <strong>{loja:hora}</strong>",
+        "link_texto_en": "See stores",
+        "texto_es": "¿Ya no llega a tiempo por correo? Recoja su regalo en una de nuestras 13 tiendas, con cita previa, hasta el <strong>{loja:hora}</strong>.",
+        "texto_telemovel_es": "Recoja en una de nuestras 13 tiendas, con cita previa, hasta el <strong>{loja:abrev-hora}</strong>",
+        "link_texto_es": "Ver tiendas"
       }
     },
     "msg_vale": {
       "type": "mensagem",
       "settings": {
-        "texto": "<strong>Vale-prenda</strong> de 25 € a 150 €: a prenda que nunca falha o tamanho.",
-        "texto_telemovel": "<strong>Vale-prenda</strong> de 25 € a 150 €: nunca falha o tamanho",
+        "texto": "<strong>Vale-prenda</strong> de 25 € a 150 €: a prenda que nunca falha o tamanho.",
+        "texto_telemovel": "<strong>Vale-prenda</strong> de 25 € a 150 €: nunca falha o tamanho",
         "link": "/collections/voucher-prenda",
         "link_texto": "Escolher",
         "de": "continente",
         "ate": "loja",
         "contagem": "nenhuma",
-        "condicao": "vale_digital"
+        "condicao": "vale_digital",
+        "texto_en": "<strong>Gift vouchers</strong> from €25 to €150: the gift that always fits.",
+        "texto_telemovel_en": "<strong>Gift vouchers</strong> from €25 to €150: always the right fit",
+        "link_texto_en": "Choose",
+        "texto_es": "<strong>Vale regalo</strong> de 25 € a 150 €: el regalo que siempre acierta.",
+        "texto_telemovel_es": "<strong>Vale regalo</strong> de 25 € a 150 €: siempre acierta",
+        "link_texto_es": "Elegir"
       }
     },
     "msg_boas_festas": {
@@ -105,7 +147,11 @@
         "de": "loja",
         "ate": "festas",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Season’s greetings from Gold Store Premium. Orders placed today will be dispatched from <strong>{retoma}</strong>.",
+        "texto_telemovel_en": "Season’s greetings! Today’s orders will be dispatched from <strong>{retoma:abrev}</strong>",
+        "texto_es": "Felices fiestas de parte de Gold Store Premium. Los pedidos realizados hoy se enviarán a partir del <strong>{retoma}</strong>.",
+        "texto_telemovel_es": "¡Felices fiestas! Los pedidos de hoy se envían a partir del <strong>{retoma:abrev}</strong>"
       }
     },
     "msg_reis": {
@@ -118,7 +164,13 @@
         "de": "festas",
         "ate": "reis",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "Still in time for Three Kings’ Day: order by <strong>{reis}</strong> (mainland Portugal, indicative deadline).",
+        "texto_telemovel_en": "In time for Three Kings’ Day: order by <strong>{reis:abrev}</strong> (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Aún está a tiempo para el Día de Reyes: haga su pedido hasta el <strong>{reis}</strong> (Portugal continental, plazo orientativo).",
+        "texto_telemovel_es": "A tiempo para Reyes: pedidos hasta el <strong>{reis:abrev}</strong> (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
       }
     },
     "msg_trocas": {
@@ -131,7 +183,13 @@
         "de": "festas",
         "ate": "fim",
         "contagem": "nenhuma",
-        "condicao": "trocas"
+        "condicao": "trocas",
+        "texto_en": "Christmas exchanges until <strong>{trocas}</strong>.",
+        "texto_telemovel_en": "Christmas exchanges until <strong>{trocas:abrev}</strong>",
+        "link_texto_en": "Find out how",
+        "texto_es": "Cambios de Navidad hasta el <strong>{trocas}</strong>.",
+        "texto_telemovel_es": "Cambios de Navidad hasta el <strong>{trocas:abrev}</strong>",
+        "link_texto_es": "Más información"
       }
     },
     "msg_janeiras": {
@@ -142,29 +200,41 @@
         "de": "festas",
         "ate": "fim",
         "contagem": "nenhuma",
-        "condicao": "janeiras"
+        "condicao": "janeiras",
+        "texto_en": "We open our doors to the <strong>Janeiras</strong>, Portugal’s New Year carols: from 2 to 6 January, in our stores.",
+        "texto_telemovel_en": "<strong>Janeiras</strong> carols in our stores, from 2 to 6 January",
+        "texto_es": "Abrimos nuestras puertas a las <strong>Janeiras</strong>, los cantos portugueses de Año Nuevo: del 2 al 6 de enero, en nuestras tiendas.",
+        "texto_telemovel_es": "<strong>Janeiras</strong> en nuestras tiendas, del 2 al 6 de enero"
       }
     },
     "msg_portes": {
       "type": "mensagem",
       "settings": {
-        "texto": "<strong>Portes grátis</strong> em encomendas superiores a 150 € (exceto ouro de investimento).",
-        "texto_telemovel": "<strong>Portes grátis</strong> acima de 150 € (exceto ouro de investimento)",
+        "texto": "<strong>Portes grátis</strong> em encomendas superiores a 150 € (exceto ouro de investimento).",
+        "texto_telemovel": "<strong>Portes grátis</strong> acima de 150 € (exceto ouro de investimento)",
         "de": "inicio",
         "ate": "continente",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "<strong>Free delivery</strong> on orders over €150 (excluding investment gold).",
+        "texto_telemovel_en": "<strong>Free delivery</strong> over €150 (excluding investment gold)",
+        "texto_es": "<strong>Envío gratuito</strong> en pedidos superiores a 150 € (excepto oro de inversión).",
+        "texto_telemovel_es": "<strong>Envío gratuito</strong> en pedidos de más de 150 € (excepto oro de inversión)"
       }
     },
     "msg_portes_reis": {
       "type": "mensagem",
       "settings": {
-        "texto": "<strong>Portes grátis</strong> em encomendas superiores a 150 € (exceto ouro de investimento).",
-        "texto_telemovel": "<strong>Portes grátis</strong> acima de 150 € (exceto ouro de investimento)",
+        "texto": "<strong>Portes grátis</strong> em encomendas superiores a 150 € (exceto ouro de investimento).",
+        "texto_telemovel": "<strong>Portes grátis</strong> acima de 150 € (exceto ouro de investimento)",
         "de": "festas",
         "ate": "fim",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "<strong>Free delivery</strong> on orders over €150 (excluding investment gold).",
+        "texto_telemovel_en": "<strong>Free delivery</strong> over €150 (excluding investment gold)",
+        "texto_es": "<strong>Envío gratuito</strong> en pedidos superiores a 150 € (excepto oro de inversión).",
+        "texto_telemovel_es": "<strong>Envío gratuito</strong> en pedidos de más de 150 € (excepto oro de inversión)"
       }
     },
     "msg_embrulho": {
@@ -175,7 +245,11 @@
         "de": "inicio",
         "ate": "continente",
         "contagem": "nenhuma",
-        "condicao": "sempre"
+        "condicao": "sempre",
+        "texto_en": "<strong>Gift wrapping</strong> and a message: choose them in your bag.",
+        "texto_telemovel_en": "<strong>Gift wrapping</strong> and a message: choose them in your bag",
+        "texto_es": "<strong>Envoltorio de regalo</strong> y mensaje: elíjalos en la cesta.",
+        "texto_telemovel_es": "<strong>Envoltorio de regalo</strong> y mensaje: elíjalos en la cesta"
       }
     }
   },

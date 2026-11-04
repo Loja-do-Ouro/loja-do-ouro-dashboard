@@ -7,15 +7,29 @@
     Com «reduzir movimento» só aparece a primeira mensagem ativa. Sem aria-live (a contagem não é anunciada).
   - Texto comprido a partir de 1100 px (se não couber numa linha, o script passa ao curto); texto curto
     (texto_telemovel) abaixo disso.
+  - Mercado: cada instância é de um mercado (definição «mercado»: pt, spain ou internacional) e só aparece nas visitas
+    da mesma versão da campanha (lod-natal-fase, devolve: 'versao'): pt = Portugal, es = Espanha, int = Internacional
+    e qualquer outro mercado. As fases e as janelas são as dessa versão (contrato i18n, secção 5):
+      pt   ouro | incenso | ultima | consoada | mirra
+      es   navidad | reyes | reyes_ultima | noche_reyes
+      int  navidad (até ao prazo internacional)
+    No editor, a barra de outro mercado fica escondida e aparece ao selecioná-la (com uma nota).
+  - Línguas: textos fixos do dicionário lod-natal-t (barra_aria, pausar_msgs, retomar_msgs, contagem, un_*, dia_*,
+    hora_*, minuto_*). Cada mensagem tem o texto base em português e os campos _en e _es; com o _en/_es preenchido,
+    o texto curto e o do link também vêm dos campos dessa língua. Qualquer outra língua usa o _en.
+    Os links relativos («/#prazos», «/collections/…») ganham o prefixo da língua (routes.root_url: /en, /es, /pt-pt).
   - Cada bloco «Mensagem» tem as suas datas (De / Até, hora de Lisboa). Aceita datas «AAAA-MM-DD HH:MM» ou o nome
     de uma data das definições do Natal (inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma,
-    reis, fim, trocas). Num «De», um prazo (acores, madeira, gravacao, continente, festas, reis, fim, trocas) quer
-    dizer «depois desse prazo»; num «Até», um início (inicio, fase2, loja, retoma) quer dizer «até ao minuto antes».
-    Assim as mensagens mudam no mesmo instante que as fases (window.LOD_NATAL.fase()).
-  - No texto, {continente} escreve a data das definições («18 de dezembro»); {continente:longo} «sexta, 18 de
-    dezembro»; :abrev «18 dez.»; :hora «24 de dezembro, 13h»; :ano «15 de janeiro de 2027». {loja} sozinho leva
-    sempre a hora. {contagem} coloca a contagem decrescente nesse sítio (sem {contagem}, a contagem vai para o fim),
-    no formato do banner: «2 d 14 h», e no último dia «14 h 5 min».
+    reis, fim, trocas, es_navidad, es_reyes, es_noche, int). Num «De», um prazo (acores, madeira, gravacao,
+    continente, festas, reis, fim, trocas, es_navidad, es_reyes, int) quer dizer «depois desse prazo»; num «Até», um
+    início (inicio, fase2, loja, retoma, es_noche) quer dizer «até ao minuto antes».
+    Assim as mensagens mudam no mesmo instante que as fases (window.LOD_NATAL.fase(versao)).
+  - No texto, {continente} escreve a data das definições na língua da página («20 de dezembro», «20 December»,
+    «20 de diciembre»); {continente:longo} «domingo, 20 de dezembro»; :abrev «20 dez.»; :hora «24 de dezembro, 13h»;
+    :abrev-hora «24 dez., 13h»; :ano «15 de janeiro de 2027». {loja} sozinho leva sempre a hora. Em Espanha e no Internacional, só o dia
+    (as 23:59 de Lisboa são 00:59 em Madrid). {contagem} coloca a contagem decrescente nesse sítio (sem {contagem},
+    a contagem vai para o fim), no formato do banner: «2 d 14 h», e no último dia «14 h 5 min».
+    Depois do prazo da contagem, a mensagem deixa de aparecer (não pode prometer um prazo que já passou).
   - Mensagens com condição «Janeiras» só aparecem com «Janeiras confirmadas» ligado (desligado por omissão).
   - O HTML sai já com a mensagem certa (data do servidor, ou a data simulada fora do tema publicado); o script
     volta a escolher com LOD_NATAL.agora(), mesmo que a página venha da cache.
@@ -25,21 +39,93 @@
 {%- liquid
   assign s = section.settings
 
+  # Língua da página (pt | en | es; outra → en) e textos fixos da barra, lidos uma vez antes do ciclo
+  capture lnat_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_lg = lnat_lg | strip
+  capture lnb_t_aria
+    render 'lod-natal-t', k: 'barra_aria'
+  endcapture
+  capture lnb_t_pausar
+    render 'lod-natal-t', k: 'pausar_msgs'
+  endcapture
+  capture lnb_t_retomar
+    render 'lod-natal-t', k: 'retomar_msgs'
+  endcapture
+  capture lnb_t_contagem
+    render 'lod-natal-t', k: 'contagem'
+  endcapture
+  capture lnb_t_ud
+    render 'lod-natal-t', k: 'un_d'
+  endcapture
+  capture lnb_t_uh
+    render 'lod-natal-t', k: 'un_h'
+  endcapture
+  capture lnb_t_umin
+    render 'lod-natal-t', k: 'un_min'
+  endcapture
+  capture lnb_t_d1
+    render 'lod-natal-t', k: 'dia_1'
+  endcapture
+  capture lnb_t_dn
+    render 'lod-natal-t', k: 'dia_n'
+  endcapture
+  capture lnb_t_h1
+    render 'lod-natal-t', k: 'hora_1'
+  endcapture
+  capture lnb_t_hn
+    render 'lod-natal-t', k: 'hora_n'
+  endcapture
+  capture lnb_t_m1
+    render 'lod-natal-t', k: 'minuto_1'
+  endcapture
+  capture lnb_t_mn
+    render 'lod-natal-t', k: 'minuto_n'
+  endcapture
+
+  # Mercado desta instância e versão da campanha (pt | es | int); a da visita vem do mercado da página
+  assign lnb_mercado = s.mercado | default: 'pt'
+  capture lnb_versao
+    render 'lod-natal-fase', mercado: lnb_mercado, devolve: 'versao'
+  endcapture
+  assign lnb_versao = lnb_versao | strip
+  capture lnb_versao_visita
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnb_versao_visita = lnb_versao_visita | strip
+  assign lnb_outro_mercado = false
+  if lnb_versao != lnb_versao_visita
+    assign lnb_outro_mercado = true
+  endif
+
   capture lnb_fase
-    render 'lod-natal-fase'
+    render 'lod-natal-fase', mercado: lnb_mercado
   endcapture
   assign lnb_fase = lnb_fase | strip
   assign lnb_fase_ok = false
-  case lnb_fase
-    when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
-      assign lnb_fase_ok = true
+  case lnb_versao
+    when 'pt'
+      case lnb_fase
+        when 'ouro', 'incenso', 'ultima', 'consoada', 'mirra'
+          assign lnb_fase_ok = true
+      endcase
+    when 'es'
+      case lnb_fase
+        when 'navidad', 'reyes', 'reyes_ultima', 'noche_reyes'
+          assign lnb_fase_ok = true
+      endcase
+    else
+      if lnb_fase == 'navidad'
+        assign lnb_fase_ok = true
+      endif
   endcase
 
   assign lnb_render = true
   if lnb_fase == 'off' or lnb_fase == 'fim'
     assign lnb_render = false
   endif
-  if s.so_portugal and localization.market.handle != 'pt'
+  if lnb_outro_mercado
     assign lnb_render = false
   endif
   if request.design_mode
@@ -56,19 +142,19 @@
   assign lnb_agora = lnb_agora_txt | date: '%Y%m%d%H%M' | plus: 0
   assign lnb_agora_s = lnb_agora_txt | date: '%s' | plus: 0
 
-  assign lnb_k = 'inicio,fase2,acores,madeira,gravacao,continente,loja,festas,retoma,reis,fim,trocas' | split: ','
-  assign lnb_inst = ',inicio,fase2,loja,retoma,'
+  assign lnb_k = 'inicio,fase2,acores,madeira,gravacao,continente,loja,festas,retoma,reis,fim,trocas,es_navidad,es_reyes,es_noche,int' | split: ','
+  assign lnb_inst = ',inicio,fase2,loja,retoma,es_noche,'
   assign lnb_x = settings.natal_inicio | default: '2026-12-01 00:00' | strip
   assign lnb_v = lnb_x
   assign lnb_x = settings.natal_fase2_inicio | default: '2026-12-14 00:00' | strip
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
-  assign lnb_x = settings.natal_limite_acores | default: '2026-12-04 23:59' | strip
+  assign lnb_x = settings.natal_limite_acores | default: '2026-12-14 23:59' | strip
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
-  assign lnb_x = settings.natal_limite_madeira | default: '2026-12-11 23:59' | strip
+  assign lnb_x = settings.natal_limite_madeira | default: '2026-12-14 23:59' | strip
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
   assign lnb_x = settings.natal_limite_gravacao | default: '2026-12-16 23:59' | strip
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
-  assign lnb_x = settings.natal_limite_continente | default: '2026-12-18 23:59' | strip
+  assign lnb_x = settings.natal_limite_continente | default: '2026-12-20 23:59' | strip
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
   assign lnb_x = settings.natal_limite_loja | default: '2026-12-24 13:00' | strip
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
@@ -82,8 +168,22 @@
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
   assign lnb_x = settings.natal_trocas_ate | default: '2027-01-15' | strip
   assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  # Espanha e Internacional (Navidad confirmada pela loja; Reyes e Internacional propostos; sempre indicativos)
+  assign lnb_x = settings.natal_es_limite_navidad | default: '2026-12-20 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_es_limite_reyes | default: '2026-12-29 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  # es_noche: 5 de janeiro, 00:00, do ano de natal_fim (igual a lod-natal-config e lod-natal-fase)
+  assign lnb_x = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y' | append: '-01-05 00:00'
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
+  assign lnb_x = settings.natal_int_limite | default: '2026-12-10 23:59' | strip
+  assign lnb_v = lnb_v | append: '|' | append: lnb_x
   assign lnb_v = lnb_v | split: '|'
-  assign lnb_fmt = 'longo,curto,abrev,hora,ano' | split: ','
+  assign lnb_fmt = 'longo,curto,abrev,hora,abrev-hora,ano' | split: ','
+
+  # Prefixo da língua para os links relativos («/en», «/es», «/pt-pt»; «/» na língua principal do domínio)
+  assign lnb_raiz = routes.root_url | default: '/'
+  assign lnb_raiz_n = lnb_raiz.size
 
   assign lnb_html = ''
   assign lnb_n = 0
@@ -93,8 +193,24 @@
   {%- for block in section.blocks -%}
     {%- liquid
       assign b = block.settings
+
+      # Textos na língua da página: campo _en/_es preenchido → texto, texto curto e texto do link dessa língua
+      assign lnb_t1 = b.texto
+      assign lnb_t2 = b.texto_telemovel
+      assign lnb_lt = b.link_texto
+      if lnat_lg != 'pt'
+        assign lnb_kt = 'texto_' | append: lnat_lg
+        if b[lnb_kt] != blank
+          assign lnb_t1 = b[lnb_kt]
+          assign lnb_kt = 'texto_telemovel_' | append: lnat_lg
+          assign lnb_t2 = b[lnb_kt]
+          assign lnb_kt = 'link_texto_' | append: lnat_lg
+          assign lnb_lt = b[lnb_kt]
+        endif
+      endif
+
       assign lnb_usar = true
-      if b.texto == blank
+      if lnb_t1 == blank
         assign lnb_usar = false
       endif
       if b.condicao == 'vale_digital' and settings.natal_vale_digital != true
@@ -109,6 +225,26 @@
       unless lnb_usar
         continue
       endunless
+
+      # Link: os relativos ganham o prefixo da língua (a não ser que já o tenham)
+      assign lnb_link = b.link
+      if lnb_link != blank and lnb_raiz != '/'
+        assign lnb_l1 = lnb_link | slice: 0
+        assign lnb_l2 = lnb_link | slice: 0, 2
+        if lnb_l1 == '/' and lnb_l2 != '//'
+          assign lnb_ja = false
+          assign lnb_lp = lnb_link | slice: 0, lnb_raiz_n
+          if lnb_lp == lnb_raiz
+            assign lnb_lc = lnb_link | slice: lnb_raiz_n
+            if lnb_lc == blank or lnb_lc == '/' or lnb_lc == '#' or lnb_lc == '?'
+              assign lnb_ja = true
+            endif
+          endif
+          unless lnb_ja
+            assign lnb_link = lnb_raiz | append: lnb_link
+          endunless
+        endif
+      endif
 
       # Datas da mensagem: data escrita ou nome de uma data das definições
       assign lnb_de_raw = b.de | strip | downcase
@@ -159,9 +295,7 @@
         endif
       endif
 
-      # Datas dentro do texto: {continente}, {continente:longo}, ...
-      assign lnb_t1 = b.texto
-      assign lnb_t2 = b.texto_telemovel
+      # Datas dentro do texto: {continente}, {continente:longo}, ... (na língua da página)
       if lnb_t1 contains '{' or lnb_t2 contains '{'
         for k in lnb_k
           assign lnb_tk = '{' | append: k
@@ -197,13 +331,15 @@
       # Contagem decrescente (minutos; o minuto do prazo conta, como em LOD_NATAL.falta;
       # num início, como loja às 13:00, conta só até esse minuto)
       assign lnb_cd_on = false
-      if b.contagem == 'continente' or b.contagem == 'loja' or b.contagem == 'reis'
-        assign lnb_cd_on = true
+      if b.contagem != blank and b.contagem != 'nenhuma'
         for k in lnb_k
           if k == b.contagem
+            assign lnb_cd_on = true
             assign lnb_alvo = lnb_v[forloop.index0]
           endif
         endfor
+      endif
+      if lnb_cd_on
         assign lnb_ck = ',' | append: b.contagem | append: ','
         assign lnb_cd_inst = false
         assign lnb_extra = 60
@@ -212,8 +348,10 @@
           assign lnb_extra = 0
         endif
         assign lnb_dif = lnb_alvo | date: '%s' | plus: lnb_extra | minus: lnb_agora_s
-        if lnb_dif < 0
+        if lnb_dif <= 0
           assign lnb_dif = 0
+          # O prazo da contagem já passou: a mensagem deixava de ser verdade
+          assign lnb_ok = false
         endif
         assign lnb_min = lnb_dif | divided_by: 60 | floor
         assign lnb_cd_d = lnb_min | divided_by: 1440 | floor
@@ -222,13 +360,18 @@
       endif
     -%}
     {%- if lnb_cd_on -%}
-      {%- capture lnb_cd -%}
-        <span class="lnat-bar__cd" data-lnb-cd data-alvo="{{ lnb_alvo | escape }}"{% if lnb_cd_inst %} data-inst{% endif %}>faltam {% if lnb_cd_d > 0 -%}
-          <span class="lnat-bar__n">{{ lnb_cd_d }}</span><span aria-hidden="true">&nbsp;d</span><span class="lnat-sr"> {% if lnb_cd_d == 1 %}dia{% else %}dias{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;h</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}hora{% else %}horas{% endif %}</span>
+      {%- capture lnb_cd_u -%}
+        {%- if lnb_cd_d > 0 -%}
+          <span class="lnat-bar__n">{{ lnb_cd_d }}</span><span aria-hidden="true">&nbsp;{{ lnb_t_ud }}</span><span class="lnat-sr"> {% if lnb_cd_d == 1 %}{{ lnb_t_d1 }}{% else %}{{ lnb_t_dn }}{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;{{ lnb_t_uh }}</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}{{ lnb_t_h1 }}{% else %}{{ lnb_t_hn }}{% endif %}</span>
         {%- else -%}
-          <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;h</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}hora{% else %}horas{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_m }}</span><span aria-hidden="true">&nbsp;min</span><span class="lnat-sr"> {% if lnb_cd_m == 1 %}minuto{% else %}minutos{% endif %}</span>
-        {%- endif -%}</span>
+          <span class="lnat-bar__n">{{ lnb_cd_h }}</span><span aria-hidden="true">&nbsp;{{ lnb_t_uh }}</span><span class="lnat-sr"> {% if lnb_cd_h == 1 %}{{ lnb_t_h1 }}{% else %}{{ lnb_t_hn }}{% endif %}</span> <span class="lnat-bar__n">{{ lnb_cd_m }}</span><span aria-hidden="true">&nbsp;{{ lnb_t_umin }}</span><span class="lnat-sr"> {% if lnb_cd_m == 1 %}{{ lnb_t_m1 }}{% else %}{{ lnb_t_mn }}{% endif %}</span>
+        {%- endif -%}
       {%- endcapture -%}
+      {%- liquid
+        # «faltam {1}» / «{1} left» / «quedan {1}»
+        assign lnb_cd_txt = lnb_t_contagem | replace: '{1}', lnb_cd_u
+      -%}
+      {%- capture lnb_cd -%}<span class="lnat-bar__cd" data-lnb-cd data-alvo="{{ lnb_alvo | escape }}"{% if lnb_cd_inst %} data-inst{% endif %}>{{ lnb_cd_txt }}</span>{%- endcapture -%}
       {%- capture lnb_cdw -%}<span data-lnb-cdw{% if lnb_dif == 0 %} hidden{% endif %}> · {{ lnb_cd }}</span>{%- endcapture -%}
       {%- liquid
         if lnb_t1 contains '{contagem}'
@@ -260,13 +403,13 @@
       endif
     -%}
     {%- capture lnb_bloco -%}
-      <p class="lnat-bar__msg{% if lnb_t2 != blank %} lnat-bar__msg--m{% endif %}{% if lnb_on %} is-on{% endif %}" data-lnb-msg data-bloco="{{ block.id }}"{% if lnb_de != blank %} data-de="{{ lnb_de | escape }}"{% endif %}{% if lnb_de_depois %} data-de-depois{% endif %}{% if lnb_ate != blank %} data-ate="{{ lnb_ate | escape }}"{% endif %}{% if lnb_ate_antes %} data-ate-antes{% endif %}{% unless lnb_ok %} hidden{% endunless %} {{ block.shopify_attributes }}>
-        {%- if b.link != blank -%}<a class="lnat-bar__a" href="{{ b.link }}">{%- endif -%}
+      <p class="lnat-bar__msg{% if lnb_t2 != blank %} lnat-bar__msg--m{% endif %}{% if lnb_on %} is-on{% endif %}" data-lnb-msg data-bloco="{{ block.id }}"{% if lnb_de != blank %} data-de="{{ lnb_de | escape }}"{% endif %}{% if lnb_de_depois %} data-de-depois{% endif %}{% if lnb_ate != blank %} data-ate="{{ lnb_ate | escape }}"{% endif %}{% if lnb_ate_antes %} data-ate-antes{% endif %}{% if lnb_cd_on %} data-cd-alvo="{{ lnb_alvo | escape }}"{% if lnb_cd_inst %} data-cd-inst{% endif %}{% endif %}{% unless lnb_ok %} hidden{% endunless %} {{ block.shopify_attributes }}>
+        {%- if lnb_link != blank -%}<a class="lnat-bar__a" href="{{ lnb_link | escape }}">{%- endif -%}
         <span class="lnat-bar__t lnat-bar__t--c">{{ lnb_t1 }}</span>
         {%- if lnb_t2 != blank -%}<span class="lnat-bar__t lnat-bar__t--m">{{ lnb_t2 }}</span>{%- endif -%}
-        {%- if b.link != blank -%}
+        {%- if lnb_link != blank -%}
           {%- comment -%} O espaço fica fora do span sublinhado: o if fecha sem traço para o guardar. {%- endcomment -%}
-          {%- if b.link_texto != blank %} <span class="lnat-bar__cta">{{ b.link_texto | escape }}</span>{%- endif -%}
+          {%- if lnb_lt != blank %} <span class="lnat-bar__cta">{{ lnb_lt | escape }}</span>{%- endif -%}
           <svg class="lnat-bar__seta" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12H19M12 5L19 12L12 19"/></svg></a>
         {%- endif -%}
       </p>
@@ -279,6 +422,18 @@
     if lnb_n == 0 and request.design_mode == false
       assign lnb_esconder = true
     endif
+    # No editor, a barra de outro mercado só aparece quando é selecionada
+    if request.design_mode and lnb_outro_mercado
+      assign lnb_esconder = true
+    endif
+    case lnb_versao
+      when 'es'
+        assign lnb_nome_mercado = 'Espanha'
+      when 'int'
+        assign lnb_nome_mercado = 'Internacional'
+      else
+        assign lnb_nome_mercado = 'Portugal'
+    endcase
   -%}
 
 <style>
@@ -312,7 +467,8 @@
   .lnat-bar__pausa.is-off{visibility:hidden}
   .lnat-bar__i-play,.lnat-bar__pausa.is-parado .lnat-bar__i-pausa{display:none}
   .lnat-bar__pausa.is-parado .lnat-bar__i-play{display:block}
-  .lnat-bar__nota{position:absolute;left:0;top:100%;z-index:5;margin:0;padding:4px 10px;background:var(--lnat-vermelho);color:var(--lnat-papel);font:500 11px/16px var(--lnat-sans)}
+  .lnat-bar__notas{position:absolute;left:0;top:100%;z-index:5;margin:0;background:var(--lnat-vermelho);color:var(--lnat-papel);font:500 11px/16px var(--lnat-sans)}
+  .lnat-bar__nota{margin:0;padding:4px 10px}
   @media (max-width:749px){
     .lnat-bar{font-size:12px;line-height:15px}
     .lnat-bar__in{grid-template-columns:28px minmax(0,1fr) 44px;height:36px;padding:0 0 0 6px}
@@ -331,7 +487,7 @@
   }
 </style>
 
-<section class="lnat lnat-bar lnat-bg-tinta" id="lnat-bar-{{ section.id }}" aria-label="Avisos de Natal" data-lnat-bar data-section="{{ section.id }}"{% if lnb_esconder %} hidden{% endif %}>
+<section class="lnat lnat-bar lnat-bg-tinta" id="lnat-bar-{{ section.id }}" aria-label="{{ lnb_t_aria | escape }}" data-lnat-bar data-section="{{ section.id }}" data-versao="{{ lnb_versao }}" data-t-contagem="{{ lnb_t_contagem | escape }}" data-t-d="{{ lnb_t_ud | escape }}" data-t-h="{{ lnb_t_uh | escape }}" data-t-min="{{ lnb_t_umin | escape }}" data-t-d1="{{ lnb_t_d1 | escape }}" data-t-dn="{{ lnb_t_dn | escape }}" data-t-h1="{{ lnb_t_h1 | escape }}" data-t-hn="{{ lnb_t_hn | escape }}" data-t-m1="{{ lnb_t_m1 | escape }}" data-t-mn="{{ lnb_t_mn | escape }}" data-t-pausar="{{ lnb_t_pausar | escape }}" data-t-retomar="{{ lnb_t_retomar | escape }}"{% if lnb_esconder %} hidden{% endif %}>
   <div class="lnat-bar__in">
     <span class="lnat-bar__estrela" aria-hidden="true">
       <svg viewBox="0 0 64 64" width="16" height="16" fill="currentColor" focusable="false"><g><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(90 32 32)"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(180 32 32)"/><path d="M32 25C27 19 28 11 32 4C36 11 37 19 32 25Z" transform="rotate(270 32 32)"/></g><g opacity=".65"><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(45 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(135 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(225 32 32)"/><path d="M32 25C29.5 21 29.5 16 32 12C34.5 16 34.5 21 32 25Z" transform="rotate(315 32 32)"/></g><circle cx="32" cy="32" r="6"/></svg>
@@ -340,7 +496,7 @@
     <div class="lnat-bar__msgs">
       {{- lnb_html -}}
     </div>
-    <button type="button" class="lnat-bar__pausa{% if lnb_n < 2 %} is-off{% endif %}" data-lnb-pausa aria-label="Pausar as mensagens">
+    <button type="button" class="lnat-bar__pausa{% if lnb_n < 2 %} is-off{% endif %}" data-lnb-pausa aria-label="{{ lnb_t_pausar | escape }}">
       <span>
         <svg class="lnat-bar__i-pausa" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" focusable="false"><rect x="3" y="2" width="3" height="12" fill="currentColor"/><rect x="10" y="2" width="3" height="12" fill="currentColor"/></svg>
         <svg class="lnat-bar__i-play" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" focusable="false"><path d="M4 2L13 8L4 14Z" fill="currentColor"/></svg>
@@ -349,13 +505,21 @@
   </div>
   {%- if request.design_mode -%}
     {%- assign lnb_inicio = lnb_v.first -%}
-    <p class="lnat-bar__nota" data-lnb-nota hidden>Pré-visualização no editor: no site, a barra só aparece a partir de {% render 'lod-natal-data', valor: lnb_inicio, formato: 'curto' %} e cada mensagem só nas suas datas.</p>
+    {%- comment -%} Notas só do editor (ficam em português, sem chave do dicionário) {%- endcomment -%}
+    <div class="lnat-bar__notas" data-lnb-notas hidden>
+      <p class="lnat-bar__nota" data-lnb-nota hidden>Pré-visualização no editor: no site, a barra só aparece a partir de {% render 'lod-natal-data', valor: lnb_inicio, formato: 'curto', lingua: 'pt' %} e cada mensagem só nas suas datas.</p>
+      <p class="lnat-bar__nota" data-lnb-nota-m hidden>Barra do mercado {{ lnb_nome_mercado }}: no site só aparece nas visitas desse mercado, com as fases e os prazos dele. Agora está a ver o mercado «{{ localization.market.handle }}».</p>
+    </div>
   {%- endif -%}
 </section>
 
 <script>
 (function () {
-  var ATIVAS = ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'];
+  var ATIVAS = {
+    pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'],
+    es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'],
+    int: ['navidad']
+  };
   function N() { return window.LOD_NATAL || null; }
   // «AAAA-MM-DD HH:MM» de Lisboa → Date (usa o motor do Natal; sem ele, Lisboa = UTC no inverno)
   function lx(v) {
@@ -365,36 +529,60 @@
     return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0)) : null;
   }
   function agora() { var n = N(); return n && n.agora ? n.agora().getTime() : Date.now(); }
-  function fase() { var n = N(); return n && n.fase ? n.fase() : 'ouro'; }
-  // Mesmo formato do banner: «2 d 14 h» com dias, «14 h 5 min» no último dia (espaço inseparável antes da unidade)
-  function un(v, c, l1, l2) {
-    return '<span class="lnat-bar__n">' + v + '</span><span aria-hidden="true"> ' + c + '</span><span class="lnat-sr"> ' + (v === 1 ? l1 : l2) + '</span>';
-  }
-  function cdHtml(ms) {
-    var m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mi = m % 60;
-    return 'faltam ' + (d > 0 ? un(d, 'd', 'dia', 'dias') + ' ' + un(h, 'h', 'hora', 'horas') : un(h, 'h', 'hora', 'horas') + ' ' + un(mi, 'min', 'minuto', 'minutos'));
-  }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
   function init(root) {
     if (!root || root._lnb) return;
     var st = root._lnb = {};
     var design = !!(window.Shopify && Shopify.designMode);
+    var versao = root.getAttribute('data-versao') || 'pt';
+    // Textos fixos na língua da página (vêm do servidor, do dicionário lod-natal-t)
+    function tx(k, def) { var v = root.getAttribute('data-t-' + k); return v == null || v === '' ? def : v; }
+    var T = {
+      c: tx('contagem', 'faltam {1}'), d: tx('d', 'd'), h: tx('h', 'h'), mi: tx('min', 'min'),
+      d1: tx('d1', 'dia'), dn: tx('dn', 'dias'), h1: tx('h1', 'hora'), hn: tx('hn', 'horas'),
+      m1: tx('m1', 'minuto'), mn: tx('mn', 'minutos'),
+      pausar: tx('pausar', 'Pausar as mensagens'), retomar: tx('retomar', 'Retomar as mensagens')
+    };
+    // Mesmo formato do banner: «2 d 14 h» com dias, «14 h 5 min» no último dia (espaço inseparável antes da unidade)
+    function un(v, c, l1, l2) {
+      return '<span class="lnat-bar__n">' + v + '</span><span aria-hidden="true"> ' + esc(c) + '</span><span class="lnat-sr"> ' + esc(v === 1 ? l1 : l2) + '</span>';
+    }
+    function cdHtml(ms) {
+      var m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mi = m % 60;
+      var u = d > 0 ? un(d, T.d, T.d1, T.dn) + ' ' + un(h, T.h, T.h1, T.hn) : un(h, T.h, T.h1, T.hn) + ' ' + un(mi, T.mi, T.m1, T.mn);
+      return esc(T.c).split('{1}').join(u);
+    }
+    // Fase desta versão (pt, es ou int); sem o motor do Natal, confia no servidor
+    function ativa() {
+      var n = N();
+      if (!n || !n.fase) return true;
+      return (ATIVAS[versao] || []).indexOf(n.fase(versao)) > -1;
+    }
+    // A barra é do mercado da visita? (LOD_NATAL.versao vem do servidor: pt, es ou int)
+    function doMercado() { var n = N(); return !n || !n.versao || n.versao === versao; }
+
     var reduce = false;
     try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
     var msgs = Array.prototype.slice.call(root.querySelectorAll('[data-lnb-msg]'));
     var btn = root.querySelector('[data-lnb-pausa]');
+    var notas = root.querySelector('[data-lnb-notas]');
     var nota = root.querySelector('[data-lnb-nota]');
-    var atual = root.querySelector('[data-lnb-msg].is-on'), ativos = [], parado = false, escolhido = null;
+    var notaM = root.querySelector('[data-lnb-nota-m]');
+    var atual = root.querySelector('[data-lnb-msg].is-on'), ativos = [], parado = false, escolhido = null, forcar = false;
     // rato: o rato está em cima; teclado: o foco do teclado está dentro; retomada: carregou em «Retomar»
     // (ignora rato e foco até saírem da barra, para a rotação voltar logo)
     var rato = false, teclado = false, retomada = false;
     var largo = null;
     try { largo = window.matchMedia('(min-width:1100px)'); } catch (e) {}
 
+    function passou(v, inst) { var a = v ? lx(v) : null; return !!a && agora() >= a.getTime() + (inst ? 0 : 60000); }
     function dentro(m) {
       var t = agora(), de = m.getAttribute('data-de'), ate = m.getAttribute('data-ate'), a, b;
       if (de && (a = lx(de)) && t < a.getTime() + (m.hasAttribute('data-de-depois') ? 60000 : 0)) return false;
       if (ate && (b = lx(ate)) && t >= b.getTime() + (m.hasAttribute('data-ate-antes') ? 0 : 60000)) return false;
+      // Depois do prazo da contagem, a mensagem deixa de aparecer
+      if (passou(m.getAttribute('data-cd-alvo'), m.hasAttribute('data-cd-inst'))) return false;
       return true;
     }
     function mostrar(m) {
@@ -423,13 +611,18 @@
       });
     }
     function atualizar() {
-      var lista = ATIVAS.indexOf(fase()) > -1 ? msgs.filter(dentro) : [];
+      var outro = !doMercado();
+      // Barra de outro mercado: no site nunca; no editor, só enquanto estiver selecionada
+      var visivel = !outro || (design && forcar);
+      var lista = visivel && ativa() ? msgs.filter(dentro) : [];
       var fora = false;
-      if (!lista.length && design) { lista = msgs.slice(); fora = true; }
+      if (visivel && !lista.length && design) { lista = msgs.slice(); fora = true; }
       if (escolhido) lista = [escolhido];
       if (reduce && lista.length > 1) lista = lista.slice(0, 1);
       msgs.forEach(function (x) { x.hidden = lista.indexOf(x) < 0; });
       if (nota) nota.hidden = !fora;
+      if (notaM) notaM.hidden = !(outro && design && lista.length);
+      if (notas) notas.hidden = (!nota || nota.hidden) && (!notaM || notaM.hidden);
       root.hidden = !lista.length;
       ativos = lista;
       if (btn) btn.classList.toggle('is-off', ativos.length < 2);
@@ -448,7 +641,7 @@
       parado = !parado;
       retomada = !parado;
       btn.classList.toggle('is-parado', parado);
-      btn.setAttribute('aria-label', parado ? 'Retomar as mensagens' : 'Pausar as mensagens');
+      btn.setAttribute('aria-label', parado ? T.retomar : T.pausar);
       relogio();
     });
     // Pausa enquanto o rato está em cima ou o foco do teclado está dentro da barra.
@@ -473,10 +666,14 @@
     st.caber = caber;
     st.escolher = function (id) {
       escolhido = null;
-      if (id) msgs.forEach(function (x) { if (x.getAttribute('data-bloco') === id) escolhido = x; });
+      if (id) {
+        forcar = true;
+        msgs.forEach(function (x) { if (x.getAttribute('data-bloco') === id) escolhido = x; });
+      }
       atualizar();
       if (escolhido) mostrar(escolhido);
     };
+    st.forcar = function (on) { forcar = !!on; atualizar(); };
     st.parar = function () { clearInterval(st.t1); clearInterval(st.t2); };
 
     atualizar();
@@ -508,6 +705,14 @@
     var r = daSeccao(e);
     if (r && r._lnb && r._lnb.parar) r._lnb.parar();
   });
+  document.addEventListener('shopify:section:select', function (e) {
+    var r = daSeccao(e);
+    if (r && r._lnb && r._lnb.forcar) r._lnb.forcar(true);
+  });
+  document.addEventListener('shopify:section:deselect', function (e) {
+    var r = daSeccao(e);
+    if (r && r._lnb && r._lnb.forcar) r._lnb.forcar(false);
+  });
   document.addEventListener('shopify:block:select', function (e) {
     var r = daSeccao(e);
     if (r && r._lnb && r._lnb.escolher) r._lnb.escolher(e.detail.blockId);
@@ -530,14 +735,19 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "Uma mensagem de cada vez, a rodar de 5 em 5 segundos, com botão de pausa. Só aparece de 1 de dezembro a 6 de janeiro (datas do grupo «Natal 2026» das definições do tema). Não ponha prestações nesta barra."
+      "content": "Uma mensagem de cada vez, a rodar de 5 em 5 segundos, com botão de pausa. Portugal e Espanha: de 1 de dezembro a 6 de janeiro; Internacional: de 1 de dezembro até ao prazo internacional (datas do grupo «Natal 2026» das definições do tema). Não ponha prestações nesta barra."
     },
     {
-      "type": "checkbox",
-      "id": "so_portugal",
-      "label": "Mostrar só no mercado Portugal",
-      "default": true,
-      "info": "Os prazos de entrega são de Portugal. Desligado, a barra aparece em todos os mercados."
+      "type": "select",
+      "id": "mercado",
+      "label": "Mercado desta barra",
+      "default": "pt",
+      "options": [
+        { "value": "pt", "label": "Portugal (Ouro de Reis)" },
+        { "value": "spain", "label": "Espanha (Oro de Reyes)" },
+        { "value": "internacional", "label": "Internacional e outros mercados" }
+      ],
+      "info": "Ponha uma barra por mercado no cabeçalho. Cada uma só aparece nas visitas do seu mercado e segue as fases e os prazos dele. Espanha: sem lojas nem levantamento em loja. Internacional: qualquer mercado que não seja Portugal nem Espanha. No editor, a barra de outro mercado aparece ao selecioná-la."
     },
     {
       "type": "checkbox",
@@ -550,15 +760,15 @@
       "id": "janeiras_confirmadas",
       "label": "Janeiras confirmadas",
       "default": false,
-      "info": "Desligado, as mensagens com «Mostrar: Só se as Janeiras estiverem confirmadas» não aparecem. Ligue só quando as lojas, os dias e as horas das Janeiras estiverem decididos. Ligue também «Janeiras confirmadas» no calendário e nos Prazos, e a mensagem «Abrimos a porta às Janeiras» do banner."
+      "info": "Desligado, as mensagens com «Mostrar: Só se as Janeiras estiverem confirmadas» não aparecem. Ligue só quando as lojas, os dias e as horas das Janeiras estiverem decididos. Ligue também «Janeiras confirmadas» no calendário e nos Prazos, e a mensagem «Abrimos a porta às Janeiras» do banner. Só faz sentido na barra de Portugal."
     },
     {
       "type": "paragraph",
-      "content": "Datas das mensagens (hora de Lisboa): AAAA-MM-DD HH:MM, ou o nome de uma data das definições: inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma, reis, fim, trocas. Num «De», um prazo quer dizer «depois desse prazo»; num «Até», inicio, fase2, loja ou retoma quer dizer «até ao minuto antes»."
+      "content": "Datas das mensagens (hora de Lisboa): AAAA-MM-DD HH:MM, ou o nome de uma data das definições. Portugal: inicio, fase2, acores, madeira, gravacao, continente, loja, festas, retoma, reis, fim, trocas. Espanha: es_navidad, es_reyes, es_noche (5 de janeiro, 00:00). Internacional: int. Num «De», um prazo quer dizer «depois desse prazo»; num «Até», inicio, fase2, loja, retoma ou es_noche quer dizer «até ao minuto antes». Depois do prazo da contagem, a mensagem desaparece."
     },
     {
       "type": "paragraph",
-      "content": "No texto, {continente} escreve «18 de dezembro»; {continente:longo} «sexta, 18 de dezembro»; {continente:abrev} «18 dez.»; {loja} ou {loja:hora} «24 de dezembro, 13h»; {trocas:ano} «15 de janeiro de 2027». As palavras a negrito ficam em ouro. Nos prazos de entrega escreva sempre «prazo indicativo»."
+      "content": "No texto, {continente} escreve «20 de dezembro» (em inglês «20 December», em espanhol «20 de diciembre»); {continente:longo} «domingo, 20 de dezembro»; {continente:abrev} «20 dez.»; {loja} ou {loja:hora} «24 de dezembro, 13h»; {loja:abrev-hora} «24 dez., 13h»; {trocas:ano} «15 de janeiro de 2027». Em Espanha e no Internacional use só o dia, sem hora: {es_reyes}, {es_reyes:longo}, {int}. As palavras a negrito ficam em ouro. Nos prazos de entrega escreva sempre «prazo indicativo» (EN «indicative deadline», ES «plazo orientativo»)."
     }
   ],
   "blocks": [
@@ -571,7 +781,7 @@
           "id": "texto",
           "label": "Texto",
           "default": "Natal: encomende até <strong>{continente}</strong> para receber antes do Natal (Portugal continental, prazo indicativo).",
-          "info": "Negrito = palavra em ouro. Não ponha links no texto: use o campo Link."
+          "info": "Em português, em todos os mercados. Negrito = palavra em ouro. Não ponha links no texto: use o campo Link."
         },
         {
           "type": "inline_richtext",
@@ -582,7 +792,8 @@
         {
           "type": "url",
           "id": "link",
-          "label": "Link"
+          "label": "Link",
+          "info": "Os links que começam por / ganham sozinhos o prefixo da língua (/en, /es, /pt-pt)."
         },
         {
           "type": "text",
@@ -613,9 +824,12 @@
             { "value": "nenhuma", "label": "Nenhuma" },
             { "value": "continente", "label": "Prazo de Portugal continental" },
             { "value": "loja", "label": "Levantamento na loja" },
-            { "value": "reis", "label": "Prazo do Dia de Reis" }
+            { "value": "reis", "label": "Prazo do Dia de Reis" },
+            { "value": "es_navidad", "label": "Espanha, prazo da Navidad" },
+            { "value": "es_reyes", "label": "Espanha, prazo do Dia de Reis" },
+            { "value": "int", "label": "Prazo internacional" }
           ],
-          "info": "Use {contagem} no texto para escolher o sítio; sem isso, vai para o fim."
+          "info": "Use {contagem} no texto para escolher o sítio; sem isso, vai para o fim. A mensagem desaparece quando o prazo passa."
         },
         {
           "type": "select",
@@ -629,6 +843,46 @@
             { "value": "janeiras", "label": "Só se as Janeiras estiverem confirmadas" }
           ],
           "info": "Depende das opções natal_vale_digital e natal_mostrar_trocas das definições do tema e de «Janeiras confirmadas» nesta secção."
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Inglês (EN)",
+          "info": "Deixe vazio para usar o português. Com o texto EN preenchido, o texto curto e o texto do link também vêm daqui (vazios = sem texto curto e só a seta). Serve também para as línguas sem tradução (francês, alemão)."
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto_en",
+          "label": "Texto (EN)"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto_telemovel_en",
+          "label": "Texto no telemóvel (EN)"
+        },
+        {
+          "type": "text",
+          "id": "link_texto_en",
+          "label": "Texto do link (EN)"
+        },
+        {
+          "type": "header",
+          "content": "Tradução — Espanhol (ES)",
+          "info": "Deixe vazio para usar o português. Espanhol de Espanha, com «usted». Com o texto ES preenchido, o texto curto e o texto do link também vêm daqui."
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto_es",
+          "label": "Texto (ES)"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "texto_telemovel_es",
+          "label": "Texto no telemóvel (ES)"
+        },
+        {
+          "type": "text",
+          "id": "link_texto_es",
+          "label": "Texto do link (ES)"
         }
       ]
     }

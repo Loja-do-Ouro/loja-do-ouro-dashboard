@@ -100,13 +100,22 @@
         "assinatura": "Seleção Loja do Ouro",
         "marca_lateral": "Loja do Ouro · Natal 2026",
         "faixa": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\n13 lojas em Portugal, levantamento com marcação",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "alt_en": "Three women of different generations, in cream suits and gold jewellery, beside a Christmas tree.",
+        "assinatura_en": "Selected by Gold Store Premium",
+        "marca_lateral_en": "Gold Store Premium · Christmas 2026",
+        "faixa_en": "Gold hallmarked by the Portuguese Assay Office (INCM)\nGift wrapping and a message, in your bag\n13 stores in Portugal, collection by appointment",
+        "alt_es": "Tres mujeres de distintas generaciones, con trajes color crema y joyas de oro, junto a un árbol de Navidad.",
+        "assinatura_es": "Selección Gold Store Premium",
+        "marca_lateral_es": "Gold Store Premium · Navidad 2026",
+        "faixa_es": "Oro contrastado por la INCM\nEnvoltorio de regalo y mensaje, en la cesta\n13 tiendas en Portugal, recogida con cita previa"
       },
       "blocks": {
         "fase_ouro": {
           "type": "fase",
           "settings": {
             "fase": "ouro",
+            "mercado": "pt",
             "ligado": true,
             "eyebrow": "Natal 2026 · Ouro de Reis",
             "titulo": "O primeiro presente de Natal foi ouro.",
@@ -117,13 +126,26 @@
             "botao1_whatsapp": false,
             "mensagem_whatsapp": "",
             "botao2_texto": "Corações de Viana",
-            "botao2_url": "shopify://collections/coracoes-de-viana"
+            "botao2_url": "shopify://collections/coracoes-de-viana",
+            "eyebrow_en": "Christmas 2026 · Gold of the Magi",
+            "titulo_en": "The first Christmas gift was gold.",
+            "texto_en": "19.2-carat Portuguese gold, filigree and Viana Hearts to give — and to keep in the family.",
+            "chip_en": "For Christmas delivery in mainland Portugal, order by <b>{continente}</b> (indicative deadline).",
+            "botao1_texto_en": "Find the gift",
+            "botao2_texto_en": "Viana Hearts",
+            "eyebrow_es": "Navidad 2026 · Oro de Reyes",
+            "titulo_es": "El primer regalo de Navidad fue oro.",
+            "texto_es": "Oro portugués de 19,2 quilates, filigrana y corazones de Viana para regalar, y para que se queden en la familia.",
+            "chip_es": "Para Navidad en Portugal continental, haga su pedido hasta el <b>{continente}</b> (plazo orientativo).",
+            "botao1_texto_es": "Encontrar el regalo",
+            "botao2_texto_es": "Corazones de Viana"
           }
         },
         "fase_incenso": {
           "type": "fase",
           "settings": {
             "fase": "incenso",
+            "mercado": "pt",
             "ligado": true,
             "eyebrow": "Incenso · Pronto a oferecer",
             "titulo": "Ainda a tempo do Natal.",
@@ -134,13 +156,26 @@
             "botao1_whatsapp": false,
             "mensagem_whatsapp": "",
             "botao2_texto": "Ver prazos de entrega",
-            "botao2_url": "/#prazos"
+            "botao2_url": "/#prazos",
+            "eyebrow_en": "Frankincense · Ready to give",
+            "titulo_en": "Still in time for Christmas.",
+            "texto_en": "Order by {continente} to receive your gifts before Christmas in mainland Portugal (indicative deadline). We gift-wrap them and add your message.",
+            "chip_en": "<b>{contagem}</b> left until the Christmas deadline · mainland Portugal",
+            "botao1_texto_en": "Find the gift",
+            "botao2_texto_en": "See delivery deadlines",
+            "eyebrow_es": "Incienso · Listo para regalar",
+            "titulo_es": "Aún a tiempo para Navidad.",
+            "texto_es": "Haga su pedido hasta el {continente}, para recibirlo antes de Navidad en Portugal continental (plazo orientativo). Lo envolvemos para regalo y añadimos su mensaje.",
+            "chip_es": "Quedan <b>{contagem}</b> para que termine el plazo de Navidad · Portugal continental",
+            "botao1_texto_es": "Encontrar el regalo",
+            "botao2_texto_es": "Ver plazos de entrega"
           }
         },
         "fase_ultima": {
           "type": "fase",
           "settings": {
             "fase": "ultima",
+            "mercado": "pt",
             "ligado": true,
             "eyebrow": "Última hora",
             "titulo": "Ainda vai a tempo: levante na loja.",
@@ -151,13 +186,26 @@
             "botao1_whatsapp": true,
             "mensagem_whatsapp": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.",
             "botao2_texto": "Ver lojas",
-            "botao2_url": "/#prazos"
+            "botao2_url": "/#prazos",
+            "eyebrow_en": "Last minute",
+            "titulo_en": "Still in time: collect in store.",
+            "texto_en": "Collection in store is available until {loja}: we will locate the piece in one of our 13 stores and arrange a time with you.",
+            "botao1_texto_en": "Book via WhatsApp",
+            "mensagem_whatsapp_en": "Hello! I would like to collect a Christmas gift from one of your stores.",
+            "botao2_texto_en": "See stores",
+            "eyebrow_es": "Última hora",
+            "titulo_es": "Aún está a tiempo: recójalo en tienda.",
+            "texto_es": "Localizamos la pieza en una de nuestras 13 tiendas y acordamos con usted la recogida, hasta el {loja}.",
+            "botao1_texto_es": "Pedir cita por WhatsApp",
+            "mensagem_whatsapp_es": "¡Hola! Me gustaría recoger un regalo de Navidad en una de sus tiendas.",
+            "botao2_texto_es": "Ver tiendas"
           }
         },
         "fase_consoada": {
           "type": "fase",
           "settings": {
             "fase": "consoada",
+            "mercado": "pt",
             "ligado": true,
             "eyebrow": "Natal 2026",
             "titulo": "Boas Festas.",
@@ -166,13 +214,20 @@
             "botao1_texto": "",
             "botao1_whatsapp": false,
             "mensagem_whatsapp": "",
-            "botao2_texto": ""
+            "botao2_texto": "",
+            "eyebrow_en": "Christmas 2026",
+            "titulo_en": "Season’s greetings.",
+            "texto_en": "From the Gold Store Premium family to yours. Orders placed over these days will be dispatched from {retoma}.",
+            "eyebrow_es": "Navidad 2026",
+            "titulo_es": "Felices fiestas.",
+            "texto_es": "De la familia Gold Store Premium a la suya. Los pedidos realizados estos días se enviarán a partir del {retoma}."
           }
         },
         "fase_mirra": {
           "type": "fase",
           "settings": {
             "fase": "mirra",
+            "mercado": "pt",
             "ligado": true,
             "ate": "reis",
             "eyebrow": "Mirra · Até ao Dia de Reis",
@@ -188,13 +243,26 @@
             "botao2_alt_texto": "Luz de Ano Novo",
             "botao2_alt_url": "shopify://collections/colecao-luz-de-ano-novo",
             "botao2_alt_de": "2026-12-28 00:00",
-            "botao2_alt_ate": "2026-12-31 23:59"
+            "botao2_alt_ate": "2026-12-31 23:59",
+            "eyebrow_en": "Myrrh · Until Three Kings’ Day",
+            "titulo_en": "Still in time for Three Kings’ Day.",
+            "texto_en": "Order by {reis} for delivery by 6 January (mainland Portugal, indicative deadline).",
+            "botao1_texto_en": "Three Kings’ Day gifts",
+            "botao2_texto_en": "See deadlines and stores",
+            "botao2_alt_texto_en": "New Year’s Light",
+            "eyebrow_es": "Mirra · Hasta el Día de Reyes",
+            "titulo_es": "Aún está a tiempo para Reyes.",
+            "texto_es": "Haga su pedido hasta el {reis}, para recibirlo como muy tarde el 6 de enero (Portugal continental, plazo orientativo).",
+            "botao1_texto_es": "Regalos de Reyes",
+            "botao2_texto_es": "Ver plazos y tiendas",
+            "botao2_alt_texto_es": "Luz de Ano Novo"
           }
         },
         "fase_mirra_janeiras": {
           "type": "fase",
           "settings": {
             "fase": "mirra",
+            "mercado": "pt",
             "ligado": false,
             "de": "reis",
             "eyebrow": "Mirra · Dia de Reis",
@@ -210,13 +278,28 @@
             "botao2_alt_texto": "Luz de Ano Novo",
             "botao2_alt_url": "shopify://collections/colecao-luz-de-ano-novo",
             "botao2_alt_de": "2026-12-28 00:00",
-            "botao2_alt_ate": "2026-12-31 23:59"
+            "botao2_alt_ate": "2026-12-31 23:59",
+            "eyebrow_en": "Myrrh · Three Kings’ Day",
+            "titulo_en": "Our doors are open to the Janeiras singers.",
+            "texto_en": "From 2 to 6 January, in our stores. For Three Kings’ Day, we will find the piece in one of our 13 stores and arrange a collection time with you.",
+            "botao1_texto_en": "Book via WhatsApp",
+            "mensagem_whatsapp_en": "Hello! I would like to collect a Three Kings’ Day gift from one of your stores.",
+            "botao2_texto_en": "See stores",
+            "botao2_alt_texto_en": "New Year’s Light",
+            "eyebrow_es": "Mirra · Día de Reyes",
+            "titulo_es": "Abrimos la puerta a las Janeiras.",
+            "texto_es": "Del 2 al 6 de enero, en nuestras tiendas, con los cantos tradicionales de Año Nuevo. Para Reyes, localizamos la pieza en una de nuestras 13 tiendas y acordamos con usted la recogida.",
+            "botao1_texto_es": "Pedir cita por WhatsApp",
+            "mensagem_whatsapp_es": "¡Hola! Me gustaría recoger un regalo de Reyes en una de sus tiendas.",
+            "botao2_texto_es": "Ver tiendas",
+            "botao2_alt_texto_es": "Luz de Ano Novo"
           }
         },
         "fase_mirra_loja": {
           "type": "fase",
           "settings": {
             "fase": "mirra",
+            "mercado": "pt",
             "ligado": true,
             "de": "reis",
             "eyebrow": "Mirra · Dia de Reis",
@@ -232,7 +315,21 @@
             "botao2_alt_texto": "Luz de Ano Novo",
             "botao2_alt_url": "shopify://collections/colecao-luz-de-ano-novo",
             "botao2_alt_de": "2026-12-28 00:00",
-            "botao2_alt_ate": "2026-12-31 23:59"
+            "botao2_alt_ate": "2026-12-31 23:59",
+            "eyebrow_en": "Myrrh · Three Kings’ Day",
+            "titulo_en": "For Three Kings’ Day, collect in store.",
+            "texto_en": "We will find the piece in one of our 13 stores and arrange the collection day with you.",
+            "botao1_texto_en": "Book via WhatsApp",
+            "mensagem_whatsapp_en": "Hello! I would like to collect a Three Kings’ Day gift from one of your stores.",
+            "botao2_texto_en": "See stores",
+            "botao2_alt_texto_en": "New Year’s Light",
+            "eyebrow_es": "Mirra · Día de Reyes",
+            "titulo_es": "Para Reyes, recójalo en tienda.",
+            "texto_es": "Localizamos la pieza en una de nuestras 13 tiendas y acordamos con usted el día de la recogida.",
+            "botao1_texto_es": "Pedir cita por WhatsApp",
+            "mensagem_whatsapp_es": "¡Hola! Me gustaría recoger un regalo de Reyes en una de sus tiendas.",
+            "botao2_texto_es": "Ver tiendas",
+            "botao2_alt_texto_es": "Luz de Ano Novo"
           }
         }
       },
@@ -257,7 +354,22 @@
         "ajuda_link": "Fale connosco por WhatsApp",
         "ajuda_mensagem": "Olá! Estou a escolher uma prenda de Natal e gostava de ajuda.",
         "titulo_resultados": "A estrela parou aqui.",
+        "eyebrow_en": "Gift guide",
+        "titulo_en": "Follow the star.",
+        "texto_en": "Make three choices and we will show you the right pieces, with indicative delivery deadlines.",
+        "ajuda_en": "Would you rather speak to one of our team?",
+        "ajuda_link_en": "Talk to us on WhatsApp",
+        "ajuda_mensagem_en": "Hello! I am choosing a Christmas gift and would like some help.",
+        "titulo_resultados_en": "The star stopped here.",
+        "eyebrow_es": "Guía de regalos",
+        "titulo_es": "Siga la estrella.",
+        "texto_es": "Elija tres opciones y le mostraremos las piezas adecuadas, con plazos de entrega orientativos.",
+        "ajuda_es": "¿Prefiere que le atienda una persona?",
+        "ajuda_link_es": "Escríbanos por WhatsApp",
+        "ajuda_mensagem_es": "¡Hola! Estoy eligiendo un regalo de Navidad y me gustaría recibir ayuda.",
+        "titulo_resultados_es": "La estrella se detuvo aquí.",
         "colecao_vale": "voucher-prenda",
+        "vale_fora_portugal": false,
         "ancora": "siga-a-estrela",
         "estado_inicial": "fechado",
         "mostrar_no_telemovel": true,
@@ -276,7 +388,13 @@
             "colecao": "para-ela-natal",
             "alternativa": "mulher",
             "saltar_metal": false,
-            "aviso": ""
+            "aviso": "",
+            "label_en": "For her",
+            "resumo_en": "for her",
+            "descricao_en": "Earrings, necklaces, bracelets and rings",
+            "label_es": "Para ella",
+            "resumo_es": "para ella",
+            "descricao_es": "Pendientes, collares, pulseras y anillos"
           }
         },
         "para_ele": {
@@ -290,7 +408,13 @@
             "colecao": "homem",
             "alternativa": "aneis-homem",
             "saltar_metal": false,
-            "aviso": ""
+            "aviso": "",
+            "label_en": "For him",
+            "resumo_en": "for him",
+            "descricao_en": "Chains, bracelets, rings and watches",
+            "label_es": "Para él",
+            "resumo_es": "para él",
+            "descricao_es": "Cadenas, pulseras, anillos y relojes"
           }
         },
         "para_mae": {
@@ -304,7 +428,11 @@
             "colecao": "para-a-mae-natal",
             "alternativa": "mulher",
             "saltar_metal": false,
-            "aviso": ""
+            "aviso": "",
+            "label_en": "For Mum",
+            "resumo_en": "for Mum",
+            "label_es": "Para mamá",
+            "resumo_es": "para mamá"
           }
         },
         "para_avo": {
@@ -318,7 +446,11 @@
             "colecao": "tradicao-ouro",
             "alternativa": "tradicao-prata-ouro-filigrana-viana",
             "saltar_metal": false,
-            "aviso": ""
+            "aviso": "",
+            "label_en": "For Grandma",
+            "resumo_en": "for Grandma",
+            "label_es": "Para la abuela",
+            "resumo_es": "para la abuela"
           }
         },
         "pequenos": {
@@ -332,7 +464,11 @@
             "colecao": "crianca-natal",
             "alternativa": "crianca",
             "saltar_metal": false,
-            "aviso": ""
+            "aviso": "",
+            "label_en": "For little ones",
+            "resumo_en": "for little ones",
+            "label_es": "Para los más pequeños",
+            "resumo_es": "para los más pequeños"
           }
         },
         "batizado": {
@@ -346,7 +482,11 @@
             "colecao": "batizados",
             "alternativa": "medalhas-crianca-ouro",
             "saltar_metal": false,
-            "aviso": ""
+            "aviso": "",
+            "label_en": "Christenings and godchildren",
+            "resumo_en": "for christenings and godchildren",
+            "label_es": "Bautizos y ahijados",
+            "resumo_es": "para bautizos y ahijados"
           }
         },
         "guardar": {
@@ -359,7 +499,13 @@
             "destaque": false,
             "colecao": "libras-com-aro",
             "saltar_metal": true,
-            "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento."
+            "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento.",
+            "label_en": "To treasure",
+            "resumo_en": "to treasure",
+            "aviso_en": "The price of gold varies with the market. This is commercial information and does not constitute investment advice.",
+            "label_es": "Para atesorar",
+            "resumo_es": "para atesorar",
+            "aviso_es": "El precio del oro varía según el mercado. Información comercial; no constituye asesoramiento de inversión."
           }
         }
       },
@@ -398,7 +544,13 @@
         "esconder_esgotados": true,
         "link_texto": "",
         "fundo": "papel",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "Last Christmas",
+        "titulo_en": "Our most-loved gifts",
+        "descricao_en": "Some of the pieces our customers chose most often at Christmas 2025.",
+        "eyebrow_es": "La Navidad pasada",
+        "titulo_es": "Los más regalados",
+        "descricao_es": "Algunas de las joyas más elegidas en nuestra Navidad de 2025."
       },
       "blocks": {},
       "block_order": [],
@@ -429,7 +581,15 @@
         "link_texto": "Ver todo o ouro tradicional",
         "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
         "fundo": "papel",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "For life",
+        "titulo_en": "Gold that stays in the family",
+        "descricao_en": "Pieces in 19.2-carat Portuguese gold, to pass down from generation to generation.",
+        "link_texto_en": "See all traditional gold",
+        "eyebrow_es": "Para toda la vida",
+        "titulo_es": "Oro que se queda en la familia",
+        "descricao_es": "Joyas de oro portugués de 19,2 quilates para pasar de generación en generación.",
+        "link_texto_es": "Ver todo el oro tradicional"
       },
       "blocks": {},
       "block_order": [],
@@ -450,7 +610,17 @@
         "embrulho_3": "envie-uma-mensagem",
         "embrulho_3_texto": "",
         "embrulho_nota": "Escolha no carrinho, antes de finalizar a encomenda. Também podemos enviar diretamente para quem recebe: indique essa morada no checkout.",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "Gold, frankincense and myrrh",
+        "titulo_en": "Three gifts. The whole of Christmas.",
+        "lead_en": "St Matthew’s Gospel tells us that the Magi offered gold, frankincense and myrrh. We look after Christmas in the same spirit.",
+        "embrulho_titulo_en": "Gift wrapping and message",
+        "embrulho_nota_en": "Choose them in your bag before you check out. We can also send the gift straight to the recipient: just enter their address at checkout.",
+        "eyebrow_es": "Oro, incienso y mirra",
+        "titulo_es": "Tres regalos. Toda una Navidad.",
+        "lead_es": "Cuenta el Evangelio de san Mateo que los Magos ofrecieron oro, incienso y mirra. Nosotros cuidamos sus regalos de Navidad con el mismo esmero.",
+        "embrulho_titulo_es": "Envoltorio y mensaje",
+        "embrulho_nota_es": "Elíjalos en la cesta antes de finalizar su pedido. También podemos enviar el regalo directamente a quien lo recibe: indique esa dirección al tramitar el pedido."
       },
       "blocks": {
         "presente_ouro": {
@@ -465,7 +635,15 @@
             "imagem_alt": "",
             "link_texto": "Ver ouro tradicional",
             "link_url": "/collections/tradicao-ouro?filter.v.t.shopify.jewelry-material=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F17181&sort_by=best-selling",
-            "abre_embrulho": false
+            "abre_embrulho": false,
+            "eyebrow_en": "Gold",
+            "titulo_en": "Choose",
+            "texto_en": "The first of the three gifts, fit for a king. Jewellery in 19.2-carat Portuguese gold, hallmarked, for the people you love most.",
+            "link_texto_en": "See traditional gold",
+            "eyebrow_es": "Oro",
+            "titulo_es": "Elegir",
+            "texto_es": "El primero de los tres regalos, digno de un rey. Joyas de oro portugués de 19,2 quilates, contrastadas, para las personas que más quiere.",
+            "link_texto_es": "Ver oro tradicional"
           }
         },
         "presente_incenso": {
@@ -480,7 +658,15 @@
             "imagem_alt": "",
             "link_texto": "Ver opções de embrulho",
             "link_url": "/cart",
-            "abre_embrulho": true
+            "abre_embrulho": true,
+            "eyebrow_en": "Frankincense",
+            "titulo_en": "Wrap",
+            "texto_en": "A gift bag, the Premium Pack and a message written by you: choose them before you check out. We can also send the gift straight to the recipient.",
+            "link_texto_en": "See gift wrapping options",
+            "eyebrow_es": "Incienso",
+            "titulo_es": "Envolver",
+            "texto_es": "Bolsa de regalo, Pack Premium y un mensaje escrito por usted: elíjalos en la cesta. También enviamos el regalo directamente a quien lo recibe.",
+            "link_texto_es": "Ver opciones de envoltorio"
           }
         },
         "presente_mirra": {
@@ -495,7 +681,17 @@
             "imagem_alt": "",
             "link_texto": "Encontrar uma loja",
             "link_url": "/pages/agencias",
-            "abre_embrulho": false
+            "abre_embrulho": false,
+            "eyebrow_en": "Myrrh",
+            "titulo_en": "Care",
+            "texto_en": "Support via WhatsApp and 13 stores across Portugal for whatever you need. If a piece is faulty, the 3-year legal guarantee applies.",
+            "texto_trocas_en": "Christmas exchanges until {trocas}, support via WhatsApp and 13 stores across Portugal for whatever you need. If a piece is faulty, the 3-year legal guarantee applies.",
+            "link_texto_en": "Find a store",
+            "eyebrow_es": "Mirra",
+            "titulo_es": "Cuidar",
+            "texto_es": "Atención por WhatsApp y 13 tiendas en Portugal para lo que necesite. Si una pieza tiene algún defecto, se aplica la garantía legal de 3 años.",
+            "texto_trocas_es": "Cambios de Navidad hasta el {trocas}, atención por WhatsApp y 13 tiendas en Portugal para lo que necesite. Si una pieza tiene algún defecto, se aplica la garantía legal de 3 años.",
+            "link_texto_es": "Encontrar una tienda"
           }
         }
       },
@@ -532,7 +728,23 @@
         "botao2_texto": "Toda a Tradição",
         "botao2_url": "/collections/tradicao-prata-ouro-filigrana-viana",
         "fundo": "linho",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "A heart to give",
+        "titulo_en": "Coração de Viana",
+        "sabia_titulo_en": "Did you know?",
+        "sabia_en": "<p>It was Queen Maria I who had the Estrela Basilica built in Lisbon, to fulfil a vow made for the birth of an heir. It is considered the first church dedicated to the Sacred Heart of Jesus. Inside is the celebrated nativity scene from the workshop of the sculptor Machado de Castro.</p>",
+        "imagem_alt_en": "Three filigree Coração de Viana pendants",
+        "botao1_texto_en": "See Viana Hearts",
+        "botao2_texto_en": "Explore Portuguese tradition",
+        "eyebrow_es": "Un corazón para regalar",
+        "titulo_es": "Coração de Viana",
+        "sabia_titulo_es": "¿Sabía que…?",
+        "sabia_es": "<p>Fue la reina María I quien mandó levantar la Basílica da Estrela, en Lisboa, para cumplir una promesa por el nacimiento de un heredero. Está considerada la primera iglesia dedicada al Sagrado Corazón de Jesús. En su interior se encuentra el célebre belén salido del taller del escultor Machado de Castro.</p>",
+        "imagem_alt_es": "Tres colgantes Coração de Viana de filigrana",
+        "botao1_texto_es": "Ver corazones de Viana",
+        "botao2_texto_es": "Toda la tradición portuguesa",
+        "texto_en": "<p>A symbol of devotion to the Sacred Heart of Jesus, the Coração de Viana (Viana Heart) lies at the root of the goldsmithing of Viana do Castelo, in the north of Portugal. Tradition has it that the first was made at the request of Queen Maria I, in thanksgiving for the birth of an heir. Legend or history, the gesture has endured: a filigree heart to give to someone you love.</p><p>The Coração de Viana pieces we suggest here are in gold-plated silver.</p>",
+        "texto_es": "<p>Símbolo de devoción al Sagrado Corazón de Jesús, el Coração de Viana («corazón de Viana») está en el origen de la orfebrería de Viana do Castelo, en el norte de Portugal. Cuenta la tradición que el primero se hizo por encargo de la reina María I, en agradecimiento por el nacimiento de un heredero. Leyenda o historia, quedó el gesto: un corazón de filigrana para regalar a quien se quiere.</p><p>Las piezas Coração de Viana que le proponemos aquí son de plata dorada.</p>"
       },
       "blocks": {},
       "block_order": [],
@@ -549,7 +761,16 @@
         "dias_ouro": "2026-12-24,2026-12-25,2027-01-06",
         "ancora": "calendario",
         "mostrar_no_telemovel": true,
-        "janeiras_confirmadas": false
+        "janeiras_confirmadas": false,
+        "versao": "pt",
+        "eyebrow_en": "From Advent to Three Kings’ Day",
+        "titulo_en": "Golden Calendar",
+        "texto_en": "A story of Portuguese gold for every day, from 1 December to 6 January. Come back tomorrow to open the next door.",
+        "nota_en": "No competitions: just stories, jewellery and tips.",
+        "eyebrow_es": "Del Adviento a Reyes",
+        "titulo_es": "Calendario de Oro",
+        "texto_es": "Una historia del oro portugués cada día, del 1 de diciembre al 6 de enero. Vuelva mañana para abrir la puerta siguiente.",
+        "nota_es": "Sin concursos: solo historias, joyas y consejos."
       },
       "blocks": {
         "dia_20261201": {
@@ -565,7 +786,17 @@
             "cta_texto": "Encontrar a prenda",
             "cta_url": "/#siga-a-estrela",
             "dica": "Não sabe por onde começar? Responda a três perguntas no guia «Siga a estrela».",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "The first Christmas gift was gold",
+            "historia_en": "St Matthew’s Gospel tells how the Magi brought the Child gold, frankincense and myrrh: three gifts. In the Church’s reading, gold is what one offers a king, and that is how gold became part of Christmas. Until Three Kings’ Day, we will open a new door here every day.",
+            "sugestao_en": "To begin: a chain in 19.2-carat Portuguese gold and a pair of gold-plated silver earrings with pearls.",
+            "cta_texto_en": "Find the gift",
+            "dica_en": "Not sure where to start? Answer three questions in our ‘Follow the star’ guide.",
+            "titulo_es": "El primer regalo de Navidad fue oro",
+            "historia_es": "Cuenta el Evangelio de san Mateo que los Magos llevaron al Niño oro, incienso y mirra: tres regalos. En la lectura de la Iglesia, el oro es lo que se ofrece a un rey, y así entró el oro en la Navidad. Hasta el Día de Reyes, abrimos aquí una puerta cada día.",
+            "sugestao_es": "Para empezar: una cadena de oro portugués de 19,2 quilates y unos pendientes de plata dorada con perla.",
+            "cta_texto_es": "Encontrar el regalo",
+            "dica_es": "¿No sabe por dónde empezar? Responda a tres preguntas en la guía «Siga la estrella»."
           }
         },
         "dia_20261202": {
@@ -581,7 +812,17 @@
             "colecao": "ouro",
             "cta_texto": "Ver joias em ouro",
             "dica": "A marca da contrastaria é a garantia oficial do ouro que leva para casa.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Portuguese gold, 19.2 carats",
+            "historia_en": "Portuguese gold has its own standard: 800 parts of fine gold in every thousand, the alloy known as 19.2 carats. Pieces are hallmarked by the Portuguese Assay Office (INCM), part of the national mint, whose official mark certifies the metal.",
+            "sugestao_en": "Today: a pair of small hoops and a necklace with a guardian angel, both in 19.2-carat gold.",
+            "cta_texto_en": "See gold jewellery",
+            "dica_en": "The assay office hallmark is the official assurance of the gold you take home.",
+            "titulo_es": "Oro portugués, 19,2 quilates",
+            "historia_es": "El oro portugués tiene una medida propia: 800 partes de oro fino de cada mil, la aleación conocida como 19,2 quilates. Las piezas están contrastadas por la INCM, la Casa de la Moneda portuguesa, cuya marca oficial certifica el metal.",
+            "sugestao_es": "Hoy: unos aros pequeños y una cadena con ángel de la guarda, ambos de oro de 19,2 quilates.",
+            "cta_texto_es": "Ver joyas de oro",
+            "dica_es": "El punzón de contraste es la garantía oficial del oro que se lleva a casa."
           }
         },
         "dia_20261203": {
@@ -597,14 +838,24 @@
             "colecao": "filigrana",
             "cta_texto": "Ver filigrana",
             "dica": "A filigrana da Póvoa de Lanhoso e a de Gondomar estão no Inventário Nacional do Património Cultural Imaterial.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "The enchedeira",
+            "historia_en": "In Gondomar and Póvoa de Lanhoso, filigree is made wire by wire. The enchedeira, traditionally a woman, fills the frame of each piece with twisted gold or silver wire, in spirals and S-shapes, always curved, never at a right angle. Most of a piece’s value comes from her work.",
+            "sugestao_en": "Today: a pair of earrings with pearls and a cross, both in gold-plated silver filigree.",
+            "cta_texto_en": "See filigree",
+            "dica_en": "The filigree of Póvoa de Lanhoso and of Gondomar is listed in Portugal’s National Inventory of Intangible Cultural Heritage.",
+            "titulo_es": "La enchedeira",
+            "historia_es": "En Gondomar y en Póvoa de Lanhoso, la filigrana se hace hilo a hilo. La enchedeira, tradicionalmente una mujer, rellena el marco de la pieza con hilo torcido de oro o plata, en espirales y eses, siempre en curva, nunca en ángulo recto. De su trabajo procede la mayor parte del valor de una pieza.",
+            "sugestao_es": "Hoy: unos pendientes con perla y una cruz, ambos de filigrana de plata dorada.",
+            "cta_texto_es": "Ver filigrana",
+            "dica_es": "La filigrana de Póvoa de Lanhoso y la de Gondomar figuran en el Inventario Nacional del Patrimonio Cultural Inmaterial de Portugal."
           }
         },
         "dia_20261204": {
           "type": "dia",
           "settings": {
             "data": "2026-12-04",
-            "titulo": "A libra, e o último dia para os Açores",
+            "titulo": "A libra",
             "historia": "Em Portugal, a libra é uma moeda de ouro que se oferece e se guarda — e que também se usa ao peito, com aro. Durante gerações, as mulheres portuguesas viram no ouro um adorno e, ao mesmo tempo, uma segurança para o futuro.",
             "sugestao": "Hoje: duas libras já montadas em aro trabalhado de ouro de 19,2 quilates.",
             "icone": "ouro",
@@ -612,10 +863,20 @@
             "produto_2": "libra-rainha-vitoria-1888-com-aro-trabalhado-em-ouro-19kl",
             "colecao": "libras-com-aro",
             "cta_texto": "Ver libras com aro",
-            "dica": "Açores: hoje é o último dia para encomendar e receber antes do Natal (prazo indicativo).",
+            "dica": "Para receber antes do Natal, encomende até {acores} para os Açores e a Madeira e até {continente} para Portugal continental (prazos indicativos).",
             "sem_venda": false,
             "prazo": "acores",
-            "prazo_quando": "dia"
+            "prazo_quando": "antes",
+            "titulo_en": "The sovereign",
+            "historia_en": "In Portugal, the libra, a gold sovereign, is a coin that is given and kept, and also worn as a pendant in a gold mount. For generations, Portuguese women saw gold as both adornment and security for the future.",
+            "sugestao_en": "Today: two sovereigns already set in worked 19.2-carat gold mounts.",
+            "cta_texto_en": "See mounted sovereigns",
+            "dica_en": "For delivery before Christmas, order by {acores} for the Azores and Madeira, and by {continente} for mainland Portugal (indicative deadlines).",
+            "titulo_es": "La libra",
+            "historia_es": "En Portugal, la libra es una moneda de oro que se regala y se guarda, y que también se lleva al pecho, con aro. Durante generaciones, las mujeres portuguesas vieron en el oro un adorno y, a la vez, una seguridad para el futuro.",
+            "sugestao_es": "Hoy: dos libras ya montadas en aro labrado de oro de 19,2 quilates.",
+            "cta_texto_es": "Ver libras con aro",
+            "dica_es": "Para recibirlo antes de Navidad, haga su pedido hasta el {acores} para Azores y Madeira, y hasta el {continente} para Portugal continental (plazos orientativos)."
           }
         },
         "dia_20261205": {
@@ -630,10 +891,19 @@
             "produto_2": "conta-de-viana-em-ouro-19kl-8-6mm",
             "colecao": "contas-de-viana",
             "cta_texto": "Ver Contas de Viana",
-            "dica": "Madeira: encomende até {madeira}, para receber antes do Natal (prazo indicativo).",
+            "dica": "As Contas de Viana também se usam sozinhas, num fio fino: uma forma simples de começar.",
             "sem_venda": false,
-            "prazo": "madeira",
-            "prazo_quando": "antes"
+            "prazo": "nenhum",
+            "titulo_en": "Viana beads",
+            "historia_en": "Viana beads are traditionally made in gold and are one of the oldest traditions of the Minho region. Today they are worn on a necklace, on a chain with a single bead or as a pair of earrings.",
+            "sugestao_en": "For this door we chose a pair of gold-plated silver earrings and a bead in 19.2-carat gold: the beginning of a necklace that can grow from one Christmas to the next.",
+            "cta_texto_en": "See Viana beads",
+            "dica_en": "Viana beads can also be worn on their own, on a fine chain: a simple way to begin.",
+            "titulo_es": "Cuentas de Viana",
+            "historia_es": "Las Cuentas de Viana son cuentas tradicionalmente hechas de oro y una de las tradiciones más antiguas del Miño portugués. Hoy se llevan en un collar, en una cadena con una sola cuenta o en unos pendientes.",
+            "sugestao_es": "Para esta puerta hemos elegido unos pendientes de plata dorada y una cuenta de oro de 19,2 quilates: el comienzo de un collar que puede crecer de Navidad en Navidad.",
+            "cta_texto_es": "Ver Cuentas de Viana",
+            "dica_es": "Las Cuentas de Viana también se llevan solas, en una cadena fina: una forma sencilla de empezar."
           }
         },
         "dia_20261206": {
@@ -648,7 +918,17 @@
             "colecao": "tradicao-ouro",
             "cta_texto": "Ver joias da tradição",
             "dica": "Volte amanhã: a porta de 7 de dezembro conta a história dos bonecos de Estremoz.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Arrecadas: more than 2,000 years of filigree",
+            "historia_en": "Arrecadas are the traditional earrings of Minho gold. Their ancestors are the Iron Age gold arrecadas found at Laúndos, Estela and Afife, which already featured filigree and granulation. More than 2,000 years later, the craft is still alive.",
+            "sugestao_en": "Today: a pair of modern arrecadas in gold-plated silver, with filigree work.",
+            "cta_texto_en": "See traditional jewellery",
+            "dica_en": "Come back tomorrow: the door for 7 December tells the story of the Estremoz clay figures.",
+            "titulo_es": "Arrecadas: más de 2000 años de filigrana",
+            "historia_es": "Las arrecadas son los pendientes tradicionales del oro del Miño portugués. Sus antepasadas son las arracadas de oro de la Edad del Hierro halladas en Laúndos, Estela y Afife, que ya tenían filigrana y granulado. Más de 2000 años después, el arte sigue vivo.",
+            "sugestao_es": "Hoy: unas arrecadas modernas de plata dorada, con trabajo de filigrana.",
+            "cta_texto_es": "Ver joyas de tradición",
+            "dica_es": "Vuelva mañana: la puerta del 7 de diciembre cuenta la historia de los muñecos de barro de Estremoz."
           }
         },
         "dia_20261207": {
@@ -659,7 +939,13 @@
             "historia": "Faz hoje nove anos: a 7 de dezembro de 2017, a UNESCO inscreveu a arte dos bonecos de Estremoz na Lista Representativa do Património Cultural Imaterial da Humanidade. E conta a própria UNESCO que este barro começou nos presépios — o presépio de altar e o presépio de três figuras. Um Natal português feito à mão, como a arte da filigrana.",
             "icone": "estrela",
             "dica": "Amanhã, dia 8, é feriado: a porta abre com o Coração de Viana.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Estremoz clay figures",
+            "historia_en": "Nine years ago today, on 7 December 2017, UNESCO inscribed the craft of the Estremoz clay figures on the Representative List of the Intangible Cultural Heritage of Humanity. UNESCO itself notes that this craft began with nativity scenes: the altar crib and the three-figure crib. A handmade Portuguese Christmas, like the art of filigree.",
+            "dica_en": "Tomorrow, 8 December, is a public holiday: the door opens with the Viana Heart.",
+            "titulo_es": "Los muñecos de Estremoz",
+            "historia_es": "Hoy hace nueve años: el 7 de diciembre de 2017, la UNESCO inscribió el arte de los muñecos de barro de Estremoz en la Lista Representativa del Patrimonio Cultural Inmaterial de la Humanidad. Y cuenta la propia UNESCO que este barro empezó en los belenes: el belén de altar y el de tres figuras. Una Navidad portuguesa hecha a mano, como el arte de la filigrana.",
+            "dica_es": "Mañana, 8 de diciembre, es festivo: la puerta se abre con el Coração de Viana."
           }
         },
         "dia_20261208": {
@@ -677,7 +963,17 @@
             "dica": "Quer gravar uma lembrança? Para chegarem antes do Natal, as peças gravadas encomendam-se até {gravacao} (prazo indicativo).",
             "sem_venda": false,
             "prazo": "gravacao",
-            "prazo_quando": "antes"
+            "prazo_quando": "antes",
+            "titulo_en": "The Viana Heart: as tradition has it",
+            "historia_en": "Tradition has it that the first Viana Heart was made at the request of Queen Maria I, in thanks for the birth of an heir. Legend or history, what remains is the symbol of devotion to the Sacred Heart of Jesus and the root of Viana gold.",
+            "sugestao_en": "Today: the gold-plated silver earrings with pearls most often given last Christmas, and a necklace with a Viana Heart, also in gold-plated silver.",
+            "cta_texto_en": "See Viana Hearts",
+            "dica_en": "Would you like a keepsake engraved? To arrive before Christmas, engraved pieces must be ordered by {gravacao} (indicative deadline).",
+            "titulo_es": "Coração de Viana: cuenta la tradición",
+            "historia_es": "Cuenta la tradición que el primer Coração de Viana se hizo por encargo de la reina María I, en agradecimiento por el nacimiento de un heredero. Leyenda o historia, quedó el símbolo de devoción al Sagrado Corazón de Jesús y la raíz del oro de Viana.",
+            "sugestao_es": "Hoy: los pendientes de plata dorada con perla más regalados en nuestra última Navidad y un collar con Coração de Viana, también de plata dorada.",
+            "cta_texto_es": "Ver corazones de Viana",
+            "dica_es": "¿Quiere grabar un recuerdo? Para que lleguen antes de Navidad, las piezas grabadas se piden hasta el {gravacao} (plazo orientativo)."
           }
         },
         "dia_20261209": {
@@ -694,7 +990,15 @@
             "dica": "Gravação a tempo do Natal: encomende até {gravacao} (prazo indicativo). Peças gravadas não têm troca nem devolução, salvo defeito.",
             "sem_venda": false,
             "prazo": "gravacao",
-            "prazo_quando": "antes"
+            "prazo_quando": "antes",
+            "titulo_en": "Engrave a keepsake",
+            "historia_en": "A name, a date or ‘Christmas 2026’ engraved on the back turns a piece into a keepsake for its recipient alone. For the silver necklaces in the ‘Engrave your necklace’ collection, you choose the text on the product page itself, where you will also see the price. Engraving on 19.2-carat gold medals is arranged with us by chat or WhatsApp.",
+            "cta_texto_en": "See engravable pieces",
+            "dica_en": "Engraving in time for Christmas: order by {gravacao} (indicative deadline). Engraved pieces cannot be exchanged or returned unless faulty.",
+            "titulo_es": "Grabar un recuerdo",
+            "historia_es": "Un nombre, una fecha o «Navidad 2026» grabados en el reverso convierten una pieza en un recuerdo solo de quien la recibe. En los collares de plata de la colección «Grabe su collar», el texto se escoge en la propia página del producto, donde también verá el precio. Las medallas de oro de 19,2 quilates que se pueden grabar se acuerdan con nosotros por chat o WhatsApp.",
+            "cta_texto_es": "Ver piezas para grabar",
+            "dica_es": "Grabado a tiempo para Navidad: haga su pedido hasta el {gravacao} (plazo orientativo). Las piezas grabadas no admiten cambio ni devolución, salvo defecto."
           }
         },
         "dia_20261210": {
@@ -705,14 +1009,20 @@
             "historia": "Foi D. Maria I quem mandou erguer a Basílica da Estrela, em Lisboa, para cumprir uma promessa pelo nascimento de um herdeiro. As obras começaram em 1779 e terminaram em 1790. A basílica é considerada a primeira igreja dedicada ao Sagrado Coração de Jesus. Lá dentro está um célebre presépio, encomendado pela rainha à oficina de Joaquim Machado de Castro.",
             "icone": "porta",
             "dica": "É a mesma devoção ao Sagrado Coração que vive no Coração de Viana.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "The Estrela Basilica and its nativity scene",
+            "historia_en": "It was Queen Maria I who had the Estrela Basilica built in Lisbon, to fulfil a vow made for the birth of an heir. Work began in 1779 and ended in 1790. The basilica is considered the first church dedicated to the Sacred Heart of Jesus. Inside is a celebrated nativity scene, commissioned by the queen from the workshop of Joaquim Machado de Castro.",
+            "dica_en": "It is the same devotion to the Sacred Heart that lives on in the Viana Heart.",
+            "titulo_es": "La Basílica da Estrela y su belén",
+            "historia_es": "Fue la reina María I quien mandó levantar la Basílica da Estrela, en Lisboa, para cumplir una promesa por el nacimiento de un heredero. Las obras empezaron en 1779 y terminaron en 1790. Se considera la primera iglesia dedicada al Sagrado Corazón de Jesús. Dentro hay un célebre belén, encargado por la reina al taller de Joaquim Machado de Castro.",
+            "dica_es": "Es la misma devoción al Sagrado Corazón que vive en el Coração de Viana."
           }
         },
         "dia_20261211": {
           "type": "dia",
           "settings": {
             "data": "2026-12-11",
-            "titulo": "A laça, e o último dia para a Madeira",
+            "titulo": "A laça",
             "historia": "A laça é um pendente em forma de laço e uma das peças emblemáticas do ouro tradicional português, ao lado das arrecadas, das medalhas e do coração minhoto. Um laço que não se desata — talvez por isso fique tão bem numa prenda.",
             "sugestao": "Hoje: duas peças com laço, em ouro de 19,2 quilates: um alfinete de peito e uma pulseira.",
             "icone": "laco",
@@ -720,10 +1030,20 @@
             "produto_2": "pulseira-em-ouro-19kl-com-elos-ovais-e-uniao-em-laco-18cm",
             "colecao": "tradicao-prata-ouro-filigrana-viana",
             "cta_texto": "Ver toda a Tradição",
-            "dica": "Madeira: hoje é o último dia para encomendar e receber antes do Natal (prazo indicativo).",
+            "dica": "Açores e Madeira: encomende até {acores}, para receber antes do Natal (prazo indicativo).",
             "sem_venda": false,
-            "prazo": "madeira",
-            "prazo_quando": "dia"
+            "prazo": "acores",
+            "prazo_quando": "antes",
+            "titulo_en": "The laça",
+            "historia_en": "The laça is a bow-shaped pendant and one of the emblematic pieces of traditional Portuguese gold, alongside arrecadas, medals and the Minho heart. A bow that never comes undone: perhaps that is why it suits a gift so well.",
+            "sugestao_en": "Today: two pieces with a bow, in 19.2-carat gold: a brooch and a bracelet.",
+            "cta_texto_en": "See all traditional jewellery",
+            "dica_en": "Azores and Madeira: order by {acores} for delivery before Christmas (indicative deadline).",
+            "titulo_es": "La laça",
+            "historia_es": "La laça es un colgante en forma de lazo y una de las piezas emblemáticas del oro tradicional portugués, junto a las arrecadas, las medallas y el Coração de Viana. Un lazo que no se deshace: quizá por eso queda tan bien en un regalo.",
+            "sugestao_es": "Hoy, dos piezas con lazo de oro de 19,2 quilates: un broche y una pulsera.",
+            "cta_texto_es": "Ver toda la tradición portuguesa",
+            "dica_es": "Azores y Madeira: haga su pedido hasta el {acores} para recibirlo antes de Navidad (plazo orientativo)."
           }
         },
         "dia_20261212": {
@@ -741,30 +1061,50 @@
             "dica": "Portugal continental: encomende até {continente}, para receber antes do Natal (prazo indicativo).",
             "sem_venda": false,
             "prazo": "continente",
-            "prazo_quando": "antes"
+            "prazo_quando": "antes",
+            "titulo_en": "For her",
+            "historia_en": "Pieces to wear every day and keep for ever. Last Christmas, 12 December was our busiest day for orders, so today’s door is for her.",
+            "sugestao_en": "A pair of Celestia earrings in gold-plated silver with white pearls, among the most popular of 2025, and a Baronesa ring in 19.2-carat gold with an amethyst-coloured stone.",
+            "cta_texto_en": "See gifts for her",
+            "dica_en": "Mainland Portugal: order by {continente} for delivery before Christmas (indicative deadline).",
+            "titulo_es": "Para ella",
+            "historia_es": "Piezas que se llevan todos los días y se guardan para siempre. La Navidad pasada, el 12 de diciembre fue nuestro día con más pedidos; por eso, hoy, la puerta es para ella.",
+            "sugestao_es": "Unos pendientes Celestia de plata dorada con perla blanca, entre los más elegidos de 2025, y un anillo Baronesa de oro de 19,2 quilates con piedra de color amatista.",
+            "cta_texto_es": "Ver regalos para ella",
+            "dica_es": "Portugal continental: haga su pedido hasta el {continente} para recibirlo antes de Navidad (plazo orientativo)."
           }
         },
         "dia_20261213": {
           "type": "dia",
           "settings": {
             "data": "2026-12-13",
-            "titulo": "Para o sapatinho: até 50 €",
+            "titulo": "Para o sapatinho: até 50 €",
             "historia": "As prendas pequenas são, tantas vezes, as que mais se guardam.",
-            "sugestao": "Para o sapatinho deste ano, duas ideias até 50 €: uma pulseira com Coração de Viana e pérolas barrocas e um fio Tradição com medalha de caramujos azul — ambos em prata dourada.",
+            "sugestao": "Para o sapatinho deste ano, duas ideias até 50 €: uma pulseira com Coração de Viana e pérolas barrocas e um fio Tradição com medalha de caramujos azul — ambos em prata dourada.",
             "icone": "sapatinho",
             "produto": "pulseira-coracao-de-viana-em-prata-dourada-com-perolas-barrocas",
             "produto_2": "fio-tradicao-em-prata-dourada-com-medalha-caramujos-azul-e-branco",
-            "cta_texto": "Ver prendas até 50 €",
+            "cta_texto": "Ver prendas até 50 €",
             "cta_url": "/collections/prata?filter.v.availability=1&filter.v.price.lte=50",
             "dica": "Embrulho de oferta e mensagem: escolha no carrinho, antes de finalizar a encomenda.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "For the Christmas shoe: up to €50",
+            "historia_en": "Small gifts are so often the ones that are kept the longest.",
+            "sugestao_en": "Two ideas up to €50 for this year’s Christmas shoe: a bracelet with a Viana Heart and baroque pearls, and a Tradição necklace with a blue caramujos medallion, both in gold-plated silver.",
+            "cta_texto_en": "See gifts up to €50",
+            "dica_en": "Gift wrapping and a message: choose them in your bag before completing your order.",
+            "titulo_es": "Para el zapatito: hasta 50 €",
+            "historia_es": "Los regalos pequeños son, tantas veces, los que más se guardan.",
+            "sugestao_es": "Para el zapatito de este año, dos ideas hasta 50 €: una pulsera con Coração de Viana y perlas barrocas y una cadena Tradição con medalla de caramujos azul, ambas de plata dorada.",
+            "cta_texto_es": "Ver regalos hasta 50 €",
+            "dica_es": "Envoltorio de regalo y mensaje: elíjalos en la cesta, antes de finalizar el pedido."
           }
         },
         "dia_20261214": {
           "type": "dia",
           "settings": {
             "data": "2026-12-14",
-            "titulo": "Cartas ao Menino Jesus",
+            "titulo": "Cartas ao Menino Jesus, e o último dia para os Açores e a Madeira",
             "historia": "Até meados dos anos 80, era ao Menino Jesus que as crianças portuguesas escreviam a pedir as prendas — Portugal foi dos poucos países da Europa onde era o próprio Menino a trazê-las.",
             "sugestao": "Para os mais pequenos de hoje: uma medalha Anjo da Guarda em ouro de 19,2 quilates com zircónia e um fio com coração em prata dourada e zircónias.",
             "icone": "estrela",
@@ -772,8 +1112,20 @@
             "produto_2": "fio-cora-o-em-prata-dourada-com-zirconias",
             "colecao": "crianca-natal",
             "cta_texto": "Ver prendas para os mais pequenos",
-            "dica": "Guarde a carta deste ano junto da prenda: um dia vai ser a melhor lembrança.",
-            "sem_venda": false
+            "dica": "Açores e Madeira: hoje é o último dia para encomendar e receber antes do Natal (prazo indicativo).",
+            "sem_venda": false,
+            "titulo_en": "Letters to the Baby Jesus, and the last day for the Azores and Madeira",
+            "historia_en": "Until the mid-1980s, Portuguese children wrote to the Baby Jesus to ask for their gifts: Portugal was one of the few countries in Europe where the Child himself brought them.",
+            "sugestao_en": "For today’s little ones: a Guardian Angel medal in 19.2-carat gold with cubic zirconia and a heart necklace in gold-plated silver with cubic zirconia.",
+            "cta_texto_en": "See gifts for little ones",
+            "dica_en": "Azores and Madeira: today is the last day to order for delivery before Christmas (indicative deadline).",
+            "titulo_es": "Cartas al Niño Jesús y último día para Azores y Madeira",
+            "historia_es": "Hasta mediados de los años ochenta, los niños portugueses escribían al Niño Jesús para pedir los regalos: Portugal fue de los pocos países de Europa donde era el propio Niño quien los traía.",
+            "sugestao_es": "Para los más pequeños de hoy: una medalla Ángel de la Guarda de oro de 19,2 quilates con circonita y una cadena con corazón de plata dorada y circonitas.",
+            "cta_texto_es": "Ver regalos para los más pequeños",
+            "dica_es": "Azores y Madeira: hoy es el último día para hacer su pedido y recibirlo antes de Navidad (plazo orientativo).",
+            "prazo": "acores",
+            "prazo_quando": "dia"
           }
         },
         "dia_20261215": {
@@ -788,7 +1140,15 @@
             "dica": "Peças gravadas: amanhã é o último dia para as encomendar a tempo do Natal (prazo indicativo).",
             "sem_venda": false,
             "prazo": "gravacao",
-            "prazo_quando": "vespera"
+            "prazo_quando": "vespera",
+            "titulo_en": "Frankincense: the wrapping",
+            "historia_en": "After gold, frankincense: the care of preparing the gift. In your bag you can add the gift bag, the Premium Pack and a message written by you. And, if you wish, we can send it straight to the recipient: simply enter their address when completing your order.",
+            "cta_texto_en": "See gift wrapping options",
+            "dica_en": "Engraved pieces: tomorrow is the last day to order them in time for Christmas (indicative deadline).",
+            "titulo_es": "Incienso: el envoltorio",
+            "historia_es": "Después del oro, el incienso: el cuidado de preparar el regalo. En la cesta puede añadir la bolsa de regalo, el Pack Premium y un mensaje escrito por usted. Y, si lo desea, lo enviamos directamente a quien lo va a recibir: basta con indicar esa dirección al finalizar el pedido.",
+            "cta_texto_es": "Ver opciones de envoltorio",
+            "dica_es": "Piezas grabadas: mañana es el último día para pedirlas a tiempo para Navidad (plazo orientativo)."
           }
         },
         "dia_20261216": {
@@ -806,7 +1166,17 @@
             "dica": "Peças gravadas: hoje é o último dia para encomendar a tempo do Natal (prazo indicativo).",
             "sem_venda": false,
             "prazo": "gravacao",
-            "prazo_quando": "dia"
+            "prazo_quando": "dia",
+            "titulo_en": "Queen’s earrings",
+            "historia_en": "It is said that the brincos à rainha, or queen’s earrings, first appeared in the time of Queen Maria I and took their name from Queen Maria II: when she visited Viana on 8 May 1852, the local girls presented her with a pair. They were a mark of status, and brides still wear them today.",
+            "sugestao_en": "Today: queen’s earrings in gold-plated silver and in silver.",
+            "cta_texto_en": "See queen’s earrings",
+            "dica_en": "Engraved pieces: today is the last day to order in time for Christmas (indicative deadline).",
+            "titulo_es": "Pendientes a la reina",
+            "historia_es": "Se dice que los pendientes a la reina surgieron en tiempos de María I y tomaron su nombre de María II: en la visita de la reina a Viana, el 8 de mayo de 1852, las muchachas del lugar le regalaron un par. Fueron piezas de prestigio y todavía hoy los llevan las novias.",
+            "sugestao_es": "Hoy: pendientes a la reina de plata dorada y de plata.",
+            "cta_texto_es": "Ver pendientes a la reina",
+            "dica_es": "Piezas grabadas: hoy es el último día para pedirlas a tiempo para Navidad (plazo orientativo)."
           }
         },
         "dia_20261217": {
@@ -821,16 +1191,77 @@
             "produto_2": "medalha-nossa-senhora-em-ouro-19kl-com-zirconias-1-4cm",
             "colecao": "para-a-mae-natal",
             "cta_texto": "Ver prendas para a mãe",
-            "dica": "Amanhã é o último dia para encomendar e receber antes do Natal em Portugal continental (prazo indicativo).",
+            "dica": "Para chegar antes do Natal em Portugal continental, encomende até {continente} (prazo indicativo).",
             "sem_venda": false,
             "prazo": "continente",
-            "prazo_quando": "vespera"
+            "prazo_quando": "antes",
+            "titulo_en": "For your mother",
+            "historia_en": "For the one who taught us to treasure good things: pieces to wear every day and, one day, pass on to those who come after.",
+            "sugestao_en": "Today: a pair of Amália earrings in gold-plated silver, with clover leaves and filigree, and a medal of Our Lady of Fátima in 19.2-carat gold with cubic zirconia.",
+            "cta_texto_en": "See gifts for Mum",
+            "dica_en": "To arrive before Christmas in mainland Portugal, order by {continente} (indicative deadline).",
+            "titulo_es": "Para mamá",
+            "historia_es": "Para quien nos enseñó a guardar las cosas buenas: piezas para llevar todos los días y pasar, algún día, a quienes vengan después.",
+            "sugestao_es": "Hoy: unos pendientes Amália de plata dorada, con tréboles y filigrana, y una medalla de Nuestra Señora de Fátima de oro de 19,2 quilates con circonitas.",
+            "cta_texto_es": "Ver regalos para mamá",
+            "dica_es": "Para que llegue antes de Navidad a Portugal continental, haga su pedido hasta el {continente} (plazo orientativo)."
           }
         },
         "dia_20261218": {
           "type": "dia",
           "settings": {
             "data": "2026-12-18",
+            "titulo": "O madeiro",
+            "historia": "Na noite de 24, em muitas terras do interior, como a Beira Baixa, a Guarda e Trás-os-Montes, arde no adro da igreja o madeiro, uma grande fogueira onde as pessoas se juntam depois da Missa do Galo. Tradicionalmente, são os rapazes que trazem os troncos.",
+            "sugestao": "Para lembrar esse calor: uns brincos Flamma em prata dourada e um anel em ouro de 19,2 quilates com pedra vermelha.",
+            "icone": "incenso",
+            "produto": "brincos-flamma-em-prata-dourada",
+            "produto_2": "anel-dona-aurora-em-ouro-com-pedra-vermelha-e-cristais-swarovski",
+            "cta_texto": "Ver prendas para ela",
+            "dica": "Faltam poucos dias: em Portugal continental, encomende até {continente} para receber antes do Natal (prazo indicativo).",
+            "sem_venda": false,
+            "prazo": "continente",
+            "prazo_quando": "antes",
+            "titulo_en": "The madeiro",
+            "historia_en": "On the night of the 24th, in many inland areas such as Beira Baixa, Guarda and Trás-os-Montes, the madeiro burns in the churchyard: a great bonfire where people gather after Midnight Mass. Traditionally, it is the young men who bring the logs.",
+            "sugestao_en": "To recall that warmth: a pair of Flamma earrings in gold-plated silver and a ring in 19.2-carat gold with a red stone.",
+            "cta_texto_en": "See gifts for her",
+            "dica_en": "Only a few days left: in mainland Portugal, order by {continente} for delivery before Christmas (indicative deadline).",
+            "titulo_es": "El madeiro",
+            "historia_es": "La noche del 24, en muchos pueblos del interior, como la Beira Baixa, Guarda y Trás-os-Montes, arde en el atrio de la iglesia el madeiro, una gran hoguera donde la gente se reúne después de la Misa del Gallo. Tradicionalmente, son los mozos quienes traen los troncos.",
+            "sugestao_es": "Para recordar ese calor: unos pendientes Flamma de plata dorada y un anillo de oro de 19,2 quilates con piedra roja.",
+            "cta_texto_es": "Ver regalos para ella",
+            "dica_es": "Quedan pocos días: en Portugal continental, haga su pedido hasta el {continente} para recibirlo antes de Navidad (plazo orientativo).",
+            "colecao": "para-ela-natal"
+          }
+        },
+        "dia_20261219": {
+          "type": "dia",
+          "settings": {
+            "data": "2026-12-19",
+            "titulo": "Vale-prenda",
+            "historia": "Quando não sabe o tamanho, o gosto ou a cor, ofereça a escolha. Os vales-prenda da Loja do Ouro existem em 25, 50, 100 e 150 €, e quem os recebe escolhe a peça. É a prenda que nunca falha o tamanho.",
+            "icone": "laco",
+            "colecao": "voucher-prenda",
+            "cta_texto": "Escolher vale-prenda",
+            "dica": "Os vales-prenda seguem por correio: amanhã é o último dia para encomendar e receber antes do Natal em Portugal continental (prazo indicativo).",
+            "sem_venda": false,
+            "prazo": "continente",
+            "prazo_quando": "vespera",
+            "titulo_en": "Gift voucher",
+            "historia_en": "When you do not know the size, the taste or the colour, give them the choice. Gold Store Premium gift vouchers come in values of €25, €50, €100 and €150, and the recipient chooses the piece. It is the gift that is never the wrong size.",
+            "cta_texto_en": "Choose a gift voucher",
+            "dica_en": "Gift vouchers are sent by post: tomorrow is the last day to order for delivery before Christmas in mainland Portugal (indicative deadline).",
+            "titulo_es": "Vale regalo",
+            "historia_es": "Cuando no se sabe la talla, el gusto o el color, regale la elección. Los vales regalo de Gold Store Premium están disponibles en importes de 25, 50, 100 y 150 €, y quien los recibe escoge la pieza. Es el regalo que nunca se equivoca de talla.",
+            "cta_texto_es": "Elegir un vale regalo",
+            "dica_es": "Los vales regalo se envían por correo postal: mañana es el último día para hacer su pedido y recibirlo antes de Navidad en Portugal continental (plazo orientativo)."
+          }
+        },
+        "dia_20261220": {
+          "type": "dia",
+          "settings": {
+            "data": "2026-12-20",
             "titulo": "Último dia para o continente",
             "historia": "Hoje é o último dia para encomendar e receber antes do Natal em Portugal continental. O prazo é indicativo e vale para encomendas pagas até às {hora_continente}: expedimos no dia útil seguinte à confirmação do pagamento e, nesta época, a transportadora pode ter atrasos.",
             "sugestao": "Duas sugestões em azul: uns brincos em prata dourada com esmalte e um anel em ouro de 19,2 quilates com pedra azul.",
@@ -842,40 +1273,17 @@
             "dica": "A partir de amanhã, pode levantar numa das nossas lojas até {loja}, com marcação.",
             "sem_venda": false,
             "prazo": "continente",
-            "prazo_quando": "dia"
-          }
-        },
-        "dia_20261219": {
-          "type": "dia",
-          "settings": {
-            "data": "2026-12-19",
-            "titulo": "O madeiro",
-            "historia": "Na noite de 24, em muitas terras do interior, como a Beira Baixa, a Guarda e Trás-os-Montes, arde no adro da igreja o madeiro, uma grande fogueira onde as pessoas se juntam depois da Missa do Galo. Tradicionalmente, são os rapazes que trazem os troncos.",
-            "sugestao": "Para lembrar esse calor: uns brincos Flamma em prata dourada e um anel em ouro de 19,2 quilates com pedra vermelha.",
-            "icone": "incenso",
-            "produto": "brincos-flamma-em-prata-dourada",
-            "produto_2": "anel-dona-aurora-em-ouro-com-pedra-vermelha-e-cristais-swarovski",
-            "cta_texto": "Ver as nossas lojas",
-            "cta_url": "/pages/agencias",
-            "dica": "Já não chega por correio? Levante numa das nossas 13 lojas até {loja}, com marcação.",
-            "sem_venda": false,
-            "prazo": "continente",
-            "prazo_quando": "depois"
-          }
-        },
-        "dia_20261220": {
-          "type": "dia",
-          "settings": {
-            "data": "2026-12-20",
-            "titulo": "Vale-prenda",
-            "historia": "Quando não sabe o tamanho, o gosto ou a cor, ofereça a escolha. Os vales-prenda da Loja do Ouro existem em 25, 50, 100 e 150 €, e quem os recebe escolhe a peça. É a prenda que nunca falha o tamanho.",
-            "icone": "laco",
-            "colecao": "voucher-prenda",
-            "cta_texto": "Escolher vale-prenda",
-            "dica": "Para o ter antes do Natal, pergunte-nos por WhatsApp como o pode levantar numa das nossas lojas.",
-            "sem_venda": false,
-            "prazo": "continente",
-            "prazo_quando": "depois"
+            "prazo_quando": "dia",
+            "titulo_en": "Last day for mainland Portugal",
+            "historia_en": "Today is the last day to order for delivery before Christmas in mainland Portugal. The deadline is indicative and applies to orders paid by {hora_continente}: we dispatch on the working day after payment is confirmed and, at this time of year, the carrier may experience delays.",
+            "sugestao_en": "Two suggestions in blue: a pair of gold-plated silver earrings with enamel and a ring in 19.2-carat gold with a blue stone.",
+            "cta_texto_en": "Find the gift",
+            "dica_en": "From tomorrow, you can collect from one of our stores until {loja}, by appointment.",
+            "titulo_es": "Último día para Portugal continental",
+            "historia_es": "Hoy es el último día para hacer su pedido y recibirlo antes de Navidad en Portugal continental. El plazo es orientativo y vale para pedidos pagados hasta las {hora_continente}: enviamos el día laborable siguiente a la confirmación del pago y, en estas fechas, el transportista puede tener retrasos.",
+            "sugestao_es": "Dos sugerencias en azul: unos pendientes de plata dorada con esmalte y un anillo de oro de 19,2 quilates con piedra azul.",
+            "cta_texto_es": "Encontrar el regalo",
+            "dica_es": "A partir de mañana, puede recogerlo en una de nuestras tiendas hasta el {loja}, con cita previa."
           }
         },
         "dia_20261221": {
@@ -890,7 +1298,15 @@
             "dica": "Antes de ir, confirme o horário na página da loja.",
             "sem_venda": false,
             "prazo": "loja",
-            "prazo_quando": "antes"
+            "prazo_quando": "antes",
+            "titulo_en": "Collect in store",
+            "historia_en": "There is still time: we have 13 stores in the districts of Lisbon, Santarém, Coimbra and Leiria. As stock is spread across the stores, we first locate the piece you have chosen and then arrange the collection with you, until {loja}. Write to us on WhatsApp or call your nearest store.",
+            "cta_texto_en": "See our stores",
+            "dica_en": "Before you go, check the opening hours on the store’s page.",
+            "titulo_es": "Recoger en tienda",
+            "historia_es": "Aún está a tiempo: tenemos 13 tiendas en los distritos de Lisboa, Santarém, Coímbra y Leiria. Como el stock está repartido entre las tiendas, primero localizamos la pieza que ha elegido y después acordamos con usted la recogida, hasta el {loja}. Escríbanos por WhatsApp o llame a la tienda más cercana.",
+            "cta_texto_es": "Ver nuestras tiendas",
+            "dica_es": "Antes de ir, consulte el horario en la página de la tienda."
           }
         },
         "dia_20261222": {
@@ -908,7 +1324,17 @@
             "dica": "O stock está repartido pelas lojas: primeiro localizamos a peça e depois marcamos consigo o levantamento.",
             "sem_venda": false,
             "prazo": "loja",
-            "prazo_quando": "antes"
+            "prazo_quando": "antes",
+            "titulo_en": "For him",
+            "historia_en": "For him, pieces that never go out of style. To have yours in time, arrange to collect it from one of our stores by {loja}.",
+            "sugestao_en": "Today, two ideas in 19.2-carat gold: a chain for every day and a 3x1 link bracelet for a lifetime.",
+            "cta_texto_en": "See gifts for him",
+            "dica_en": "Stock is spread across the stores: we first locate the piece and then arrange the collection with you.",
+            "titulo_es": "Para él",
+            "historia_es": "Para él, piezas que no pasan de moda. Para tenerlo a tiempo, acuerde con nosotros la recogida en una de nuestras tiendas, hasta el {loja}.",
+            "sugestao_es": "Hoy, dos ideas de oro de 19,2 quilates: una cadena para todos los días y una pulsera de malla 3x1 para toda la vida.",
+            "cta_texto_es": "Ver regalos para él",
+            "dica_es": "El stock está repartido entre las tiendas: primero localizamos la pieza y después acordamos con usted la recogida."
           }
         },
         "dia_20261223": {
@@ -926,7 +1352,17 @@
             "dica": "Última oportunidade: levante na loja até amanhã, {loja}, com marcação.",
             "sem_venda": false,
             "prazo": "loja",
-            "prazo_quando": "vespera"
+            "prazo_quando": "vespera",
+            "titulo_en": "The shoe by the fireplace",
+            "historia_en": "On Christmas night, children would leave a stocking or a little shoe by the fireplace, swept clean on purpose so that the Baby Jesus would not dirty his feet. In the morning, the gifts were waiting.",
+            "sugestao_en": "For a tiny shoe: a Guardian Angel medal in 19.2-carat gold and a pair of Amor com Fé earrings in gold-plated silver.",
+            "cta_texto_en": "See gold medals",
+            "dica_en": "Last chance: collect in store until tomorrow, {loja}, by appointment.",
+            "titulo_es": "El zapatito en la chimenea",
+            "historia_es": "En la noche de Navidad, los niños dejaban el calcetín o el zapatito junto a la chimenea, limpia a propósito para que el Niño Jesús no se ensuciara los pies. Por la mañana, allí estaban los regalos.",
+            "sugestao_es": "Para un zapatito pequeño: una medalla Ángel de la Guarda de oro de 19,2 quilates y unos pendientes Amor com Fé de plata dorada.",
+            "cta_texto_es": "Ver medallas de oro",
+            "dica_es": "Última oportunidad: recójalo en tienda hasta mañana, {loja}, con cita previa."
           }
         },
         "dia_20261224": {
@@ -937,7 +1373,13 @@
             "rotulo": "Consoada",
             "historia": "A Consoada é a ceia da noite de 24: bacalhau ou outro peixe — em algumas terras do Norte, polvo — e, na mesa, rabanadas, filhós, azevias e Bolo-Rei. Depois da ceia, muitos seguem para a Missa do Galo, à meia-noite, onde se encontram os amigos e se trocam as boas-festas. Da família Loja do Ouro para a sua: uma santa Consoada.",
             "icone": "estrela",
-            "sem_venda": true
+            "sem_venda": true,
+            "titulo_en": "Christmas Eve and Midnight Mass",
+            "rotulo_en": "Christmas Eve",
+            "historia_en": "The Consoada is the supper on the night of the 24th: salt cod or another fish (in some northern villages, octopus) and, on the table, rabanadas, filhós, azevias and Bolo-Rei. After supper, many go to Midnight Mass, where friends meet and exchange season’s greetings. From the Gold Store Premium family to yours: a blessed Christmas Eve.",
+            "titulo_es": "Nochebuena y Misa del Gallo",
+            "rotulo_es": "Nochebuena",
+            "historia_es": "La Consoada es la cena de la noche del 24: bacalao u otro pescado (en algunos pueblos del norte, pulpo) y, en la mesa, torrijas, filhós, azevias y Bolo-Rei. Después de la cena, muchos van a la Misa del Gallo, a medianoche, donde se encuentran los amigos y se felicitan las fiestas. De la familia Gold Store Premium a la suya: feliz Nochebuena."
           }
         },
         "dia_20261225": {
@@ -948,7 +1390,13 @@
             "rotulo": "Natal",
             "historia": "Hoje não há peça nem sugestão. Há a mesa, a família e o que se dá sem embrulho. Obrigado por abrir connosco, dia a dia, estas portas do ouro português. Amanhã voltamos, com a mirra: o cuidado que vem depois da prenda. Feliz Natal, de todos nós, nas 13 lojas da Loja do Ouro.",
             "icone": "coracao",
-            "sem_venda": true
+            "sem_venda": true,
+            "titulo_en": "Merry Christmas",
+            "rotulo_en": "Christmas",
+            "historia_en": "Today there is no piece and no suggestion. There is the table, the family and what is given without wrapping. Thank you for opening these doors of Portuguese gold with us, day by day. Tomorrow we return with myrrh: the care that comes after the gift. Merry Christmas from all of us at Gold Store Premium’s 13 stores.",
+            "titulo_es": "Feliz Navidad",
+            "rotulo_es": "Navidad",
+            "historia_es": "Hoy no hay joyas ni sugerencias: solo la mesa, la familia y lo que se regala sin envoltorio. Gracias por abrir con nosotros, día a día, estas puertas del oro portugués. Mañana volvemos con la mirra: el cuidado que viene después del regalo. Feliz Navidad de parte de todos nosotros, en las 13 tiendas de Gold Store Premium."
           }
         },
         "dia_20261226": {
@@ -961,7 +1409,15 @@
             "cta_texto": "Ver condições de troca",
             "cta_url": "/pages/devolucoes",
             "dica": "Peças gravadas são feitas para si: não têm troca nem devolução, salvo defeito.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Myrrh: care after the gift",
+            "historia_en": "Of the Magi’s three gifts, myrrh is the last, and we read it as care. Have you received a piece that is not quite your size? Talk to us on WhatsApp or in one of our 13 stores and we will explain the exchange conditions. If a piece is faulty, the 3-year legal guarantee applies.",
+            "cta_texto_en": "See exchange conditions",
+            "dica_en": "Engraved pieces are made for you: they cannot be exchanged or returned unless faulty.",
+            "titulo_es": "Mirra: el cuidado después del regalo",
+            "historia_es": "De los tres regalos de los Magos, la mirra es el último, y nosotros la entendemos como cuidado. ¿Ha recibido una pieza que no es de su talla? Hable con nosotros por WhatsApp o en una de nuestras 13 tiendas y le explicaremos las condiciones de cambio. En caso de defecto, se aplica la garantía legal de 3 años.",
+            "cta_texto_es": "Ver condiciones de cambio",
+            "dica_es": "Las piezas grabadas se hacen para usted: no admiten cambio ni devolución, salvo defecto."
           }
         },
         "dia_20261226_trocas": {
@@ -975,7 +1431,15 @@
             "cta_url": "/pages/devolucoes",
             "dica": "Peças gravadas são feitas para si: não têm troca nem devolução, salvo defeito.",
             "sem_venda": false,
-            "condicao": "trocas"
+            "condicao": "trocas",
+            "titulo_en": "Myrrh: Christmas exchanges",
+            "historia_en": "Of the Magi’s three gifts, myrrh is the last, and we read it as care. Have you received a piece that is not quite your size? Christmas exchanges can be made until {trocas}, with a gift receipt. Talk to us on WhatsApp or in one of our 13 stores.",
+            "cta_texto_en": "See exchange conditions",
+            "dica_en": "Engraved pieces are made for you: they cannot be exchanged or returned unless faulty.",
+            "titulo_es": "Mirra: cambios de Navidad",
+            "historia_es": "De los tres regalos de los Magos, la mirra es el último, y nosotros la entendemos como cuidado. ¿Ha recibido una pieza que no es de su talla? Los cambios de Navidad se hacen hasta el {trocas}, con ticket regalo. Hable con nosotros por WhatsApp o en una de nuestras 13 tiendas.",
+            "cta_texto_es": "Ver condiciones de cambio",
+            "dica_es": "Las piezas grabadas se hacen para usted: no admiten cambio ni devolución, salvo defecto."
           }
         },
         "dia_20261227": {
@@ -988,7 +1452,15 @@
             "cta_texto": "Encontrar uma loja",
             "cta_url": "/pages/agencias",
             "dica": "Na prata dourada, o cuidado é o mesmo: pano macio e nada de produtos abrasivos.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Caring for gold",
+            "historia_en": "Gold passes from generation to generation, but it asks for a little care. Store each piece separately so they do not scratch one another; put on perfume and cream before your jewellery; and clean it with a soft, dry cloth. If you need a new clasp or jump ring, or have any questions, talk to one of our stores.",
+            "cta_texto_en": "Find a store",
+            "dica_en": "Gold-plated silver needs the same care: a soft cloth and no abrasive products.",
+            "titulo_es": "Cuidar el oro",
+            "historia_es": "El oro pasa de generación en generación, pero pide algunos cuidados. Guarde cada pieza por separado, para que no se rayen unas con otras; póngase el perfume y la crema antes de las joyas; y límpielas con un paño suave y seco. Para un cierre, una anilla o cualquier duda, hable con una de nuestras tiendas.",
+            "cta_texto_es": "Encontrar una tienda",
+            "dica_es": "La plata dorada pide el mismo cuidado: paño suave y nada de productos abrasivos."
           }
         },
         "dia_20261228": {
@@ -1006,7 +1478,17 @@
             "dica": "Já voltámos a expedir: as encomendas seguem no dia útil seguinte à confirmação do pagamento.",
             "sem_venda": false,
             "prazo": "retoma",
-            "prazo_quando": "dia"
+            "prazo_quando": "dia",
+            "titulo_en": "New Year’s Light",
+            "historia_en": "To begin the year with sparkle, the New Year’s Light collection brings together gold-plated silver earrings designed to celebrate new beginnings.",
+            "sugestao_en": "We chose two for this door: Renda de Luz and Solaris. One pair for New Year’s Eve, the other for the first day of the year, or both, for those who would rather not choose.",
+            "cta_texto_en": "See New Year’s Light",
+            "dica_en": "We are dispatching again: orders are sent on the working day after payment is confirmed.",
+            "titulo_es": "Luz de Ano Novo",
+            "historia_es": "Para empezar el año con brillo, la colección Luz de Ano Novo reúne pendientes de plata dorada pensados para celebrar nuevos comienzos.",
+            "sugestao_es": "Hemos elegido dos para esta puerta: los Renda de Luz y los Solaris. Unos para la Nochevieja y otros para el primer día del año, o los dos, para quien no quiera elegir.",
+            "cta_texto_es": "Ver Luz de Ano Novo",
+            "dica_es": "Ya volvemos a enviar: los pedidos salen el día laborable siguiente a la confirmación del pago."
           }
         },
         "dia_20261229": {
@@ -1022,7 +1504,17 @@
             "colecao": "moedas-de-investimento",
             "cta_texto": "Ver moedas e barras",
             "dica": "O preço do ouro varia com o mercado. O ouro de investimento não tem portes grátis nem pagamento em prestações. Informação comercial, não constitui aconselhamento de investimento.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Gold to keep",
+            "historia_en": "For generations, Portuguese women kept gold to adorn themselves and as security for the future. A chain, a sovereign, a small bar: gold that is given today and kept for tomorrow.",
+            "sugestao_en": "For this door: 24-carat gold bars of 1 g and 2.5 g.",
+            "cta_texto_en": "See coins and bars",
+            "dica_en": "The price of gold varies with the market. Investment gold does not qualify for free delivery or payment in instalments. Commercial information, not investment advice.",
+            "titulo_es": "Oro que se guarda",
+            "historia_es": "Durante generaciones, las mujeres portuguesas guardaron oro para adornarse y como seguridad para el futuro. Un cordón, una libra, un pequeño lingote: oro que se regala hoy y se guarda para mañana.",
+            "sugestao_es": "Para esta puerta: lingotes de oro de 24 quilates, de 1 g y de 2,5 g.",
+            "cta_texto_es": "Ver monedas y lingotes",
+            "dica_es": "El precio del oro varía con el mercado. El oro de inversión no tiene envío gratuito ni pago a plazos. Información comercial, no constituye asesoramiento de inversión."
           }
         },
         "dia_20261230": {
@@ -1040,7 +1532,17 @@
             "dica": "Depois de hoje, pode levantar a prenda numa das nossas lojas, com marcação.",
             "sem_venda": false,
             "prazo": "reis",
-            "prazo_quando": "dia"
+            "prazo_quando": "dia",
+            "titulo_en": "Last day to order for Three Kings’ Day",
+            "historia_en": "There is still time for Three Kings’ Day: order by {hora_reis} today for delivery by 6 January in mainland Portugal. This is an indicative deadline.",
+            "sugestao_en": "For Three Kings’ Day, two suggestions: a Baronesa ring in 19.2-carat gold with a ruby-coloured stone and a dove necklace in gold-plated silver with mother-of-pearl and cubic zirconia.",
+            "cta_texto_en": "See Three Kings’ Day gifts",
+            "dica_en": "After today, you can collect the gift from one of our stores, by appointment.",
+            "titulo_es": "Último día para llegar a tiempo para Reyes",
+            "historia_es": "Aún está a tiempo para el Día de Reyes: haga su pedido hoy, hasta las {hora_reis}, para recibirlo el 6 de enero como muy tarde en Portugal continental. Es un plazo orientativo.",
+            "sugestao_es": "Para el Día de Reyes, dos sugerencias: un anillo Baronesa de oro de 19,2 quilates con piedra de color rubí y una cadena con paloma de plata dorada, con nácar y circonita.",
+            "cta_texto_es": "Ver regalos de Reyes",
+            "dica_es": "Después de hoy, puede recoger el regalo en una de nuestras tiendas, con cita previa."
           }
         },
         "dia_20261231": {
@@ -1056,7 +1558,17 @@
             "colecao": "colecao-luz-de-ano-novo",
             "cta_texto": "Ver Luz de Ano Novo",
             "dica": "1 de janeiro é feriado: as encomendas seguem no dia útil seguinte.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "A happy New Year",
+            "historia_en": "The last night of the year: a full table, the countdown to midnight and the first embrace of 2027.",
+            "sugestao_en": "For the celebration, two pairs of earrings from the New Year’s Light collection, in gold-plated silver: Cantiga Dourada and Melodia. May the new year bring sparkle to those who wear them, and to those who give them.",
+            "cta_texto_en": "See New Year’s Light",
+            "dica_en": "1 January is a public holiday: orders are dispatched on the next working day.",
+            "titulo_es": "Feliz entrada de año",
+            "historia_es": "Última noche del año: la mesa llena, la cuenta atrás hasta medianoche y el primer abrazo de 2027.",
+            "sugestao_es": "Para la fiesta, dos pares de pendientes de la colección Luz de Ano Novo, de plata dorada: los Cantiga Dourada y los Melodia. Que el año nuevo traiga brillo a quien los lleve, y a quien los regale.",
+            "cta_texto_es": "Ver Luz de Ano Novo",
+            "dica_es": "El 1 de enero es festivo: los pedidos salen el siguiente día laborable."
           }
         },
         "dia_20270101": {
@@ -1069,7 +1581,15 @@
             "colecao": "tradicao-prata-ouro-filigrana-viana",
             "cta_texto": "Ver toda a Tradição",
             "dica": "Hoje é feriado: as encomendas seguem no dia útil seguinte.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "The Janeiras",
+            "historia_en": "Above all between 1 and 6 January, groups go through streets, squares and institutions singing the Janeiras: good wishes for the year to whoever opens the door. In return, they receive ‘the janeiras’: chestnuts, walnuts, food, and nowadays chocolates or money. Some trace their roots to Janus, the Roman god of doors and passages. Happy New Year!",
+            "cta_texto_en": "See all traditional jewellery",
+            "dica_en": "Today is a public holiday: orders are dispatched on the next working day.",
+            "titulo_es": "Las Janeiras",
+            "historia_es": "En Portugal, sobre todo entre el 1 y el 6 de enero, hay grupos que recorren calles, plazas e instituciones cantando las Janeiras: buenos deseos para el año a quien les abre la puerta. A cambio, reciben «las janeiras»: castañas, nueces, comida y, hoy, chocolates o dinero. Hay quien les encuentra la raíz en Jano, el dios romano de las puertas y de los comienzos. ¡Feliz año!",
+            "cta_texto_es": "Ver toda la tradición portuguesa",
+            "dica_es": "Hoy es festivo: los pedidos salen el siguiente día laborable."
           }
         },
         "dia_20270102": {
@@ -1082,7 +1602,13 @@
             "dica": "Já voltámos a expedir: as encomendas seguem no dia útil seguinte à confirmação do pagamento.",
             "sem_venda": false,
             "prazo": "retoma",
-            "prazo_quando": "depois"
+            "prazo_quando": "depois",
+            "titulo_en": "Singing the Janeiras",
+            "historia_en": "The Janeiras are sung in four-line verses: wishes of health, peace and a good year for the house and those who live there, often to the sound of the concertina, bass drum and triangle. Some verses thank those who open the door; others, more mischievous, are for those who keep it shut. If someone knocks this year, open and listen: it is one of the loveliest customs of our winter.",
+            "dica_en": "We are dispatching again: orders are sent on the working day after payment is confirmed.",
+            "titulo_es": "Cantar las Janeiras",
+            "historia_es": "Las Janeiras se cantan en coplas: deseos de salud, paz y buen año para la casa y para quienes viven en ella, muchas veces al son de la concertina, el bombo y el triángulo. Hay coplas para agradecer a quien abre la puerta y otras, más pícaras, para quien la deja cerrada. Si este año llaman a su puerta, abra y escuche: es una de las costumbres más bonitas de nuestro invierno.",
+            "dica_es": "Ya volvemos a enviar: los pedidos salen el día laborable siguiente a la confirmación del pago."
           }
         },
         "dia_20270102_janeiras": {
@@ -1096,7 +1622,15 @@
             "cta_url": "/pages/agencias",
             "dica": "Vem com um grupo? Ligue antes para a loja para combinarmos a hora.",
             "sem_venda": false,
-            "condicao": "janeiras"
+            "condicao": "janeiras",
+            "titulo_en": "Janeiras in our stores",
+            "historia_en": "We open our doors to the Janeiras. From 2 to 6 January, Janeiras groups are welcome in our stores: come and sing your good wishes for the year to our staff, or simply listen. It is our way of thanking everyone who visited us this Christmas.",
+            "cta_texto_en": "See our stores",
+            "dica_en": "Coming with a group? Call the store beforehand so we can arrange a time.",
+            "titulo_es": "Janeiras en nuestras tiendas",
+            "historia_es": "Abrimos la puerta a las Janeiras. Del 2 al 6 de enero, los grupos de Janeiras son bienvenidos en nuestras tiendas: venga a cantar los buenos deseos para el año a quien está en el mostrador, o simplemente a escuchar. Es nuestra manera de agradecer a quienes nos visitaron esta Navidad.",
+            "cta_texto_es": "Ver nuestras tiendas",
+            "dica_es": "¿Viene con un grupo? Llame antes a la tienda para acordar la hora."
           }
         },
         "dia_20270103": {
@@ -1112,7 +1646,17 @@
             "colecao": "dia-de-reis-2026",
             "cta_texto": "Ver prendas de Reis",
             "dica": "O Dia de Reis, 6 de janeiro, não é feriado.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Epiphany: on 3 January this year",
+            "historia_en": "Epiphany celebrates the Magi’s visit to the Child. In Portuguese dioceses, the liturgical feast moves to the Sunday between 2 and 8 January, and in 2027 that is today, Sunday 3 January. Three Kings’ Day is still on the 6th.",
+            "sugestao_en": "For this door, two pieces in 19.2-carat gold with stars: a bracelet with hearts and a heart-shaped medal.",
+            "cta_texto_en": "See Three Kings’ Day gifts",
+            "dica_en": "Three Kings’ Day, 6 January, is not a public holiday in Portugal.",
+            "titulo_es": "Epifanía: este año, el 3 de enero",
+            "historia_es": "La Epifanía celebra la visita de los Magos al Niño. En las diócesis portuguesas, la fiesta litúrgica pasa al domingo entre el 2 y el 8 de enero, y en 2027 es hoy, domingo 3 de enero. El Día de Reyes sigue siendo el 6.",
+            "sugestao_es": "Para esta puerta, dos piezas de oro de 19,2 quilates con estrellas: una pulsera con corazones y una medalla en forma de corazón.",
+            "cta_texto_es": "Ver regalos de Reyes",
+            "dica_es": "El Día de Reyes, 6 de enero, no es festivo en Portugal."
           }
         },
         "dia_20270104": {
@@ -1125,7 +1669,15 @@
             "icone": "coroa",
             "produto": "anel-solitario-em-ouro-19kl-com-zirconia-formato-tiara",
             "dica": "Na mesa, a coroa é para partilhar; a de ouro é para guardar.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Bolo-Rei, since the 19th century",
+            "historia_en": "Bolo-Rei, the Portuguese king cake, came from France in the 19th century. Confeitaria Nacional, in Lisbon, says it was Balthazar Castanheiro Júnior who brought the recipe. It is shaped like a crown, which is why, behind this door, the crown is made of gold.",
+            "sugestao_en": "Today: a Tiara solitaire ring in 19.2-carat gold.",
+            "dica_en": "At the table, the crown is for sharing; the gold one is for keeping.",
+            "titulo_es": "Bolo-Rei, desde el siglo XIX",
+            "historia_es": "El Bolo-Rei, el roscón portugués, llegó de Francia en el siglo XIX. La Confeitaria Nacional, en Lisboa, cuenta que fue Balthazar Castanheiro Júnior quien trajo la receta. Tiene forma de corona, y por eso, en esta puerta, la corona es de oro.",
+            "sugestao_es": "Hoy: un solitario Tiara de oro de 19,2 quilates.",
+            "dica_es": "En la mesa, la corona es para compartir; la de oro, para guardar."
           }
         },
         "dia_20270105": {
@@ -1141,7 +1693,17 @@
             "colecao": "tradicao-ouro",
             "cta_texto": "Ver joias da tradição",
             "dica": "Amanhã fecha o calendário: a última porta é a do Dia de Reis.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Gold, frankincense and myrrh",
+            "historia_en": "On the eve of Three Kings’ Day, we return to the beginning: gold, frankincense and myrrh. In St John Paul II’s reading, gold is offered to the King, frankincense to God and myrrh to the man who would one day be buried. Gold is still the gift that lasts.",
+            "sugestao_en": "Today: a pair of hoops and a small medal of Our Lady of Fátima, both in 19.2-carat gold.",
+            "cta_texto_en": "See traditional jewellery",
+            "dica_en": "Tomorrow the calendar closes: the last door is Three Kings’ Day.",
+            "titulo_es": "Oro, incienso y mirra",
+            "historia_es": "En la víspera de Reyes, volvemos al principio: oro, incienso y mirra. En la lectura de san Juan Pablo II, el oro se ofrece al Rey, el incienso a Dios y la mirra al hombre que un día sería sepultado. El oro sigue siendo el regalo que permanece.",
+            "sugestao_es": "Hoy: unos aros y una pequeña medalla de Nuestra Señora de Fátima, ambos de oro de 19,2 quilates.",
+            "cta_texto_es": "Ver joyas de tradición",
+            "dica_es": "Mañana se cierra el calendario: la última puerta es la del Día de Reyes."
           }
         },
         "dia_20270106": {
@@ -1158,7 +1720,19 @@
             "colecao": "dia-de-reis-2026",
             "cta_texto": "Ver prendas de Reis",
             "dica": "Dúvidas sobre uma prenda? Fale connosco por WhatsApp ou numa das nossas lojas.",
-            "sem_venda": false
+            "sem_venda": false,
+            "titulo_en": "Three Kings’ Day",
+            "rotulo_en": "Kings’ Day",
+            "historia_en": "Today is Three Kings’ Day, the traditional end of the Christmas season in Portugal, with the last Janeiras and Bolo-Rei on the table. This is where we close the Golden Calendar: thank you for opening 37 doors with us.",
+            "sugestao_en": "For the last door, a letter medal in 19.2-carat gold and a necklace with a filigree cross in gold-plated silver.",
+            "cta_texto_en": "See Three Kings’ Day gifts",
+            "dica_en": "Questions about a gift? Talk to us on WhatsApp or in one of our stores.",
+            "titulo_es": "Día de Reyes",
+            "rotulo_es": "Reyes",
+            "historia_es": "Hoy es el Día de Reyes, el final tradicional de las fiestas de Navidad en Portugal, con las últimas Janeiras y el Bolo-Rei en la mesa. Aquí cerramos el Calendario de Oro: gracias por abrir con nosotros 37 puertas.",
+            "sugestao_es": "Para la última, una medalla con inicial de oro de 19,2 quilates y una cadena con cruz de filigrana de plata dorada.",
+            "cta_texto_es": "Ver regalos de Reyes",
+            "dica_es": "¿Tiene dudas sobre un regalo? Hable con nosotros por WhatsApp o en una de nuestras tiendas."
           }
         }
       },
@@ -1217,28 +1791,50 @@
         "botao2_url": "/collections/tradicao-filigrana-prata",
         "faulhas": true,
         "imagem_alt": "",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "A Portuguese art",
+        "titulo_en": "Strand by strand.",
+        "texto_en": "<p>In Gondomar and Póvoa de Lanhoso, the enchedeira, the filigree craftswoman, fills every outline by hand with twisted gold or silver wire: spirals, S-scrolls and rodilhões, always curved, never at a right angle. The filigree of these towns is listed in Portugal’s National Inventory of Intangible Cultural Heritage, and Filigrana de Portugal is a candidate for UNESCO’s Intangible Cultural Heritage of Humanity.</p>",
+        "botao1_texto_en": "See filigree",
+        "botao2_texto_en": "Silver filigree",
+        "eyebrow_es": "Un arte portugués",
+        "titulo_es": "Hilo a hilo.",
+        "texto_es": "<p>En Gondomar y en Póvoa de Lanhoso, la enchedeira, la artesana de la filigrana, rellena a mano cada contorno con hilo torcido de oro o plata: espirales, eses y rodilhões, siempre en curva, nunca en ángulo recto. La filigrana de estas tierras figura en el Inventario Nacional del Patrimonio Cultural Inmaterial de Portugal, y la Filigrana de Portugal es candidata a Patrimonio Cultural Inmaterial de la Humanidad.</p>",
+        "botao1_texto_es": "Ver filigrana",
+        "botao2_texto_es": "Filigrana de plata"
       },
       "blocks": {
         "numero_anos": {
           "type": "numero",
           "settings": {
             "valor": "+ 2000 anos",
-            "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana"
+            "legenda": "as arrecadas de ouro da Idade do Ferro já tinham filigrana",
+            "valor_en": "2,000+ years",
+            "legenda_en": "Iron Age gold arrecadas (earrings) already featured filigree",
+            "valor_es": "+ 2000 años",
+            "legenda_es": "las arracadas de oro de la Edad del Hierro ya tenían filigrana"
           }
         },
         "numero_seculo": {
           "type": "numero",
           "settings": {
             "valor": "Séc. XIX",
-            "legenda": "a filigrana torna-se arte autónoma em Gondomar e na Póvoa de Lanhoso"
+            "legenda": "a filigrana torna-se arte autónoma em Gondomar e na Póvoa de Lanhoso",
+            "valor_en": "19th century",
+            "legenda_en": "filigree becomes a craft in its own right in Gondomar and Póvoa de Lanhoso",
+            "valor_es": "Siglo XIX",
+            "legenda_es": "la filigrana se convierte en un arte propio en Gondomar y Póvoa de Lanhoso"
           }
         },
         "numero_fio": {
           "type": "numero",
           "settings": {
             "valor": "0,22 mm",
-            "legenda": "espessura máxima do fio na certificação Filigrana de Portugal"
+            "legenda": "espessura máxima do fio na certificação Filigrana de Portugal",
+            "valor_en": "0.22 mm",
+            "legenda_en": "maximum wire thickness under the Filigrana de Portugal certification",
+            "valor_es": "0,22 mm",
+            "legenda_es": "grosor máximo del hilo en la certificación Filigrana de Portugal"
           }
         }
       },
@@ -1256,7 +1852,13 @@
         "titulo": "As palavras do nosso ouro.",
         "texto": "Os nomes das peças que as nossas avós usavam — e que continuam a passar de mão em mão.",
         "azulejo": false,
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "A Dictionary of Portuguese Gold",
+        "titulo_en": "The words of our gold.",
+        "texto_en": "The names of the pieces our grandmothers wore, still passed from hand to hand.",
+        "eyebrow_es": "Diccionario del oro portugués",
+        "titulo_es": "Las palabras de nuestro oro.",
+        "texto_es": "Los nombres de las joyas que llevaban nuestras abuelas y que siguen pasando de mano en mano."
       },
       "blocks": {
         "termo_coracao": {
@@ -1266,7 +1868,13 @@
             "termo": "Coração de Viana",
             "definicao": "Símbolo de devoção ao Sagrado Coração de Jesus. Conta a tradição que nasceu de um pedido de D. Maria I.",
             "link_texto": "Ver peças",
-            "link_url": "/collections/coracoes-de-viana"
+            "link_url": "/collections/coracoes-de-viana",
+            "termo_en": "Coração de Viana",
+            "definicao_en": "The Viana Heart: a symbol of devotion to the Sacred Heart of Jesus. Tradition has it that it was created at the request of Queen Maria I.",
+            "link_texto_en": "See pieces",
+            "termo_es": "Coração de Viana",
+            "definicao_es": "El corazón de Viana: símbolo de devoción al Sagrado Corazón de Jesús. Cuenta la tradición que nació de un encargo de la reina María I.",
+            "link_texto_es": "Ver piezas"
           }
         },
         "termo_filigrana": {
@@ -1276,7 +1884,13 @@
             "termo": "Filigrana",
             "definicao": "A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais.",
             "link_texto": "Ver peças",
-            "link_url": "/collections/filigrana"
+            "link_url": "/collections/filigrana",
+            "termo_en": "Filigrana",
+            "definicao_en": "Filigree: the art of working twisted gold or silver wire into curves and spirals.",
+            "link_texto_en": "See pieces",
+            "termo_es": "Filigrana",
+            "definicao_es": "El arte de trabajar hilo de oro o plata, torcido, en curvas y espirales.",
+            "link_texto_es": "Ver piezas"
           }
         },
         "termo_enchedeira": {
@@ -1284,7 +1898,11 @@
           "settings": {
             "icone": "enchedeira",
             "termo": "Enchedeira",
-            "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana."
+            "definicao": "A artesã que enche a moldura da peça com fio torcido. É do seu trabalho que vem a maior parte do valor da filigrana.",
+            "termo_en": "Enchedeira",
+            "definicao_en": "The craftswoman who fills the frame of a piece with twisted wire. Most of the value of filigree comes from her work.",
+            "termo_es": "Enchedeira",
+            "definicao_es": "La artesana que rellena el contorno de la pieza con hilo torcido. De su trabajo procede la mayor parte del valor de la filigrana."
           }
         },
         "termo_rainha": {
@@ -1294,7 +1912,15 @@
             "termo": "Brincos à rainha",
             "definicao": "Diz-se que surgiram no tempo de D. Maria I e ganharam o nome com D. Maria II, a quem as raparigas de Viana ofereceram um par em 1852. Ainda hoje são usados por noivas.",
             "link_texto": "Ver peças",
-            "link_url": "/search?q=brincos+rainha&type=product"
+            "link_url": "/search?q=brincos+rainha&type=product",
+            "termo_en": "Brincos à rainha",
+            "definicao_en": "Queen’s earrings. They are said to date from the time of Maria I and took their name from Maria II, who was given a pair by the young women of Viana in 1852. Brides still wear them today.",
+            "link_texto_en": "See pieces",
+            "link_url_en": "/search?q=rainha+earrings&type=product",
+            "termo_es": "Brincos à rainha",
+            "definicao_es": "Pendientes «a la reina». Se dice que surgieron en tiempos de María I y tomaron su nombre de María II, a quien las jóvenes de Viana regalaron un par en 1852. Todavía hoy los llevan las novias.",
+            "link_texto_es": "Ver piezas",
+            "link_url_es": "/search?q=pendientes+rainha&type=product"
           }
         },
         "termo_arrecadas": {
@@ -1304,7 +1930,13 @@
             "termo": "Arrecadas",
             "definicao": "Brincos tradicionais do ouro do Minho, com antepassados nas arrecadas de ouro da Idade do Ferro.",
             "link_texto": "Ver peças",
-            "link_url": "/search?q=arrecadas&type=product"
+            "link_url": "/search?q=arrecadas&type=product",
+            "termo_en": "Arrecadas",
+            "definicao_en": "Traditional earrings of Minho gold, descended from the gold arrecadas of the Iron Age.",
+            "link_texto_en": "See pieces",
+            "termo_es": "Arrecadas",
+            "definicao_es": "Pendientes tradicionales del oro del Miño portugués, herederos de las arracadas de oro de la Edad del Hierro.",
+            "link_texto_es": "Ver piezas"
           }
         },
         "termo_contas": {
@@ -1314,7 +1946,13 @@
             "termo": "Contas de Viana",
             "definicao": "Contas tradicionalmente feitas em ouro, uma das mais antigas tradições do Minho.",
             "link_texto": "Ver peças",
-            "link_url": "/collections/contas-de-viana"
+            "link_url": "/collections/contas-de-viana",
+            "termo_en": "Contas de Viana",
+            "definicao_en": "Viana beads, traditionally made in gold: one of the oldest traditions of the Minho region.",
+            "link_texto_en": "See pieces",
+            "termo_es": "Contas de Viana",
+            "definicao_es": "Cuentas de Viana, tradicionalmente hechas de oro: una de las tradiciones más antiguas del Miño portugués.",
+            "link_texto_es": "Ver piezas"
           }
         },
         "termo_libra": {
@@ -1324,7 +1962,13 @@
             "termo": "Libra",
             "definicao": "Moeda de ouro que em Portugal se oferece e se guarda; usa-se também com aro, ao peito.",
             "link_texto": "Ver peças",
-            "link_url": "/collections/libras-com-aro"
+            "link_url": "/collections/libras-com-aro",
+            "termo_en": "Libra",
+            "definicao_en": "The gold sovereign, given and treasured in Portugal; it is also worn as a pendant in a gold mount, close to the heart.",
+            "link_texto_en": "See pieces",
+            "termo_es": "Libra",
+            "definicao_es": "El soberano de oro, que en Portugal se regala y se guarda; también se lleva al pecho, montado en un aro.",
+            "link_texto_es": "Ver piezas"
           }
         },
         "termo_ouro_portugues": {
@@ -1334,7 +1978,13 @@
             "termo": "Ouro português",
             "definicao": "Liga de 800 partes de ouro fino por mil, conhecida como 19,2 quilates, contrastada pela INCM.",
             "link_texto": "Ver peças",
-            "link_url": "/collections/ouro"
+            "link_url": "/collections/ouro",
+            "termo_en": "Ouro português",
+            "definicao_en": "An alloy of 800 parts of fine gold per thousand, known as 19.2-carat gold and hallmarked by the Portuguese Assay Office (INCM).",
+            "link_texto_en": "See pieces",
+            "termo_es": "Ouro português",
+            "definicao_es": "Aleación de 800 partes de oro fino por mil, conocida como 19,2 quilates y contrastada por la INCM.",
+            "link_texto_es": "Ver piezas"
           }
         }
       },
@@ -1373,28 +2023,40 @@
         "botao1_texto": "",
         "botao2_texto": "",
         "fundo": "papel",
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "For the Christmas shoe",
+        "titulo_en": "From a time when the Baby Jesus left the gifts in children’s shoes.",
+        "texto_en": "<p>Until the mid-1980s, Portuguese children wrote to the Baby Jesus and left a shoe by the fireplace, swept clean so that he would not dirty his feet. Small gifts are so often the ones we treasure most.</p>",
+        "eyebrow_es": "Para el zapatito",
+        "titulo_es": "De cuando era el Niño Jesús quien dejaba el regalo en el zapatito.",
+        "texto_es": "<p>Hasta mediados de los años ochenta, los niños portugueses escribían al Niño Jesús y dejaban el zapatito junto a la chimenea, bien limpia para que Él no se ensuciara los pies. Los regalos pequeños son, muchas veces, los que más se guardan.</p>"
       },
       "blocks": {
         "chip_ate_50": {
           "type": "chip",
           "settings": {
-            "texto": "Prendas até 50 €",
-            "url": "/collections/mulher?filter.v.price.lte=50&sort_by=best-selling"
+            "texto": "Prendas até 50 €",
+            "url": "/collections/mulher?filter.v.price.lte=50&sort_by=best-selling",
+            "texto_en": "Gifts up to €50",
+            "texto_es": "Regalos hasta 50 €"
           }
         },
         "chip_pequenos": {
           "type": "chip",
           "settings": {
             "texto": "Para os mais pequenos",
-            "url": "/collections/crianca-natal"
+            "url": "/collections/crianca-natal",
+            "texto_en": "For the little ones",
+            "texto_es": "Para los más pequeños"
           }
         },
         "chip_medalhas": {
           "type": "chip",
           "settings": {
             "texto": "Medalhas em ouro",
-            "url": "/collections/medalhas-crianca-ouro"
+            "url": "/collections/medalhas-crianca-ouro",
+            "texto_en": "Gold medals",
+            "texto_es": "Medallas de oro"
           }
         }
       },
@@ -1415,14 +2077,33 @@
         "lojas_titulo": "Ainda a tempo? Levante na loja.",
         "lojas_texto": "Como o stock está repartido pelas 13 lojas, primeiro localizamos a peça e depois marcamos consigo o levantamento.",
         "wa_texto": "Olá! Gostava de levantar uma prenda de Natal numa das vossas lojas.",
-        "lojas_url": "/pages/agencias",
+        "lojas_url": "shopify://pages/agencias",
         "horarios": "",
         "janeiras_confirmadas": false,
         "janeiras": "Abrimos a porta às Janeiras. De 2 a 6 de janeiro, grupos de Janeiras vêm cantar às nossas lojas.",
+        "mostrar_vales": true,
         "vales_titulo": "Ainda sem ideia? Ofereça a escolha.",
         "vales_texto": "Vales-prenda de 25, 50, 100 e 150 €.",
         "vales_botao": "Escolher vale-prenda",
         "vales_url": "shopify://collections/voucher-prenda",
+        "titulo_en": "When to order so your gifts arrive in time",
+        "nota_en": "Indicative deadlines for orders paid by 11:59pm on the date shown. We dispatch on the next working day after payment is confirmed; during the peak season, carriers may experience delays.",
+        "lojas_titulo_en": "Short on time? Collect in store.",
+        "lojas_texto_en": "As our stock is spread across our 13 stores, we first locate the piece and then arrange the collection with you.",
+        "wa_texto_en": "Hello! I would like to collect a Christmas gift from one of your stores.",
+        "janeiras_en": "We open our doors to the Janeiras, the traditional Portuguese New Year carols. From 2 to 6 January, groups of singers will visit our stores.",
+        "vales_titulo_en": "Still undecided? Give them the choice.",
+        "vales_texto_en": "Gift vouchers of €25, €50, €100 and €150.",
+        "vales_botao_en": "Choose a gift voucher",
+        "titulo_es": "Cuándo hacer su pedido para que llegue a tiempo",
+        "nota_es": "Plazos orientativos para pedidos pagados hasta las 23:59 del día indicado. Enviamos el día laborable siguiente a la confirmación del pago; en temporada alta, la empresa de transporte puede sufrir retrasos.",
+        "lojas_titulo_es": "¿Aún a tiempo? Recoja en tienda.",
+        "lojas_texto_es": "Como el stock está repartido entre nuestras 13 tiendas, primero localizamos la pieza y después acordamos con usted la recogida.",
+        "wa_texto_es": "¡Hola! Me gustaría recoger un regalo de Navidad en una de sus tiendas.",
+        "janeiras_es": "Abrimos nuestras puertas a las Janeiras, los cantos tradicionales portugueses de Año Nuevo. Del 2 al 6 de enero, grupos de cantores visitarán nuestras tiendas.",
+        "vales_titulo_es": "¿Aún sin decidir? Regale la elección.",
+        "vales_texto_es": "Vales regalo de 25, 50, 100 y 150 €.",
+        "vales_botao_es": "Elegir un vale regalo",
         "mostrar_no_telemovel": true
       },
       "blocks": {},
@@ -1436,7 +2117,11 @@
         "texto": "De todos nós, nas 13 lojas da Loja do Ouro.",
         "mostrar_coracao": true,
         "mostrar_fio": true,
-        "mostrar_no_telemovel": true
+        "mostrar_no_telemovel": true,
+        "titulo_en": "Season’s Greetings",
+        "texto_en": "From all of us at our 13 stores in Portugal.",
+        "titulo_es": "Felices fiestas",
+        "texto_es": "De parte de todo el equipo de nuestras 13 tiendas en Portugal."
       },
       "blocks": {},
       "block_order": [],

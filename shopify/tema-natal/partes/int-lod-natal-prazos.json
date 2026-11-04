@@ -1,0 +1,17 @@
+{
+  "type": "lod-natal-prazos",
+  "settings": {
+    "ancora": "prazos",
+    "titulo": "Quando encomendar para chegar antes do Natal",
+    "nota": "Prazo indicativo para encomendas pagas até ao final do dia indicado. Expedimos de Portugal no dia útil seguinte à confirmação do pagamento; o tempo de entrega varia consoante o destino e, fora da União Europeia, o desalfandegamento. Na época alta, a transportadora pode ter atrasos.",
+    "mostrar_calendario": true,
+    "mostrar_vales": false,
+    "titulo_en": "When to order for delivery before Christmas",
+    "nota_en": "Indicative deadline for orders paid by the end of the day shown. We ship from Portugal on the next working day after payment is confirmed; delivery times depend on the destination and, outside the European Union, on customs clearance. During the peak season, carriers may experience delays.",
+    "titulo_es": "Cuándo hacer su pedido para que llegue antes de Navidad",
+    "nota_es": "Plazo orientativo para pedidos pagados hasta el final del día indicado. Enviamos desde Portugal el día laborable siguiente a la confirmación del pago; el tiempo de entrega varía según el destino y, fuera de la Unión Europea, los trámites de aduana. En temporada alta, la empresa de transporte puede sufrir retrasos.",
+    "mostrar_no_telemovel": true
+  },
+  "blocks": {},
+  "block_order": []
+}

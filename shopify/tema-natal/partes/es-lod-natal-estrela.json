@@ -1,0 +1,175 @@
+{
+  "type": "lod-natal-estrela",
+  "settings": {
+    "eyebrow": "Guia de prendas · Natal e Reis",
+    "titulo": "Siga a estrela.",
+    "texto": "Como os Magos, siga a estrela: três escolhas e mostramos-lhe as peças certas, com os prazos indicativos de envio para Espanha peninsular, para o Natal e para o Dia de Reis.",
+    "ajuda": "",
+    "ajuda_link": "",
+    "ajuda_mensagem": "",
+    "titulo_resultados": "A estrela parou aqui.",
+    "eyebrow_en": "Gift guide · Christmas and Three Kings’ Day",
+    "titulo_en": "Follow the star.",
+    "texto_en": "Like the Magi, follow the star: make three choices and we will show you the right pieces, with the indicative deadlines for delivery to mainland Spain, for Christmas and for Three Kings’ Day.",
+    "ajuda_en": "",
+    "ajuda_link_en": "",
+    "ajuda_mensagem_en": "",
+    "titulo_resultados_en": "The star stopped here.",
+    "eyebrow_es": "Guía de regalos · Navidad y Reyes",
+    "titulo_es": "Siga la estrella.",
+    "texto_es": "Como los Magos, siga la estrella: elija tres opciones y le mostraremos las piezas adecuadas, con los plazos orientativos de envío a la España peninsular para Navidad y para el Día de Reyes.",
+    "ajuda_es": "",
+    "ajuda_link_es": "",
+    "ajuda_mensagem_es": "",
+    "titulo_resultados_es": "La estrella se detuvo aquí.",
+    "colecao_vale": "voucher-prenda",
+    "vale_fora_portugal": false,
+    "ancora": "siga-a-estrela",
+    "estado_inicial": "fechado",
+    "mostrar_no_telemovel": true,
+    "barra_telemovel": true,
+    "barra_fundo": 148
+  },
+  "blocks": {
+    "para_ela": {
+      "type": "destinatario",
+      "settings": {
+        "label": "Para ela",
+        "chave": "ela",
+        "resumo": "para ela",
+        "descricao": "Brincos, fios, pulseiras e anéis",
+        "destaque": true,
+        "colecao": "para-ela-natal",
+        "alternativa": "mulher",
+        "saltar_metal": false,
+        "aviso": "",
+        "label_en": "For her",
+        "resumo_en": "for her",
+        "descricao_en": "Earrings, necklaces, bracelets and rings",
+        "label_es": "Para ella",
+        "resumo_es": "para ella",
+        "descricao_es": "Pendientes, collares, pulseras y anillos"
+      }
+    },
+    "para_ele": {
+      "type": "destinatario",
+      "settings": {
+        "label": "Para ele",
+        "chave": "ele",
+        "resumo": "para ele",
+        "descricao": "Fios, pulseiras, anéis e relógios",
+        "destaque": true,
+        "colecao": "homem",
+        "alternativa": "aneis-homem",
+        "saltar_metal": false,
+        "aviso": "",
+        "label_en": "For him",
+        "resumo_en": "for him",
+        "descricao_en": "Chains, bracelets, rings and watches",
+        "label_es": "Para él",
+        "resumo_es": "para él",
+        "descricao_es": "Cadenas, pulseras, anillos y relojes"
+      }
+    },
+    "para_mae": {
+      "type": "destinatario",
+      "settings": {
+        "label": "Para a mãe",
+        "chave": "mae",
+        "resumo": "para a mãe",
+        "descricao": "",
+        "destaque": false,
+        "colecao": "para-a-mae-natal",
+        "alternativa": "mulher",
+        "saltar_metal": false,
+        "aviso": "",
+        "label_en": "For Mum",
+        "resumo_en": "for Mum",
+        "label_es": "Para mamá",
+        "resumo_es": "para mamá"
+      }
+    },
+    "para_avo": {
+      "type": "destinatario",
+      "settings": {
+        "label": "Para a avó",
+        "chave": "avo",
+        "resumo": "para a avó",
+        "descricao": "",
+        "destaque": false,
+        "colecao": "tradicao-ouro",
+        "alternativa": "tradicao-prata-ouro-filigrana-viana",
+        "saltar_metal": false,
+        "aviso": "",
+        "label_en": "For Grandma",
+        "resumo_en": "for Grandma",
+        "label_es": "Para la abuela",
+        "resumo_es": "para la abuela"
+      }
+    },
+    "pequenos": {
+      "type": "destinatario",
+      "settings": {
+        "label": "Para os mais pequenos",
+        "chave": "pequenos",
+        "resumo": "para os mais pequenos",
+        "descricao": "",
+        "destaque": false,
+        "colecao": "crianca-natal",
+        "alternativa": "crianca",
+        "saltar_metal": false,
+        "aviso": "",
+        "label_en": "For little ones",
+        "resumo_en": "for little ones",
+        "label_es": "Para los más pequeños",
+        "resumo_es": "para los más pequeños"
+      }
+    },
+    "batizado": {
+      "type": "destinatario",
+      "settings": {
+        "label": "Batizado e afilhados",
+        "chave": "batizado",
+        "resumo": "para batizados e afilhados",
+        "descricao": "",
+        "destaque": false,
+        "colecao": "batizados",
+        "alternativa": "medalhas-crianca-ouro",
+        "saltar_metal": false,
+        "aviso": "",
+        "label_en": "Christenings and godchildren",
+        "resumo_en": "for christenings and godchildren",
+        "label_es": "Bautizos y ahijados",
+        "resumo_es": "para bautizos y ahijados"
+      }
+    },
+    "guardar": {
+      "type": "destinatario",
+      "settings": {
+        "label": "Para guardar",
+        "chave": "guardar",
+        "resumo": "para guardar",
+        "descricao": "",
+        "destaque": false,
+        "colecao": "libras-com-aro",
+        "saltar_metal": true,
+        "aviso": "O preço do ouro varia com o mercado. Informação comercial, não constitui aconselhamento de investimento.",
+        "label_en": "To treasure",
+        "resumo_en": "to treasure",
+        "aviso_en": "The price of gold varies with the market. This is commercial information and does not constitute investment advice.",
+        "label_es": "Para atesorar",
+        "resumo_es": "para atesorar",
+        "aviso_es": "El precio del oro varía según el mercado. Información comercial; no constituye asesoramiento de inversión."
+      }
+    }
+  },
+  "block_order": [
+    "para_ela",
+    "para_ele",
+    "para_mae",
+    "para_avo",
+    "pequenos",
+    "batizado",
+    "guardar"
+  ]
+}

@@ -1,0 +1,340 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "context": {
+    "market": "internacional"
+  },
+  "parent": "index.json",
+  "sections": {
+    "lod_premium_collection_rail_EVhxqK": {
+      "settings": {
+        "collection": "relogios-mulher"
+      },
+      "blocks": {}
+    },
+    "lod_natal_int_hero": {
+      "type": "lod-natal-hero",
+      "settings": {
+        "imagem": "shopify://shop_images/Retrato_natalicio_de_tres_mulheres_1.webp",
+        "imagem_telemovel": "shopify://shop_images/banner_mobile_geral_18_1.jpg",
+        "alt": "Três mulheres de diferentes gerações, de fato creme, com joias em ouro, junto a uma árvore de Natal.",
+        "esquema": "foto-esquerda",
+        "lado_cartao": "direita",
+        "foco_x": 100,
+        "foco_y": 30,
+        "foco_y_tablet": 5,
+        "corte_tablet": 18,
+        "foco_y_tel": 100,
+        "mostrar_estrela": true,
+        "titulo_h1": true,
+        "assinatura": "Seleção Loja do Ouro",
+        "marca_lateral": "Loja do Ouro · Natal 2026",
+        "faixa": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\nJoias portuguesas, enviadas de Portugal",
+        "mostrar_no_telemovel": true,
+        "alt_en": "Three women of different generations, in cream suits and gold jewellery, beside a Christmas tree.",
+        "assinatura_en": "Selected by Gold Store Premium",
+        "marca_lateral_en": "Gold Store Premium · Christmas 2026",
+        "faixa_en": "Gold hallmarked by the Portuguese Assay Office (INCM)\nGift wrapping and a message, in your bag\nPortuguese jewellery, sent from Portugal",
+        "alt_es": "Tres mujeres de distintas generaciones, con trajes color crema y joyas de oro, junto a un árbol de Navidad.",
+        "assinatura_es": "Selección Gold Store Premium",
+        "marca_lateral_es": "Gold Store Premium · Navidad 2026",
+        "faixa_es": "Oro contrastado por la INCM\nEnvoltorio de regalo y mensaje, en la cesta\nJoyas portuguesas, enviadas desde Portugal"
+      },
+      "blocks": {
+        "int_navidad": {
+          "type": "fase",
+          "settings": {
+            "fase": "navidad",
+            "mercado": "int",
+            "ligado": true,
+            "eyebrow": "Natal 2026 · Ouro de Reis",
+            "titulo": "O primeiro presente de Natal foi ouro.",
+            "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família. Enviamos a partir de Portugal.",
+            "chip": "Envios internacionais: para receber antes do Natal, encomende até <b>{int}</b> (prazo indicativo; pode variar consoante o destino e a alfândega).",
+            "botao1_texto": "Encontrar a prenda",
+            "botao1_url": "/#siga-a-estrela",
+            "botao1_whatsapp": false,
+            "botao2_texto": "Corações de Viana",
+            "botao2_url": "shopify://collections/coracoes-de-viana",
+            "eyebrow_en": "Christmas 2026 · Gold of the Magi",
+            "titulo_en": "The first Christmas gift was gold.",
+            "texto_en": "19.2-carat Portuguese gold, filigree and Viana Hearts to give — and to keep in the family. Sent to you from Portugal.",
+            "chip_en": "International delivery: to arrive before Christmas, order by <b>{int}</b> (indicative deadline; times may vary by destination and customs).",
+            "botao1_texto_en": "Find the gift",
+            "botao2_texto_en": "Viana Hearts",
+            "eyebrow_es": "Navidad 2026 · Oro de Reyes",
+            "titulo_es": "El primer regalo de Navidad fue oro.",
+            "texto_es": "Oro portugués de 19,2 quilates, filigrana y corazones de Viana para regalar, y para que se queden en la familia. Enviamos desde Portugal.",
+            "chip_es": "Envíos internacionales: para recibirlo antes de Navidad, haga su pedido hasta el <b>{int}</b> (plazo orientativo; puede variar según el destino y la aduana).",
+            "botao1_texto_es": "Encontrar el regalo",
+            "botao2_texto_es": "Corazones de Viana"
+          }
+        }
+      },
+      "block_order": [
+        "int_navidad"
+      ],
+      "disabled": false
+    },
+    "lod_natal_int_estrela": {
+      "type": "lod-natal-estrela",
+      "settings": {
+        "eyebrow": "Guia de prendas",
+        "titulo": "Siga a estrela.",
+        "texto": "Três escolhas e mostramos-lhe as peças certas de joalharia portuguesa, com o prazo indicativo dos envios internacionais para o Natal.",
+        "ajuda": "",
+        "ajuda_link": "",
+        "ajuda_mensagem": "",
+        "titulo_resultados": "A estrela parou aqui.",
+        "eyebrow_en": "Gift guide",
+        "titulo_en": "Follow the star.",
+        "texto_en": "Make three choices and we will show you the right pieces of Portuguese jewellery, with the indicative international delivery deadline for Christmas.",
+        "ajuda_en": "",
+        "ajuda_link_en": "",
+        "ajuda_mensagem_en": "",
+        "titulo_resultados_en": "The star stopped here.",
+        "eyebrow_es": "Guía de regalos",
+        "titulo_es": "Siga la estrella.",
+        "texto_es": "Elija tres opciones y le mostraremos las piezas adecuadas de joyería portuguesa, con el plazo orientativo de los envíos internacionales para Navidad.",
+        "ajuda_es": "",
+        "ajuda_link_es": "",
+        "ajuda_mensagem_es": "",
+        "titulo_resultados_es": "La estrella se detuvo aquí.",
+        "colecao_vale": "voucher-prenda",
+        "vale_fora_portugal": false,
+        "ancora": "siga-a-estrela",
+        "estado_inicial": "fechado",
+        "mostrar_no_telemovel": true,
+        "barra_telemovel": true,
+        "barra_fundo": 148
+      },
+      "blocks": {
+        "para_ela": {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para ela",
+            "chave": "ela",
+            "resumo": "para ela",
+            "descricao": "Brincos, fios, pulseiras e anéis",
+            "destaque": true,
+            "colecao": "para-ela-natal",
+            "alternativa": "mulher",
+            "saltar_metal": false,
+            "aviso": "",
+            "label_en": "For her",
+            "resumo_en": "for her",
+            "descricao_en": "Earrings, necklaces, bracelets and rings",
+            "label_es": "Para ella",
+            "resumo_es": "para ella",
+            "descricao_es": "Pendientes, collares, pulseras y anillos"
+          }
+        },
+        "para_ele": {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para ele",
+            "chave": "ele",
+            "resumo": "para ele",
+            "descricao": "Fios, pulseiras, anéis e relógios",
+            "destaque": true,
+            "colecao": "homem",
+            "alternativa": "aneis-homem",
+            "saltar_metal": false,
+            "aviso": "",
+            "label_en": "For him",
+            "resumo_en": "for him",
+            "descricao_en": "Chains, bracelets, rings and watches",
+            "label_es": "Para él",
+            "resumo_es": "para él",
+            "descricao_es": "Cadenas, pulseras, anillos y relojes"
+          }
+        },
+        "para_mae": {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para a mãe",
+            "chave": "mae",
+            "resumo": "para a mãe",
+            "descricao": "",
+            "destaque": false,
+            "colecao": "para-a-mae-natal",
+            "alternativa": "mulher",
+            "saltar_metal": false,
+            "aviso": "",
+            "label_en": "For Mum",
+            "resumo_en": "for Mum",
+            "label_es": "Para mamá",
+            "resumo_es": "para mamá"
+          }
+        },
+        "para_avo": {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para a avó",
+            "chave": "avo",
+            "resumo": "para a avó",
+            "descricao": "",
+            "destaque": false,
+            "colecao": "tradicao-ouro",
+            "alternativa": "tradicao-prata-ouro-filigrana-viana",
+            "saltar_metal": false,
+            "aviso": "",
+            "label_en": "For Grandma",
+            "resumo_en": "for Grandma",
+            "label_es": "Para la abuela",
+            "resumo_es": "para la abuela"
+          }
+        },
+        "pequenos": {
+          "type": "destinatario",
+          "settings": {
+            "label": "Para os mais pequenos",
+            "chave": "pequenos",
+            "resumo": "para os mais pequenos",
+            "descricao": "",
+            "destaque": false,
+            "colecao": "crianca-natal",
+            "alternativa": "crianca",
+            "saltar_metal": false,
+            "aviso": "",
+            "label_en": "For little ones",
+            "resumo_en": "for little ones",
+            "label_es": "Para los más pequeños",
+            "resumo_es": "para los más pequeños"
+          }
+        },
+        "batizado": {
+          "type": "destinatario",
+          "settings": {
+            "label": "Batizado e afilhados",
+            "chave": "batizado",
+            "resumo": "para batizados e afilhados",
+            "descricao": "",
+            "destaque": false,
+            "colecao": "batizados",
+            "alternativa": "medalhas-crianca-ouro",
+            "saltar_metal": false,
+            "aviso": "",
+            "label_en": "Christenings and godchildren",
+            "resumo_en": "for christenings and godchildren",
+            "label_es": "Bautizos y ahijados",
+            "resumo_es": "para bautizos y ahijados"
+          }
+        }
+      },
+      "block_order": [
+        "para_ela",
+        "para_ele",
+        "para_mae",
+        "para_avo",
+        "pequenos",
+        "batizado"
+      ],
+      "disabled": false
+    },
+    "lod_natal_int_selecao": {
+      "type": "lod-natal-selecao",
+      "settings": {
+        "eyebrow": "No Natal passado",
+        "titulo": "Os mais oferecidos",
+        "descricao": "Algumas das peças mais escolhidas pelos nossos clientes no Natal de 2025.",
+        "produtos": [
+          "medalha-nossa-senhora-em-ouro-19kl-0-9cm",
+          "brincos-flamma-em-prata-dourada",
+          "escapulario-em-prata-dourada-com-imagem-religiosa-em-madreperola-e-zirconias",
+          "fio-em-prata-dourada-com-coracao-de-viana",
+          "medalha-papiro-em-ouro-19kl-com-letras",
+          "brincos-sonhos-de-alfama-em-prata-dourada",
+          "conjunto-fio-e-brincos-em-prata-com-perolas-e-zirconias",
+          "brincos-maria-em-prata-dourada-5cm",
+          "brincos-portuguesa-em-prata-dourada-5-8cm",
+          "brincos-hortencia-em-prata-dourada-4cm",
+          "brincos-luminis-em-prata-dourada-e-perola-aqua",
+          "pulseira-ternura-em-prata-dourada-16-5cm"
+        ],
+        "limite": 8,
+        "esconder_esgotados": true,
+        "link_texto": "Ver toda a Tradição",
+        "fundo": "papel",
+        "mostrar_no_telemovel": true,
+        "eyebrow_en": "Last Christmas",
+        "titulo_en": "Our most-loved gifts",
+        "descricao_en": "Some of the pieces our customers chose most often at Christmas 2025.",
+        "eyebrow_es": "La Navidad pasada",
+        "titulo_es": "Los más regalados",
+        "descricao_es": "Algunas de las joyas más elegidas por nuestros clientes en la Navidad de 2025.",
+        "link_url": "/collections/tradicao-prata-ouro-filigrana-viana",
+        "link_texto_en": "Explore Portuguese tradition",
+        "link_texto_es": "Toda la tradición portuguesa"
+      },
+      "blocks": {},
+      "block_order": [],
+      "disabled": false
+    },
+    "lod_natal_int_prazos": {
+      "type": "lod-natal-prazos",
+      "settings": {
+        "ancora": "prazos",
+        "titulo": "Quando encomendar para chegar antes do Natal",
+        "nota": "Prazo indicativo para encomendas pagas até ao final do dia indicado. Expedimos de Portugal no dia útil seguinte à confirmação do pagamento; o tempo de entrega varia consoante o destino e, fora da União Europeia, o desalfandegamento. Na época alta, a transportadora pode ter atrasos.",
+        "mostrar_calendario": true,
+        "mostrar_vales": false,
+        "titulo_en": "When to order for delivery before Christmas",
+        "nota_en": "Indicative deadline for orders paid by the end of the day shown. We ship from Portugal on the next working day after payment is confirmed; delivery times depend on the destination and, outside the European Union, on customs clearance. During the peak season, carriers may experience delays.",
+        "titulo_es": "Cuándo hacer su pedido para que llegue antes de Navidad",
+        "nota_es": "Plazo orientativo para pedidos pagados hasta el final del día indicado. Enviamos desde Portugal el día laborable siguiente a la confirmación del pago; el tiempo de entrega varía según el destino y, fuera de la Unión Europea, los trámites de aduana. En temporada alta, la empresa de transporte puede sufrir retrasos.",
+        "mostrar_no_telemovel": true
+      },
+      "blocks": {},
+      "block_order": [],
+      "disabled": false
+    },
+    "lod_natal_int_boas_festas": {
+      "type": "lod-natal-boas-festas",
+      "settings": {
+        "titulo": "Boas Festas",
+        "texto": "De todos nós, na Loja do Ouro.",
+        "mostrar_coracao": true,
+        "mostrar_fio": true,
+        "mostrar_no_telemovel": true,
+        "titulo_en": "Season’s Greetings",
+        "texto_en": "From all of us at Gold Store Premium.",
+        "titulo_es": "Felices fiestas",
+        "texto_es": "De parte de todo el equipo de Gold Store Premium."
+      },
+      "blocks": {},
+      "block_order": [],
+      "disabled": false
+    },
+    "z_image_banner_qQWiPb": {
+      "settings": {},
+      "blocks": {},
+      "disabled": true
+    }
+  },
+  "order": [
+    "lod_natal_int_hero",
+    "lod_natal_int_estrela",
+    "lod_natal_int_selecao",
+    "lod_natal_int_prazos",
+    "lod_premium_collection_rail_nEHCfN",
+    "lod_premium_collection_rail_TAXBhU",
+    "lod_premium_collection_rail_JypQNL",
+    "z_image_banner_ngqrCJ",
+    "lod_premium_collection_rail_fwxRNg",
+    "lod_premium_collection_rail_EVhxqK",
+    "lod_premium_collection_rail_hLjbkA",
+    "lod_premium_reviews_nPkUPe",
+    "1790243941dcacc144",
+    "custom_liquid_UpFHrA",
+    "lod_natal_int_boas_festas",
+    "z_image_banner_qQWiPb"
+  ]
+}

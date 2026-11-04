@@ -1,0 +1,63 @@
+{
+  "type": "lod-natal-hero",
+  "settings": {
+    "imagem": "shopify://shop_images/Retrato_natalicio_de_tres_mulheres_1.webp",
+    "imagem_telemovel": "shopify://shop_images/banner_mobile_geral_18_1.jpg",
+    "alt": "Três mulheres de diferentes gerações, de fato creme, com joias em ouro, junto a uma árvore de Natal.",
+    "esquema": "foto-esquerda",
+    "lado_cartao": "direita",
+    "foco_x": 100,
+    "foco_y": 30,
+    "foco_y_tablet": 5,
+    "corte_tablet": 18,
+    "foco_y_tel": 100,
+    "mostrar_estrela": true,
+    "titulo_h1": true,
+    "assinatura": "Seleção Loja do Ouro",
+    "marca_lateral": "Loja do Ouro · Natal 2026",
+    "faixa": "Ouro contrastado pela INCM\nEmbrulho de oferta e mensagem, no carrinho\nJoias portuguesas, enviadas de Portugal",
+    "mostrar_no_telemovel": true,
+    "alt_en": "Three women of different generations, in cream suits and gold jewellery, beside a Christmas tree.",
+    "assinatura_en": "Selected by Gold Store Premium",
+    "marca_lateral_en": "Gold Store Premium · Christmas 2026",
+    "faixa_en": "Gold hallmarked by the Portuguese Assay Office (INCM)\nGift wrapping and a message, in your bag\nPortuguese jewellery, sent from Portugal",
+    "alt_es": "Tres mujeres de distintas generaciones, con trajes color crema y joyas de oro, junto a un árbol de Navidad.",
+    "assinatura_es": "Selección Gold Store Premium",
+    "marca_lateral_es": "Gold Store Premium · Navidad 2026",
+    "faixa_es": "Oro contrastado por la INCM\nEnvoltorio de regalo y mensaje, en la cesta\nJoyas portuguesas, enviadas desde Portugal"
+  },
+  "blocks": {
+    "int_navidad": {
+      "type": "fase",
+      "settings": {
+        "fase": "navidad",
+        "mercado": "int",
+        "ligado": true,
+        "eyebrow": "Natal 2026 · Ouro de Reis",
+        "titulo": "O primeiro presente de Natal foi ouro.",
+        "texto": "Ouro português de 19,2 quilates, filigrana e Corações de Viana para oferecer — e para ficarem na família. Enviamos a partir de Portugal.",
+        "chip": "Envios internacionais: para receber antes do Natal, encomende até <b>{int}</b> (prazo indicativo; pode variar consoante o destino e a alfândega).",
+        "botao1_texto": "Encontrar a prenda",
+        "botao1_url": "/#siga-a-estrela",
+        "botao1_whatsapp": false,
+        "botao2_texto": "Corações de Viana",
+        "botao2_url": "shopify://collections/coracoes-de-viana",
+        "eyebrow_en": "Christmas 2026 · Gold of the Magi",
+        "titulo_en": "The first Christmas gift was gold.",
+        "texto_en": "19.2-carat Portuguese gold, filigree and Viana Hearts to give — and to keep in the family. Sent to you from Portugal.",
+        "chip_en": "International delivery: to arrive before Christmas, order by <b>{int}</b> (indicative deadline; times may vary by destination and customs).",
+        "botao1_texto_en": "Find the gift",
+        "botao2_texto_en": "Viana Hearts",
+        "eyebrow_es": "Navidad 2026 · Oro de Reyes",
+        "titulo_es": "El primer regalo de Navidad fue oro.",
+        "texto_es": "Oro portugués de 19,2 quilates, filigrana y corazones de Viana para regalar, y para que se queden en la familia. Enviamos desde Portugal.",
+        "chip_es": "Envíos internacionales: para recibirlo antes de Navidad, haga su pedido hasta el <b>{int}</b> (plazo orientativo; puede variar según el destino y la aduana).",
+        "botao1_texto_es": "Encontrar el regalo",
+        "botao2_texto_es": "Corazones de Viana"
+      }
+    }
+  },
+  "block_order": [
+    "int_navidad"
+  ]
+}

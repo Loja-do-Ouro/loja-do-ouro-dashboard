@@ -18,10 +18,20 @@
       "settings": {},
       "blocks": {}
     },
-    "custom_liquid_PUYkLN": {
+    "lod_natal_bar_es": {
       "disabled": true,
       "settings": {},
       "blocks": {}
+    },
+    "lod_natal_bar_int": {
+      "disabled": true,
+      "settings": {},
+      "blocks": {}
+    },
+    "custom_liquid_PUYkLN": {
+      "settings": {},
+      "blocks": {},
+      "disabled": true
     }
   }
 }

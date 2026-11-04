@@ -4,15 +4,46 @@
   entre 750 e 1199 (tablet e iPad na horizontal); no telemóvel, faixa com scroll-snap (cartões de 300 px)
   e pontos indicadores. As definições falam da tradição: nada de «feito à mão» ou «de ouro» ao lado de
   um «Ver peças» que leve a coleções com peças de prata ou sem certificação.
+  Línguas: campos base em português e campos _en/_es (vazios → português). Os termos podem ficar em português
+  (é um dicionário do ouro português) com a explicação na língua da página. Cada termo pode ter uma ligação
+  própria por língua (útil nas pesquisas: «brincos rainha» / «pendientes rainha» / «rainha earrings»).
+  Versões: Portugal e Espanha (no Internacional a secção não aparece), cada uma nas suas fases (contrato i18n,
+  secção 5). Ligações começadas por «/» ganham o prefixo da língua e do mercado.
 {%- endcomment -%}
 {%- liquid
+  # Língua da página, versão da campanha (mercado da visita) e fase dessa versão
+  capture lnat_lg
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_lg = lnat_lg | strip
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  assign lnat_versao = lnat_versao | strip
   capture lnat_fase
-    render 'lod-natal-fase'
+    render 'lod-natal-fase', mercado: 'auto'
   endcapture
   assign lnat_fase = lnat_fase | strip
-  assign oculta = false
-  if lnat_fase == 'off' or lnat_fase == 'antes' or lnat_fase == 'fim'
-    assign oculta = true
+  # Versões em que esta secção existe: Portugal e Espanha
+  assign versoes = ',pt,es,'
+  case lnat_versao
+    when 'es'
+      assign fases_versao = ',navidad,reyes,reyes_ultima,noche_reyes,'
+    when 'int'
+      assign fases_versao = ',navidad,'
+    else
+      assign lnat_versao = 'pt'
+      assign fases_versao = ',ouro,incenso,ultima,consoada,mirra,'
+  endcase
+  assign k_v = ',' | append: lnat_versao | append: ','
+  assign k_f = ',' | append: lnat_fase | append: ','
+  assign suporta = false
+  if versoes contains k_v
+    assign suporta = true
+  endif
+  assign oculta = true
+  if suporta and fases_versao contains k_f
+    assign oculta = false
   endif
   assign mostrar = true
   if oculta
@@ -22,6 +53,31 @@
     endif
   endif
   assign s = section.settings
+
+  # Textos na língua da página
+  assign t_eyebrow = s.eyebrow
+  assign t_titulo = s.titulo
+  assign t_texto = s.texto
+  assign suf = ''
+  if lnat_lg != 'pt'
+    assign suf = '_' | append: lnat_lg
+    assign k = 'eyebrow' | append: suf
+    if s[k] != blank
+      assign t_eyebrow = s[k]
+    endif
+    assign k = 'titulo' | append: suf
+    if s[k] != blank
+      assign t_titulo = s[k]
+    endif
+    assign k = 'texto' | append: suf
+    if s[k] != blank
+      assign t_texto = s[k]
+    endif
+  endif
+
+  # Prefixo da língua e do mercado para as ligações (routes.root_url é «/» na língua principal de cada domínio)
+  assign raiz = routes.root_url | default: '/'
+  assign raiz_pre = raiz | append: '/'
 -%}
 {%- capture svg_ini -%}<svg class="lnat-ico" viewBox="0 0 64 64" width="32" height="32" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{%- endcapture -%}
 {%- if mostrar -%}
@@ -32,22 +88,58 @@
 >
   <span id="dicionario" aria-hidden="true"></span>
   <div class="lnat-wrap">
-    {%- if oculta -%}{%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}{%- endif -%}
+    {%- if request.design_mode and suporta == false -%}
+      <p class="lnat-aviso-fase" style="margin:0 0 24px;padding:8px 12px;background:#fff3cd;color:#3d2f00;font:13px/1.4 var(--lnat-sans,system-ui,sans-serif);text-align:left">Pré-visualização no editor: esta secção não aparece no mercado Internacional (só em Portugal e em Espanha).</p>
+    {%- elsif oculta -%}
+      {%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}
+    {%- endif -%}
 
     <header class="lnat-dic__cab">
-      {%- if s.eyebrow != blank -%}
-        <p class="lnat-eb">{{ s.eyebrow | escape }}</p>
+      {%- if t_eyebrow != blank -%}
+        <p class="lnat-eb">{{ t_eyebrow | escape }}</p>
       {%- endif -%}
-      <h2 class="lnat-h2 lnat-dic__h" id="lnat-dic-h-{{ section.id }}">{{ s.titulo | escape }}</h2>
-      {%- if s.texto != blank -%}
-        <p class="lnat-dic__sub">{{ s.texto | escape }}</p>
+      <h2 class="lnat-h2 lnat-dic__h" id="lnat-dic-h-{{ section.id }}">{{ t_titulo | escape }}</h2>
+      {%- if t_texto != blank -%}
+        <p class="lnat-dic__sub">{{ t_texto | escape }}</p>
       {%- endif -%}
     </header>
 
     {%- if section.blocks.size > 0 -%}
       <ul class="lnat-dic__lista" role="list">
         {%- for block in section.blocks -%}
-          {%- assign b = block.settings -%}
+          {%- liquid
+            assign b = block.settings
+            assign b_termo = b.termo
+            assign b_def = b.definicao
+            assign b_link = b.link_texto
+            assign u = b.link_url
+            if suf != ''
+              assign k = 'termo' | append: suf
+              if b[k] != blank
+                assign b_termo = b[k]
+              endif
+              assign k = 'definicao' | append: suf
+              if b[k] != blank
+                assign b_def = b[k]
+              endif
+              assign k = 'link_texto' | append: suf
+              if b[k] != blank
+                assign b_link = b[k]
+              endif
+              assign k = 'link_url' | append: suf
+              if b[k] != blank
+                assign u = b[k]
+              endif
+            endif
+            if u != blank and raiz != '/'
+              assign u1 = u | slice: 0, 1
+              assign u2 = u | slice: 0, 2
+              assign u_pre = u | slice: 0, raiz_pre.size
+              if u1 == '/' and u2 != '//' and u_pre != raiz_pre and u != raiz
+                assign u = raiz | append: u
+              endif
+            endif
+          -%}
           <li class="lnat-dic__termo" {{ block.shopify_attributes }}>
             <span class="lnat-dic__ico">
               {%- case b.icone -%}
@@ -71,12 +163,12 @@
                   {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 32, traco: 2.4 -%}
               {%- endcase -%}
             </span>
-            <h3 class="lnat-cg lnat-dic__nome">{{ b.termo | escape }}</h3>
-            {%- if b.definicao != blank -%}
-              <p class="lnat-dic__def">{{ b.definicao | escape }}</p>
+            <h3 class="lnat-cg lnat-dic__nome">{{ b_termo | escape }}</h3>
+            {%- if b_def != blank -%}
+              <p class="lnat-dic__def">{{ b_def | escape }}</p>
             {%- endif -%}
-            {%- if b.link_url != blank and b.link_texto != blank -%}
-              <a class="lnat-link lnat-dic__link" href="{{ b.link_url }}">{{ b.link_texto | escape }}<span class="lnat-sr">: {{ b.termo | escape }}</span> <span aria-hidden="true">→</span></a>
+            {%- if u != blank and b_link != blank -%}
+              <a class="lnat-link lnat-dic__link" href="{{ u }}">{{ b_link | escape }}<span class="lnat-sr">: {{ b_termo | escape }}</span> <span aria-hidden="true">→</span></a>
             {%- endif -%}
           </li>
         {%- endfor -%}
@@ -126,13 +218,16 @@
 
 <script>
 (function(){
+  // Fases em que a secção aparece, por versão da campanha (contrato i18n, secção 5); no Internacional não aparece
+  var ATIVAS = { pt: ['ouro', 'incenso', 'ultima', 'consoada', 'mirra'], es: ['navidad', 'reyes', 'reyes_ultima', 'noche_reyes'] };
   function ini(sec){
     if (sec.getAttribute('data-lnat-pronto')) return;
     sec.setAttribute('data-lnat-pronto', '1');
     var N = window.LOD_NATAL;
     if (N && !sec.classList.contains('lnat-dic--editor')) {
-      var f = N.fase();
-      if (f === 'off' || f === 'antes' || f === 'fim') { sec.hidden = true; return; }
+      var v = N.versao || 'pt';
+      var f = N.fase(v);
+      if (!ATIVAS[v] || ATIVAS[v].indexOf(f) < 0) { sec.hidden = true; return; }
     }
     var lista = sec.querySelector('.lnat-dic__lista');
     var pontos = sec.querySelectorAll('.lnat-dic__ponto');
@@ -179,7 +274,15 @@
     { "type": "textarea", "id": "texto", "label": "Texto", "default": "Os nomes das peças que as nossas avós usavam — e que continuam a passar de mão em mão." },
     { "type": "checkbox", "id": "azulejo", "label": "Padrão de azulejo no fundo", "default": false },
     { "type": "header", "content": "Telemóvel" },
-    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true }
+    { "type": "checkbox", "id": "mostrar_no_telemovel", "label": "Mostrar no telemóvel", "default": true },
+    { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_en", "label": "Sobretítulo (EN)" },
+    { "type": "text", "id": "titulo_en", "label": "Título (EN)" },
+    { "type": "textarea", "id": "texto_en", "label": "Texto (EN)" },
+    { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
+    { "type": "text", "id": "eyebrow_es", "label": "Sobretítulo (ES)" },
+    { "type": "text", "id": "titulo_es", "label": "Título (ES)" },
+    { "type": "textarea", "id": "texto_es", "label": "Texto (ES)" }
   ],
   "blocks": [
     {
@@ -208,7 +311,17 @@
         { "type": "text", "id": "termo", "label": "Termo", "default": "Filigrana" },
         { "type": "textarea", "id": "definicao", "label": "Definição", "default": "A arte de trabalhar fio de ouro ou prata, torcido, em curvas e espirais." },
         { "type": "text", "id": "link_texto", "label": "Texto do link", "default": "Ver peças" },
-        { "type": "url", "id": "link_url", "label": "Link" }
+        { "type": "url", "id": "link_url", "label": "Link" },
+        { "type": "header", "content": "Tradução — Inglês (EN)", "info": "Deixe vazio para usar o português." },
+        { "type": "text", "id": "termo_en", "label": "Termo (EN)", "info": "Pode ficar em português: a definição explica-o." },
+        { "type": "textarea", "id": "definicao_en", "label": "Definição (EN)" },
+        { "type": "text", "id": "link_texto_en", "label": "Texto do link (EN)" },
+        { "type": "url", "id": "link_url_en", "label": "Link (EN)", "info": "Vazio: usa o link acima." },
+        { "type": "header", "content": "Tradução — Espanhol (ES)", "info": "Deixe vazio para usar o português." },
+        { "type": "text", "id": "termo_es", "label": "Termo (ES)", "info": "Pode ficar em português: a definição explica-o." },
+        { "type": "textarea", "id": "definicao_es", "label": "Definição (ES)" },
+        { "type": "text", "id": "link_texto_es", "label": "Texto do link (ES)" },
+        { "type": "url", "id": "link_url_es", "label": "Link (ES)", "info": "Vazio: usa o link acima." }
       ]
     }
   ],

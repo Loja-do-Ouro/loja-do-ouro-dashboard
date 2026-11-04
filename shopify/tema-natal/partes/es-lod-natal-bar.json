@@ -1,0 +1,209 @@
+{
+  "type": "lod-natal-bar",
+  "settings": {
+    "mercado": "spain",
+    "mostrar_no_telemovel": true,
+    "janeiras_confirmadas": false
+  },
+  "blocks": {
+    "es_navidad": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Natal: encomende até <strong>{es_navidad}</strong> para receber antes do Natal (envios para Espanha peninsular, prazo indicativo).",
+        "texto_telemovel": "Natal: encomende até <strong>{es_navidad:abrev}</strong> (Espanha peninsular, prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "inicio",
+        "ate": "es_navidad",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Christmas: order by <strong>{es_navidad}</strong> to receive your gifts before Christmas (delivery to mainland Spain, indicative deadline).",
+        "texto_telemovel_en": "Christmas: order by <strong>{es_navidad:abrev}</strong> (mainland Spain, indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Navidad: haga su pedido hasta el <strong>{es_navidad}</strong> para recibirlo antes de Navidad (envíos a la España peninsular, plazo orientativo).",
+        "texto_telemovel_es": "Navidad: pedidos hasta el <strong>{es_navidad:abrev}</strong> (España peninsular, plazo orientativo)",
+        "link_texto_es": "Ver plazos"
+      }
+    },
+    "es_reyes_aviso": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Para o Dia de Reis, a 6 de janeiro, encomende até <strong>{es_reyes}</strong> (envios para Espanha peninsular, prazo indicativo).",
+        "texto_telemovel": "Dia de Reis: encomende até <strong>{es_reyes:abrev}</strong> (prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "inicio",
+        "ate": "es_navidad",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "For Three Kings’ Day on 6 January, order by <strong>{es_reyes}</strong> (delivery to mainland Spain, indicative deadline).",
+        "texto_telemovel_en": "Three Kings’ Day: order by <strong>{es_reyes:abrev}</strong> (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Para el Día de Reyes, el 6 de enero, haga su pedido hasta el <strong>{es_reyes}</strong> (envíos a la España peninsular, plazo orientativo).",
+        "texto_telemovel_es": "Día de Reyes: pedidos hasta el <strong>{es_reyes:abrev}</strong> (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
+      }
+    },
+    "es_reyes_antes": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Para o Natal já não chega, mas ainda vai a tempo do Dia de Reis: encomende até <strong>{es_reyes:longo}</strong> (prazo indicativo)",
+        "texto_telemovel": "A tempo dos Reis: encomende até <strong>{es_reyes:abrev}</strong> (prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "es_navidad",
+        "ate": "loja",
+        "contagem": "es_reyes",
+        "condicao": "sempre",
+        "texto_en": "Too late for Christmas, but still in time for Three Kings’ Day: order by <strong>{es_reyes:longo}</strong> (indicative deadline)",
+        "texto_telemovel_en": "In time for Three Kings’ Day: order by <strong>{es_reyes:abrev}</strong> (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Para Navidad ya no llega, pero aún está a tiempo para el Día de Reyes: haga su pedido hasta el <strong>{es_reyes:longo}</strong> (plazo orientativo)",
+        "texto_telemovel_es": "A tiempo para Reyes: pedidos hasta el <strong>{es_reyes:abrev}</strong> (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
+      }
+    },
+    "es_fiestas": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Boas Festas da Loja do Ouro. As encomendas feitas hoje seguem a partir de <strong>{retoma}</strong>.",
+        "texto_telemovel": "Boas Festas! As encomendas de hoje seguem a partir de <strong>{retoma:abrev}</strong>",
+        "de": "loja",
+        "ate": "festas",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Season’s greetings from Gold Store Premium. Orders placed today will be dispatched from <strong>{retoma}</strong>.",
+        "texto_telemovel_en": "Season’s greetings! Today’s orders will be dispatched from <strong>{retoma:abrev}</strong>",
+        "texto_es": "Felices fiestas de parte de Gold Store Premium. Los pedidos realizados hoy se enviarán a partir del <strong>{retoma}</strong>.",
+        "texto_telemovel_es": "¡Felices fiestas! Los pedidos de hoy se envían a partir del <strong>{retoma:abrev}</strong>"
+      }
+    },
+    "es_reyes": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Ainda vai a tempo do Dia de Reis: encomende até <strong>{es_reyes:longo}</strong> (envios para Espanha peninsular, prazo indicativo)",
+        "texto_telemovel": "A tempo dos Reis: encomende até <strong>{es_reyes:abrev}</strong> (prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "festas",
+        "ate": "es_reyes",
+        "contagem": "es_reyes",
+        "condicao": "sempre",
+        "texto_en": "Still in time for Three Kings’ Day: order by <strong>{es_reyes:longo}</strong> (delivery to mainland Spain, indicative deadline)",
+        "texto_telemovel_en": "In time for Three Kings’ Day: order by <strong>{es_reyes:abrev}</strong> (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "A tiempo para el Día de Reyes: haga su pedido hasta el <strong>{es_reyes:longo}</strong> (envíos a la España peninsular, plazo orientativo)",
+        "texto_telemovel_es": "A tiempo para Reyes: pedidos hasta el <strong>{es_reyes:abrev}</strong> (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
+      }
+    },
+    "es_reyes_ko": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Envios para Espanha: as encomendas feitas a partir de hoje já não chegam a tempo do Dia de Reis.",
+        "texto_telemovel": "As encomendas de hoje já não chegam a tempo do Dia de Reis",
+        "de": "es_reyes",
+        "ate": "es_noche",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Delivery to Spain: orders placed from today will no longer arrive in time for Three Kings’ Day.",
+        "texto_telemovel_en": "Today’s orders will no longer arrive in time for Three Kings’ Day",
+        "texto_es": "Envíos a España: los pedidos realizados desde hoy ya no llegan a tiempo para el Día de Reyes.",
+        "texto_telemovel_es": "Los pedidos de hoy ya no llegan a tiempo para el Día de Reyes"
+      }
+    },
+    "es_vale": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Sem tempo para o envio? Ofereça um <strong>vale-prenda</strong> de 25 € a 150 €, entregue por email.",
+        "texto_telemovel": "<strong>Vale-prenda</strong> por email, de 25 € a 150 €",
+        "link": "/collections/voucher-prenda",
+        "link_texto": "Escolher",
+        "de": "es_reyes",
+        "ate": "es_noche",
+        "contagem": "nenhuma",
+        "condicao": "vale_digital",
+        "texto_en": "Out of time for delivery? Give a <strong>gift voucher</strong> from €25 to €150, delivered by email.",
+        "texto_telemovel_en": "<strong>Gift vouchers</strong> by email, from €25 to €150",
+        "link_texto_en": "Choose",
+        "texto_es": "¿Sin tiempo para el envío? Ofrezca un <strong>vale regalo</strong> de 25 € a 150 €, que se entrega por correo electrónico.",
+        "texto_telemovel_es": "<strong>Vale regalo</strong> por correo electrónico, de 25 € a 150 €",
+        "link_texto_es": "Elegir"
+      }
+    },
+    "es_noche": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "A Loja do Ouro deseja-lhe um feliz Dia de Reis.",
+        "de": "es_noche",
+        "ate": "fim",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Gold Store Premium wishes you a happy Three Kings’ Day.",
+        "texto_es": "Gold Store Premium le desea unos felices Reyes."
+      }
+    },
+    "es_guia": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Ainda sem ideias? <strong>Siga a estrela</strong>: prendas em ouro e prata para cada pessoa e cada orçamento.",
+        "texto_telemovel": "<strong>Siga a estrela</strong>: ideias de prendas em ouro e prata",
+        "link": "/#siga-a-estrela",
+        "link_texto": "Ver ideias",
+        "de": "inicio",
+        "ate": "es_reyes",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Still looking for ideas? <strong>Follow the star</strong>: gifts in gold and silver for everyone on your list, whatever your budget.",
+        "texto_telemovel_en": "<strong>Follow the star</strong>: gift ideas in gold and silver",
+        "link_texto_en": "See ideas",
+        "texto_es": "¿Aún sin ideas? <strong>Siga la estrella</strong>: regalos en oro y plata para cada persona y cada presupuesto.",
+        "texto_telemovel_es": "<strong>Siga la estrella</strong>: ideas de regalo en oro y plata",
+        "link_texto_es": "Ver ideas"
+      }
+    },
+    "es_embrulho": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "<strong>Embrulho de oferta</strong> e mensagem: escolha no carrinho.",
+        "texto_telemovel": "<strong>Embrulho de oferta</strong> e mensagem: escolha no carrinho",
+        "de": "inicio",
+        "ate": "es_reyes",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "<strong>Gift wrapping</strong> and a message: choose them in your bag.",
+        "texto_telemovel_en": "<strong>Gift wrapping</strong> and a message: choose them in your bag",
+        "texto_es": "<strong>Envoltorio de regalo</strong> y mensaje: elíjalos en la cesta.",
+        "texto_telemovel_es": "<strong>Envoltorio de regalo</strong> y mensaje: elíjalos en la cesta"
+      }
+    },
+    "es_oro": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Joias em <strong>ouro português de 19,2 quilates</strong>, contrastado pela INCM.",
+        "texto_telemovel": "Joias em <strong>ouro português de 19,2 quilates</strong>",
+        "de": "inicio",
+        "ate": "es_noche",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Jewellery in <strong>19.2-carat Portuguese gold</strong>, hallmarked by the Portuguese Assay Office (INCM).",
+        "texto_telemovel_en": "Jewellery in <strong>19.2-carat Portuguese gold</strong>",
+        "texto_es": "Joyas en <strong>oro portugués de 19,2 quilates</strong>, contrastado por la INCM.",
+        "texto_telemovel_es": "Joyas en <strong>oro portugués de 19,2 quilates</strong>"
+      }
+    }
+  },
+  "block_order": [
+    "es_navidad",
+    "es_reyes_aviso",
+    "es_reyes_antes",
+    "es_fiestas",
+    "es_reyes",
+    "es_reyes_ko",
+    "es_vale",
+    "es_noche",
+    "es_guia",
+    "es_embrulho",
+    "es_oro"
+  ]
+}

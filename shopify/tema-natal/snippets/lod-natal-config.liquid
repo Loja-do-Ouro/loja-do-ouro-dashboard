@@ -2,6 +2,14 @@
   Natal 2026 · Ouro de Reis — base comum (renderizado uma vez no <head> de layout/theme.liquid).
   Cores, letra de acento (biblioteca de letras da Shopify, sem Google Fonts), classes partilhadas
   e o motor de datas window.LOD_NATAL (hora de Lisboa).
+  Línguas e mercados (contrato: scratchpad/natal/i18n-contrato.md):
+    LOD_NATAL.mercado  handle do mercado (localization.market.handle: pt, spain, internacional…)
+    LOD_NATAL.versao   versão da campanha desse mercado: pt (Ouro de Reis) | es (Oro de Reyes) | int (versão leve)
+    LOD_NATAL.lingua   pt | en | es (outra língua → en);  LOD_NATAL.marca  «Loja do Ouro» (pt) ou «Gold Store Premium»
+    LOD_NATAL.t        dicionário dos textos fixos na língua da página (gerado de snippets/lod-natal-t)
+    LOD_NATAL.tf(k, v1, v2)  texto da chave k com {1} e {2} substituídos;  LOD_NATAL.lista(k)  chave com lista → array
+    LOD_NATAL.fmt(valor, formato, inicial)  datas como snippets/lod-natal-data, na língua da página
+    LOD_NATAL.fase()   fase de Portugal (como sempre); fase('es'), fase('int'), fase('auto') = fase do mercado da visita
 {%- endcomment -%}
 {%- liquid
   assign lnat_fonte = settings.natal_fonte_acento
@@ -11,6 +19,22 @@
   capture lnat_fase
     render 'lod-natal-fase'
   endcapture
+  capture lnat_fase_m
+    render 'lod-natal-fase', mercado: 'auto'
+  endcapture
+  capture lnat_versao
+    render 'lod-natal-fase', mercado: 'auto', devolve: 'versao'
+  endcapture
+  capture lnat_lingua
+    render 'lod-natal-t', k: '_lingua'
+  endcapture
+  assign lnat_t_raw = ''
+  if settings.natal_ativo != false
+    capture lnat_t_raw
+      render 'lod-natal-t', k: '*'
+    endcapture
+  endif
+  assign lnat_es_noche = settings.natal_fim | default: '2027-01-06 23:59' | date: '%Y' | append: '-01-05 00:00'
   assign lnat_sim = ''
   if settings.natal_data_simulada != blank and theme.role != 'main'
     assign lnat_sim = settings.natal_data_simulada | strip
@@ -94,17 +118,47 @@
   var D = {
     inicio: {{ settings.natal_inicio | default: '2026-12-01 00:00' | json }},
     fase2: {{ settings.natal_fase2_inicio | default: '2026-12-14 00:00' | json }},
-    acores: {{ settings.natal_limite_acores | default: '2026-12-04 23:59' | json }},
-    madeira: {{ settings.natal_limite_madeira | default: '2026-12-11 23:59' | json }},
+    acores: {{ settings.natal_limite_acores | default: '2026-12-14 23:59' | json }},
+    madeira: {{ settings.natal_limite_madeira | default: '2026-12-14 23:59' | json }},
     gravacao: {{ settings.natal_limite_gravacao | default: '2026-12-16 23:59' | json }},
-    continente: {{ settings.natal_limite_continente | default: '2026-12-18 23:59' | json }},
+    continente: {{ settings.natal_limite_continente | default: '2026-12-20 23:59' | json }},
     loja: {{ settings.natal_limite_loja | default: '2026-12-24 13:00' | json }},
     festas: {{ settings.natal_boas_festas_fim | default: '2026-12-25 23:59' | json }},
     retoma: {{ settings.natal_retoma_envios | default: '2026-12-28' | json }},
     reis: {{ settings.natal_limite_reis | default: '2026-12-30 23:59' | json }},
     fim: {{ settings.natal_fim | default: '2027-01-06 23:59' | json }},
-    trocas: {{ settings.natal_trocas_ate | default: '2027-01-15' | json }}
+    trocas: {{ settings.natal_trocas_ate | default: '2027-01-15' | json }},
+    // Espanha e Internacional (Navidad confirmada pela loja; Reyes e Internacional propostos; sempre indicativos)
+    es_navidad: {{ settings.natal_es_limite_navidad | default: '2026-12-20 23:59' | json }},
+    es_reyes: {{ settings.natal_es_limite_reyes | default: '2026-12-29 23:59' | json }},
+    es_noche: {{ lnat_es_noche | json }},
+    int: {{ settings.natal_int_limite | default: '2026-12-10 23:59' | json }}
   };
+  var MERCADO = {{ localization.market.handle | default: '' | json }};
+  var LINGUA = {{ lnat_lingua | strip | default: 'pt' | json }};
+  var MARCA = LINGUA === 'pt' ? 'Loja do Ouro' : 'Gold Store Premium';
+  // Dicionário: «~~chave=texto» (snippets/lod-natal-t, já com {marca} substituído) → { chave: texto }
+  var T = {};
+  String({{ lnat_t_raw | json }} || '').split('~~').forEach(function(e){
+    var i = e.indexOf('=');
+    if (i > 0) T[e.slice(0, i).trim()] = e.slice(i + 1).trim();
+  });
+  function tf(k, a, b){
+    var s = T[k];
+    if (s == null) return k;
+    if (a != null) s = s.split('{1}').join(String(a));
+    if (b != null) s = s.split('{2}').join(String(b));
+    return s;
+  }
+  function lista(k){ return T[k] ? T[k].split(',') : []; }
+  function versaoDe(m){
+    m = String(m == null ? '' : m).toLowerCase();
+    if (m === '' || m === 'pt' || m === 'portugal') return 'pt';
+    if (m === 'spain' || m === 'es' || m === 'espanha') return 'es';
+    return 'int';
+  }
+  // A versão vem do servidor (snippets/lod-natal-fase, devolve: 'versao'); versaoDe é a mesma regra, para o caso de faltar.
+  var VERSAO = {{ lnat_versao | strip | json }} || versaoDe(MERCADO);
   var publicado = !!(window.Shopify && Shopify.theme && Shopify.theme.role === 'main') && !(window.Shopify && Shopify.designMode);
   var sim = null;
   if (!publicado) {
@@ -131,10 +185,23 @@
     try { return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Lisbon'}).format(agora()); }
     catch (e) { return agora().toISOString().slice(0,10); }
   }
-  function fase(){
+  function tm(s){ var d = lx(s); return d ? d.getTime() : NaN; }
+  // fase() = Portugal (lógica de sempre). fase('es') / fase('int') / fase('auto' = mercado da visita):
+  //   es:  antes | navidad (≤ es_navidad) | reyes (≤ es_reyes) | reyes_ultima (< es_noche, 5 jan. 00:00) | noche_reyes (≤ fim) | fim
+  //   int: antes | navidad (≤ int e ≤ fim) | fim
+  function fase(v){
     {%- if settings.natal_ativo == false %} return 'off';{% endif %}
+    v = (v == null || v === '') ? 'pt' : (v === 'auto' ? VERSAO : versaoDe(v));
     var t = agora().getTime();
     if (t < lx(D.inicio)) return 'antes';
+    if (v === 'es') {
+      if (t <= tm(D.es_navidad) + 59999) return 'navidad';
+      if (t <= tm(D.es_reyes) + 59999) return 'reyes';
+      if (t < tm(D.es_noche)) return 'reyes_ultima';
+      if (t <= tm(D.fim) + 59999) return 'noche_reyes';
+      return 'fim';
+    }
+    if (v === 'int') return (t <= tm(D.int) + 59999 && t <= tm(D.fim) + 59999) ? 'navidad' : 'fim';
     if (t < lx(D.fase2)) return 'ouro';
     if (t <= lx(D.continente).getTime() + 59999) return 'incenso';
     if (t < lx(D.loja)) return 'ultima';
@@ -148,18 +215,46 @@
     var m = Math.floor(ms / 60000);
     return { d: Math.floor(m / 1440), h: Math.floor(m % 1440 / 60), m: m % 60, ms: ms };
   }
+  // Datas como snippets/lod-natal-data, na língua da página: longo, curto, abrev, hora, abrev-hora, ano, semana.
+  function fmt(v, f, ini){
+    var m = String(v || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/);
+    if (!m) return '';
+    var a = +m[1], me = +m[2], d = +m[3], h = m[4] != null ? +m[4] : 0, mi = m[5] || '00';
+    var DI = lista('dias'), ME = lista('meses'), MA = lista('meses_abr'), en = LINGUA === 'en', hh;
+    var w = new Date(Date.UTC(a, me - 1, d)).getUTCDay();
+    if (LINGUA === 'pt') hh = h + 'h' + (mi !== '00' ? mi : '');
+    else if (LINGUA === 'es') hh = h + ':' + mi + ' h';
+    else if (h === 12 && mi === '00') hh = 'midday';
+    else if (h === 0 && mi === '00') hh = 'midnight';
+    else hh = ((h % 12) || 12) + (mi !== '00' ? ':' + mi : '') + (h >= 12 ? 'pm' : 'am');
+    var curto = d + (en ? ' ' : ' de ') + (ME[me - 1] || ''), abrev = d + ' ' + (MA[me - 1] || ''), s;
+    switch (f) {
+      case 'longo': s = (DI[w] || '') + (en ? ' ' : ', ') + curto; break;
+      case 'abrev': s = abrev; break;
+      case 'hora': s = curto + ', ' + hh; break;
+      case 'abrev-hora': s = abrev + ', ' + hh; break;
+      case 'ano': s = curto + (en ? ' ' : ' de ') + a; break;
+      case 'semana': s = DI[w] || ''; break;
+      default: s = curto;
+    }
+    return ini && s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
   window.LOD_NATAL = {
     d: D, lx: lx, agora: agora, hoje: hoje, fase: fase, passou: passou, falta: falta,
     simulada: !!simData, publicado: publicado,
     wa: {{ settings.natal_whatsapp | default: '351910067687' | remove: ' ' | remove: '+' | json }},
-    faseServidor: {{ lnat_fase | strip | json }}
+    faseServidor: {{ lnat_fase | strip | json }},
+    faseServidorMercado: {{ lnat_fase_m | strip | json }},
+    mercado: MERCADO, versao: VERSAO, versaoDe: versaoDe, lingua: LINGUA, marca: MARCA,
+    t: T, tf: tf, lista: lista, fmt: fmt
   };
-  document.documentElement.setAttribute('data-natal-fase', fase());
+  document.documentElement.setAttribute('data-natal-fase', fase('auto'));
+  document.documentElement.setAttribute('data-natal-versao', VERSAO);
   if (simData) {
     document.addEventListener('DOMContentLoaded', function(){
       var b = document.createElement('div');
       b.className = 'lnat-sim';
-      b.textContent = 'Pré-visualização do Natal · data simulada: ' + sim + ' (fase: ' + fase() + ')';
+      b.textContent = 'Pré-visualização do Natal · data simulada: ' + sim + ' · Portugal: ' + fase('pt') + ' · Espanha: ' + fase('es') + ' · Internacional: ' + fase('int') + ' · esta página: ' + (MERCADO || 'pt') + ' (' + VERSAO + '), ' + LINGUA;
       document.body.appendChild(b);
     });
   }

@@ -1,0 +1,16 @@
+{
+  "type": "lod-natal-boas-festas",
+  "settings": {
+    "titulo": "Boas Festas",
+    "texto": "De todos nós, na Loja do Ouro.",
+    "mostrar_coracao": true,
+    "mostrar_fio": true,
+    "mostrar_no_telemovel": true,
+    "titulo_en": "Season’s Greetings",
+    "texto_en": "From all of us at Gold Store Premium.",
+    "titulo_es": "Felices fiestas",
+    "texto_es": "De parte de todo el equipo de Gold Store Premium."
+  },
+  "blocks": {},
+  "block_order": []
+}

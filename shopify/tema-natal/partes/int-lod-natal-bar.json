@@ -1,0 +1,84 @@
+{
+  "type": "lod-natal-bar",
+  "settings": {
+    "mercado": "internacional",
+    "mostrar_no_telemovel": true,
+    "janeiras_confirmadas": false
+  },
+  "blocks": {
+    "int_natal": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Natal: encomende até <strong>{int}</strong> para receber a tempo (envios internacionais; prazo indicativo, que pode variar consoante o destino)",
+        "texto_telemovel": "Natal: encomende até <strong>{int:abrev}</strong> (prazo indicativo)",
+        "link": "/#prazos",
+        "link_texto": "Ver prazos",
+        "de": "inicio",
+        "ate": "int",
+        "contagem": "int",
+        "condicao": "sempre",
+        "texto_en": "Christmas: order by <strong>{int}</strong> to receive your gifts in time (international delivery; indicative deadline, which may vary by destination)",
+        "texto_telemovel_en": "Christmas: order by <strong>{int:abrev}</strong> (indicative deadline)",
+        "link_texto_en": "See deadlines",
+        "texto_es": "Navidad: haga su pedido hasta el <strong>{int}</strong> para recibirlo a tiempo (envíos internacionales; plazo orientativo, que puede variar según el destino)",
+        "texto_telemovel_es": "Navidad: pedidos hasta el <strong>{int:abrev}</strong> (plazo orientativo)",
+        "link_texto_es": "Ver plazos"
+      }
+    },
+    "int_guia": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Ainda sem ideias? <strong>Siga a estrela</strong>: prendas em ouro e prata para cada pessoa e cada orçamento.",
+        "texto_telemovel": "<strong>Siga a estrela</strong>: ideias de prendas em ouro e prata",
+        "link": "/#siga-a-estrela",
+        "link_texto": "Ver ideias",
+        "de": "inicio",
+        "ate": "int",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Still looking for ideas? <strong>Follow the star</strong>: gifts in gold and silver for everyone on your list, whatever your budget.",
+        "texto_telemovel_en": "<strong>Follow the star</strong>: gift ideas in gold and silver",
+        "link_texto_en": "See ideas",
+        "texto_es": "¿Aún sin ideas? <strong>Siga la estrella</strong>: regalos en oro y plata para cada persona y cada presupuesto.",
+        "texto_telemovel_es": "<strong>Siga la estrella</strong>: ideas de regalo en oro y plata",
+        "link_texto_es": "Ver ideas"
+      }
+    },
+    "int_embrulho": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "<strong>Embrulho de oferta</strong> e mensagem: escolha no carrinho.",
+        "texto_telemovel": "<strong>Embrulho de oferta</strong> e mensagem: escolha no carrinho",
+        "de": "inicio",
+        "ate": "int",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "<strong>Gift wrapping</strong> and a message: choose them in your bag.",
+        "texto_telemovel_en": "<strong>Gift wrapping</strong> and a message: choose them in your bag",
+        "texto_es": "<strong>Envoltorio de regalo</strong> y mensaje: elíjalos en la cesta.",
+        "texto_telemovel_es": "<strong>Envoltorio de regalo</strong> y mensaje: elíjalos en la cesta"
+      }
+    },
+    "int_oro": {
+      "type": "mensagem",
+      "settings": {
+        "texto": "Joias em <strong>ouro português de 19,2 quilates</strong>, contrastado pela INCM e enviado de Portugal.",
+        "texto_telemovel": "Joias em <strong>ouro português de 19,2 quilates</strong>",
+        "de": "inicio",
+        "ate": "int",
+        "contagem": "nenhuma",
+        "condicao": "sempre",
+        "texto_en": "Jewellery in <strong>19.2-carat Portuguese gold</strong>, hallmarked by the Portuguese Assay Office (INCM) and sent from Portugal.",
+        "texto_telemovel_en": "Jewellery in <strong>19.2-carat Portuguese gold</strong>",
+        "texto_es": "Joyas en <strong>oro portugués de 19,2 quilates</strong>, contrastado por la INCM y enviado desde Portugal.",
+        "texto_telemovel_es": "Joyas en <strong>oro portugués de 19,2 quilates</strong>"
+      }
+    }
+  },
+  "block_order": [
+    "int_natal",
+    "int_guia",
+    "int_embrulho",
+    "int_oro"
+  ]
+}

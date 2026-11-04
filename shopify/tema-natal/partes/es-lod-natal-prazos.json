@@ -1,0 +1,27 @@
+{
+  "type": "lod-natal-prazos",
+  "settings": {
+    "ancora": "prazos",
+    "titulo": "Quando encomendar para o Natal e o Dia de Reis",
+    "nota": "Prazos indicativos para Espanha peninsular, para encomendas pagas até ao final do dia indicado. Expedimos de Portugal no dia útil seguinte à confirmação do pagamento; na época alta, a transportadora pode ter atrasos.",
+    "mostrar_calendario": true,
+    "mostrar_vales": true,
+    "vales_titulo": "Ainda sem ideia? Ofereça a escolha.",
+    "vales_texto": "Vales-prenda de 25, 50, 100 e 150 €.",
+    "vales_botao": "Escolher vale-prenda",
+    "vales_url": "shopify://collections/voucher-prenda",
+    "titulo_en": "When to order for Christmas and Three Kings’ Day",
+    "nota_en": "Indicative deadlines for mainland Spain, for orders paid by the end of the day shown. We ship from Portugal on the next working day after payment is confirmed; during the peak season, carriers may experience delays.",
+    "vales_titulo_en": "Still undecided? Give them the choice.",
+    "vales_texto_en": "Gift vouchers of €25, €50, €100 and €150.",
+    "vales_botao_en": "Choose a gift voucher",
+    "titulo_es": "Cuándo hacer su pedido para Navidad y Reyes",
+    "nota_es": "Plazos orientativos para la España peninsular, para pedidos pagados hasta el final del día indicado. Enviamos desde Portugal el día laborable siguiente a la confirmación del pago; en temporada alta, la empresa de transporte puede sufrir retrasos.",
+    "vales_titulo_es": "¿Aún sin decidir? Regale la elección.",
+    "vales_texto_es": "Vales regalo de 25, 50, 100 y 150 €.",
+    "vales_botao_es": "Elegir un vale regalo",
+    "mostrar_no_telemovel": true
+  },
+  "blocks": {},
+  "block_order": []
+}

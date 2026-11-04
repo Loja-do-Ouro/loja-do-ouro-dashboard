@@ -1,0 +1,44 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "context": {
+    "market": "spain"
+  },
+  "parent": "header-group.json",
+  "sections": {
+    "177374793230f6c57f": {
+      "disabled": true,
+      "settings": {},
+      "blocks": {},
+      "block_order": []
+    },
+    "header": {
+      "settings": {
+        "image_logo": "shopify://shop_images/Prancheta_19_1.png"
+      },
+      "blocks": {}
+    },
+    "custom_liquid_PUYkLN": {
+      "disabled": false,
+      "settings": {},
+      "blocks": {}
+    },
+    "lod_natal_bar": {
+      "disabled": true,
+      "settings": {},
+      "blocks": {}
+    },
+    "lod_natal_bar_int": {
+      "disabled": true,
+      "settings": {},
+      "blocks": {}
+    }
+  }
+}

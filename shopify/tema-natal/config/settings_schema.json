@@ -1961,7 +1961,7 @@
       },
       {
         "type": "paragraph",
-        "content": "Datas e horas de Lisboa no formato AAAA-MM-DD HH:MM. Os prazos de entrega são indicativos até haver o aviso de Natal da transportadora."
+        "content": "Datas e horas de Lisboa no formato AAAA-MM-DD HH:MM. Os prazos de Portugal continental, Açores, Madeira e Espanha (Natal) estão confirmados pela loja; os restantes são propostas. No site, todos os prazos aparecem como indicativos."
       },
       {
         "type": "text",
@@ -1979,13 +1979,13 @@
         "type": "text",
         "id": "natal_limite_acores",
         "label": "Último dia — Açores",
-        "default": "2026-12-04 23:59"
+        "default": "2026-12-14 23:59"
       },
       {
         "type": "text",
         "id": "natal_limite_madeira",
         "label": "Último dia — Madeira",
-        "default": "2026-12-11 23:59"
+        "default": "2026-12-14 23:59"
       },
       {
         "type": "text",
@@ -1997,7 +1997,7 @@
         "type": "text",
         "id": "natal_limite_continente",
         "label": "Último dia — Portugal continental",
-        "default": "2026-12-18 23:59"
+        "default": "2026-12-20 23:59"
       },
       {
         "type": "text",
@@ -2034,6 +2034,35 @@
         "id": "natal_trocas_ate",
         "label": "Trocas de Natal até",
         "default": "2027-01-15"
+      },
+      {
+        "type": "header",
+        "content": "Espanha e Internacional"
+      },
+      {
+        "type": "paragraph",
+        "content": "Espanha («Oro de Reyes»): Navidad até ao primeiro prazo, Reyes até ao segundo, Noche de Reyes a 5 e 6 de janeiro. Internacional: só até ao seu prazo. O prazo da Navidad está confirmado pela loja; o dos Reyes e o Internacional são propostas, a confirmar com a transportadora. Envios para Espanha só na Península (sem Baleares, Canárias, Ceuta e Melilla)."
+      },
+      {
+        "type": "text",
+        "id": "natal_es_limite_navidad",
+        "label": "Espanha — último dia para a Navidad",
+        "default": "2026-12-20 23:59",
+        "info": "Confirmado pela loja (Espanha peninsular). Hora de Lisboa (Espanha peninsular: mais 1 hora). No site o prazo aparece sempre como indicativo."
+      },
+      {
+        "type": "text",
+        "id": "natal_es_limite_reyes",
+        "label": "Espanha — último dia para o Dia de Reis (6 jan.)",
+        "default": "2026-12-29 23:59",
+        "info": "Data proposta, a confirmar com a transportadora. Hora de Lisboa (Espanha peninsular: mais 1 hora). No site o prazo aparece sempre como indicativo."
+      },
+      {
+        "type": "text",
+        "id": "natal_int_limite",
+        "label": "Internacional — último dia para o Natal",
+        "default": "2026-12-10 23:59",
+        "info": "Data proposta, a confirmar com a transportadora. Hora de Lisboa. No site o prazo aparece sempre como indicativo e a versão internacional termina neste dia."
       },
       {
         "type": "header",

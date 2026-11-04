@@ -1129,8 +1129,8 @@
           {%- render 'lod-installments', product: product, variant: v, s: section.settings, sid: section.id, lang: lodp_lang -%}
         {%- endif -%}
 
-        {%- comment -%} ===== NATAL 2026 · prazo de entrega, gravação e embrulho (só em português) ===== {%- endcomment -%}
-        {%- if lodp_lang == 'pt' -%}
+        {%- comment -%} ===== NATAL 2026 · prazo de entrega, gravação e embrulho (pt, en, es; o snippet decide por mercado) ===== {%- endcomment -%}
+        {%- if lodp_lang == 'pt' or lodp_lang == 'en' or lodp_lang == 'es' -%}
           {%- render 'lod-natal-pdp', product: product -%}
         {%- endif -%}
 
