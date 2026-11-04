@@ -444,6 +444,7 @@
                   assign rotulo = rot_bs | strip
                 endif
                 assign t_tip = t_abre_a | replace: '{1}', abre
+                assign t_abre_min_d = t_abre_a_min | replace: '{1}', abre
                 assign e_ouro = false
                 if cal_ouro contains dia
                   assign e_ouro = true
@@ -466,7 +467,7 @@
                 endif
               -%}
               <li class="lnat-cal__cel" id="dia-{{ dia }}">
-                {%- capture cal_sr -%}{% if livre %}: {{ titulo | escape }}{% if dia == cal_hoje %} ({{ t_hoje_min }}){% endif %}{% else %}, {{ t_abre_a_min | replace: '{1}', abre }}{% endif %}{%- endcapture -%}
+                {%- capture cal_sr -%}{% if livre %}: {{ titulo | escape }}{% if dia == cal_hoje %} ({{ t_hoje_min }}){% endif %}{% else %}, {{ t_abre_min_d }}{% endif %}{%- endcapture -%}
                 <button type="button" class="{{ cls }}" data-dia="{{ dia }}" data-bloco="{{ bloco.id }}" data-titulo="{{ titulo | escape }}" data-longo="{{ longo }}" data-abre="{{ abre }}" data-curto="{{ curto }}"{% unless livre %} aria-disabled="true"{% endunless %} {{ bloco.shopify_attributes }}><span class="lnat-cal__face" aria-hidden="true"><span class="lnat-cal__sem{% if rot_bs != blank %} lnat-cal__sem--rot{% endif %}">{{ rotulo | escape }}</span><span class="lnat-cal__num">{{ d_num }}</span></span><span class="lnat-cal__folha" aria-hidden="true"></span><span class="lnat-cal__tip" aria-hidden="true">{{ t_tip }}</span><span class="lnat-sr">{{ longo }}<span data-estado>{{ cal_sr }}</span></span></button>
                 <template data-tpl="{{ dia }}">
                   {%- liquid
