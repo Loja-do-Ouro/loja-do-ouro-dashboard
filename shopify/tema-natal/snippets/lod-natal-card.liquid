@@ -1,7 +1,10 @@
 {%- comment -%}
   Natal 2026 — cartão de produto (sem selos de desconto).
-  {%- render 'lod-natal-card', product: p, largura: 480, carregar: 'lazy', classe: '' -%}
+  Uso: render 'lod-natal-card', product: p, largura: 480, carregar: 'lazy', classe: ''
+  Opcional (em ciclos, para não ler o dicionário em cada cartão): txt_desde e txt_esgotado já capturados.
   Atributos para filtros: data-preco (cêntimos), data-metal (ouro|prata|outro), data-disponivel.
+  O tipo do produto vem traduzido nas páginas en/es (Gold, Oro, Silver, Plata): o metal aceita as várias línguas.
+  «Desde» e «Esgotado» vêm do dicionário (lod-natal-t), só quando são precisos.
   Estilos em lod-natal-config (.lnat-card).
 {%- endcomment -%}
 {%- liquid
@@ -10,13 +13,30 @@
   endif
   assign w = largura | default: 480
   assign metal = 'outro'
-  assign tipo = product.type | downcase
-  if tipo == 'ouro'
+  assign tipo = product.type | downcase | strip
+  assign tipo = ',' | append: tipo | append: ','
+  if ',ouro,gold,oro,or,' contains tipo
     assign metal = 'ouro'
-  elsif tipo == 'prata'
+  elsif ',prata,silver,plata,argent,silber,' contains tipo
     assign metal = 'prata'
   endif
   assign img = product.featured_media
+  assign lnc_esgotado = txt_esgotado
+  if product.available == false and lnc_esgotado == blank
+    capture lnc_esgotado
+      render 'lod-natal-t', k: 'esgotado'
+    endcapture
+  endif
+  assign lnc_desde = ''
+  if product.price_varies
+    assign lnc_desde = txt_desde
+    if lnc_desde == blank
+      capture lnc_desde
+        render 'lod-natal-t', k: 'desde'
+      endcapture
+    endif
+    assign lnc_desde = lnc_desde | strip | append: ' '
+  endif
 -%}
 <a class="lnat-card {{ classe }}" href="{{ product.url }}" data-preco="{{ product.price }}" data-metal="{{ metal }}" data-disponivel="{{ product.available }}">
   <span class="lnat-card__img">
@@ -25,8 +45,8 @@
     {%- else -%}
       {%- render 'lod-natal-icon', nome: 'estrela', tamanho: 48 -%}
     {%- endif -%}
-    {%- unless product.available -%}<span class="lnat-card__tag">Esgotado</span>{%- endunless -%}
+    {%- unless product.available -%}<span class="lnat-card__tag">{{ lnc_esgotado | strip | escape }}</span>{%- endunless -%}
   </span>
   <span class="lnat-card__titulo">{{ product.title }}</span>
-  <span class="lnat-card__preco">{%- if product.price_varies -%}Desde {% endif -%}{{ product.price | money }}</span>
+  <span class="lnat-card__preco">{{ lnc_desde | escape }}{{ product.price | money }}</span>
 </a>

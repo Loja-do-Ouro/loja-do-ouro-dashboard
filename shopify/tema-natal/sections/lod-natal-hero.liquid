@@ -382,9 +382,19 @@
         if u2 == '/#' and na_inicial
           assign u = u | remove_first: '/'
         elsif u1 == '/' and u2 != '//' and raiz != '/'
-          assign u_pre = u | slice: 0, raiz_pre.size
-          if u_pre != raiz_pre and u != raiz
+          assign u_ja = false
+          assign u_ini = u | slice: 0, raiz.size
+          if u_ini == raiz
+            assign u_seg = u | slice: raiz.size, 1
+            if u_seg == blank or u_seg == '/' or u_seg == '#' or u_seg == '?'
+              assign u_ja = true
+            endif
+          endif
+          if u_ja == false
             assign u = raiz | append: u
+          elsif u_seg == '#' and na_inicial
+            # A Shopify já devolve «/#prazos» como «/en#prazos»: na página inicial fica só a âncora
+            assign u = u | remove_first: raiz
           endif
         endif
         case j
@@ -539,9 +549,14 @@
   .lnat-hero__interior{position:relative;z-index:3;width:min(92%,1600px);min-height:var(--hero-h);margin:0 auto;display:flex;align-items:center;justify-content:flex-end;padding:40px 0}
   .lnat-hero--cartao-esquerda .lnat-hero__interior{justify-content:flex-start}
   .lnat-hero__cartao{position:relative;width:clamp(440px,34vw,520px);padding:clamp(28px,2.6vw,40px);border-radius:28px;background:linear-gradient(160deg,rgba(16,50,38,.80) 0%,rgba(16,50,38,.68) 50%,rgba(12,39,29,.58) 100%);border:1px solid rgba(229,201,142,.24);box-shadow:0 24px 64px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+  /* Foto à esquerda, 1200 a 1799 px: a foto ainda passa por baixo do cartão e o vidro deixava ver uma mancha desfocada.
+     Aqui o cartão é opaco, com as mesmas cores (a partir de 1800 px o vidro só tem o fundo neutro por baixo). */
+  @media screen and (min-width:1200px) and (max-width:1799px){
+    .lnat-hero--foto-esquerda .lnat-hero__cartao{-webkit-backdrop-filter:none;backdrop-filter:none;background:linear-gradient(160deg,#103226 0%,#0e2d22 50%,#0c271d 100%)}
+  }
   .lnat-hero__estrela{position:absolute;top:clamp(22px,2.2vw,32px);right:clamp(22px,2.2vw,32px);display:block;color:var(--lnat-ouro);opacity:.95}
   .lnat-hero__estrela svg{width:44px;height:44px}
-  .lnat-hero__eb{display:inline-flex;align-items:center;gap:14px;margin:0 0 16px;font:600 11.5px/1.2 var(--lnat-sans);letter-spacing:.24em;text-transform:uppercase;color:var(--lnat-ouro-claro)}
+  .lnat-hero__eb{display:inline-flex;align-items:center;gap:14px;margin:0 0 16px;font:600 11.5px/1.2 var(--lnat-sans);letter-spacing:.24em;text-transform:uppercase;color:var(--lnat-ouro-claro);text-wrap:balance}
   .lnat-hero__eb span{display:block;flex:0 0 auto;width:38px;height:1px;background:linear-gradient(90deg,var(--lnat-ouro-velho),var(--lnat-ouro-claro))}
   .lnat-hero__titulo{margin:0;font-family:var(--lnat-serif);font-style:italic;font-weight:500;font-size:clamp(40px,3.7vw,64px);line-height:1.03;letter-spacing:-.01em;color:#fff;text-wrap:balance;text-shadow:0 8px 24px rgba(0,0,0,.15)}
   .lnat-hero__texto{margin:20px 0 0;max-width:440px;font-size:clamp(15.5px,1.1vw,17.5px);line-height:1.62;font-weight:400;color:rgba(255,253,250,.88)}

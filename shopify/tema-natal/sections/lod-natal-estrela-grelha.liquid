@@ -3,7 +3,7 @@
   Só é pedida pela Section Rendering API, a partir de lod-natal-estrela:
     /collections/<coleção>?section_id=lod-natal-estrela-grelha&sort_by=best-selling[&page=2][&preview_theme_id=…]
   Devolve até 48 cartões (lod-natal-card) da coleção, pela ordem «mais vendidos».
-  Ficam de fora embrulhos, mensagens e vales (tipo Voucher, Gift, Gift Message, wrapin)
+  Ficam de fora embrulhos, mensagens e vales (tipo Voucher, Gift, Gift Message, wrapin e as traduções en/es)
   e os produtos auxiliares da app easy-product-customizer.
   O filtro por metal, preço e disponibilidade é feito no navegador com os atributos
   data-metal, data-preco (cêntimos) e data-disponivel de cada cartão.
@@ -11,12 +11,17 @@
 {%- if collection != blank -%}
   {%- paginate collection.products by 48 -%}
     <div class="lnat-estg" data-lnat-grelha data-colecao="{{ collection.handle }}" data-total="{{ paginate.items }}" data-paginas="{{ paginate.pages }}" data-pagina="{{ paginate.current_page }}">
+      {%- capture lnatg_desde -%}{%- render 'lod-natal-t', k: 'desde' -%}{%- endcapture -%}
+      {%- capture lnatg_esgotado -%}{%- render 'lod-natal-t', k: 'esgotado' -%}{%- endcapture -%}
+      {%- assign lnatg_sem = ',voucher,gift,gift message,wrapin,gift voucher,gift card,gift wrapping,vale regalo,tarjeta regalo,regalo,envoltorio de regalo,' -%}
       {%- for p in collection.products -%}
         {%- liquid
           assign lnatg_tipo = p.type | downcase | strip
+          assign lnatg_tipo = ',' | append: lnatg_tipo | append: ','
           assign lnatg_marca = p.vendor | downcase | strip
           assign lnatg_fora = false
-          if lnatg_tipo == 'voucher' or lnatg_tipo == 'gift' or lnatg_tipo == 'gift message' or lnatg_tipo == 'wrapin'
+          # O tipo vem traduzido nas páginas en/es (Gift voucher, Vale regalo…): a lista leva as várias línguas
+          if lnatg_sem contains lnatg_tipo or p.gift_card? or p.tags contains 'voucher'
             assign lnatg_fora = true
           endif
           if lnatg_marca == 'easy-product-customizer'
@@ -24,7 +29,7 @@
           endif
         -%}
         {%- unless lnatg_fora -%}
-          {%- render 'lod-natal-card', product: p, largura: 360, carregar: 'lazy' -%}
+          {%- render 'lod-natal-card', product: p, largura: 360, carregar: 'lazy', txt_desde: lnatg_desde, txt_esgotado: lnatg_esgotado -%}
         {%- endunless -%}
       {%- endfor -%}
     </div>

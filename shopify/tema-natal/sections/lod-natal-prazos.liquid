@@ -186,9 +186,14 @@
     assign lnz_acc = true
   endif
   assign lnz_mod = ''
-  unless lnz_lojas_on
+  # Na consoada (24 dez. depois do fecho até ao fim das Boas Festas) as lojas estão fechadas: a coluna das lojas esconde-se
+  assign lnz_p2_fora = false
+  if lnz_lojas_on and lnz_ff == 'consoada'
+    assign lnz_p2_fora = true
+  endif
+  if lnz_lojas_on == false or lnz_p2_fora
     assign lnz_mod = lnz_mod | append: ' lnat-prazos--sem-lojas'
-  endunless
+  endif
   unless lnz_vales_on
     assign lnz_mod = lnz_mod | append: ' lnat-prazos--sem-vales'
   endunless
@@ -640,10 +645,10 @@
 
       {%- comment -%} 2 · Levantar na loja (só Portugal) {%- endcomment -%}
       {%- if lnz_lojas_on -%}
-        <button type="button" class="lnat-prazos__acc{% if lnz_ultimo == 2 %} lnat-prazos__acc--ultimo{% endif %}" data-lnz-acc aria-expanded="false" aria-controls="lnz-p2-{{ section.id }}">
+        <button type="button" class="lnat-prazos__acc{% if lnz_ultimo == 2 %} lnat-prazos__acc--ultimo{% endif %}" data-lnz-acc aria-expanded="false" aria-controls="lnz-p2-{{ section.id }}" data-lnz-fases="ouro incenso ultima mirra"{% if lnz_p2_fora %} hidden{% endif %}>
           <span>{{ t_levantar_loja }}</span><span class="lnat-prazos__acc-ico" aria-hidden="true"></span>
         </button>
-        <div class="lnat-prazos__painel lnat-prazos__p2{% if lnz_ultimo == 2 %} lnat-prazos__painel--ultimo{% endif %}" id="lnz-p2-{{ section.id }}">
+        <div class="lnat-prazos__painel lnat-prazos__p2{% if lnz_ultimo == 2 %} lnat-prazos__painel--ultimo{% endif %}" id="lnz-p2-{{ section.id }}" data-lnz-fases="ouro incenso ultima mirra"{% if lnz_p2_fora %} hidden{% endif %}>
           {%- render 'lod-natal-icon', nome: 'porta', tamanho: 40, classe: 'lnat-prazos__ico' -%}
           <h3 class="lnat-h3">{{ lnz_lojas_titulo | escape }}</h3>
           {%- if lnz_lojas_texto != blank -%}
@@ -788,6 +793,9 @@
       if (!el.hidden && el.hasAttribute('data-lnz-desde') && !passou(el.getAttribute('data-lnz-desde'))) el.hidden = true;
       if (!el.hidden && el.hasAttribute('data-lnz-ate') && passou(el.getAttribute('data-lnz-ate'))) el.hidden = true;
     });
+    // coluna das lojas escondida (consoada): a grelha passa a duas colunas, como sem lojas
+    var p2 = root.querySelector('.lnat-prazos__p2');
+    if (p2) root.classList.toggle('lnat-prazos--sem-lojas', p2.hidden);
     if (n && n.wa) {
       root.querySelectorAll('[data-lnz-wa]').forEach(function (a) {
         a.href = 'https://wa.me/' + n.wa + '?text=' + encodeURIComponent(a.getAttribute('data-texto') || '');

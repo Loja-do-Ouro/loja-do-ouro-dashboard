@@ -113,6 +113,7 @@
   assign est_eyebrow = section.settings.eyebrow
   assign est_titulo = section.settings.titulo
   assign est_texto = section.settings.texto
+  assign est_texto_sp = section.settings.texto_sem_prazos
   assign est_ajuda = section.settings.ajuda
   assign est_ajuda_link = section.settings.ajuda_link
   assign est_ajuda_msg = section.settings.ajuda_mensagem
@@ -129,6 +130,10 @@
     assign k = 'texto' | append: est_sfx
     if section.settings[k] != blank
       assign est_texto = section.settings[k]
+    endif
+    assign k = 'texto_sem_prazos' | append: est_sfx
+    if section.settings[k] != blank
+      assign est_texto_sp = section.settings[k]
     endif
     assign k = 'ajuda' | append: est_sfx
     if section.settings[k] != blank
@@ -290,7 +295,21 @@
       <div class="lnat-est__cabecalho">
         {%- if est_eyebrow != blank -%}<p class="lnat-eb">{{ est_eyebrow | escape }}</p>{%- endif -%}
         <h2 class="lnat-h2" id="{{ est_titulo_id }}">{{ est_titulo | escape }}</h2>
-        {%- if est_texto != blank -%}<p class="lnat-lead lnat-est__lead">{{ est_texto | escape }}</p>{%- endif -%}
+        {%- liquid
+          # Espanha, depois do prazo de Reyes (reyes_ultima, noche_reyes): o texto deixa de prometer prazos
+          assign est_sp_usa = false
+          if lnat_versao == 'es' and est_texto_sp != blank
+            assign est_sp_usa = true
+          endif
+          assign est_sp_agora = false
+          if est_sp_usa
+            if lnat_fase == 'reyes_ultima' or lnat_fase == 'noche_reyes'
+              assign est_sp_agora = true
+            endif
+          endif
+        -%}
+        {%- if est_texto != blank -%}<p class="lnat-lead lnat-est__lead" data-est-texto="com"{% if est_sp_agora %} hidden{% endif %}>{{ est_texto | escape }}</p>{%- endif -%}
+        {%- if est_sp_usa -%}<p class="lnat-lead lnat-est__lead" data-est-texto="sem"{% unless est_sp_agora %} hidden{% endunless %}>{{ est_texto_sp | escape }}</p>{%- endif -%}
         {%- if lnat_versao == 'pt' and est_ajuda_link != blank -%}
           {%- if est_ajuda_msg == blank -%}{%- capture est_ajuda_msg -%}{%- render 'lod-natal-t', k: 'wa_ajuda' -%}{%- endcapture -%}{%- endif -%}
           {%- capture t_janela -%}{%- render 'lod-natal-t', k: 'abre_janela' -%}{%- endcapture -%}
@@ -581,6 +600,15 @@
     if (!ATIVAS[versao]) versao = 'int';
     if (N && !design && typeof N.fase === 'function') {
       if (ATIVAS[versao].indexOf(N.fase(versao)) < 0) { root.hidden = true; return; }
+    }
+
+    // Espanha, depois do prazo de Reyes: texto sem prazos (a mesma regra do servidor)
+    var txSem = root.querySelector('[data-est-texto="sem"]');
+    if (txSem && N && typeof N.fase === 'function') {
+      var fTx = N.fase(versao), semTx = fTx === 'reyes_ultima' || fTx === 'noche_reyes';
+      var txCom = root.querySelector('[data-est-texto="com"]');
+      txSem.hidden = !semTx;
+      if (txCom) txCom.hidden = semTx;
     }
 
     var form = root.querySelector('[data-est-form]');
@@ -1377,6 +1405,12 @@
       "default": "Três escolhas e mostramos-lhe as peças certas — com prazo de entrega."
     },
     {
+      "type": "textarea",
+      "id": "texto_sem_prazos",
+      "label": "Texto sem prazos (Espanha)",
+      "info": "Espanha: substitui o texto depois do prazo de Reyes, quando já não há prazos a prometer. Vazio = usa sempre o texto."
+    },
+    {
       "type": "text",
       "id": "ajuda",
       "label": "Linha de ajuda",
@@ -1423,6 +1457,11 @@
       "label": "Texto (EN)"
     },
     {
+      "type": "textarea",
+      "id": "texto_sem_prazos_en",
+      "label": "Texto sem prazos (EN)"
+    },
+    {
       "type": "text",
       "id": "ajuda_en",
       "label": "Linha de ajuda (EN)"
@@ -1461,6 +1500,11 @@
       "type": "textarea",
       "id": "texto_es",
       "label": "Texto (ES)"
+    },
+    {
+      "type": "textarea",
+      "id": "texto_sem_prazos_es",
+      "label": "Texto sem prazos (ES)"
     },
     {
       "type": "text",

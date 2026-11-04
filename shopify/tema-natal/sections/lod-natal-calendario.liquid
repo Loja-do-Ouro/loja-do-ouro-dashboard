@@ -148,6 +148,12 @@
   capture t_saber_mais
     render 'lod-natal-t', k: 'saber_mais'
   endcapture
+  capture t_card_desde
+    render 'lod-natal-t', k: 'desde'
+  endcapture
+  capture t_card_esgotado
+    render 'lod-natal-t', k: 'esgotado'
+  endcapture
   capture t_rot_dica
     render 'lod-natal-t', k: 'dica'
   endcapture
@@ -294,6 +300,21 @@
   capture cal_d_int
     render 'lod-natal-data', valor: cal_v_int, formato: 'longo'
   endcapture
+
+  # Prazos que uma dica pode citar (marcador → valor). Numa porta já aberta, a dica que fala de um prazo que já passou
+  # sai (no navegador, com LOD_NATAL.passou), para não repetir prazos terminados.
+  assign cal_pz_chaves = 'acores,madeira,gravacao,continente,hora_continente,loja,reis,hora_reis,retoma,es_navidad,es_reyes,int' | split: ','
+  assign cal_pz_v_acores = settings.natal_limite_acores | default: '2026-12-14 23:59'
+  assign cal_pz_v_madeira = settings.natal_limite_madeira | default: '2026-12-14 23:59'
+  assign cal_pz_v_gravacao = settings.natal_limite_gravacao | default: '2026-12-16 23:59'
+  assign cal_pz_v_cont = settings.natal_limite_continente | default: '2026-12-20 23:59'
+  assign cal_pz_v_loja = settings.natal_limite_loja | default: '2026-12-24 13:00'
+  assign cal_pz_v_reis = settings.natal_limite_reis | default: '2026-12-30 23:59'
+  assign cal_pz_v_retoma = settings.natal_retoma_envios | default: '2026-12-28'
+  assign cal_pz_vals = cal_pz_v_acores | append: '|' | append: cal_pz_v_madeira | append: '|' | append: cal_pz_v_gravacao | append: '|' | append: cal_pz_v_cont | append: '|' | append: cal_pz_v_cont
+  assign cal_pz_vals = cal_pz_vals | append: '|' | append: cal_pz_v_loja | append: '|' | append: cal_pz_v_reis | append: '|' | append: cal_pz_v_reis | append: '|' | append: cal_pz_v_retoma
+  assign cal_pz_vals = cal_pz_vals | append: '|' | append: cal_v_es_nav | append: '|' | append: cal_v_es_reyes | append: '|' | append: cal_v_int
+  assign cal_pz_vals = cal_pz_vals | split: '|'
 
   # Blocos que dependem de uma decisão (opção «Mostrar» do bloco)
   assign cal_trocas = false
@@ -539,14 +560,37 @@
                     assign t_dica = dica_txt | escape | replace: '{acores}', cal_d_acores | replace: '{madeira}', cal_d_madeira | replace: '{gravacao}', cal_d_gravacao | replace: '{continente}', cal_d_cont | replace: '{loja}', cal_d_loja
                     assign t_dica = t_dica | replace: '{reis}', cal_d_reis | replace: '{retoma}', cal_d_retoma | replace: '{trocas}', cal_d_trocas | replace: '{hora_continente}', cal_h_cont | replace: '{hora_reis}', cal_h_reis | replace: '{es_navidad}', cal_d_es_nav
                     assign t_dica = t_dica | replace: '{es_reyes}', cal_d_es_reyes | replace: '{es_noche}', cal_d_es_noche | replace: '{int}', cal_d_int
+                    # Prazos de que a dica fala: os marcadores do texto e o «Prazo de que o texto fala» (exceto portas «depois»)
+                    assign dica_pz = ''
+                    if t_dica != blank
+                      assign pz_q = bs.prazo_quando | default: 'dia'
+                      assign pz_b = bs.prazo | default: 'nenhum'
+                      if pz_q == 'depois'
+                        assign pz_b = 'nenhum'
+                      endif
+                      for pz_k in cal_pz_chaves
+                        assign pz_m = '{' | append: pz_k | append: '}'
+                        if dica_txt contains pz_m or pz_k == pz_b
+                          assign dica_pz = dica_pz | append: cal_pz_vals[forloop.index0] | append: '|'
+                        endif
+                      endfor
+                    endif
 
                     assign cta_href = bs.cta_url
                     # Ligação escrita à mão («/collections/x», «/#siga-a-estrela», «/search?…»): junta o prefixo da língua/mercado
                     if cal_raiz != '/' and cta_href != blank
                       assign c1 = cta_href | slice: 0, 1
                       assign c2 = cta_href | slice: 0, 2
-                      assign cpre = cta_href | slice: 0, cal_raiz_n
-                      if c1 == '/' and c2 != '//' and cpre != cal_raiz_b and cta_href != cal_raiz
+                      # Já com o prefixo («/en/…», «/en#…», «/en?…» ou «/en»; a Shopify traduz os campos de ligação): fica como está
+                      assign c_ja = false
+                      assign c_ini = cta_href | slice: 0, cal_raiz.size
+                      if c_ini == cal_raiz
+                        assign c_seg = cta_href | slice: cal_raiz.size, 1
+                        if c_seg == blank or c_seg == '/' or c_seg == '#' or c_seg == '?'
+                          assign c_ja = true
+                        endif
+                      endif
+                      if c1 == '/' and c2 != '//' and c_ja == false
                         if c2 == '/#' or c2 == '/?' or cta_href == '/'
                           assign c_resto = cta_href | slice: 1, 500
                           assign cta_href = cal_raiz | append: c_resto
@@ -586,8 +630,8 @@
                   {%- if vende -%}
                     {%- if np > 0 -%}
                       <div class="lnat-cal__produtos" data-n="{{ np }}">
-                        {%- if mostra1 -%}{%- render 'lod-natal-card', product: p1, largura: 480, carregar: 'lazy', classe: 'lnat-cal__card' -%}{%- endif -%}
-                        {%- if mostra2 -%}{%- render 'lod-natal-card', product: p2, largura: 480, carregar: 'lazy', classe: 'lnat-cal__card' -%}{%- endif -%}
+                        {%- if mostra1 -%}{%- render 'lod-natal-card', product: p1, largura: 480, carregar: 'lazy', classe: 'lnat-cal__card', txt_desde: t_card_desde, txt_esgotado: t_card_esgotado -%}{%- endif -%}
+                        {%- if mostra2 -%}{%- render 'lod-natal-card', product: p2, largura: 480, carregar: 'lazy', classe: 'lnat-cal__card', txt_desde: t_card_desde, txt_esgotado: t_card_esgotado -%}{%- endif -%}
                       </div>
                     {%- endif -%}
                     {%- if cta_href != blank -%}
@@ -596,7 +640,7 @@
                       </div>
                     {%- endif -%}
                   {%- endif -%}
-                  {%- if t_dica != blank -%}<p class="lnat-cal__dica"><span><b>{{ t_rot_dica }}:</b> {{ t_dica }}</span></p>{%- endif -%}
+                  {%- if t_dica != blank -%}<p class="lnat-cal__dica"{% if dica_pz != blank %} data-prazos="{{ dica_pz | escape }}"{% endif %}><span><b>{{ t_rot_dica }}:</b> {{ t_dica }}</span></p>{%- endif -%}
                 </template>
               </li>
             {%- endif -%}
@@ -1099,6 +1143,16 @@
       if (!tpl || !tpl.content) return false;
       conteudo.textContent = '';
       conteudo.appendChild(document.importNode(tpl.content, true));
+      // Dica que fala de um prazo que já passou: sai (no editor fica, para se poder rever)
+      var Np = window.LOD_NATAL;
+      if (Np && typeof Np.passou === 'function' && !(window.Shopify && window.Shopify.designMode)) {
+        Array.prototype.slice.call(conteudo.querySelectorAll('[data-prazos]')).forEach(function (el) {
+          var ps = (el.getAttribute('data-prazos') || '').split('|');
+          for (var k = 0; k < ps.length; k++) {
+            if (ps[k] && Np.passou(ps[k])) { el.parentNode.removeChild(el); return; }
+          }
+        });
+      }
       var alvoIco = conteudo.querySelector('[data-icone]');
       if (alvoIco && icones && icones.content) {
         var ico = icones.content.querySelector('[data-icone="' + alvoIco.getAttribute('data-icone') + '"] svg');

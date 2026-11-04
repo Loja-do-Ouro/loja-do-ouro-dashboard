@@ -83,8 +83,15 @@
   if u != blank and raiz != '/'
     assign u1 = u | slice: 0, 1
     assign u2 = u | slice: 0, 2
-    assign u_pre = u | slice: 0, raiz_pre.size
-    if u1 == '/' and u2 != '//' and u_pre != raiz_pre and u != raiz
+    assign u_ja = false
+    assign u_ini = u | slice: 0, raiz.size
+    if u_ini == raiz
+      assign u_seg = u | slice: raiz.size, 1
+      if u_seg == blank or u_seg == '/' or u_seg == '#' or u_seg == '?'
+        assign u_ja = true
+      endif
+    endif
+    if u1 == '/' and u2 != '//' and u_ja == false
       assign u = raiz | append: u
     endif
   endif
