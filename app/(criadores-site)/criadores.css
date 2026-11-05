@@ -2,8 +2,8 @@
    Uma revista de joalharia impressa: papel, tinta e ouro; estrutura por filetes, nunca por cartões.
    Regras verificáveis (§10.6): sem gradientes, sem backdrop-filter, sem box-shadow, sem border-radius diferente de 0,
    sem ícones decorativos, sem translateY no hover e sem maiúsculas espaçadas. Texto base 16 px; nada abaixo de 13 px.
-   Dados numéricos sempre em Archivo tabular; o Bodoni só entra em títulos e na numeração dos passos.
-   Letras por next/font (alojadas no próprio domínio): --cr-serif (Bodoni Moda) e --cr-grot (Archivo), postas no
+   Dados numéricos sempre em Archivo tabular; a Fraunces só entra em títulos e na numeração dos passos.
+   Letras por next/font (alojadas no próprio domínio): --cr-serif (Fraunces) e --cr-grot (Archivo), postas no
    <html> pelo layout. Classes com o prefixo cr-. Sem modo escuro na v1 (a metáfora é papel). */
 
 :root {
@@ -64,15 +64,15 @@
 .cr-c7-6 { grid-column: 7 / span 6; } .cr-c8-5 { grid-column: 8 / span 5; } .cr-c9-4 { grid-column: 9 / span 4; }
 
 /* ---------------------------------------------------------------- tipografia */
-.cr-d-xl { font: 400 clamp(48px, 6.67vw, 96px)/0.98 var(--cr-serif), Didot, Georgia, serif; letter-spacing: -0.02em; }
-.cr-d-l { font: 400 clamp(40px, 4.45vw, 64px)/1.02 var(--cr-serif), Didot, Georgia, serif; letter-spacing: -0.015em; }
-.cr-d-m { font: 400 40px/1.08 var(--cr-serif), Didot, Georgia, serif; letter-spacing: -0.01em; }
-.cr-d-s { font: 500 26px/1.18 var(--cr-serif), Didot, Georgia, serif; }
-.cr-d-xs { font: 500 20px/1.25 var(--cr-serif), Didot, Georgia, serif; }
+.cr-d-xl { font: 400 clamp(48px, 6.67vw, 96px)/0.98 var(--cr-serif), Georgia, serif; letter-spacing: -0.02em; }
+.cr-d-l { font: 400 clamp(40px, 4.45vw, 64px)/1.02 var(--cr-serif), Georgia, serif; letter-spacing: -0.015em; }
+.cr-d-m { font: 400 40px/1.08 var(--cr-serif), Georgia, serif; letter-spacing: -0.01em; }
+.cr-d-s { font: 500 26px/1.18 var(--cr-serif), Georgia, serif; }
+.cr-d-xs { font: 500 20px/1.25 var(--cr-serif), Georgia, serif; }
 .cr-it { font-style: italic; }
-.cr-lead { font: italic 400 22px/1.45 var(--cr-serif), Didot, Georgia, serif; max-width: 34em; }
+.cr-lead { font: italic 400 22px/1.45 var(--cr-serif), Georgia, serif; max-width: 34em; }
 /* Chapéu de revista, em itálico serifado (nunca maiúsculas espaçadas por cima do título). */
-.cr-chapeu { font: italic 400 18px/1.3 var(--cr-serif), Didot, Georgia, serif; color: var(--cr-tinta-2); }
+.cr-chapeu { font: italic 400 18px/1.3 var(--cr-serif), Georgia, serif; color: var(--cr-tinta-2); }
 .cr-meta { font: 500 13px/1.45 var(--cr-grot), Arial, sans-serif; font-stretch: 90%; color: var(--cr-tinta-2); }
 .cr-pequeno { font-size: 14px; line-height: 1.5; color: var(--cr-tinta-2); }
 .cr-num { font-family: var(--cr-grot), Arial, sans-serif; font-variant-numeric: tabular-nums lining-nums; }
@@ -80,11 +80,9 @@
 .cr-nota { font: 600 13px/1 var(--cr-grot), Arial, sans-serif; color: var(--cr-ouro-texto); margin-left: 2px; vertical-align: super; line-height: 0; }
 /* Medidas e quilates dentro de títulos em serifa (§10.5 n.º 2). */
 .cr-alg { font: 500 0.84em/1 var(--cr-grot), Arial, sans-serif; font-variant-numeric: lining-nums; letter-spacing: 0; }
-/* Bodoni em corpo pequeno (≤ 26 px): tamanho ótico de texto, para os traços finos não desaparecerem. */
-.cr-d-s, .cr-d-xs, .cr-lead, .cr-chapeu, .cr-tab .cr-tit, .cr-estado dd, .cr-fazer h3, .cr-qa summary, .cr-semnota,
-.cr-logo-sub, .cr-passos .cr-pt, .cr-prosa h3, .cr-prosa h4 {
-  font-variation-settings: "opsz" 11;
-}
+/* Fraunces sem as formas «tortas» (eixo WONK a 0): por omissão troca h, l, m e n nos corpos grandes, e o itálico de
+   «Campanhas» lia-se «Campanfias». !important porque o atalho font: de cada regra repõe font-variation-settings. */
+.cr-html * { font-variation-settings: "WONK" 0 !important; }
 
 /* ---------------------------------------------------------------- cabeçalho */
 .cr-cab { border-bottom: 1px solid var(--cr-tinta); background: var(--cr-papel); }
@@ -92,7 +90,7 @@
 .cr-logo { display: flex; align-items: center; gap: 18px; text-decoration: none; color: var(--cr-tinta); min-height: 44px; }
 .cr-logo-recorte { --h: 32px; display: block; width: calc(var(--h) * 483 / 87); height: var(--h); overflow: hidden; flex: none; }
 .cr-logo-recorte img { width: calc(var(--h) * 709 / 87); max-width: none !important; height: auto; margin-left: calc(var(--h) * -110 / 87); margin-top: calc(var(--h) * -45 / 87); }
-.cr-logo-sub { font: italic 400 26px/1 var(--cr-serif), Didot, Georgia, serif; padding-left: 18px; border-left: 1px solid var(--cr-tinta); height: 32px; display: flex; align-items: center; }
+.cr-logo-sub { font: italic 400 26px/1 var(--cr-serif), Georgia, serif; padding-left: 18px; border-left: 1px solid var(--cr-tinta); height: 32px; display: flex; align-items: center; }
 .cr-nav { display: flex; align-items: center; gap: 26px; font: 500 15px/1 var(--cr-grot), Arial, sans-serif; }
 .cr-nav a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; border-bottom: 2px solid transparent; }
 .cr-nav a:hover { border-bottom-color: var(--cr-fio); }
@@ -166,12 +164,12 @@
 .cr-tab td { padding: 14px 16px 14px 0; border-bottom: 1px solid var(--cr-fio); vertical-align: top; }
 .cr-tab td:last-child, .cr-tab th:last-child { padding-right: 0; }
 .cr-tab .cr-n { text-align: right; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
-.cr-tab .cr-tit { font: 500 19px/1.25 var(--cr-serif), Didot, Georgia, serif; }
-.cr-tab .cr-passo-n { font: 400 40px/0.9 var(--cr-serif), Didot, Georgia, serif; width: 72px; }
+.cr-tab .cr-tit { font: 500 19px/1.25 var(--cr-serif), Georgia, serif; }
+.cr-tab .cr-passo-n { font: 400 40px/0.9 var(--cr-serif), Georgia, serif; width: 72px; }
 .cr-tab p { margin: 6px 0 0; color: var(--cr-tinta-2); font-size: 15px; }
 .cr-notas { font: 400 13px/1.5 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); margin-top: 12px; }
 .cr-notas p { margin: 0 0 4px; }
-.cr-semnota { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--cr-tinta); font: italic 400 17px/1.45 var(--cr-serif), Didot, Georgia, serif; }
+.cr-semnota { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--cr-tinta); font: italic 400 17px/1.45 var(--cr-serif), Georgia, serif; }
 
 /* ---------------------------------------------------------------- etiquetas de estado (a palavra, nunca só a cor) */
 .cr-etq { display: inline-block; font: 500 13px/1 var(--cr-grot), Arial, sans-serif; padding: 5px 8px 6px; border: 1px solid currentColor; white-space: nowrap; }
@@ -191,7 +189,7 @@
 .cr-estado { margin: 40px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--cr-cal); border-top: 1px solid var(--cr-tinta); }
 .cr-estado > div { padding: 14px 0 0; }
 .cr-estado dt { font: 500 13px/1.3 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); margin-bottom: 6px; }
-.cr-estado dd { margin: 0; font: 400 19px/1.3 var(--cr-serif), Didot, Georgia, serif; }
+.cr-estado dd { margin: 0; font: 400 19px/1.3 var(--cr-serif), Georgia, serif; }
 .cr-estado dd small { display: block; font: 400 13px/1.45 var(--cr-grot), Arial, sans-serif; color: var(--cr-tinta-2); margin-top: 4px; }
 .cr-estado dd .cr-num { font-size: 17px; }
 /* Ligações soltas do bloco de estado: letra de metadados, alvo de 44 px (§10.5 n.º 3). */
@@ -201,8 +199,8 @@
 /* «A fazer»: tarefas com prazo e botão (§10.5 n.º 11). */
 .cr-fazer { list-style: none; margin: 0 0 48px; padding: 0; }
 .cr-fazer li { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; column-gap: 20px; align-items: start; padding: 22px 0; border-bottom: 1px solid var(--cr-fio); }
-.cr-fazer .cr-fn { font: 400 40px/0.9 var(--cr-serif), Didot, Georgia, serif; }
-.cr-fazer h3 { font: 500 20px/1.25 var(--cr-serif), Didot, Georgia, serif; margin-bottom: 6px; }
+.cr-fazer .cr-fn { font: 400 40px/0.9 var(--cr-serif), Georgia, serif; }
+.cr-fazer h3 { font: 500 20px/1.25 var(--cr-serif), Georgia, serif; margin-bottom: 6px; }
 .cr-fazer p { margin: 0; font-size: 15px; color: var(--cr-tinta-2); max-width: 36em; }
 .cr-fazer .cr-bt { white-space: nowrap; }
 .cr-vazio { padding: 18px 0; border-bottom: 1px solid var(--cr-fio); color: var(--cr-tinta-2); }
@@ -266,7 +264,7 @@ textarea.cr-inp { min-height: 128px; resize: vertical; }
 .cr-rede { border-top: 1px solid var(--cr-tinta); padding-top: 16px; margin-top: 40px; }
 .cr-rede-cab { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
 .cr-linha-rede { display: grid; grid-template-columns: 120px minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 1.4fr); column-gap: 16px; align-items: end; padding: 16px 0 0; border-top: 1px solid var(--cr-fio); }
-.cr-linha-rede .cr-nome { font: 400 24px/1 var(--cr-serif), Didot, Georgia, serif; padding-bottom: 34px; }
+.cr-linha-rede .cr-nome { font: 400 24px/1 var(--cr-serif), Georgia, serif; padding-bottom: 34px; }
 /* Cada rede é um <fieldset> com o nome na <legend> (os campos «Utilizador» repetidos ficam distinguidos). A legenda
    não entra na grelha por si: vai para a primeira coluna com float, ocupando o lugar do antigo <span>. */
 fieldset.cr-linha-rede { margin: 0; min-width: 0; border-left: 0; border-right: 0; border-bottom: 0; }
@@ -291,9 +289,9 @@ fieldset.cr-linha-rede { margin: 0; min-width: 0; border-left: 0; border-right: 
 
 /* ---------------------------------------------------------------- documentos legais e textos longos */
 .cr-prosa { max-width: 46em; }
-.cr-prosa h2 { font: 400 32px/1.15 var(--cr-serif), Didot, Georgia, serif; margin: 48px 0 14px; padding-top: 14px; border-top: 1px solid var(--cr-tinta); }
-.cr-prosa h3 { font: 500 22px/1.25 var(--cr-serif), Didot, Georgia, serif; margin: 32px 0 10px; }
-.cr-prosa h4 { font: 500 19px/1.3 var(--cr-serif), Didot, Georgia, serif; margin: 24px 0 8px; }
+.cr-prosa h2 { font: 400 32px/1.15 var(--cr-serif), Georgia, serif; margin: 48px 0 14px; padding-top: 14px; border-top: 1px solid var(--cr-tinta); }
+.cr-prosa h3 { font: 500 22px/1.25 var(--cr-serif), Georgia, serif; margin: 32px 0 10px; }
+.cr-prosa h4 { font: 500 19px/1.3 var(--cr-serif), Georgia, serif; margin: 24px 0 8px; }
 .cr-prosa ul, .cr-prosa ol { padding-left: 22px; margin: 0 0 1em; }
 .cr-prosa li { margin-bottom: 6px; }
 .cr-prosa hr { border: 0; border-top: 1px solid var(--cr-fio); margin: 32px 0; }
@@ -307,7 +305,7 @@ fieldset.cr-linha-rede { margin: 0; min-width: 0; border-left: 0; border-right: 
 /* Perguntas em <details> fechados (§10.5 n.º 6). */
 .cr-qa { border-top: 1px solid var(--cr-tinta); }
 .cr-qa details { border-bottom: 1px solid var(--cr-fio); }
-.cr-qa summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; padding: 10px 0; cursor: pointer; list-style: none; font: 500 20px/1.3 var(--cr-serif), Didot, Georgia, serif; }
+.cr-qa summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; padding: 10px 0; cursor: pointer; list-style: none; font: 500 20px/1.3 var(--cr-serif), Georgia, serif; }
 .cr-qa summary::-webkit-details-marker { display: none; }
 /* O sinal vive num <span aria-hidden> dentro do summary: não entra no nome acessível (o <details> já diz se está aberto). */
 .cr-qa .cr-qa-sinal { flex: none; }
