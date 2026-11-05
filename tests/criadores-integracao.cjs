@@ -106,3 +106,18 @@ test("[§10.6] creators site CSS: no gradients, shadows, blur, lifts, spaced cap
   for (const m of css.matchAll(/font-size:\s*([0-9.]+)px/g)) assert.ok(Number(m[1]) >= 13, `font-size ${m[1]}px`);
   for (const f of walk(SITE)) assert.doesNotMatch(code(fs.readFileSync(f, "utf8")), /dangerouslySetInnerHTML/, path.relative(ROOT, f));
 });
+
+// As fotografias do site passam pelo otimizador do próprio site, que só aceita os ficheiros de images.remotePatterns
+// com a query exata: um URL que falte dá imagem partida (400 em /_next/image), um que sobre alarga a lista à toa.
+test("creators site photos: each remote image is in images.remotePatterns with its exact query, and no pattern is unused", { skip: !exists }, () => {
+  const cfg = code(read(ROOT, "next.config.mjs"));
+  const patterns = [...cfg.matchAll(/\{\s*protocol:\s*"https",\s*hostname:\s*"([^"]+)",\s*pathname:\s*"([^"]+)",\s*search:\s*"([^"]+)"\s*\}/g)]
+    .map((m) => `https://${m[1]}${m[2]}${m[3]}`);
+  assert.ok(patterns.length >= 1, "images.remotePatterns deixou de ser lido pela expressão do teste");
+  const used = new Set();
+  for (const f of walk(SITE))
+    for (const m of code(fs.readFileSync(f, "utf8")).matchAll(/https:\/\/(?:cdn\.shopify\.com|www\.lojadoouro\.pt)\/[^"'`\s)]+/g)) used.add(m[0]);
+  assert.ok(used.size >= 1, "nenhuma imagem remota encontrada no site (o logótipo devia aparecer)");
+  for (const u of used) assert.ok(patterns.includes(u), `${u} não está em images.remotePatterns (com a query exata)`);
+  for (const p of patterns) assert.ok(used.has(p), `${p} está em images.remotePatterns mas o site já não o usa`);
+});
