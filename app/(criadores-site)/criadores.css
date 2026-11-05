@@ -157,6 +157,24 @@
 .cr-foto { width: 100%; object-fit: cover; background: var(--cr-papel-2); }
 .cr-r45 { aspect-ratio: 4 / 5; } .cr-r32 { aspect-ratio: 3 / 2; } .cr-r219 { aspect-ratio: 21 / 8; }
 
+/* ---------------------------------------------------------------- página inicial: fotografias compostas */
+/* Abertura: duas provas pousadas uma sobre a outra. A menor leva uma moldura de papel em cima e à direita (um filete
+   largo da cor do papel, nunca sombra) e desce abaixo da maior; a legenda conta as duas. */
+.cr-comp { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); column-gap: var(--cr-cal); align-items: end; }
+.cr-comp-a { grid-column: 2 / -1; grid-row: 1; }
+.cr-comp-b { grid-column: 1 / 4; grid-row: 1; margin-bottom: -56px; border-top: 12px solid var(--cr-papel); border-right: 12px solid var(--cr-papel); background: var(--cr-papel); }
+.cr-comp figcaption { grid-column: 1 / -1; margin-top: 70px; }
+/* «Como funciona»: a fotografia fica à vista ao lado dos passos enquanto se lê (sticky, sem animação). */
+.cr-como-lado { align-self: stretch; }
+.cr-como-lado figure { position: sticky; top: 24px; margin-top: 32px; }
+/* Faixa de provas desencontradas, quatro por linha, cada uma com a peça e o preço por baixo. */
+.cr-tira { list-style: none; margin: 40px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--cr-cal); row-gap: 40px; align-items: start; }
+.cr-tira > li:nth-child(4n+2) { margin-top: 88px; }
+.cr-tira > li:nth-child(4n+3) { margin-top: 32px; }
+.cr-tira > li:nth-child(4n+4) { margin-top: 120px; }
+/* Convite final: fotografia de um lado, título e ações do outro. */
+.cr-fecho { align-items: center; }
+
 /* ---------------------------------------------------------------- tabelas de revista */
 .cr-tab { width: 100%; border-collapse: collapse; }
 .cr-tab caption { text-align: left; font: 500 14px/1.3 var(--cr-grot), Arial, sans-serif; padding-bottom: 8px; border-bottom: 1px solid var(--cr-tinta); }
@@ -337,6 +355,12 @@ fieldset.cr-linha-rede { margin: 0; min-width: 0; border-left: 0; border-right: 
   .cr-heroi .cr-c1-5 { grid-column: 1 / span 6; }
   .cr-heroi .cr-c7-6 { grid-column: 7 / span 6; }
 }
+/* Até ao computador largo, a faixa passa a duas colunas, desencontradas aos pares. */
+@media (max-width: 1100px) {
+  .cr-tira { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cr-tira > li:nth-child(n) { margin-top: 0; }
+  .cr-tira > li:nth-child(2n) { margin-top: 64px; }
+}
 @media (max-width: 1240px) {
   .cr-cab-criador .cr-nav { display: none; }
   .cr-cab-criador .cr-menu { display: block; }
@@ -358,6 +382,13 @@ fieldset.cr-linha-rede { margin: 0; min-width: 0; border-left: 0; border-right: 
   .cr-grande-num { font-size: 44px; }
   .cr-abre { padding-top: 28px; }
   .cr-secao { padding-top: 64px; }
+  .cr-heroi .cr-comp { margin-top: 32px; }
+  .cr-comp-b { margin-bottom: -40px; border-top-width: 8px; border-right-width: 8px; }
+  .cr-comp figcaption { margin-top: 52px; }
+  .cr-como-lado figure { position: static; margin-top: 24px; }
+  .cr-como-lado .cr-foto { aspect-ratio: 3 / 2; }
+  .cr-tira { margin-top: 28px; column-gap: 12px; row-gap: 28px; }
+  .cr-tira > li:nth-child(2n) { margin-top: 40px; }
   .cr-bloco { margin-top: 40px; }
   .cr-auth { padding-top: 28px; }
 

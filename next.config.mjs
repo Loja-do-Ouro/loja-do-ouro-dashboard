@@ -12,15 +12,13 @@ const nextConfig = {
   // Em desenvolvimento, o Next escreve no terminal os argumentos das Server Functions (palavras-passe, tokens
   // do link de acesso). Desligado: nenhum segredo vai para registos.
   logging: { serverFunctions: false },
-  // Site dos criadores: o logótipo e as fotografias da loja passam pelo otimizador do próprio site (/_next/image), para
-  // o browser dos visitantes nunca falar com a Shopify (a Política de Privacidade não a lista como destinatária).
-  // Só estes três ficheiros, com a query exata.
+  // Site dos criadores: o logótipo passa pelo otimizador do próprio site (/_next/image), para o browser dos visitantes
+  // nunca falar com a Shopify (a Política de Privacidade não a lista como destinatária). Só este ficheiro, com a query
+  // exata; as fotografias da página inicial são ficheiros do próprio site (app/(criadores-site)/c/fotos).
   images: {
     qualities: [75],
     remotePatterns: [
       { protocol: "https", hostname: "www.lojadoouro.pt", pathname: "/cdn/shop/files/logo_horizontal_f74be36a-8ff7-48e9-8e46-9c150f0d3c69.png", search: "?v=1763540816&width=840" },
-      { protocol: "https", hostname: "cdn.shopify.com", pathname: "/s/files/1/0933/8811/2256/files/brincos-coracao-de-viana-em-prata-dourada-com-perola-3702983.jpg", search: "?v=1761069695&width=1400" },
-      { protocol: "https", hostname: "cdn.shopify.com", pathname: "/s/files/1/0933/8811/2256/files/brincos-tradicao-com-coracao-de-viana-em-prata-dourada-e-esmalte-azul-8817181.png", search: "?v=1780767027&width=2000" },
     ],
   },
   async headers() {
