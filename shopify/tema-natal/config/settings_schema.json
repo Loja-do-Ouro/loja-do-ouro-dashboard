@@ -1967,7 +1967,8 @@
         "type": "text",
         "id": "natal_inicio",
         "label": "Início da campanha",
-        "default": "2026-12-01 00:00"
+        "default": "2026-11-05 00:00",
+        "info": "Desde 5 de novembro de 2026: o banner, a barra e as secções de Natal aparecem a partir desta data. As portas do calendário abrem cada uma no seu dia, a partir de 1 de dezembro."
       },
       {
         "type": "text",

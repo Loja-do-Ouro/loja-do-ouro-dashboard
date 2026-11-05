@@ -4,6 +4,8 @@
   O conteúdo de cada porta fica num <template> e só entra na página (e carrega imagens) quando a porta abre.
   As portas abrem no navegador com window.LOD_NATAL.hoje() (hora de Lisboa, respeita a data simulada).
   No editor do tema todas as portas abrem. Sem prémios, sorteios nem descontos atrás de nenhuma porta.
+  Antes da primeira porta (o calendário está no site desde 5 de novembro), o cabeçalho diz quando abre a primeira
+  («A primeira porta abre a 1 de dezembro.», chave cal_primeira_porta do dicionário); todas as portas ficam fechadas.
 
   Línguas e mercados (contrato: scratchpad/natal/i18n-contrato.md):
   - A definição «Versão do calendário» diz de que mercado é a instância: «pt» (Portugal, «Ouro de Reis») ou «es»
@@ -141,6 +143,9 @@
   endcapture
   capture t_porta_seg
     render 'lod-natal-t', k: 'porta_seguinte'
+  endcapture
+  capture t_primeira
+    render 'lod-natal-t', k: 'cal_primeira_porta'
   endcapture
   capture t_ver_colecao
     render 'lod-natal-t', k: 'ver_colecao'
@@ -336,7 +341,7 @@
   data-versao="{{ cal_versao | escape }}"
   {%- if cal_editor %} data-editor{% endif %}
 >
-  <script type="application/json" data-cal-t>{"hoje_min":{{ t_hoje_min | json }},"ja_aberta_min":{{ t_ja_aberta_min | json }},"abre_a_min":{{ t_abre_a_min | json }},"porta_abre_a":{{ t_porta_abre_a | json }},"porta_anterior":{{ t_porta_ant | json }},"porta_seguinte":{{ t_porta_seg | json }},"partilhar":{{ t_partilhar | json }},"ligacao_copiada":{{ t_copiada | json }},"nome":{{ cal_titulo | json }},"marca":{{ t_marca | json }}}</script>
+  <script type="application/json" data-cal-t>{"hoje_min":{{ t_hoje_min | json }},"ja_aberta_min":{{ t_ja_aberta_min | json }},"abre_a_min":{{ t_abre_a_min | json }},"porta_abre_a":{{ t_porta_abre_a | json }},"porta_anterior":{{ t_porta_ant | json }},"porta_seguinte":{{ t_porta_seg | json }},"partilhar":{{ t_partilhar | json }},"ligacao_copiada":{{ t_copiada | json }},"nome":{{ cal_titulo | json }},"primeira_porta":{{ t_primeira | json }},"marca":{{ t_marca | json }}}</script>
   <div class="lnat-wrap">
     {%- if cal_editor -%}
       {%- render 'lod-natal-aviso-fase', fase: lnat_fase -%}
@@ -358,6 +363,7 @@
           <p class="lnat-lead lnat-cal__lead">{{ cal_texto | escape }}</p>
         {%- endif -%}
 
+        <p class="lnat-cal__antes" data-antes hidden>{%- render 'lod-natal-icon', nome: 'estrela', tamanho: 20 -%}<span data-antes-txt></span></p>
         <button type="button" class="lnat-cal__hoje" data-hoje-cartao hidden>
           <span class="lnat-cal__hoje-num" data-hoje-num aria-hidden="true"></span>
           <span class="lnat-cal__hoje-txt">
@@ -907,6 +913,7 @@
   .lnat-cal__leg-selo{width:9px;height:9px;border-radius:50%;background:var(--lnat-ouro)}
   .lnat-cal__leg-hoje{width:14px;height:14px;border:2px solid var(--lnat-ouro)}
   .lnat-cal__leg-fechada{width:14px;height:14px;border:1px solid rgba(229,201,142,.3);background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23e5c98e' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M4 7.5C4 6.7 4.6 6.5 5 6.5H11C11.4 6.5 12 6.7 12 7.5V12.5C12 13.3 11.4 13.5 11 13.5H5C4.6 13.5 4 13.3 4 12.5Z'/%3E%3Cpath d='M5.8 6.5V5A2.2 2.2 0 0 1 10.2 5V6.5'/%3E%3C/svg%3E") center/10px no-repeat}
+  .lnat-cal__antes{display:flex;align-items:center;gap:12px;margin:8px 0 0;padding:14px 16px;border:1px solid rgba(229,201,142,.45);background:rgba(11,11,9,.2);color:var(--lnat-ouro-claro);font:500 15px/22px var(--lnat-sans);text-align:left}
   .lnat-cal__hoje{display:none}
   .lnat-cal__hoje:not([hidden]){display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:16px;width:100%;min-height:96px;margin:8px 0 0;padding:16px;border:2px solid var(--lnat-ouro);border-radius:0;background:rgba(11,11,9,.2);color:var(--lnat-papel);font-family:var(--lnat-sans);text-align:left;cursor:pointer;transition:background .2s}
   .lnat-cal__hoje:hover{background:rgba(11,11,9,.32)}
@@ -1061,6 +1068,7 @@
     var avisoGrelha = root.querySelector('[data-aviso]');
     var avisoDlg = root.querySelector('[data-aviso-dialogo]');
     var cartao = root.querySelector('[data-hoje-cartao]');
+    var avisoAntes = root.querySelector('[data-antes]');
     var icones = root.querySelector('template[data-icones]');
     var hoje = '';
     var atual = null;
@@ -1102,6 +1110,13 @@
         } else {
           cartao.hidden = true;
         }
+      }
+      // Antes da primeira porta (novembro): diz quando abre a primeira. No editor todas as portas abrem.
+      if (avisoAntes) {
+        var p1 = editor ? null : portas[0];
+        var antesDe = !!p1 && hoje < p1.getAttribute('data-dia');
+        if (antesDe) avisoAntes.querySelector('[data-antes-txt]').textContent = tx('primeira_porta', p1.getAttribute('data-abre'));
+        avisoAntes.hidden = !antesDe;
       }
     }
 
