@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Bodoni_Moda } from "next/font/google";
+import { Archivo, Fraunces } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 import { crLegalPublic, type CrCompany } from "@/lib/criadores/db";
@@ -11,12 +11,15 @@ import "./criadores.css";
 // Site dos criadores (criadores.lojadoouro.pt; /c no endereço do dashboard só para testes internos). Root layout e
 // CSS próprios, sem nada de app/(painel)/globals.css, como o leilão. Direção visual A, «Caderno de ouro» (§10).
 // - Letras com next/font/google: descarregadas no build e servidas pelo próprio domínio (nenhum pedido à Google no
-//   browser). Bodoni Moda (títulos, com o eixo opsz e itálico) e Archivo (texto e todos os dados, eixo wdth).
+//   browser). Fraunces (títulos, com o eixo opsz e itálico) e Archivo (texto e todos os dados, eixo wdth). A Fraunces
+//   substituiu a Bodoni Moda (05-11-2026): nos títulos grandes os traços finos da Bodoni desapareciam em ecrãs comuns.
+//   O eixo WONK vem na letra só para ficar a 0 em criadores.css (sem ele a Fraunces troca h, l, m e n por formas
+//   «tortas» nos corpos grandes). O SOFT fica de fora e vale 0 (cantos vivos).
 // - CSP com nonce (proxy.ts): o Next lê o nonce do cabeçalho do pedido e põe-no nos seus scripts. Este site não tem
 //   <Script> nem scripts inline; as páginas são dinâmicas (siteBase() e a sessão leem headers()/cookies()).
 // - Fora dos motores de busca até o advogado aprovar os textos.
 
-const serif = Bodoni_Moda({ subsets: ["latin", "latin-ext"], axes: ["opsz"], style: ["normal", "italic"], display: "swap", variable: "--cr-serif" });
+const serif = Fraunces({ subsets: ["latin", "latin-ext"], axes: ["opsz", "WONK"], style: ["normal", "italic"], display: "swap", variable: "--cr-serif" });
 const grot = Archivo({ subsets: ["latin", "latin-ext"], axes: ["wdth"], display: "swap", variable: "--cr-grot" });
 
 export const metadata: Metadata = {
