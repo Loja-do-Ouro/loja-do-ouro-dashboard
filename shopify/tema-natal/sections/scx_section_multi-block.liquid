@@ -1,0 +1,670 @@
+{{ 'ouro_asset_timer.css' | asset_url | stylesheet_tag }}
+{{ 'scx_asset_multi-block.css' | asset_url | stylesheet_tag }}
+
+{% style %}
+  :root {
+      --content-gap: {{ section.settings.section_gap }}px;
+      --content-gap-tablet: {{ section.settings.section_gap_tablet }}px;
+    }
+{% endstyle %}
+
+<style>
+    .section-{{ section.id }} .multi-block-body {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100%, 1fr));
+      gap: {{ section.settings.section_gap_tablet }}px;
+    }
+
+    .section-{{ section.id }} {
+      padding-top:{{section.settings.padding_top_mb}}px;
+      padding-bottom:{{section.settings.padding_bottom_mb}}px;
+    }
+
+    .section-{{section.id }} .multi-block-body--item.reverse-order:nth-child(1) {
+      order: 0;
+    }
+    .section-{{section.id }} .multi-block-body--item.reverse-order:nth-child(2) {
+      order: -1;
+    }
+    .section-{{section.id }} .multi-block-body--item.reverse-order:nth-child(3) {
+      order: -2;
+    }
+    .section-{{section.id }} .multi-block-body--item.reverse-order:nth-child(4) {
+      order: -3;
+    }
+
+    @media screen and (min-width: 990px) {
+      .section-{{ section.id }} .multi-block-body {
+        {% comment %} grid-template-columns: repeat(auto-fit, minmax(calc(50% - {{ section.settings.section_gap_tablet }}px), 1fr)); {% endcomment %}
+        grid-template-columns: repeat(auto-fit, minmax(calc(25% - {{ section.settings.section_gap }}px), 1fr));
+
+      }
+
+      .section-{{ section.id }} {
+        padding-top:{{section.settings.padding_top_dt}}px;
+        padding-bottom:{{section.settings.padding_bottom_dt}}px;
+      }
+
+      .section-{{section.id }} .multi-block-body--item.reverse-order {
+        order: unset !important;
+      }
+    }
+
+    @media screen and (min-width: 1280px) {
+      .section-{{ section.id }} .multi-block-body {
+        grid-template-columns: repeat(auto-fit, minmax(calc(25% - {{ section.settings.section_gap }}px), 1fr));
+        gap: {{ section.settings.section_gap }}px;
+      }
+    }
+
+    .section-{{ section.id }}.multi-block-wrapper {
+      width: {{ section.settings.total_width }}%;
+      margin: 0 auto;
+  }
+
+  .side-paddings-{{ section.id }}{
+    padding-left: {{ section.settings.padding_left }}px;
+    padding-right: {{ section.settings.padding_right }}px;
+    @media (width < 1024px) {
+      padding-left: {{ section.settings.padding_left_mb }}px;
+      padding-right: {{ section.settings.padding_right_mb }}px;
+    }
+  }
+
+  {% assign page = template.suffix %}
+
+  {% if page == "outlet" %}
+    .section-card-wrapper {
+      padding: var(--spacing-spacing-xl) var(--spacing-spacing-xl) var(--spacing-spacing-xl) var(--spacing-spacing-lg);
+    }
+  {% endif %}  
+
+</style>
+
+
+
+
+<div class="multi-block-wrapper {% if section.settings.hide_mobile %} small-hide {% endif %} section-{{ section.id }} color-{{ section.settings.color_scheme }}">
+  {% comment %} TODO: SEO {% endcomment %}
+  {% if section.settings.show_content_area == true %}
+    <div class="multi-block-header multi-block-header--mb-{{ section.settings.mobile_display_type }} multi-block-header--{{ section.settings.display_type }}">
+      <div class="multi-block-header-content multi-block-header-content-mb--{{ section.settings.mobile_display_type }} multi-block-header-content--{{ section.settings.display_type }}">
+        <p class="subtitle_md">{{ section.settings.subtitle }}</p>
+        <p class="heading_2">{{ section.settings.title }}</p>
+        <p>{{ section.settings.description }}</p>
+      </div>
+      <div class="multi-block-header-timer multi-block-header-timer--mb-{{ section.settings.mobile_display_type }} multi-block-header-timer--{{ section.settings.display_type }}">
+        {% if section.settings.date_picker %}
+          <script src="{{ 'ouro_asset_definition_timer.js' | asset_url }}" defer="defer"></script>
+          {% render 'scx_snippet_timer',
+            color: section.settings.color,
+            timer_date_picker: section.settings.date_picker,
+            finish_message: section.settings.timer_end_message,
+            days: settings.global_cd_days_label,
+            hours: settings.global_cd_hours_label,
+            minutes: settings.global_cd_minutes_label,
+            seconds: settings.global_cd_seconds_label,
+            separator: ':'
+          %}
+        {% endif %}
+
+        {% if section.settings.url %}
+          <a class="url_link" href="{{ section.settings.url }}">{{ section.settings.link_label }}</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+  <div class="multi-block-body side-paddings-{{ section.id }}">
+    {%- for block in section.blocks %}
+      {% case block.type %}
+       {% when '@app' %}
+        {% render block %}
+      {% when 'section_card' %}
+          <div class="multi-block-body--item {%  if section.settings.reverse_order %}reverse-order {% endif %}">
+            {% render 'scx_snippet_section-card',
+              background: block.settings.bg_image,
+              background_video: block.settings.bg_video,
+              caption: block.settings.caption,
+              title: block.settings.title,
+              description: block.settings.description,
+              button1_text: block.settings.button1_text,
+              button1_url: block.settings.button1_url,
+              button2_text: block.settings.button2_text,
+              button2_url: block.settings.button2_url,
+              justify_text: block.settings.justify_text,
+              vertical_alignment: block.settings.vertical_alignment,
+              enable_shadow: block.settings.enable_shadow,
+              shadow_position: block.settings.shadow_position,
+              shadow_color: block.settings.shadow_color,
+              buttons_width: block.settings.buttons_width,
+              color: block.settings.color,
+              timer_date_picker: block.settings.date_picker,
+              finish_message: block.settings.timer_end_message,
+              max_height: section.settings.max_height,
+              color_scheme: block.settings.color_scheme,
+              remove_min_height: block.settings.remove_min_height
+            %}
+          </div>
+         
+        {% when 'product-list' %}
+          {% render 'scx_snippet_product-list',
+            color_schema: block.settings.color_schema,
+            background: block.settings.image_background,
+            sectionid: section.id,
+            list: block.settings.product_list,
+            product_layout: block.settings.product_layout
+          %}
+      {% endcase %}
+    {%- endfor -%}
+  </div>
+
+  <div class="multi-block-header"></div>
+</div>
+{% schema %}
+{
+  // TODO: Translation
+  "name": "Multi Block",
+  "disabled_on": {
+    "groups": ["header"]
+  },
+  "settings": [
+    {
+      "type": "header",
+      "content": "Section"
+    },
+    {
+      "type": "range",
+      "id": "total_width",
+      "min": 0,
+      "max": 100,
+      "step": 10,
+      "unit": "%",
+      "label": "Width",
+      "default": 100
+    },
+    {
+      "type": "header",
+      "content": "Side padding"
+    },
+    {
+      "type": "range",
+      "id": "padding_left",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "label": "Multi block Padding Left",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "padding_right",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "label": "Multi block Padding right",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "padding_left_mb",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "label": "Multi block Mobile Padding Left",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "padding_right_mb",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "label": "Multi block Mobile Padding right",
+      "default": 0
+    },
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "t:sections.all.colors.label",
+      "default": "scheme-1"
+    },
+    {
+      "type": "header",
+      "content": "Header"
+    },
+    {
+      "type": "select",
+      "id": "max_height",
+      "label": "Section height",
+      "options": [
+        {
+          "value": "max-height-small",
+          "label": "Small"
+        },
+        {
+          "value": "max-height-medium",
+          "label": "Medium"
+        },
+        {
+          "value": "max-height-large",
+          "label": "Large"
+        }
+      ],
+      "default": "max-height-medium"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_content_area",
+      "label": "Show Content Area",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "Subtitle"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Title"
+    },
+    {
+      "type": "inline_richtext",
+      "id": "description",
+      "label": "Description"
+    },
+    {
+      "type": "text",
+      "id": "link_label",
+      "label": "Link Label"
+    },
+    {
+      "type": "url",
+      "id": "url",
+      "label": "Link"
+    },
+    {
+      "type": "header",
+      "content": "Countdown Timer"
+    },
+    {
+      "type": "text",
+      "id": "date_picker",
+      "label": "Choose date",
+      "placeholder": "DD/MM/YYYY hh:mm:ss",
+      "info": "Must follow format: DD/MM/YYYY hh:mm:ss."
+    },
+    {
+      "type": "color",
+      "id": "color",
+      "label": "Choose color",
+      "default": "#BBB589"
+    },
+    {
+      "type": "text",
+      "id": "timer_end_message",
+      "label": "Timer End Message",
+      "default": "Countdown ended"
+    },
+    {
+      "type": "header",
+      "content": "Margins"
+    },
+    {
+      "id": "section_gap",
+      "type": "range",
+      "label": "Desktop Block's Gap",
+      "default": 16,
+      "min": 4,
+      "max": 24,
+      "step": 4
+    },
+    {
+      "id": "section_gap_tablet",
+      "type": "range",
+      "label": "Mobile / Tablet Block's Gap",
+      "default": 4,
+      "min": 4,
+      "max": 28,
+      "step": 4
+    },
+    {
+      "type": "header",
+      "content": "Mobile Display"
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_mobile",
+      "label": "Hide on mobile",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "reverse_order",
+      "label": "Reverse order",
+      "default": false
+    },
+    {
+      "id": "mobile_display_type",
+      "type": "select",
+      "label": "Mobile Display Type",
+      "options": [
+        { "label": "Center", "value": "center" },
+        { "label": "Left", "value": "left" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "padding_top_mb",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding Top Mobile",
+      "default": 36
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom_mb",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding Bottom Mobile",
+      "default": 36
+    },
+    {
+      "type": "header",
+      "content": "Desktop Display"
+    },
+    {
+      "id": "display_type",
+      "type": "select",
+      "label": "Display Type",
+      "options": [
+        { "label": "Center", "value": "center" },
+        { "label": "Between", "value": "between" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "padding_top_dt",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding Top Desktop",
+      "default": 36
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom_dt",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding Bottom Desktop",
+      "default": 36
+    }
+  ],
+  "max_blocks": 4,
+  "blocks": [
+     {
+      "type": "@app"
+    },
+    {
+      "type": "section_card",
+      "name": "Section Card", // Translate
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "remove_min_height",
+          "label": "Remove min height",
+          "default": false
+        },
+        {
+          "type": "color_scheme",
+          "id": "color_scheme",
+          "label": "t:sections.all.colors.label",
+          "default": "scheme-5"
+        },
+        {
+          "type": "header",
+          "content": "Image"
+        },
+        {
+          "type": "image_picker",
+          "id": "bg_image",
+          "label": "Image for background"
+        },
+        {
+          "type": "video",
+          "id": "bg_video",
+          "label": "Video for background"
+        },
+        {
+          "type": "header",
+          "content": "Content"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "caption",
+          "default": "Caption",
+          "label": "Card Caption"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "title",
+          "default": "Title",
+          "label": "Card Title"
+        },
+        {
+          "type": "richtext",
+          "id": "description",
+          "label": "Description"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "button1_text",
+          "default": "Button Text",
+          "label": "Button 1 Text"
+        },
+        {
+          "type": "url",
+          "id": "button1_url",
+          "label": "Button 1 url"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "button2_text",
+          "default": "Button 2 Text",
+          "label": "Button Text"
+        },
+        {
+          "type": "url",
+          "id": "button2_url",
+          "label": "Button 2 url"
+        },
+
+        {
+          "type": "header",
+          "content": "Content Settings"
+        },
+        {
+          "type": "select",
+          "id": "vertical_alignment",
+          "label": "Text vertical alignment",
+          "options": [
+            {
+              "value": "top",
+              "label": "Top"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "bottom",
+              "label": "Bottom"
+            }
+          ],
+          "default": "top"
+        },
+        {
+          "type": "select",
+          "id": "justify_text",
+          "label": "Text horizontal alignment",
+          "options": [
+            {
+              "value": "left",
+              "label": "Left"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            }
+          ],
+          "default": "left"
+        },
+        {
+          "type": "header",
+          "content": "Shadow"
+        },
+        {
+          "type": "checkbox",
+          "id": "enable_shadow",
+          "label": "Show shadow",
+          "default": true
+        },
+        {
+          "type": "select",
+          "id": "shadow_position",
+          "label": "Shadow vertical position",
+          "options": [
+            {
+              "value": "shadow-top",
+              "label": "Top"
+            },
+            {
+              "value": "shadow-bottom",
+              "label": "Bottom"
+            }
+          ],
+          "default": "shadow-bottom"
+        },
+        {
+          "type": "select",
+          "id": "shadow_color",
+          "label": "Shadow color",
+          "options": [
+            {
+              "value": "black",
+              "label": "Black"
+            },
+            {
+              "value": "white",
+              "label": "White"
+            }
+          ],
+          "default": "black"
+        },
+        {
+          "type": "select",
+          "id": "buttons_width",
+          "label": "Buttons width on Mobile",
+          "options": [
+            {
+              "value": "inline",
+              "label": "Inline"
+            },
+            {
+              "value": "full",
+              "label": "Full"
+            }
+          ],
+          "default": "inline"
+        },
+        {
+          "type": "header",
+          "content": "Countdown Timer"
+        },
+        {
+          "type": "text",
+          "id": "date_picker",
+          "label": "Choose date",
+          "placeholder": "DD/MM/YYYY hh:mm:ss",
+          "info": "Must follow format: DD/MM/YYYY hh:mm:ss."
+        },
+        {
+          "type": "color",
+          "id": "color",
+          "label": "Choose color",
+          "default": "#BBB589"
+        },
+        {
+          "type": "text",
+          "id": "timer_end_message",
+          "label": "Timer End Message",
+          "default": "Countdown ended"
+        }
+      ]
+    },
+    {
+      "type": "product-list",
+      "name": "Product Grid", // Translate
+      "settings": [
+        {
+          "type": "product_list",
+          "id": "product_list",
+          "label": "Products",
+          "limit": 4
+        },
+        {
+          "type": "select",
+          "id": "product_layout",
+          "options": [
+            {
+              "label": "Grid",
+              "value": "grid"
+            },
+            {
+              "label": "Slider",
+              "value": "slider"
+            }
+          ],
+          "label": "Make Grid",
+          "default": "grid"
+        },
+        {
+          "type": "color_scheme",
+          "id": "color_scheme",
+          "label": "t:sections.all.colors.label",
+          "default": "scheme-5"
+        },
+        {
+          "type": "header",
+          "content": "t:sections.featured-collection.settings.header.content"
+        },
+        {
+          "type": "checkbox",
+          "id": "image_background",
+          "label": "Image Background transparent",
+          "default": true
+        }
+      ]
+    }
+  ],
+
+  "presets": [
+    {
+      "name": "SCX Multi Block"
+    }
+  ]
+}
+{% endschema %}
