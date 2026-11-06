@@ -1,13 +1,14 @@
 import { Panel } from "@/components/dashboard/ui";
 import { Flash, PageHeading } from "@/components/shell";
 import { crLegalList, crSettingsGet, type CrLegalRow } from "@/lib/criadores/db";
+import { metaPublicConfigured } from "@/lib/criadores/meta";
 import { creatorsReady } from "@/lib/criadores/site";
 import {
   LEGAL_KIND_LABEL, LEGAL_STATUS_LABEL, lisbonDate, lisbonDateTime, RETENTION_KEYS, RETENTION_LABEL, RETENTION_UNIT_LABEL, retentionFloor,
   retentionMax, retentionUnit, type RetentionKey,
 } from "@/lib/criadores-rules";
 import { requireCreatorsViewer } from "@/lib/viewer";
-import { lockdownPlatform, publishLegalDocument, saveCreatorsSettings, saveLegalDocument } from "../actions";
+import { lockdownPlatform, publishLegalDocument, saveCreatorsSettings, saveLegalDocument, setPublicMode } from "../actions";
 import { creatorsError, creatorsMessage } from "../messages";
 import { CreatorsShell, num } from "../ui";
 import { LegalPreview } from "./legal-preview";
@@ -91,6 +92,8 @@ export default async function CreatorsSettingsPage({ searchParams }: { searchPar
   const ready = creatorsReady();
   const retentionKeys = s ? [...RETENTION_KEYS.filter((k) => k in s.retention), ...Object.keys(s.retention).filter((k) => !RETENTION_KEYS.includes(k as RetentionKey))] : [];
   const published = (k: Kind) => docs?.find((d) => d.kind === k && d.status === "published");
+  const publicOn = s?.public_mode === "on";
+  const metaReady = metaPublicConfigured();
 
   return (
     <CreatorsShell viewer={viewer} current="influenciadores-definicoes" title="Definições">
@@ -183,6 +186,43 @@ export default async function CreatorsSettingsPage({ searchParams }: { searchPar
               </form>
             </Panel>
           </div>
+
+          <Panel
+            title="Dados públicos do Instagram"
+            eyebrow="META"
+            id="meta"
+            note="Liga a leitura diária dos números públicos das contas que o autorizarem e o botão «Autorizar a leitura» em Redes. Desligar para as leituras e as autorizações novas; os criadores continuam a poder parar e apagar, e os dados lidos seguem a janela de 24 meses. Antes de ligar, teste a ligação na visão geral."
+          >
+            <p>
+              Leitura{" "}
+              {s.public_mode === undefined ? (
+                <span className="pill warn">Indisponível (falta a atualização da base de dados?)</span>
+              ) : (
+                <span className={publicOn ? "pill ok" : "pill warn"}>{publicOn ? "Ligada" : "Desligada"}</span>
+              )}
+              {!metaReady && <small className="muted block">Faltam META_SYSTEM_USER_TOKEN e META_IG_ACCOUNT_ID na Vercel: a leitura não pode ser ligada.</small>}
+            </p>
+            {viewer.isSuper && s.public_mode !== undefined ? (
+              <form action={setPublicMode} className="form-grid">
+                <fieldset className="wide" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                  <legend className="muted">Leitura dos dados públicos</legend>
+                  <label className="check">
+                    <input type="radio" name="public_mode" value="on" defaultChecked={publicOn} disabled={!metaReady && !publicOn} />
+                    <span>Ligada</span>
+                  </label>
+                  <label className="check">
+                    <input type="radio" name="public_mode" value="off" defaultChecked={!publicOn} />
+                    <span>Desligada</span>
+                  </label>
+                </fieldset>
+                <div className="wide form-actions">
+                  <button type="submit">Guardar</button>
+                </div>
+              </form>
+            ) : (
+              <p className="muted">Só o Super Admin liga ou desliga a leitura.</p>
+            )}
+          </Panel>
 
           <Panel
             title="Prazos de conservação"
@@ -314,7 +354,10 @@ export default async function CreatorsSettingsPage({ searchParams }: { searchPar
                 </label>
                 <label className="check wide">
                   <input type="checkbox" name="confirm" required />
-                  <span>Termina já todas as sessões dos criadores e fecha as inscrições. Para reabrir, volte a abrir as inscrições acima.</span>
+                  <span>
+                    Termina já todas as sessões dos criadores, fecha as inscrições e desliga a leitura dos dados públicos do Instagram. Para reabrir, volte a abrir as
+                    inscrições e a ligar a leitura acima.
+                  </span>
                 </label>
                 <div className="wide form-actions">
                   <button type="submit" className="danger-button">Parar a plataforma</button>

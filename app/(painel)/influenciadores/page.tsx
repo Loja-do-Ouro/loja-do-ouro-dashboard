@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { Panel } from "@/components/dashboard/ui";
 import { Flash, PageHeading } from "@/components/shell";
-import { creatorsServerConfigured } from "@/lib/criadores/db";
+import { creatorsServerConfigured, crPublicStatus, type CrPublicStatus } from "@/lib/criadores/db";
 import { encryptionProblem } from "@/lib/criadores/crypto";
+import { metaPublicConfigured } from "@/lib/criadores/meta";
 import { creatorsReady, siteUrl } from "@/lib/criadores/site";
-import { LEGAL_KIND_LABEL } from "@/lib/criadores-rules";
+import { graphErrorText } from "@/lib/criadores-meta-rules";
+import { LEGAL_KIND_LABEL, lisbonDateTime } from "@/lib/criadores-rules";
 import { emailConfigured } from "@/lib/email";
 import { canManageCreators } from "@/lib/permissions";
 import { requireCreatorsViewer } from "@/lib/viewer";
+import { testMetaConnection } from "./actions";
 import { creatorsError, creatorsMessage } from "./messages";
 import { CreatorsShell, loadOverview, num } from "./ui";
 
@@ -42,6 +45,28 @@ function Integration({ name, ok, text }: { name: string; ok: boolean; text: stri
   );
 }
 
+// Ligação à Meta (dados públicos do Instagram, fase 3A): pronta quando está configurada, o último pedido certo é
+// mais recente do que o último erro e não há pausa. Só o estado e o código da Meta, nunca uma resposta.
+function metaState(configured: boolean, pub: CrPublicStatus | null, now: number): { ok: boolean; text: string } {
+  if (!configured) return { ok: false, text: "Sem o token do System User e o id da conta @lojadoouro a leitura não corre (na Preview é normal)." };
+  if (!pub) return { ok: false, text: "Estado indisponível (falta a atualização da base de dados?)." };
+  const off = pub.mode !== "on" ? "Leitura desligada em Definições. " : "";
+  const paused = pub.paused_until && Date.parse(pub.paused_until) > now ? pub.paused_until : null;
+  const okAt = pub.last_ok_at ? Date.parse(pub.last_ok_at) : null;
+  const errAt = pub.last_error_at ? Date.parse(pub.last_error_at) : null;
+  const usage = pub.usage_pct !== null ? ` · uso da app ${pub.usage_pct} %` : "";
+  if (okAt && (!errAt || okAt > errAt) && !paused) {
+    return { ok: true, text: `${off}Último pedido certo a ${lisbonDateTime(pub.last_ok_at)}${usage}.` };
+  }
+  if (pub.last_error && errAt) {
+    return {
+      ok: false,
+      text: `${off}${graphErrorText(pub.last_error, pub.last_code)} Desde ${lisbonDateTime(pub.last_error_at)}${paused ? `; em pausa até ${lisbonDateTime(paused)}` : ""}.`,
+    };
+  }
+  return { ok: false, text: `${off}Ainda sem pedidos: carregue em «Testar a ligação à Meta».` };
+}
+
 export default async function CreatorsOverviewPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireCreatorsViewer("view");
   const q = await searchParams;
@@ -51,6 +76,8 @@ export default async function CreatorsOverviewPage({ searchParams }: { searchPar
   const server = creatorsServerConfigured();
   const resend = emailConfigured();
   const manage = canManageCreators(viewer);
+  const pub = await crPublicStatus(viewer.session).catch(() => null);
+  const meta = metaState(metaPublicConfigured(), pub, Date.now());
 
   return (
     <CreatorsShell viewer={viewer} current="influenciadores" title="Influenciadores">
@@ -138,10 +165,45 @@ export default async function CreatorsOverviewPage({ searchParams }: { searchPar
               )}
             </Panel>
           </div>
+
+          <Panel
+            title="Dados públicos do Instagram"
+            eyebrow="META · BUSINESS DISCOVERY"
+            note="Leitura diária (semanal sem atividade há mais de 90 dias) dos números públicos das contas que o autorizaram, depois de confirmada a posse com um código na biografia. Os números não servem para indicadores nem para IA e só aparecem no perfil de cada criador."
+          >
+            <p>
+              Leitura{" "}
+              {pub ? <span className={pub.mode === "on" ? "pill ok" : "pill warn"}>{pub.mode === "on" ? "Ligada" : "Desligada"}</span> : <span className="pill">Indisponível</span>}
+              {manage && <small className="muted block">Liga-se e desliga-se em <Link href="/influenciadores/definicoes#meta">Definições</Link> (Super Admin), depois de testar a ligação abaixo.</small>}
+            </p>
+            <div className="mini-stats">
+              <div>
+                <span>Por confirmar</span>
+                <strong>{num(pub?.proof)}</strong>
+              </div>
+              <div>
+                <span>Em leitura</span>
+                <strong>{num(pub?.active)}</strong>
+              </div>
+              <div>
+                <span>Com erro</span>
+                <strong>{num(pub?.error)}</strong>
+              </div>
+              <div>
+                <span>Atrasadas</span>
+                <strong>{num(pub?.overdue)}</strong>
+              </div>
+            </div>
+          </Panel>
         </>
       )}
 
-      <Panel title="Estado das ligações" eyebrow="INTEGRAÇÕES" note="Blob (ficheiros), catálogo Shopify, Meta e IA entram nos PR seguintes. Os segredos ficam na Vercel: aqui só se vê se existem.">
+      <Panel
+        title="Estado das ligações"
+        eyebrow="INTEGRAÇÕES"
+        id="ligacoes"
+        note="Blob (ficheiros), catálogo Shopify e IA entram nos PR seguintes; a ligação do Instagram pela Meta (insights) no PR 3B. Os segredos ficam na Vercel: aqui só se vê se existem."
+      >
         <div className="table-scroll" tabIndex={0} aria-label="Estado das ligações">
           <table className="left-table">
             <tbody>
@@ -149,9 +211,16 @@ export default async function CreatorsOverviewPage({ searchParams }: { searchPar
               <Integration name="Endereço próprio (CREATORS_URL)" ok={ready} text={ready ? "Inscrições e emails podem abrir." : "Em produção, sem o domínio, as inscrições não abrem e os emails não saem (só testes internos em /c)."} />
               <Integration name="Cifra (CREATORS_ENCRYPTION_KEY)" ok={!keyProblem} text={keyProblem || "IBAN e dados fiscais cifrados com o anel de chaves."} />
               <Integration name="Emails (Resend)" ok={resend} text={resend ? "Avisos da fila e emails de conta." : "RESEND_API_KEY por configurar: nenhum email sai."} />
+              <Integration name="Meta — dados públicos (META_SYSTEM_USER_TOKEN, META_IG_ACCOUNT_ID)" ok={meta.ok} text={meta.text} />
             </tbody>
           </table>
         </div>
+        {manage && (
+          <form action={testMetaConnection} className="inline-form" style={{ marginTop: 14 }}>
+            <button type="submit" className="secondary-button">Testar a ligação à Meta</button>
+            <small className="muted">Faz um pedido à Meta com os números públicos da própria @lojadoouro, com os mesmos campos da leitura.</small>
+          </form>
+        )}
       </Panel>
     </CreatorsShell>
   );

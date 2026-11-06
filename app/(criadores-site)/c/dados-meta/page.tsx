@@ -30,7 +30,7 @@ export default async function MetaDataPage() {
                 </li>
                 <li>Também pode escrever para <a href={`mailto:${contact}`}>{contact}</a>.</li>
               </ul>
-              <p>Nesta fase a plataforma ainda não lê dados da Meta: estas opções aparecem em Redes quando estiverem disponíveis.</p>
+              <p>Nesta fase só lemos os dados públicos do Instagram de quem o autoriza em Redes; a ligação da conta pela Meta chega mais tarde.</p>
             </div>
           } />
           <section className="cr-bloco" aria-labelledby="t-resp">

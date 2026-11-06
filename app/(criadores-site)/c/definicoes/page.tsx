@@ -48,8 +48,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <div className="cr-bloco-cab"><h2 id="t-dados" className="cr-d-m">Os seus dados</h2></div>
             <h3 className="cr-d-xs" style={{ marginBottom: 8 }}>Descarregar os meus dados</h3>
             <p className="cr-pequeno">
-              Um ficheiro JSON com tudo o que guardamos sobre si: conta, perfil, redes e números, consentimentos, mensagens, notas internas da equipa, pedidos e
-              registo de ações. Os dados fiscais e o IBAN vão por inteiro, porque são seus.
+              Um ficheiro JSON com tudo o que guardamos sobre si: conta, perfil, redes e números, números públicos lidos do Instagram (se autorizou a
+              leitura), consentimentos, mensagens, notas internas da equipa, pedidos e registo de ações. Os dados fiscais e o IBAN vão por inteiro, porque
+              são seus.
             </p>
             {exportError && <Aviso tone="erro"><p>{exportError}</p></Aviso>}
             {/* Formulário normal (sem JavaScript): a resposta é o ficheiro. A rota confirma a origem e a sessão. */}
@@ -73,7 +74,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
           <section id="apagar" className="cr-bloco" aria-labelledby="t-apagar">
             <div className="cr-bloco-cab"><h2 id="t-apagar" className="cr-d-m">Apagar a conta</h2></div>
-            <p>Ao apagar, deixa de poder entrar e apagamos o perfil, os contactos, as redes, os números e as mensagens. Fica só o que a lei ou a prova nos obrigam a guardar:</p>
+            <p>
+              Ao apagar, deixa de poder entrar e apagamos o perfil, os contactos, as redes, os números (declarados e lidos do Instagram) e as mensagens. Fica só
+              o que a lei ou a prova nos obrigam a guardar:
+            </p>
             <table className="cr-tab cr-tab-pilha" style={{ marginBottom: 24 }}>
               <thead><tr><th scope="col">O que fica</th><th scope="col">Porquê</th><th scope="col">Até quando</th></tr></thead>
               <tbody>

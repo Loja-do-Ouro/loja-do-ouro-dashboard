@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { consentText } from "@/lib/criadores-rules";
 import { requireCreator, siteBase } from "@/lib/criadores/site";
@@ -9,8 +10,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Termos atualizados" };
 
 // Termos publicados com «exige nova aceitação» (me.reaccept): o texto, o resumo das mudanças e «Aceito». As outras
-// páginas da conta mandam para aqui até aceitar (requireCreator). Só os Termos bloqueiam; uma Política nova é só um
-// aviso no topo [rev. R-M6].
+// páginas da conta mandam para aqui até aceitar (requireCreator), salvo Definições (exportar e apagar) e Redes (parar
+// a leitura dos dados públicos). Só os Termos bloqueiam; uma Política nova é só um aviso no topo [rev. R-M6].
 export default async function NewTermsPage() {
   const [base, { me }] = await Promise.all([siteBase(), requireCreator({ allowReaccept: true })]);
   if (!me.reaccept.length) redirect(`${base}/painel`);
@@ -33,7 +34,8 @@ export default async function NewTermsPage() {
                 <AcceptTermsForm docId={doc.id} text={consentText("terms", { versao: doc.version })} />
               </div>
               <p className="cr-pequeno" style={{ marginTop: 24 }}>
-                Se não concordar, pode descarregar os seus dados ou apagar a conta em Definições, sem aceitar.
+                Se não concordar, pode descarregar os seus dados ou apagar a conta em Definições, sem aceitar. Se autorizou a leitura dos dados públicos do
+                Instagram, também a pode parar em <Link href={`${base}/redes#t-ig`}>Redes</Link>, sem aceitar.
               </p>
             </>
           ) : (

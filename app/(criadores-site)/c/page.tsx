@@ -83,7 +83,7 @@ const STEPS = [
 
 const QA = [
   { q: "Preciso de muitos seguidores?", a: "Não para criar conta. Algumas campanhas indicam um número de seguidores sugerido, com o motivo; outras, como as de conteúdo para a loja, não dependem disso. Nenhuma candidatura é excluída de forma automática." },
-  { q: "Os meus números são verificados?", a: "Os números que indica ficam como «declarado por si, não verificado». A equipa pode validá-los a partir de capturas das estatísticas. Mais tarde vai poder ligar o Instagram pela Meta, só se quiser e com uma autorização própria." },
+  { q: "Os meus números são verificados?", a: "Os números que indica ficam como «declarado por si, não verificado». A equipa pode validá-los a partir de capturas das estatísticas. Quando a opção estiver disponível em Redes, também pode autorizar a leitura dos números públicos da sua conta profissional do Instagram: é opcional e pode parar quando quiser." },
   { q: "Usam inteligência artificial para decidir?", a: "Não. Cada perfil e cada candidatura é lido por uma pessoa da equipa, que regista o motivo da decisão. A Loja do Ouro não dá notas nem ordena criadores." },
   { q: "Quem vê o meu IBAN e os meus dados fiscais?", a: "Ficam cifrados. Só quem trata dos pagamentos os pode ver por inteiro, com o motivo registado. Um IBAN novo só passa a valer depois de o confirmar por email." },
   { q: "Posso apagar a conta?", a: "Sim, em Definições, com a palavra-passe. Também pode descarregar todos os seus dados num ficheiro. Se tiver uma colaboração a decorrer, explicamos o que fica e até quando." },

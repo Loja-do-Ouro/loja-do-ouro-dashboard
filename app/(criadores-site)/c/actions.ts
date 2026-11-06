@@ -8,17 +8,20 @@ import {
   normalizePhone, passwordProblem, pickAllowed, privacyNoticeUpdateText, validEmail, validName,
   type ContactPreference, type FiscalData, type Platform, type VatRegime,
 } from "@/lib/criadores-rules";
+import { instagramHandle, proofMessage } from "@/lib/criadores-meta-rules";
 import { safeNext } from "@/lib/criadores-site-rules";
 import { userMessage } from "@/lib/supabase";
 import { saveFinance } from "@/lib/criadores/crypto";
 import {
   crConsentSet, crIbanConfirm, crLegalAccept, crLegalPublic, crMessageSend, crPrivacyRequest, crProfileGet, crProfileSave,
-  crProfileSubmit, crSocialDelete, crSocialSave, type CrMetricsInput, type CrSocialAccount, type CrSocialInput,
+  crProfileSubmit, crPublicRenew, crPublicStart, crPublicStop, crSocialDelete, crSocialSave, type CrMetricsInput, type CrSocialAccount,
+  type CrSocialInput,
 } from "@/lib/criadores/db";
 import {
   changeCreatorPassword, deleteMyAccount, loginCreator, logoutCreator, registerCreator, requestCreatorReset, resendIbanConfirm,
   resetCreatorPassword, verifyCreatorEmail,
 } from "@/lib/criadores/emails";
+import { checkPublicProof, metaPublicConfigured } from "@/lib/criadores/meta";
 import { clearCreatorSession, ipHash, loadCreator, siteBase } from "@/lib/criadores/site";
 
 // Server actions do site dos criadores (§4.3, useActionState como app/(leilao-site)/l/actions.ts). As regras estão na
@@ -402,6 +405,85 @@ export async function socialDeleteAction(_: FormState, form: FormData): Promise<
   return { ok: "Conta apagada, com os números declarados." };
 }
 
+// ---------------------------------------------------------------- dados públicos do Instagram (fase 3A, /redes)
+// Do formulário vêm só o id da conta e as caixas («autorizo», «confirmo»). O @ e o texto da autorização saem da BD e
+// de CONSENT_TEXT (rev. R-B1). Num sucesso, a página volta a /redes#t-ig com ?m= (o estado da secção muda e o
+// formulário que deu a resposta desaparece).
+
+// A conta Instagram do próprio, lida da BD (do formulário só vem o id).
+async function instagramAccount(session: string, id: string) {
+  if (!UUID.test(id)) return null;
+  return (await crProfileGet(session)).social_accounts.find((a) => a.id === id && a.platform === "instagram") ?? null;
+}
+
+const INVALID_IG = (handle: string) =>
+  `@${handle} não é um nome de utilizador válido do Instagram (só letras, números, ponto e _, até 30 caracteres). Corrija-o em «Contas declaradas» para poder autorizar a leitura.`;
+const PUBLIC_OFF = "A leitura dos dados públicos está desligada de momento.";
+
+export async function publicStartAction(_: FormState, form: FormData): Promise<FormState> {
+  const { session, base } = await requireSession();
+  if (!checked(form, "autorizo")) return fail(form, "Para autorizar a leitura, marque a caixa.");
+  if (!metaPublicConfigured()) return fail(form, PUBLIC_OFF);
+  try {
+    const ig = await instagramAccount(session, field(form, "id", 40));
+    if (!ig) return fail(form, "Esta conta já não existe. Recarregue a página.");
+    if (!instagramHandle(ig.handle)) return fail(form, INVALID_IG(ig.handle));
+    await crPublicStart(session, ig.id, consentText("platform_public", { handle: ig.handle }), await ipHash());
+  } catch (e) {
+    return fail(form, userMessage(e));
+  }
+  redirect(`${base}/redes?m=autorizado#t-ig`);
+}
+
+// Lê a biografia pela Meta (lib/criadores/meta.ts): a biografia não chega aqui, só se o código lá estava.
+export async function publicProofAction(_: FormState, form: FormData): Promise<FormState> {
+  const { session, base } = await requireSession();
+  const id = field(form, "id", 40);
+  if (!UUID.test(id)) return fail(form, "Conta inválida.");
+  let r;
+  try {
+    r = await checkPublicProof(session, id);
+  } catch (e) {
+    return fail(form, userMessage(e));
+  }
+  if (!r.ok) {
+    refresh(); // as tentativas que sobram mudaram
+    return fail(form, proofMessage(r.reason, r.handle ?? "", r.left));
+  }
+  redirect(`${base}/redes?m=confirmado#t-ig`);
+}
+
+export async function publicRenewAction(_: FormState, form: FormData): Promise<FormState> {
+  const { session, base } = await requireSession();
+  const id = field(form, "id", 40);
+  if (!UUID.test(id)) return fail(form, "Conta inválida.");
+  try {
+    await crPublicRenew(session, id);
+  } catch (e) {
+    return fail(form, userMessage(e));
+  }
+  redirect(`${base}/redes?m=codigo#t-ig`);
+}
+
+// «Parar a leitura e apagar os dados públicos»: funciona sempre (conta suspensa ou limitada, leitura desligada).
+export async function publicStopAction(_: FormState, form: FormData): Promise<FormState> {
+  const { session, base } = await requireSession();
+  if (!checked(form, "confirmo")) return fail(form, "Para parar a leitura, marque a caixa de confirmação.");
+  let stopped = false;
+  try {
+    const ig = await instagramAccount(session, field(form, "id", 40));
+    if (!ig) return fail(form, "Esta conta já não existe. Recarregue a página.");
+    stopped = (await crPublicStop(session, ig.id, consentText("platform_public", { handle: ig.handle }), await ipHash())).stopped;
+  } catch (e) {
+    return fail(form, userMessage(e));
+  }
+  if (!stopped) {
+    refresh();
+    return { ok: "Não havia nenhuma leitura autorizada nesta conta." };
+  }
+  redirect(`${base}/redes?m=parado#t-ig`);
+}
+
 // ---------------------------------------------------------------- mensagens
 
 export async function messageAction(_: FormState, form: FormData): Promise<FormState> {
@@ -547,7 +629,7 @@ export async function deleteAccountAction(_: FormState, form: FormData): Promise
     // [rev. R-M7] Colaboração a decorrer: a conta fica, o opcional já foi apagado e há um pedido aberto.
     refresh();
     return {
-      error: `Não apagámos a conta porque tem uma colaboração a decorrer: ${r.detail} Já apagámos o que dependia da sua autorização (os avisos de campanhas novas). Guardamos o resto enquanto a colaboração durar e apagamos quando terminar. Respondemos por email no prazo de um mês. Se não concordar, pode reclamar à CNPD (www.cnpd.pt).`,
+      error: `Não apagámos a conta porque tem uma colaboração a decorrer: ${r.detail} Já apagámos o que dependia da sua autorização (os avisos de campanhas novas e os números públicos lidos do Instagram). Guardamos o resto enquanto a colaboração durar e apagamos quando terminar. Respondemos por email no prazo de um mês. Se não concordar, pode reclamar à CNPD (www.cnpd.pt).`,
     };
   }
   redirect(`${base || "/"}?m=apagada`);

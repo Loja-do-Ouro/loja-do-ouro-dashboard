@@ -135,9 +135,17 @@ Site dos criadores e influenciadores (`https://criadores.lojadoouro.pt`) e área
 - **Domínio**: antes do DNS, `/c` no endereço do dashboard serve só para testes internos (sem sessão da equipa, com a CSP do site e, em produção, as inscrições «em breve»). Depois do deploy: adicionar `criadores.lojadoouro.pt` ao projeto Vercel **loja-do-ouro-dashboard**, criar na Cloudflare o CNAME `criadores` → `cname.vercel-dns.com` em «DNS only» e definir `CREATORS_URL`. A partir daí o dashboard responde 308 de `/c/*` para o domínio próprio e 404 em `/api/c/*`, salvo `/api/c/tick`. O dashboard não pode ser posto num `iframe` (`X-Frame-Options: DENY` e `frame-ancestors 'none'` em `next.config.mjs`); no host `criadores.*` os cabeçalhos (CSP com nonce) vêm do `proxy.ts`.
 - **Região**: as funções correm em `fra1` (`vercel.json`), perto da BD (Frankfurt); a decifração do IBAN e dos dados fiscais corre na UE.
 - **Rotas de API**: `POST /api/c/export` («Descarregar os meus dados» em `/definicoes`: cookie do criador, palavra-passe no formulário, `Origin` do próprio site e `Sec-Fetch-Site: same-origin`; devolve um anexo JSON `no-store` com os dados fiscais e o IBAN do próprio decifrados e grava o pedido RGPD `access` como concluído; os erros voltam a `/definicoes?dados=senha|limite|bloqueado|erro`) e `POST /api/c/tick` (abaixo). A exportação pela equipa, para um pedido RGPD recebido por email, é `POST /api/influenciadores/export/[id]`, sem nada cifrado.
-- **Verificação automática** a cada 5 minutos (pg_cron + pg_net → `POST /api/c/tick`, `supabase/migrations/20261105100100_ldo_creators_tick_schedule.sql`, aplicada só depois do deploy da rota). O token é gerado pela BD e fica no Vault (`ldo_creators_tick`); a rota pede à BD que o confirme (`ldo_cr_tick_check`), responde 204 e trabalha a seguir (`after()`, 60 s): a fila de emails (`ldo_cr_outbox`: lotes de 20, 600 ms entre envios, para no 429 do Resend) e, só durante uma rotação da chave, a regravação da cifra. Sem `CREATORS_SERVER_TOKEN` responde 503; com um token errado, 401. Para parar: `select cron.unschedule('ldo-creators-tick');`. A limpeza pelos prazos de conservação (`ldo-creators-retention`, 03:41) corre só na BD e fica agendada pela migração A (parar: `select cron.unschedule('ldo-creators-retention');`).
+- **Verificação automática** a cada 5 minutos (pg_cron + pg_net → `POST /api/c/tick`, `supabase/migrations/20261105100100_ldo_creators_tick_schedule.sql`, aplicada só depois do deploy da rota). O token é gerado pela BD e fica no Vault (`ldo_creators_tick`); a rota pede à BD que o confirme (`ldo_cr_tick_check`), responde 204 e trabalha a seguir (`after()`, 60 s): a fila de emails (`ldo_cr_outbox`: lotes de 20, 600 ms entre envios, para no 429 do Resend), a leitura dos dados públicos do Instagram (abaixo) e, só durante uma rotação da chave, a regravação da cifra. Sem `CREATORS_SERVER_TOKEN` responde 503; com um token errado, 401. Para parar: `select cron.unschedule('ldo-creators-tick');`. A limpeza pelos prazos de conservação (`ldo-creators-retention`, 03:41) corre só na BD e fica agendada pela migração A (parar: `select cron.unschedule('ldo-creators-retention');`).
 - **Emails** (Resend, `lib/criadores/emails.ts`): na hora, a confirmação do IBAN e «conta apagada»; logo a seguir à resposta (`after()`), a confirmação do email, a recuperação e «já tem conta»; os restantes avisos pela fila do tick. Em produção nenhum sai sem `CREATORS_URL`, `CREATORS_SERVER_TOKEN` e `CREATORS_ENCRYPTION_KEY`. As ligações levam o token depois de `#` (nunca no endereço que chega ao servidor). O logótipo vem sempre de `DASHBOARD_URL`.
 - **Cifra**: o IBAN e os dados fiscais são cifrados na aplicação (AES-256-GCM, subchave HKDF por finalidade, AAD `iban:<criador>` e `fiscal:<criador>`); a BD só vê `c1.…` e os 4 últimos algarismos do IBAN. Só quem tem «Finanças» revela, com motivo e a própria palavra-passe (`finance.reveal` na auditoria; no máximo 20 revelações por pessoa em 24 h; à 10.ª os Super Admin recebem um aviso).
+- **Dados públicos do Instagram** (fase 3A, `supabase/migrations/20261105190000_ldo_creators_meta_public.sql`, `lib/criadores/meta.ts`, regras em `lib/criadores-meta-rules.ts`, testes em `tests/criadores-meta*.cjs`). Com autorização expressa e separada (`platform_public`, o texto de `CONSENT_TEXT` com o @), a plataforma lê pela Business Discovery da Meta, a partir da conta Instagram da Loja do Ouro (`META_IG_ACCOUNT_ID`, @lojadoouro) e com o token do System User, os números públicos da conta profissional do criador: seguidores, número de publicações e, das 25 publicações mais recentes, gostos, comentários e visualizações (só dos reels: as dos outros tipos deitam-se fora, na aplicação e na BD). Nunca guarda a biografia, legendas, imagens, URLs da Meta nem o username devolvido; os números não servem para indicadores, IA, ordenação nem requisitos, e só aparecem no perfil do criador (a lista de criadores não muda). O criador vê em Redes o mesmo que a equipa na ficha: as últimas 30 leituras e as 25 publicações mais recentes.
+  - Fluxo, em Redes: «Autorizar a leitura» → código `LDO-XXXXXX` (7 dias; no máximo 5 códigos por pessoa em 24 h, entre autorizar e «Gerar um código novo») → o criador escreve-o na biografia e carrega em «Confirmar a conta» (no máximo 5 tentativas em 24 h; uma falha do lado da Meta ou da Loja do Ouro devolve a tentativa; a aplicação lê a biografia num pedido à parte, procura o código em memória e não a guarda) → a conta passa a «Dados públicos» e o tick lê-a uma vez por dia (por semana se o criador não entra há mais de 90 dias). Autorizar não diz se outra pessoa já provou o mesmo @ (só a confirmação recusa, e só lá chega quem tem o código na biografia). «Parar a leitura e apagar os dados públicos» apaga tudo na mesma transação, devolve a conta a «Não verificado», grava `platform_public = false` e um pedido RGPD `withdrawal` concluído; funciona sempre (conta suspensa ou limitada, leitura desligada e com Termos por aceitar: Redes abre só com este bloco). Mudar o @ (em Redes ou no passo 4 do perfil) ou apagar a conta Instagram em Redes faz o mesmo. A equipa para a leitura a pedido por email na ficha (separador Redes), com um pedido `withdrawal` aberto e a identidade confirmada; fica `privacy.withdrawal` com o pedido na auditoria.
+  - Tick: até 20 contas por execução, em lotes de 10, com 1 s entre pedidos e um pedido por conta (sem paginação). Para e pausa a leitura (`ldo_private.cr_public_state`) com o uso da app ≥ 75 %, num erro de limite (o tempo que a Meta indicar), de token ou de configuração (60 min, com um email aos Super Admin no máximo a cada 24 h) ou à 3.ª falha temporária seguida (15 min). Uma conta que a Meta não devolve (deixou de ser profissional ou mudou de @) passa a «Leitura com erro» à 4.ª falha (12 h entre tentativas), o criador recebe um email e tenta-se uma vez por semana; ao fim de 90 dias a limpeza diária termina a autorização e apaga o que foi lido. Um @ que passa a ser de outra conta do Instagram (o id muda) para a leitura e apaga tudo. Não se leem contas de criadores com o tratamento limitado nem suspensos.
+  - Conservação: janela de 24 meses (`platform_months`), também com a limitação em curso; autorizações nunca confirmadas terminam 30 dias depois de o código expirar. `public.stop` e `privacy.withdrawal` ficam nas decisões (5 anos). A exportação (própria e da equipa) leva `public_instagram`.
+  - Testes: `tests/criadores-meta.cjs` (regras), `tests/criadores-meta-estatico.cjs` (migração e código) e `tests/criadores-meta-tick.cjs` (o tick, a prova e o teste da ligação com a BD e a Meta falsas) correm no `npm test`. A máquina de estados SQL (autorizar → provar → ler → falhar → limpar → parar, limites e acessos) testa-se à parte, sobre as migrações reais numa base PGlite local: `npm i --no-save @electric-sql/pglite@0.5.8 && node scripts/criadores-meta-smoke.mjs` (correr depois de mudar a migração).
+  - Interruptor `ldo_cr_settings.public_mode` (nasce `off`): o Super Admin liga-o em Influenciadores → Definições → «Dados públicos do Instagram», depois de «Testar a ligação à Meta» na visão geral (estado em «Estado das ligações»). Desligado, o tick não lê e ninguém autoriza nem confirma. «Parar a plataforma» desliga-o.
+  - Médias das últimas publicações: calculadas (`publicSummary`, sem rácios) mas escondidas (`PUBLIC_SHOW_AVERAGES = false`) até o advogado confirmar que não são «indicadores».
+  - Versão da Graph API: `META_GRAPH_VERSION` em `lib/criadores-meta-rules.ts` (v27.0). Se o teste da ligação falhar por um campo (por exemplo `view_count`, código 100), mudar só depois de testar com a versão nova.
 
 Variáveis (Vercel; nunca no Git, no chat nem na BD):
 
@@ -148,6 +156,9 @@ Variáveis (Vercel; nunca no Git, no chat nem na BD):
 | `CREATORS_URL` | não sensível | `https://criadores.lojadoouro.pt`: ligações dos emails e redirecionamento de `/c`. Só depois do DNS. |
 | `CREATORS_RESEAL_FROM` | não sensível, opcional | Só durante uma rotação da chave: a versão a regravar (ex.: `c1`). |
 | `CREATORS_FROM`, `CREATORS_REPLY_TO` | não sensíveis, opcionais | Por omissão, `Loja do Ouro Criadores <criadores@lojadoouro.pt>` e `criadores@lojadoouro.pt`. |
+| `META_SYSTEM_USER_TOKEN` | **Sensitive**, só Production | Fase 3A: token do System User «lod-criadores-bd» (Business Manager), sem expiração, com `instagram_basic`, `instagram_manage_insights`, `pages_show_list` e `pages_read_engagement` (mais `ads_read` se o teste da ligação o pedir). Só `lib/criadores/meta.ts` o lê e só o envia no cabeçalho `Authorization`; nunca vai para a BD, para URLs nem para registos. |
+| `META_IG_ACCOUNT_ID` | não sensível | `17841402274014251` (conta Instagram @lojadoouro, a partir da qual se fazem os pedidos). |
+| `META_APP_SECRET` | **Sensitive**, opcional | Só se a app da Meta tiver «Require App Secret» ligado: junta `appsecret_proof` aos pedidos. A fase 3B vai precisar dele de qualquer forma. |
 
 Reutiliza `SUPABASE_PUBLISHABLE_KEY`, `RESEND_API_KEY` e `DASHBOARD_URL`.
 
@@ -161,6 +172,27 @@ node -e "const c=require('crypto');const t=c.randomBytes(32).toString('hex');con
 ```
 
 Depois do merge, por esta ordem e com autorização: (1) a migração A (mais de 30 KB: pelo procedimento das migrações grandes, com o `pg_net` a buscar o ficheiro no GitHub pelo sha do merge e o md5 confirmado); (2) o hash do token, colando só o SHA-256 (o token em claro nunca vai para o SQL): `insert into ldo_private.cr_token values (1, decode('<sha256 hex>', 'hex'));`; (3) o deploy; (4) `…100100_ldo_creators_tick_schedule.sql`; (5) à parte, `…100200_ldo_bi_auth_unlink.sql`. Para abrir as inscrições (Influenciadores → Definições, Super Admin): preencher a identificação legal e publicar os Termos e a Política.
+
+**Fase 3A (dados públicos do Instagram)**, depois do merge, por esta ordem e com autorização do dono:
+
+1. Verificações em produção (só leitura): zero contas em `public` e os corpos das 6 funções que a 3A substitui iguais aos da migração A (md5 do `prosrc`, calculados sobre o ficheiro com LF):
+
+   ```sql
+   select count(*) from public.ldo_cr_social_accounts where verification = 'public';   -- tem de dar 0
+   select n.nspname || '.' || p.proname as fn, md5(p.prosrc) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where (n.nspname, p.proname) in (('ldo_private', 'cr_social_upsert'), ('ldo_private', 'cr_erase_optional'),
+     ('ldo_private', 'cr_export_common'), ('ldo_private', 'cr_retention'), ('public', 'ldo_cr_social_delete'), ('public', 'ldo_cr_lockdown'));
+   -- cr_social_upsert ad42492dd55d6b066845ccfc492b84ed · cr_erase_optional 3dcc600d923f1806e6f4433caf300756
+   -- cr_export_common 4b23ff919b83b2136189d6f0839cacb8 · cr_retention 4b26a1b99f689a16ad680de9c529915f
+   -- ldo_cr_social_delete d528c4477e93ed4da3bc7c30c58ff7be · ldo_cr_lockdown fb3305acc664479f0268244236235022
+   ```
+
+   E o nome do check de `ldo_cr_attempts.kind`, que a 3A substitui para juntar `public_code`: `select conname from pg_constraint where conrelid = 'public.ldo_cr_attempts'::regclass and contype = 'c';` tem de dar `ldo_cr_attempts_kind_check` (senão a migração falha e não aplica nada).
+
+2. A migração `…190000_ldo_creators_meta_public.sql` (cerca de 73 KB: procedimento das migrações grandes, com o md5 de `git show <sha>:supabase/migrations/20261105190000_ldo_creators_meta_public.sql` confirmado). Nasce com a leitura desligada.
+3. O deploy de produção (à mão; as variáveis `META_*` já estão na Vercel). Se o deploy vier antes da migração, as páginas mostram «Em breve» e o tick só regista o erro.
+4. Influenciadores → «Testar a ligação à Meta» (manage). Confirma a Business Discovery com o token e a versão, todos os campos (sobretudo `view_count` e `like_count`), o pedido da biografia (o da confirmação da conta) e que a @lojadoouro devolve o id de `META_IG_ACCOUNT_ID`.
+5. O Super Admin liga a leitura em Influenciadores → Definições → «Dados públicos do Instagram».
 
 **Rodar a chave de cifra** (também ação de incidente; nunca trocar o valor de uma vez): (1) gerar uma chave nova, pôr `CREATORS_ENCRYPTION_KEY=c2:<nova>,c1:<antiga>` na Vercel e publicar; (2) definir `CREATORS_RESEAL_FROM=c1` e publicar: o tick volta a cifrar com `c2`, em lotes, os valores ainda em `c1.` (a mesma AAD; `iban_changed_at` não muda); (3) quando já não houver nenhum (consulta abaixo), retirar `c1` e `CREATORS_RESEAL_FROM` e publicar.
 
@@ -189,12 +221,12 @@ Os subcontratantes (Supabase, Vercel, Anthropic, Resend, Google) têm de nos avi
 
 Ações preparadas (o SQL corre no SQL Editor do Supabase, com autorização do Super Admin):
 
-- **Parar a plataforma**: Influenciadores → Definições → «Parar a plataforma (incidente)» (Super Admin, com motivo; `ldo_cr_lockdown`). Termina todas as sessões dos criadores e fecha as inscrições, e fica `incident.lockdown` na auditoria; os callbacks da Meta continuam a responder. Se o dashboard não estiver acessível, o mesmo efeito em SQL:
+- **Parar a plataforma**: Influenciadores → Definições → «Parar a plataforma (incidente)» (Super Admin, com motivo; `ldo_cr_lockdown`). Termina todas as sessões dos criadores, fecha as inscrições e desliga a leitura dos dados públicos do Instagram (`public_mode = 'off'`), e fica `incident.lockdown` na auditoria; os callbacks da Meta continuam a responder. Se o dashboard não estiver acessível, o mesmo efeito em SQL:
 
   ```sql
   begin;
   update public.ldo_cr_logins set revoked_at = now() where revoked_at is null;
-  update public.ldo_cr_settings set registrations_open = false, updated_at = now() where id = 1;
+  update public.ldo_cr_settings set registrations_open = false, public_mode = 'off', updated_at = now() where id = 1;
   select ldo_private.cr_log('system', null, null, 'incident.lockdown', null,
     jsonb_build_object('reason', '<motivo>', 'via', 'sql'));
   commit;
@@ -218,7 +250,7 @@ Ações preparadas (o SQL corre no SQL Editor do Supabase, com autorização do 
   ```
 
 - **Rodar a `CREATORS_ENCRYPTION_KEY`**: pela passagem a `c2` descrita acima (anel de chaves e regravação pelo tick), nunca trocando o valor de uma vez (os dados cifrados com a antiga ficariam ilegíveis).
-- **Meta** (a partir do PR 3A): revogar o token do System User no Business Manager e pôr um novo em `META_SYSTEM_USER_TOKEN`; rodar o `META_APP_SECRET`.
+- **Meta** (a partir do PR 3A): revogar o token do System User no Business Manager, pôr um novo em `META_SYSTEM_USER_TOKEN` e publicar; depois, «Testar a ligação à Meta» na visão geral limpa o erro e a pausa. Rodar o `META_APP_SECRET`, se existir. Para parar só a leitura: desligá-la em Definições (ou `update public.ldo_cr_settings set public_mode = 'off' where id = 1;`).
 - **Outros segredos**: rodar o `BLOB_READ_WRITE_TOKEN` (a partir do PR2) e a `RESEND_API_KEY` nos painéis respetivos e na Vercel.
 - **Conta da equipa suspeita**: terminar as sessões do dashboard dessa pessoa (e, se for preciso, desativá-la em Administração → Utilizadores):
 
@@ -251,7 +283,7 @@ O build de produção verifica a configuração do login e o acesso às quatro f
 - `app/admin/` — utilizadores e lojas; `app/conta/` — mudar a própria palavra-passe.
 - `app/apoio/`, `app/api/support/`, `components/support/`, `lib/support/` — Apoio ao Cliente (adaptadores `zendesk`, `metricool`, `whatsapp`; `sync`, `service`, `rules`).
 - `app/private-selection/`, `app/api/private-selection/`, `lib/private-selection/` (`db`, `http`, `send`), `lib/private-selection-rules.ts`, `lib/private-selection-email.ts`, `lib/klaviyo-write.ts` — Private Selection.
-- `app/(criadores-site)/`, `app/(painel)/influenciadores/`, `app/api/c/`, `lib/criadores/` (`db`, `site`, `emails`, `crypto`), `lib/criadores-rules.ts`, `lib/criadores-site-rules.ts`, `lib/criadores-crypto-core.ts` — Plataforma de criadores.
+- `app/(criadores-site)/`, `app/(painel)/influenciadores/`, `app/api/c/`, `lib/criadores/` (`db`, `site`, `emails`, `crypto`, `meta`), `lib/criadores-rules.ts`, `lib/criadores-site-rules.ts`, `lib/criadores-meta-rules.ts`, `lib/criadores-crypto-core.ts` — Plataforma de criadores.
 - `components/shell.tsx` — menu e barra superior, conforme as permissões. No computador, o botão no canto da barra (ou Ctrl+\\) recolhe o menu na coluna de ícones (`components/menu-toggle.tsx`, `lib/menu.ts`): preferência de cada browser no cookie `ldo_menu`, lido pelo layout do painel para a página abrir já no estado certo.
 - `lib/session.ts`, `lib/viewer.ts`, `lib/permissions.ts`, `lib/rate-limit.ts` — login, sessão e permissões; `lib/store-records.ts` — leitura dos formulários e totais das lojas físicas.
 - `components/dashboard/` — uma secção por ficheiro (`overview`, `sales`, `marketing`, `audience`, `quality`), mais `trend`, `ui` e `format`.

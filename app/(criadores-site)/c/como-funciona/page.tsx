@@ -56,8 +56,9 @@ export default async function HowItWorks() {
             A equipa pode validá-los a partir de capturas das estatísticas. Os números servem para a equipa conhecer o seu trabalho, nunca para notas ou rankings.
           </p>
           <p>
-            Numa fase seguinte vai poder ligar o Instagram pela Meta, para os números serem lidos diretamente. É opcional, tem uma autorização própria e pode
-            desligar quando quiser: os dados lidos são apagados nesse momento.
+            Quando a opção estiver disponível em Redes, também pode autorizar a leitura dos números públicos da sua conta profissional do Instagram
+            (seguidores, publicações e, por publicação, gostos, comentários e visualizações de reels). É opcional, tem uma autorização própria e pode parar
+            quando quiser: os números lidos são apagados nesse momento. Ligar a conta pela Meta chega mais tarde.
           </p>
 
           <h2 id="publicidade">Publicidade bem identificada</h2>

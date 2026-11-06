@@ -1,5 +1,5 @@
 import "server-only";
-import { rpc } from "@/lib/supabase";
+import { rpc, SupabaseError } from "@/lib/supabase";
 import { supabaseConfig } from "@/lib/session";
 import type { ConsentPurpose, CreatorOutboxItem, CreatorStatus, FiscalData } from "@/lib/criadores-rules";
 
@@ -325,6 +325,8 @@ export const crFinanceReveal = (session: string, creatorId: string, reason: stri
 export type CrSettings = CrCompany & {
   registrations_open: boolean; session_days: number; iban_hold_hours: number; retention: Record<string, number>;
   updated_at: Iso; updated_by: string | null; can_edit: boolean; retention_limits: Record<string, { min: number; max: number }>;
+  // Fase 3A: só muda por crPublicMode (ldo_cr_settings_save não o lista). Ausente antes da migração.
+  public_mode?: "on" | "off";
 };
 export const crSettingsGet = (session: string) => crStaffRpc<CrSettings>(session, "ldo_cr_settings_get");
 // Só as chaves alteradas; retention sempre completo (validar antes com retentionProblem). Super Admin.
@@ -374,6 +376,99 @@ export const crLockdown = (session: string, reason: string) => crStaffRpc<{ sess
 // Administração → Utilizadores (Super Admin).
 export const crSetUserAccess = (session: string, userId: string, level: "none" | "view" | "manage", finance: boolean) =>
   crStaffRpc<null>(session, "ldo_cr_set_user_access", { p_user_id: userId, p_level: level, p_finance: finance });
+
+// ---------------------------------------------------------------- dados públicos do Instagram (fase 3A)
+// supabase/migrations/20261105190000_ldo_creators_meta_public.sql. A leitura e a prova da posse (os pedidos à Meta)
+// estão em lib/criadores/meta.ts; aqui só as chamadas à BD.
+
+export type CrPublicState = "proof" | "active" | "error";
+export type CrPublicMedia = {
+  posted_at: Iso; media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM"; product_type: "FEED" | "REELS" | "STORY" | "AD" | null;
+  like_count: number | null; comments_count: number | null; view_count: number | null; read_at: Iso;
+};
+export type CrPublicSnapshot = { taken_on: string; taken_at?: Iso; followers: number | null; media_count: number | null };
+// history: as últimas 30 leituras e media: as 25 publicações mais recentes, o mesmo que a equipa vê na ficha.
+export type CrPublicAccount = {
+  account_id: string; handle: string; verification: CrVerification; state: CrPublicState | null; code: string | null;
+  code_expires_at: Iso | null; consented_at: Iso | null; verified_at: Iso | null; last_read_at: Iso | null; next_at: Iso | null;
+  last_error: "not_found" | "temporary" | null; last_error_at: Iso | null; snapshot: CrPublicSnapshot | null;
+  history: CrPublicSnapshot[]; media: CrPublicMedia[];
+};
+export type CrPublicGet = { mode: "on" | "off"; paused: boolean; granted: boolean; proof_left: number; account: CrPublicAccount | null };
+export const crPublicGet = (session: string) => crServerRpc<CrPublicGet>("ldo_cr_public_get", { p_session: session });
+// Para as páginas: null só antes da migração 3A (a função ainda não existe: PGRST202 do PostgREST). Os outros erros
+// lançam: nunca se confunde uma falha com «Em breve», que esconderia «Parar a leitura» a quem autorizou.
+export async function crPublicGetIfReady(session: string): Promise<CrPublicGet | null> {
+  try {
+    return await crPublicGet(session);
+  } catch (e) {
+    if (e instanceof SupabaseError && e.code === "PGRST202") return null;
+    throw e;
+  }
+}
+
+// texto = consentText("platform_public", { handle }) com o @ lido da BD (rev. R-B1); a BD confirma que o nomeia.
+export const crPublicStart = (session: string, accountId: string, text: string, ip: Ip) =>
+  crServerRpc<{ state: "proof"; code: string; expires_at: Iso }>("ldo_cr_public_start", {
+    p_session: session, p_account: accountId, p_text: text, p_ip_hash: ip,
+  });
+export const crPublicRenew = (session: string, accountId: string) =>
+  crServerRpc<{ state: "proof"; code: string; expires_at: Iso }>("ldo_cr_public_renew", { p_session: session, p_account: accountId });
+// Reserva uma tentativa (5 em 24 h) e devolve o @ e o código guardados. Preferir checkPublicProof() de meta.ts.
+export type CrPublicProof =
+  | { ok: true; handle: string; code: string; left: number; attempt: number }
+  | { ok: false; reason: "off" | "state" | "expired" | "busy" | "rate" };
+export const crPublicProof = (session: string, accountId: string, ip: Ip) =>
+  crServerRpc<CrPublicProof>("ldo_cr_public_proof", { p_session: session, p_account: accountId, p_ip_hash: ip });
+// Devolve a tentativa quando o pedido à Meta falhou do lado da Meta ou da Loja do Ouro (só a do próprio, 10 min).
+export const crPublicProofRefund = (session: string, attempt: number) =>
+  crServerRpc<{ refunded: boolean }>("ldo_cr_public_proof_refund", { p_session: session, p_attempt: attempt });
+export type CrPublicConfirm = { ok: true } | { ok: false; reason: "changed" | "taken" | "off" | "expired" };
+export const crPublicConfirm = (session: string, accountId: string, handle: string, code: string, igUserId: string) =>
+  crServerRpc<CrPublicConfirm>("ldo_cr_public_confirm", {
+    p_session: session, p_account: accountId, p_handle: handle, p_code: code, p_ig_user_id: igUserId,
+  });
+// «Parar a leitura e apagar os dados públicos»: texto = o mesmo consentText("platform_public", { handle }).
+export const crPublicStop = (session: string, accountId: string, text: string, ip: Ip) =>
+  crServerRpc<{ ok: true; stopped: boolean }>("ldo_cr_public_stop", { p_session: session, p_account: accountId, p_text: text, p_ip_hash: ip });
+
+// equipa
+export type CrPublicCreator = {
+  mode: "on" | "off"; granted: boolean;
+  account: (Omit<CrPublicAccount, "code" | "snapshot"> & { attempts: number; history: CrPublicSnapshot[] }) | null;
+};
+export const crPublicCreator = (session: string, id: string) => crStaffRpc<CrPublicCreator>(session, "ldo_cr_public_creator", { p_id: id });
+export type CrPublicStatus = {
+  mode: "on" | "off"; paused_until: Iso | null; last_error: "limit" | "temporary" | "config" | "token" | null; last_code: number | null;
+  last_error_at: Iso | null; last_ok_at: Iso | null; usage_pct: number | null; proof: number; active: number; error: number; overdue: number;
+};
+export const crPublicStatus = (session: string) => crStaffRpc<CrPublicStatus>(session, "ldo_cr_public_status");
+// Super Admin.
+export const crPublicMode = (session: string, mode: "on" | "off") =>
+  crStaffRpc<{ public_mode: "on" | "off" }>(session, "ldo_cr_public_mode", { p_mode: mode });
+// Retirada pedida por email: exige o pedido withdrawal aberto e com a identidade confirmada.
+export const crPublicStaffStop = (session: string, creatorId: string, requestId: string) =>
+  crStaffRpc<{ ok: true; stopped: boolean }>(session, "ldo_cr_public_staff_stop", { p_id: creatorId, p_request: requestId });
+
+// servidor (tick)
+export type CrPublicClaimRow = { account_id: string; handle: string; ig_user_id: string; lease: Iso };
+export const crPublicClaim = (limit: number) => crServerRpc<CrPublicClaimRow[]>("ldo_cr_public_claim", { p_limit: limit });
+export type CrPublicReading = {
+  ig_user_id: string; followers: number | null; media_count: number | null;
+  media: {
+    media_id: string; posted_at: Iso; media_type: string; product_type: string | null; like_count: number | null;
+    comments_count: number | null; view_count: number | null;
+  }[];
+};
+export const crPublicPut = (accountId: string, lease: Iso, r: CrPublicReading) =>
+  crServerRpc<{ ok: boolean; reason?: "lease" | "gone" | "other_account" }>("ldo_cr_public_put", {
+    p_account: accountId, p_lease: lease, p_ig_user_id: r.ig_user_id, p_followers: r.followers, p_media_count: r.media_count, p_media: r.media,
+  });
+export const crPublicFail = (accountId: string, lease: Iso, error: "not_found" | "temporary") =>
+  crServerRpc<{ ok: boolean; state?: CrPublicState; reason?: "lease" }>("ldo_cr_public_fail", { p_account: accountId, p_lease: lease, p_error: error });
+export type CrPublicHealthKind = "ok" | "limit" | "temporary" | "config" | "token";
+export const crPublicHealth = (kind: CrPublicHealthKind, code: number | null, minutes: number | null, usage: number | null) =>
+  crServerRpc<{ alert: boolean }>("ldo_cr_public_health", { p_kind: kind, p_code: code, p_minutes: minutes, p_usage: usage });
 
 // ---------------------------------------------------------------- servidor (tick, fila, avisos, rotação)
 

@@ -94,7 +94,7 @@ test("db.ts: every public ldo_cr_* function of the migrations has a typed wrappe
 });
 
 test("server modules: server-only, CREATORS_SERVER_TOKEN and never the BI_INGEST_TOKEN (rev. S-M3)", { skip: !exists && "lib/criadores ainda não existe" }, () => {
-  for (const f of ["db.ts", "site.ts", "crypto.ts", "emails.ts"]) {
+  for (const f of ["db.ts", "site.ts", "crypto.ts", "emails.ts", "meta.ts"]) {
     const src = code(f);
     assert.match(read(f), /^import "server-only";/, `${f} tem de começar por import "server-only"`);
     assert.ok(!src.includes("BI_INGEST_TOKEN"), `${f} não pode usar o BI_INGEST_TOKEN`);
