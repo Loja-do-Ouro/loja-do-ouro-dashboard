@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useActionState, useContext, useEffect, useId, useRef, type ReactNode } from "react";
+import { createContext, useActionState, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { PUBLIC_STOP_LABEL } from "@/lib/criadores-meta-rules";
 import {
   CATEGORY_LABEL, CONTACT_PREFERENCE_LABEL, DISTRICTS, FORMAT_LABEL, LANGUAGE_LABEL, PLATFORM_LABEL, VAT_REGIME_LABEL,
 } from "@/lib/criadores-rules";
 import type { CrProfileGet, CrSocialAccount } from "@/lib/criadores/db";
 import {
   acceptTermsAction, campaignNewsAction, deleteAccountAction, financeAction, ibanDecisionAction, ibanResendAction, loginAction,
-  messageAction, passwordAction, privacyRequestAction, profileStepAction, registerAction, resetAction, resetRequestAction,
-  socialDeleteAction, socialSaveAction, submitProfileAction, verifyEmailAction, type FormState,
+  messageAction, passwordAction, privacyRequestAction, profileStepAction, publicProofAction, publicRenewAction, publicStartAction,
+  publicStopAction, registerAction, resetAction, resetRequestAction, socialDeleteAction, socialSaveAction, submitProfileAction,
+  verifyEmailAction, type FormState,
 } from "./actions";
 import { HashTokenMissing, useHashToken } from "./token-from-hash";
 
@@ -412,8 +414,13 @@ const ONBOARDING_NETWORKS = [
   { platform: "youtube", label: "YouTube", user: "Canal", followers: "Subscritores" },
 ] as const;
 
-// Passo 4: as redes onde publica, declaradas (ficam «não verificado» até a equipa validar).
-export function NetworksForm({ p, back }: { p: Profile; back?: string }) {
+// Ajuda do campo do @ do Instagram quando a conta tem a leitura dos dados públicos (Redes e passo 4 do onboarding).
+const PUBLIC_HANDLE_HELP = "Mudar o @ para a leitura dos dados públicos e apaga os números lidos; depois pode autorizar de novo com o @ novo.";
+
+// Passo 4: as redes onde publica, declaradas (ficam «não verificado» até a equipa validar). publicLayer: a conta
+// Instagram já tem a leitura dos dados públicos (autorizada em Redes, o que se pode fazer antes de enviar o perfil);
+// mudar o @ aqui também para a leitura e apaga os números lidos (cr_social_upsert), por isso avisa como Redes.
+export function NetworksForm({ p, back, publicLayer = false }: { p: Profile; back?: string; publicLayer?: boolean }) {
   const [state, action, pending] = useActionState(profileStepAction, {});
   const v = vals(state);
   return (
@@ -423,13 +430,14 @@ export function NetworksForm({ p, back }: { p: Profile; back?: string }) {
       <input type="hidden" name="onboarding" value="1" />
       {ONBOARDING_NETWORKS.map((n) => {
         const a = p.social_accounts.find((s) => s.platform === n.platform);
+        const help = publicLayer && n.platform === "instagram" ? PUBLIC_HANDLE_HELP : undefined;
         return (
           <fieldset className="cr-linha-rede" key={n.platform}>
             <legend className="cr-nome">{n.label}</legend>
-            <Campo label={n.user}>
-              {(id) => (
+            <Campo label={n.user} help={help}>
+              {(id, d) => (
                 <div className="cr-prefixo"><span aria-hidden="true">@</span>
-                  <input id={id} className="cr-inp" name={`${n.platform}_handle`} autoCapitalize="none" spellCheck={false} maxLength={120} defaultValue={v.text(`${n.platform}_handle`, a?.handle)} />
+                  <input id={id} aria-describedby={d} className="cr-inp" name={`${n.platform}_handle`} autoCapitalize="none" spellCheck={false} maxLength={120} defaultValue={v.text(`${n.platform}_handle`, a?.handle)} />
                 </div>
               )}
             </Campo>
@@ -482,7 +490,9 @@ function MetricsFields({ v, a }: { v: ReturnType<typeof vals>; a?: CrSocialAccou
   );
 }
 
-export function SocialAccountForm({ a }: { a: CrSocialAccount }) {
+// publicLayer: a conta Instagram tem a leitura dos dados públicos (autorizada, em leitura ou com erro): mudar o @ ou
+// apagar a conta para a leitura e apaga os números lidos (a BD faz a purga; aqui só se avisa).
+export function SocialAccountForm({ a, publicLayer = false }: { a: CrSocialAccount; publicLayer?: boolean }) {
   const [state, action, pending] = useActionState(socialSaveAction, {});
   const [delState, delAction, delPending] = useActionState(socialDeleteAction, {});
   const v = vals(state);
@@ -494,10 +504,10 @@ export function SocialAccountForm({ a }: { a: CrSocialAccount }) {
         <input type="hidden" name="id" value={a.id} />
         <input type="hidden" name="platform" value={a.platform} />
         <div className="cr-duas">
-          <Campo label="Nome de utilizador">
-            {(id) => (
+          <Campo label="Nome de utilizador" help={publicLayer ? PUBLIC_HANDLE_HELP : undefined}>
+            {(id, d) => (
               <div className="cr-prefixo"><span aria-hidden="true">@</span>
-                <input id={id} className="cr-inp" name="handle" required readOnly={verified} autoCapitalize="none" spellCheck={false} maxLength={120} defaultValue={v.text("handle", a.handle)} />
+                <input id={id} aria-describedby={d} className="cr-inp" name="handle" required readOnly={verified} autoCapitalize="none" spellCheck={false} maxLength={120} defaultValue={v.text("handle", a.handle)} />
               </div>
             )}
           </Campo>
@@ -515,9 +525,81 @@ export function SocialAccountForm({ a }: { a: CrSocialAccount }) {
           <Message state={delState} />
           <input type="hidden" name="id" value={a.id} />
           <Submit pending={delPending} busy="A apagar…" className="cr-lig">Apagar esta conta e os números</Submit>
+          {publicLayer && <span className="cr-ajuda" style={{ marginTop: 0 }}>Também para a leitura dos dados públicos e apaga os números lidos.</span>}
         </form>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------- dados públicos do Instagram (fase 3A, /redes)
+// Dar e retirar a autorização custa o mesmo: uma caixa e um botão (art. 7.º, n.º 3, do RGPD). O texto da caixa de
+// autorização é o de CONSENT_TEXT, calculado no servidor com o @ da conta; do formulário só vai o id e o «on».
+
+export function PublicStartForm({ accountId, text }: { accountId: string; text: string }) {
+  const [state, action, pending] = useActionState(publicStartAction, {});
+  const v = vals(state);
+  return (
+    <form action={action} className="cr-form" aria-label="Autorizar a leitura dos dados públicos do Instagram">
+      <Message state={state} />
+      <input type="hidden" name="id" value={accountId} />
+      <Caixa name="autorizo" text={text} kind="Opcional" saved={v.on("autorizo")} />
+      <Submit pending={pending} busy="A guardar…">Autorizar a leitura</Submit>
+    </form>
+  );
+}
+
+export function PublicProofForm({ accountId }: { accountId: string }) {
+  const [state, action, pending] = useActionState(publicProofAction, {});
+  return (
+    <form action={action} className="cr-form" aria-label="Confirmar a conta do Instagram">
+      <Message state={state} />
+      <input type="hidden" name="id" value={accountId} />
+      <Submit pending={pending} busy="A ler a biografia…">Confirmar a conta</Submit>
+    </form>
+  );
+}
+
+export function PublicRenewForm({ accountId }: { accountId: string }) {
+  const [state, action, pending] = useActionState(publicRenewAction, {});
+  return (
+    <form action={action} className="cr-form" aria-label="Gerar um código novo">
+      <Message state={state} />
+      <input type="hidden" name="id" value={accountId} />
+      <Submit pending={pending} busy="A gerar…" className="cr-bt cr-bt-sec">Gerar um código novo</Submit>
+    </form>
+  );
+}
+
+// Sem palavra-passe: retirar a autorização não pode custar mais do que dá-la.
+export function PublicStopForm({ accountId, intro }: { accountId: string; intro?: string }) {
+  const [state, action, pending] = useActionState(publicStopAction, {});
+  return (
+    <form action={action} className="cr-form" aria-label={PUBLIC_STOP_LABEL}>
+      <Message state={state} />
+      {intro && <p className="cr-pequeno">{intro}</p>}
+      <input type="hidden" name="id" value={accountId} />
+      <Caixa name="confirmo" text="Quero parar a leitura e apagar os números lidos do Instagram." kind="Confirmação" required />
+      <Submit pending={pending} busy="A apagar…" className="cr-bt cr-bt-perigo">{PUBLIC_STOP_LABEL}</Submit>
+    </form>
+  );
+}
+
+// «Copiar o código» (opcional: o código também se seleciona à mão). O resultado é anunciado ao leitor de ecrã.
+export function CopyCode({ code }: { code: string }) {
+  const [done, setDone] = useState<"" | "ok" | "erro">("");
+  return (
+    <span className="cr-acoes">
+      <button type="button" className="cr-bt cr-bt-sec cr-bt-pq"
+        onClick={() => {
+          if (!navigator.clipboard) return setDone("erro");
+          navigator.clipboard.writeText(code).then(() => setDone("ok"), () => setDone("erro"));
+        }}>
+        Copiar o código
+      </button>
+      {/* Dentro de .cr-lista, .cr-meta não quebra a linha (nowrap): num telemóvel estreito o texto saía da caixa. */}
+      <span className="cr-meta" role="status" style={{ whiteSpace: "normal" }}>{done === "ok" ? "Copiado." : done === "erro" ? "Não foi possível copiar: selecione o código à mão." : ""}</span>
+    </span>
   );
 }
 

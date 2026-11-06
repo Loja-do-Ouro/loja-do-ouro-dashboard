@@ -151,7 +151,7 @@ export const CONSENT_TEXT: Record<ConsentPurpose, string> = {
   platform_instagram:
     "Autorizo a Loja do Ouro a obter e atualizar, através da Meta (Facebook Login), o perfil, as publicações, as estatísticas e os dados agregados de audiência da minha conta profissional do Instagram, para acompanhar colaborações e calcular indicadores estatísticos de autenticidade da audiência, explicados e sem nota, que a equipa vê. Posso desligar a qualquer momento em Redes; os dados obtidos são apagados nesse momento.",
   platform_public:
-    "Autorizo a Loja do Ouro a ler, através da Meta, os números públicos da minha conta profissional do Instagram (@{handle}): seguidores, número de publicações e, por publicação, gostos, comentários e visualizações de reels. A leitura é diária, de hora a hora nas primeiras 48 horas das publicações de campanha, e semanal se a conta estiver sem atividade na plataforma há mais de 90 dias. A equipa vê estes números no meu perfil e eu vejo-os em Redes. Não servem para calcular indicadores de autenticidade nem são analisados por inteligência artificial. Posso parar a leitura em Redes, e os dados lidos são apagados nesse momento.",
+    "Autorizo a Loja do Ouro a ler, através da Meta, os números públicos da minha conta profissional do Instagram (@{handle}): seguidores, número de publicações e, por publicação, gostos, comentários e visualizações de reels. A leitura é diária, de hora a hora nas primeiras 48 horas das publicações de campanha, e semanal se a conta estiver sem atividade na plataforma há mais de 90 dias. A equipa vê estes números no meu perfil e eu vejo-os em Redes. Não servem para indicadores nem para análise por inteligência artificial. Posso parar a leitura em Redes, e os dados lidos são apagados nesse momento.",
   ai_analysis:
     "Aceito que os dados obtidos da minha conta ligada do Instagram sejam analisados com apoio de inteligência artificial (Claude, da Anthropic) para a equipa ter um resumo do perfil e dos melhores conteúdos. As decisões são sempre humanas. Posso retirar esta autorização em Definições, e as análises feitas são apagadas nesse momento.",
   ad_disclosure:
@@ -570,6 +570,12 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "privacy.erasure_blocked": "Apagamento à espera do fim de uma colaboração",
   "incident.lockdown": "Plataforma parada (incidente)",
   "retention.blocked": "Limpeza adiada por uma colaboração",
+  // Fase 3A (dados públicos do Instagram).
+  "public.start": "Leitura dos dados públicos autorizada",
+  "public.verified": "Conta do Instagram confirmada (código na biografia)",
+  "public.stop": "Leitura dos dados públicos parada e dados apagados",
+  "public.error": "Leitura dos dados públicos com erro",
+  "privacy.withdrawal": "Retirada do consentimento tratada a pedido",
 };
 
 // ---------------------------------------------------------------- emails
@@ -598,10 +604,12 @@ export type CreatorOutboxItem = {
   deleted?: boolean;
 };
 
-// Kinds da fase 1 (PR1). Os do PR2 e do PR3 juntam-se aqui quando entrarem; um kind desconhecido devolve null.
+// Kinds da fase 1 (PR1) e da 3A (public_*). Os do PR2 e da 3B juntam-se aqui quando entrarem; um kind desconhecido
+// devolve null.
 export const PR1_OUTBOX_KINDS = [
   "profile_received", "profile_approved", "profile_rejected", "profile_suspended", "message", "finance_saved", "login_locked",
   "terms_updated", "inactivity_warning", "privacy_request_done", "privacy_request_extended", "privacy_updated", "erasure_blocked",
+  "public_error", "public_stopped",
 ] as const;
 export type Pr1OutboxKind = (typeof PR1_OUTBOX_KINDS)[number];
 
@@ -761,6 +769,52 @@ export function outboxEmail(item: CreatorOutboxItem, siteUrl: string): CreatorEm
         button: { label: "Abrir as mensagens", url: `${site}/mensagens` },
       };
     }
+    // Fase 3A: nenhum leva números nem o @ (o payload é {} ou só o motivo, que nunca se escreve no email).
+    case "public_error":
+      return {
+        subject: "Não conseguimos ler o seu Instagram · Loja do Ouro Criadores", eyebrow: "CRIADORES · REDES",
+        title: "Não conseguimos ler os números públicos do seu Instagram",
+        paragraphs: [hi, "Nos últimos dias, a Meta não nos devolveu os números públicos da conta do Instagram que autorizou. Acontece quando a conta deixa de ser profissional (Criador de conteúdos ou Empresa) ou quando o nome de utilizador muda.",
+          "Confirme o tipo de conta na app do Instagram. Se mudou de nome de utilizador, corrija-o em Redes: a leitura para e pode autorizar de novo com o nome novo. Tentamos outra vez uma vez por semana; se continuar assim durante 90 dias, paramos a leitura e apagamos os números lidos."],
+        button: { label: "Abrir Redes", url: `${site}/redes` },
+      };
+    case "public_stopped": {
+      const redes = { label: "Abrir Redes", url: `${site}/redes` };
+      if (p.reason === "other_account") {
+        return {
+          subject: "Parámos a leitura do seu Instagram · Loja do Ouro Criadores", eyebrow: "CRIADORES · REDES",
+          title: "Parámos a leitura dos dados públicos do seu Instagram",
+          paragraphs: [hi, "O nome de utilizador que autorizou passou a corresponder a outra conta do Instagram, por isso parámos a leitura e apagámos os números que tínhamos lido.",
+            "Se mudou de nome de utilizador, corrija-o em Redes e autorize de novo."],
+          button: redes,
+        };
+      }
+      if (p.reason === "proof_expired") {
+        return {
+          subject: "O pedido de leitura do seu Instagram terminou · Loja do Ouro Criadores", eyebrow: "CRIADORES · REDES",
+          title: "O pedido de leitura do seu Instagram terminou",
+          paragraphs: [hi, "Autorizou a leitura dos números públicos do seu Instagram, mas a conta não foi confirmada com o código na biografia. Passados 30 dias, terminámos o pedido e não guardámos nenhum número.",
+            "Pode autorizar de novo em Redes quando quiser."],
+          button: redes,
+        };
+      }
+      if (p.reason === "not_found") {
+        return {
+          subject: "Parámos a leitura do seu Instagram · Loja do Ouro Criadores", eyebrow: "CRIADORES · REDES",
+          title: "Parámos a leitura dos dados públicos do seu Instagram",
+          paragraphs: [hi, "Durante 90 dias, a Meta não nos devolveu os números públicos da conta do Instagram que autorizou, por isso parámos a leitura e apagámos os números que tínhamos lido.",
+            "Quando a conta voltar a ser profissional (Criador de conteúdos ou Empresa), pode autorizar de novo em Redes."],
+          button: redes,
+        };
+      }
+      return {
+        subject: "Parámos a leitura do seu Instagram · Loja do Ouro Criadores", eyebrow: "CRIADORES · REDES",
+        title: "Parámos a leitura dos dados públicos do seu Instagram",
+        paragraphs: [hi, "Parámos a leitura dos números públicos da sua conta do Instagram e apagámos os números que tínhamos lido.",
+          "Pode autorizar de novo em Redes quando quiser."],
+        button: redes,
+      };
+    }
     default:
       return null;
   }
@@ -841,6 +895,22 @@ export function revealAlertText(dashboardUrl: string, staffName: string, count: 
     paragraphs: [`${who} revelou ${Math.max(0, Math.floor(count))} IBAN nas últimas 24 h.`,
       "Se não reconhece este uso, desative o utilizador em Administração → Utilizadores."],
     button: { label: "Abrir os utilizadores", url: `${trimUrl(dashboardUrl)}/admin/utilizadores` },
+  };
+}
+
+// Aviso aos Super Admin (fase 3A): a leitura dos dados públicos do Instagram parou por um erro de token ou de
+// configuração. Sem dados de criadores nem o valor do token; sai no máximo uma vez por 24 h (ldo_cr_public_health).
+export function metaAlertText(dashboardUrl: string, kind: "token" | "config"): CreatorEmail {
+  return {
+    subject: "Aviso: leitura do Instagram parada · Influenciadores", eyebrow: "INFLUENCIADORES · META",
+    title: "A leitura dos dados públicos do Instagram parou",
+    paragraphs: [
+      kind === "token"
+        ? "A Meta recusou o token do System User (META_SYSTEM_USER_TOKEN): expirou, foi revogado ou perdeu permissões. Gere um token novo no Business Manager e ponha-o na Vercel."
+        : "A Meta recusou o pedido por falta de permissões ou por um campo que deixou de existir. Abra o estado das ligações e teste a ligação.",
+      "Enquanto não for resolvido, tentamos de hora a hora e não se lê nenhum número.",
+    ],
+    button: { label: "Abrir Influenciadores", url: `${trimUrl(dashboardUrl)}/influenciadores` },
   };
 }
 

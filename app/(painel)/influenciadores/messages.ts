@@ -23,7 +23,13 @@ const OK: Record<string, string | ((n: number) => string)> = {
   legal_published: (n) =>
     n > 0 ? `Documento publicado. ${n} ${n === 1 ? "criador vai receber" : "criadores vão receber"} o aviso por email.` : "Documento publicado.",
   lockdown: (n) =>
-    `Plataforma parada: ${n} ${n === 1 ? "sessão de criador terminada" : "sessões de criadores terminadas"} e inscrições fechadas. Siga o procedimento de incidentes (README).`,
+    `Plataforma parada: ${n} ${n === 1 ? "sessão de criador terminada" : "sessões de criadores terminadas"}, inscrições fechadas e leitura dos dados públicos desligada. Siga o procedimento de incidentes (README).`,
+  // Fase 3A (dados públicos do Instagram).
+  public_on: "Leitura dos dados públicos do Instagram ligada. Os criadores já podem autorizar em Redes.",
+  public_off: "Leitura dos dados públicos do Instagram desligada. As contas autorizadas deixam de ser lidas; os criadores continuam a poder parar e apagar.",
+  meta_ok: "Ligação à Meta confirmada: o pedido de teste à @lojadoouro devolveu os números públicos.",
+  public_staff_stop: "Leitura parada e números apagados. Responda ao pedido em Privacidade.",
+  public_staff_nothing: "Não havia leitura dos dados públicos para parar. Responda ao pedido em Privacidade.",
 };
 
 export function creatorsMessage(q: Record<string, string | string[] | undefined>) {

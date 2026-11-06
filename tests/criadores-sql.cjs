@@ -266,6 +266,11 @@ test("[rev. R-A1] a auditoria e o registo de sincronização nunca gravam o user
   const problems = [];
   for (const f of functions) {
     for (const args of calls(f.body, "ldo_private.cr_log")) if (/'meta\./.test(args) && /username/.test(args)) problems.push(`${f.file}: ${f.sig} cr_log meta com username`);
+    // Fase 3A: a auditoria da camada pública leva só ids e motivos, nunca o @ nem números lidos da Meta.
+    for (const args of calls(f.body, "ldo_private.cr_log")) {
+      if (/'public\./.test(args) && /username|handle|followers|media_count|like_count|comments_count|view_count|biography/.test(args))
+        problems.push(`${f.file}: ${f.sig} cr_log public com dados da Meta`);
+    }
     const re = /insert\s+into\s+public\.ldo_cr_sync_log\s*\(([^)]*)\)/g;
     let m;
     while ((m = re.exec(f.body))) if (/username/.test(m[1])) problems.push(`${f.file}: ${f.sig} grava username em ldo_cr_sync_log`);

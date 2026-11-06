@@ -3,10 +3,12 @@
 import { redirect } from "next/navigation";
 import {
   crCreatorsList, crCreatorStatus, crDeclaredValidate, crLegalPublish, crLegalSave, crLockdown, crNoteAdd, crPrivacyRegister,
-  crPrivacyUpdate, crSettingsGet, crSettingsSave, crStaffMessageSend, type CrPrivacyKind, type CrSettingsInput,
+  crPrivacyUpdate, crPublicMode, crPublicStaffStop, crSettingsGet, crSettingsSave, crStaffMessageSend, type CrPrivacyKind,
+  type CrSettingsInput,
 } from "@/lib/criadores/db";
 import { revealFinance } from "@/lib/criadores/crypto";
 import { adminDeleteCreator } from "@/lib/criadores/emails";
+import { metaPublicConfigured, testMetaPublic } from "@/lib/criadores/meta";
 import { PRIVACY_KIND_LABEL, retentionProblem, type FiscalData } from "@/lib/criadores-rules";
 import { userMessage } from "@/lib/supabase";
 import { requireCreatorsViewer } from "@/lib/viewer";
@@ -368,9 +370,56 @@ export async function publishLegalDocument(form: FormData) {
   go(`/influenciadores/definicoes#doc-${id}`, { ok: "legal_published", n: String(notified) });
 }
 
+// ---------------------------------------------------------------- dados públicos do Instagram (fase 3A)
+
+// Ligar ou desligar a leitura (Super Admin). Ligar sem a configuração da Meta deixava os criadores autorizar sem
+// nunca poderem confirmar a conta.
+export async function setPublicMode(form: FormData) {
+  const backTo = "/influenciadores/definicoes#meta";
+  const viewer = await superViewer(backTo);
+  const value = text(form.get("public_mode"), 3);
+  if (value !== "on" && value !== "off") go(backTo, { erro: "Escolha ligada ou desligada." });
+  const mode = value as "on" | "off";
+  if (mode === "on" && !metaPublicConfigured()) go(backTo, { erro: "Faltam META_SYSTEM_USER_TOKEN e META_IG_ACCOUNT_ID na Vercel." });
+  try {
+    await crPublicMode(viewer.session, mode);
+  } catch (e) {
+    go(backTo, { erro: userMessage(e) });
+  }
+  go(backTo, { ok: mode === "on" ? "public_on" : "public_off" });
+}
+
+// «Testar a ligação à Meta»: um pedido com os campos da leitura, sobre a própria @lojadoouro. O resultado volta no
+// endereço só como chave ou texto do erro (sem dados de criadores).
+export async function testMetaConnection() {
+  await requireCreatorsViewer("manage");
+  const r = await testMetaPublic();
+  go("/influenciadores#ligacoes", r.ok ? { ok: "meta_ok" } : { erro: r.detail });
+}
+
+// Retirada da autorização pedida por email (art. 7.º, n.º 3): exige o pedido withdrawal aberto, com a identidade
+// confirmada. Para a leitura e apaga os números; o pedido responde-se em Privacidade.
+export async function stopCreatorPublic(form: FormData) {
+  const viewer = await requireCreatorsViewer("manage");
+  const id = uuid(form.get("id"));
+  if (!id) go("/influenciadores/criadores", { erro: "Criador inválido." });
+  const backTo = ficha(id!, "redes");
+  const request = uuid(form.get("request_id"));
+  if (!request) go(backTo, { erro: "Escolha o pedido de retirada do consentimento (registe-o primeiro em Privacidade)." });
+  if (form.get("confirm") !== "on") go(backTo, { erro: "Marque a confirmação: os números lidos do Instagram são apagados." });
+  let stopped = false;
+  try {
+    stopped = (await crPublicStaffStop(viewer.session, id!, request!)).stopped;
+  } catch (e) {
+    go(backTo, { erro: userMessage(e) });
+  }
+  go(backTo, { ok: stopped ? "public_staff_stop" : "public_staff_nothing" });
+}
+
 // ---------------------------------------------------------------- incidente (rev. R-M14)
 
-// «Parar a plataforma»: termina todas as sessões dos criadores e fecha as inscrições (incident.lockdown).
+// «Parar a plataforma»: termina todas as sessões dos criadores, fecha as inscrições e desliga a leitura dos dados
+// públicos do Instagram (incident.lockdown).
 export async function lockdownPlatform(form: FormData) {
   const backTo = "/influenciadores/definicoes#incidente";
   const viewer = await superViewer(backTo);

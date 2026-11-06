@@ -3,8 +3,8 @@ import { after } from "next/server";
 import { dashboardUrl, emailConfigured, sendEmail } from "@/lib/email";
 import { SupabaseError } from "@/lib/supabase";
 import {
-  accountDeletedText, accountExistsText, creatorEmailHtml, creatorEmailText, ibanConfirmText, outboxEmail, passwordProblem, redact,
-  registerTexts, resetEmailText, revealAlertText, verifyEmailText, type CreatorEmail,
+  accountDeletedText, accountExistsText, creatorEmailHtml, creatorEmailText, ibanConfirmText, metaAlertText, outboxEmail, passwordProblem,
+  redact, registerTexts, resetEmailText, revealAlertText, verifyEmailText, type CreatorEmail,
 } from "@/lib/criadores-rules";
 import {
   creatorsServerConfigured, crAdminDelete, crDeleteAccount, crDeleteCheck, crIbanResend, crLegalPublic, crLogin, crLogout,
@@ -20,6 +20,8 @@ import { clearCreatorSession, creatorSession, creatorsReady, ipHash, pwnedPasswo
 //   recuperação e «já tem conta». A action nunca espera pelo envio nem diz se falhou.
 // - Fila (ldo_cr_outbox): sendCreatorsOutbox, no tick, com 600 ms entre envios.
 // - Aviso aos Super Admin (revelações de IBAN) [rev. S-M8]: sendRevealAlert, em after().
+// - Aviso aos Super Admin (fase 3A): sendMetaAlert, quando a leitura dos dados públicos do Instagram para por um erro
+//   de token ou de configuração (no máximo um por 24 h, decidido por ldo_cr_public_health).
 // Nenhum email sai sem creatorsReady() [rev. S-M4] (em produção, sem CREATORS_URL as ligações iriam para /c do
 // dashboard). Nunca lançam erros: devolvem { ok, detail }. Os registos passam por redact().
 
@@ -92,6 +94,23 @@ export async function sendRevealAlert(staffName: string, count: number): Promise
     return r;
   } catch (e) {
     console.error("criadores alerta revelacao", redact(e));
+    return { ok: false, detail: "Falhou o aviso aos Super Admin." };
+  }
+}
+
+// «A leitura dos dados públicos do Instagram parou» (token ou configuração), para os Super Admin ativos com email.
+// Sem dados de criadores nem o valor do token.
+export async function sendMetaAlert(kind: "token" | "config"): Promise<SendResult> {
+  if (!emailConfigured() || !creatorsServerConfigured()) return NOT_READY;
+  try {
+    const to = ((await crStaffAlertRecipients()) || []).map((r) => r.email).filter(Boolean);
+    if (!to.length) return { ok: false, detail: "Sem Super Admin com email." };
+    const t = metaAlertText(dashboardUrl(), kind);
+    const r = await sendEmail(to, t.subject, creatorEmailHtml(t, dashboardUrl()), { from: creatorsFrom(), text: creatorEmailText(t) });
+    if (!r.ok) console.error("criadores alerta meta", redact(r.detail));
+    return r;
+  } catch (e) {
+    console.error("criadores alerta meta", redact(e));
     return { ok: false, detail: "Falhou o aviso aos Super Admin." };
   }
 }

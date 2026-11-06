@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Panel } from "@/components/dashboard/ui";
 import { Flash, PageHeading } from "@/components/shell";
-import { crCreatorGet, crStaffMessages, type CrCreatorGet, type CrStaffMessage } from "@/lib/criadores/db";
+import { crCreatorGet, crPublicCreator, crStaffMessages, type CrCreatorGet, type CrStaffMessage } from "@/lib/criadores/db";
+import { PUBLIC_STOP_WHY_LABEL } from "@/lib/criadores-meta-rules";
 import {
   AUDIT_ACTION_LABEL, CATEGORY_LABEL, CONSENT_LABEL, CONTACT_PREFERENCE_LABEL, CREATOR_STATUS_LABEL, DELETE_REASON_LABEL, FORMAT_LABEL,
   ibanTail, LANGUAGE_LABEL, lisbonDate, lisbonDateTime, ONBOARDING_STEPS, PLATFORM_LABEL, PRIVACY_CHANNEL_LABEL, PRIVACY_KIND_LABEL,
@@ -15,6 +16,7 @@ import {
 } from "../../actions";
 import { creatorsError, creatorsMessage } from "../../messages";
 import { CreatorsShell, num, pct, PrivacyPill, StatusPill, VerificationTag } from "../../ui";
+import { PublicBlock } from "./publico";
 import { RevealFinance } from "./revelar";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +71,10 @@ function auditSummary(details: Record<string, unknown>) {
   if (typeof d.reason === "string" && d.reason) parts.push(`«${d.reason.slice(0, 200)}»`);
   if (d.during_hold === true) parts.push(d.oob_confirmed ? "durante a espera, confirmado por outro canal" : "durante a espera");
   if (typeof d.version === "string") parts.push(`v${d.version}`);
+  // Fase 3A: public.stop leva o motivo; public.error, o erro; privacy.withdrawal, se havia leitura para parar.
+  if (typeof d.why === "string") parts.push(PUBLIC_STOP_WHY_LABEL[d.why] ?? d.why);
+  if (d.error === "not_found") parts.push("conta não encontrada pela Meta");
+  if (d.stopped === false) parts.push("não havia leitura para parar");
   return parts.join(" · ");
 }
 
@@ -116,6 +122,8 @@ export default async function CreatorPage({
   }
   // Abrir a conversa marca as mensagens do criador como lidas (só no separador Mensagens).
   const messages = tab === "mensagens" ? await crStaffMessages(viewer.session, id).catch(() => data.messages) : data.messages;
+  // Dados públicos do Instagram (fase 3A), só no separador Redes (antes da migração, a função não existe: sem bloco).
+  const pub = tab === "redes" ? await crPublicCreator(viewer.session, id).catch(() => null) : null;
   const { creator: c, profile: p, finance: f } = data;
   const manage = data.viewer.level === "manage";
   const isSuper = data.viewer.super;
@@ -126,6 +134,7 @@ export default async function CreatorPage({
   const restrictionOpen = openRequests.some((r) => r.kind === "restriction");
   const exportRequests = openRequests.filter((r) => (r.kind === "access" || r.kind === "portability") && r.identity_checked);
   const erasureRequests = openRequests.filter((r) => r.kind === "erasure" && (r.identity_checked || r.channel === "self_service"));
+  const withdrawalRequests = openRequests.filter((r) => r.kind === "withdrawal" && (r.identity_checked || r.channel === "self_service"));
   const docVersion = new Map(data.consents.history.filter((h) => h.document_id).map((h) => [h.document_id as string, h.document_version]));
   const now = Date.now();
 
@@ -305,7 +314,7 @@ export default async function CreatorPage({
         <Panel
           title={`${data.social_accounts.length} ${data.social_accounts.length === 1 ? "rede" : "redes"}`}
           eyebrow="REDES E NÚMEROS"
-          note="Os números são declarados pelo criador. Validar exige a captura das estatísticas (chega com o PR2). Os blocos «Dados públicos» (PR 3A) e «Instagram ligado» (PR 3B) aparecem aqui quando essas fases entrarem."
+          note="Os números da tabela são declarados pelo criador; validar exige a captura das estatísticas (chega com o PR2). Os «Dados públicos» são lidos da Meta com a autorização do criador (PR 3A). «Instagram ligado» chega com o PR 3B."
         >
           {!data.social_accounts.length && <p className="muted">O criador ainda não indicou redes.</p>}
           {data.social_accounts.map((a) => (
@@ -382,6 +391,12 @@ export default async function CreatorPage({
                   </tbody>
                 </table>
               </div>
+              {a.platform === "instagram" && pub?.account?.account_id === a.id && pub.account.state && (
+                <PublicBlock p={pub.account} creatorId={c.id} manage={manage && !deleted} requests={withdrawalRequests} />
+              )}
+              {a.platform === "instagram" && pub && !pub.account?.state && withdrawalRequests.length > 0 && (
+                <p className="field-help" style={{ marginTop: 8 }}>Sem leitura dos dados públicos nesta conta: não há nada para parar.</p>
+              )}
             </section>
           ))}
         </Panel>

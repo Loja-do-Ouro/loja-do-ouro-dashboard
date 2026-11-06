@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CREATOR_STATUS_SITE, ONBOARDING_STEPS, PLATFORM_LABEL, lisbonDate, lisbonDateTime, outboxTitle } from "@/lib/criadores-rules";
-import { crFinanceGet, crProfileGet, type CrTask } from "@/lib/criadores/db";
+import { crFinanceGet, crProfileGet, crPublicGet, type CrTask } from "@/lib/criadores/db";
 import { requireCreator, siteBase } from "@/lib/criadores/site";
 import { Aviso, IbanTail, VerificationTag, formatInt, greeting, longDate } from "../ui";
 
@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Início" };
 
 // Início do criador (§4.3 /painel, §10.5 n.º 11): primeiro o estado e «A fazer» (tarefas com botão), depois as
-// notificações e, na coluna de 4, os números declarados com a fonte. «Em curso» (fases de cada colaboração) chega
-// com o PR2. Sem notas, sem percentagens de adequação, sem rankings (D6).
+// notificações e, na coluna de 4, os números com a fonte (declarados ou, na 3A, os públicos lidos através da Meta).
+// «Em curso» (fases de cada colaboração) chega com o PR2. Sem notas, sem percentagens de adequação, sem rankings (D6).
 
 type Todo = { title: string; text: string; href: string; action: string; urgent?: boolean };
 
@@ -39,11 +39,26 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   // Conta nova, sem nenhum passo feito: vai direto ao onboarding (F1.5).
   const s = me.onboarding;
   if (me.status === "draft" && !s.about && !s.contacts && !s.content && !s.networks) redirect(`${base}/bem-vindo?passo=1`);
-  const [profile, finance] = await Promise.all([crProfileGet(session).catch(() => null), crFinanceGet(session).catch(() => null)]);
-  const todos = me.tasks.map((t) => todo(t, base)).filter((t): t is Todo => t !== null);
+  const [profile, finance, pub] = await Promise.all([
+    crProfileGet(session).catch(() => null), crFinanceGet(session).catch(() => null), crPublicGet(session).catch(() => null),
+  ]);
+  // Tarefas da camada pública (fase 3A), calculadas aqui: ldo_cr_me não muda. Com a conta limitada ou suspensa não se
+  // pode confirmar (a BD recusa), por isso não há tarefa.
+  const pubAcc = pub?.account ?? null;
+  const publicTodos: Todo[] = [];
+  if (pubAcc?.state === "proof" && pub?.mode === "on" && me.status !== "restricted" && me.status !== "suspended") {
+    publicTodos.push({ title: "Confirmar a conta do Instagram", text: "Autorizou a leitura dos números públicos. Falta escrever o código na biografia e confirmar.", href: `${base}/redes#t-ig`, action: "Confirmar" });
+  }
+  if (pubAcc?.state === "error") {
+    publicTodos.push({ title: "Rever a conta do Instagram", text: "Não conseguimos ler os números públicos da sua conta. Veja o que fazer em Redes.", href: `${base}/redes#t-ig`, action: "Ver em Redes" });
+  }
+  const todos = [...me.tasks.map((t) => todo(t, base)).filter((t): t is Todo => t !== null), ...publicTodos];
   const name = me.display_name || me.first_name;
   const accounts = profile?.social_accounts ?? [];
   const now = new Date();
+  // Seguidores públicos (lidos através da Meta) da conta Instagram com a posse provada.
+  const publicFollowers = (accountId: string) =>
+    pubAcc && pubAcc.account_id === accountId && pubAcc.verification === "public" && pubAcc.snapshot?.followers != null ? pubAcc.snapshot : null;
 
   const statusText = (() => {
     if (me.status === "approved") return { cls: "cr-ok", small: me.status_at ? `pela equipa a ${lisbonDate(me.status_at)}` : "pela equipa" };
@@ -150,15 +165,26 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               <table className="cr-tab">
                 <caption>Seguidores por rede</caption>
                 <tbody>
-                  {accounts.map((a) => (
-                    <tr key={a.id}>
-                      <td>{PLATFORM_LABEL[a.platform]}<br /><span className="cr-meta">@{a.handle}</span></td>
-                      <td className="cr-n">
-                        {a.metrics?.followers != null ? <>{formatInt(a.metrics.followers)}<span className="cr-nota" aria-hidden="true">1</span><span className="cr-sr">, nota 1</span></> : "—"}
-                        <div style={{ marginTop: 6 }}>{a.metrics?.validated ? <span className="cr-etq cr-ok">Validado pela equipa</span> : <VerificationTag v={a.verification} />}</div>
-                      </td>
-                    </tr>
-                  ))}
+                  {accounts.map((a) => {
+                    const pubSnap = publicFollowers(a.id);
+                    return (
+                      <tr key={a.id}>
+                        <td>{PLATFORM_LABEL[a.platform]}<br /><span className="cr-meta">@{a.handle}</span></td>
+                        {pubSnap ? (
+                          <td className="cr-n">
+                            {formatInt(pubSnap.followers)}
+                            <div style={{ marginTop: 6 }}><span className="cr-etq cr-tinta">Dados públicos</span></div>
+                            <div className="cr-meta" style={{ marginTop: 6, whiteSpace: "normal" }}>Lido através da Meta a {lisbonDate(pubSnap.taken_at || pubSnap.taken_on)}</div>
+                          </td>
+                        ) : (
+                          <td className="cr-n">
+                            {a.metrics?.followers != null ? <>{formatInt(a.metrics.followers)}<span className="cr-nota" aria-hidden="true">1</span><span className="cr-sr">, nota 1</span></> : "—"}
+                            <div style={{ marginTop: 6 }}>{a.metrics?.validated ? <span className="cr-etq cr-ok">Validado pela equipa</span> : <VerificationTag v={a.verification} />}</div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               <div className="cr-notas">

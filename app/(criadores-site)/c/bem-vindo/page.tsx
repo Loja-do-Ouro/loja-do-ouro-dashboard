@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CONSENT_TEXT, ONBOARDING_STEPS } from "@/lib/criadores-rules";
-import { crProfileGet } from "@/lib/criadores/db";
+import { crProfileGet, crPublicGetIfReady } from "@/lib/criadores/db";
+import { metaPublicConfigured } from "@/lib/criadores/meta";
 import { requireCreator, siteBase } from "@/lib/criadores/site";
 import { AboutForm, ContactsForm, ContentForm, NetworksForm, SubmitProfileForm } from "../forms";
 import { Aviso } from "../ui";
@@ -10,8 +11,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "O seu perfil" };
 
 // Onboarding (F2, §4.3 /bem-vindo?passo=1..4): sobre si, contactos, conteúdo e lojas, redes. Cada passo grava com
-// ldo_cr_profile_save e pode ficar a meio. No passo 4: declarar as redes («não verificado»), «Ligar o Instagram» em
-// breve (meta_mode = 'off' no PR1) e a declaração de veracidade → «Enviar para revisão».
+// ldo_cr_profile_save e pode ficar a meio. No passo 4: declarar as redes («não verificado»), a nota de que a leitura
+// dos números públicos do Instagram se autoriza em Redes quando estiver ligada (fase 3A; a ligação pela Meta chega com
+// a 3B) e a declaração de veracidade → «Enviar para revisão». Quem já autorizou em Redes (pode fazê-lo antes de enviar
+// o perfil) vê no campo do Instagram que mudar o @ para a leitura e apaga os números lidos.
 
 const STEP_TEXT: Record<string, { title: string; lead: string; hint: string }> = {
   about: { title: "Sobre si", lead: "O seu nome, onde vive e em que idiomas publica.", hint: "Nome, cidade, idiomas" },
@@ -23,9 +26,15 @@ const STEP_TEXT: Record<string, { title: string; lead: string; hint: string }> =
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [base, { session, me }, q] = await Promise.all([siteBase(), requireCreator(), searchParams]);
   if (!["draft", "rejected"].includes(me.status)) redirect(`${base}/perfil`);
-  const p = await crProfileGet(session);
   const n = Math.min(4, Math.max(1, Number(typeof q.passo === "string" ? q.passo : "1") || 1));
   const step = ONBOARDING_STEPS[n - 1];
+  // A camada pública só interessa no passo das redes (uma falha aqui não impede o passo: fica a nota genérica).
+  const [p, pub] = await Promise.all([
+    crProfileGet(session), step.key === "networks" ? crPublicGetIfReady(session).catch(() => null) : Promise.resolve(null),
+  ]);
+  const publicOn = pub?.mode === "on" && metaPublicConfigured();
+  const igAccount = p.social_accounts.find((a) => a.platform === "instagram");
+  const publicLayer = Boolean(igAccount && pub?.account?.account_id === igAccount.id && pub.account.state);
   const text = STEP_TEXT[step.key];
   const done = p.steps;
   const back = n > 1 ? `${base}/bem-vindo?passo=${n - 1}` : undefined;
@@ -70,8 +79,10 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
                   <span className="cr-etq cr-anl">Em breve</span>
                 </div>
                 <p>
-                  Numa fase seguinte vai poder ligar o Instagram pela Meta, para os números serem lidos diretamente. É opcional e tem uma autorização própria.
-                  Por agora, indique o seu @ em baixo.
+                  {publicOn
+                    ? "Depois de indicar o Instagram, pode autorizar em Redes a leitura dos números públicos da sua conta profissional."
+                    : "Quando a opção estiver disponível, vai poder autorizar em Redes a leitura dos números públicos da sua conta profissional do Instagram."}{" "}
+                  É opcional, tem uma autorização própria e pode parar quando quiser. Ligar a conta pela Meta chega mais tarde.
                 </p>
                 <button type="button" className="cr-bt" disabled aria-disabled="true">Ligar o Instagram (em breve)</button>
               </section>
@@ -81,7 +92,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
                   <h2 id="t-redes" className="cr-d-s">Redes onde publica</h2>
                   <span className="cr-etq cr-etq-dec">Declarado por si · não verificado</span>
                 </div>
-                <NetworksForm p={p} back={back} />
+                <NetworksForm p={p} back={back} publicLayer={publicLayer} />
               </section>
 
               <section id="enviar" className="cr-rede" aria-labelledby="t-enviar">
