@@ -61,7 +61,8 @@
         "color_scheme": "",
         "padding_top": 0,
         "padding_bottom": 0
-      }
+      },
+      "disabled": true
     },
     "lod_luxury_header_giJrAi": {
       "type": "lod-luxury-header",
@@ -116,11 +117,6 @@
     },
     "lod_natal_bar": {
       "type": "lod-natal-bar",
-      "settings": {
-        "mercado": "pt",
-        "mostrar_no_telemovel": true,
-        "janeiras_confirmadas": false
-      },
       "blocks": {
         "msg_natal": {
           "type": "mensagem",
@@ -385,15 +381,14 @@
         "msg_portes_reis",
         "msg_embrulho"
       ],
-      "disabled": false
+      "settings": {
+        "mercado": "pt",
+        "mostrar_no_telemovel": true,
+        "janeiras_confirmadas": false
+      }
     },
     "lod_natal_bar_es": {
       "type": "lod-natal-bar",
-      "settings": {
-        "mercado": "spain",
-        "mostrar_no_telemovel": true,
-        "janeiras_confirmadas": false
-      },
       "blocks": {
         "es_navidad": {
           "type": "mensagem",
@@ -595,15 +590,14 @@
         "es_embrulho",
         "es_oro"
       ],
-      "disabled": false
+      "settings": {
+        "mercado": "spain",
+        "mostrar_no_telemovel": true,
+        "janeiras_confirmadas": false
+      }
     },
     "lod_natal_bar_int": {
       "type": "lod-natal-bar",
-      "settings": {
-        "mercado": "internacional",
-        "mostrar_no_telemovel": true,
-        "janeiras_confirmadas": false
-      },
       "blocks": {
         "int_natal": {
           "type": "mensagem",
@@ -680,7 +674,11 @@
         "int_embrulho",
         "int_oro"
       ],
-      "disabled": false
+      "settings": {
+        "mercado": "internacional",
+        "mostrar_no_telemovel": true,
+        "janeiras_confirmadas": false
+      }
     }
   },
   "order": [

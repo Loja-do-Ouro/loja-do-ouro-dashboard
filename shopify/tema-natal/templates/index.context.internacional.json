@@ -312,21 +312,19 @@
       "blocks": {},
       "block_order": [],
       "disabled": false
-    },
-    "z_image_banner_qQWiPb": {
-      "settings": {},
-      "blocks": {},
-      "disabled": true
     }
   },
   "order": [
     "lod_natal_int_hero",
+    "lod_rail_ouro_pulseiras",
+    "lod_rail_ouro_fios",
+    "lod_premium_collection_rail_TAXBhU",
+    "lod_rail_ouro_brincos",
+    "lod_premium_collection_rail_nEHCfN",
+    "lod_premium_collection_rail_JypQNL",
     "lod_natal_int_estrela",
     "lod_natal_int_selecao",
     "lod_natal_int_prazos",
-    "lod_premium_collection_rail_nEHCfN",
-    "lod_premium_collection_rail_TAXBhU",
-    "lod_premium_collection_rail_JypQNL",
     "z_image_banner_ngqrCJ",
     "lod_premium_collection_rail_fwxRNg",
     "lod_premium_collection_rail_EVhxqK",
@@ -334,7 +332,6 @@
     "lod_premium_reviews_nPkUPe",
     "1790243941dcacc144",
     "custom_liquid_UpFHrA",
-    "lod_natal_int_boas_festas",
-    "z_image_banner_qQWiPb"
+    "lod_natal_int_boas_festas"
   ]
 }

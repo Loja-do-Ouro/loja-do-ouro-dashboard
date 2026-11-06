@@ -13,11 +13,6 @@
   },
   "parent": "index.json",
   "sections": {
-    "custom_liquid_NJCFDj": {
-      "disabled": true,
-      "settings": {},
-      "blocks": {}
-    },
     "lod_natal_es_hero": {
       "type": "lod-natal-hero",
       "settings": {
@@ -1717,15 +1712,16 @@
       "blocks": {},
       "block_order": [],
       "disabled": false
-    },
-    "z_image_banner_qQWiPb": {
-      "settings": {},
-      "blocks": {},
-      "disabled": true
     }
   },
   "order": [
     "lod_natal_es_hero",
+    "lod_rail_ouro_pulseiras",
+    "lod_rail_ouro_fios",
+    "lod_premium_collection_rail_TAXBhU",
+    "lod_rail_ouro_brincos",
+    "lod_premium_collection_rail_nEHCfN",
+    "lod_premium_collection_rail_JypQNL",
     "lod_natal_es_estrela",
     "lod_natal_es_selecao",
     "lod_natal_es_tres_presentes",
@@ -1734,17 +1730,12 @@
     "lod_natal_es_calendario",
     "lod_natal_es_dicionario",
     "lod_natal_es_prazos",
-    "lod_premium_collection_rail_nEHCfN",
-    "lod_premium_collection_rail_TAXBhU",
-    "lod_premium_collection_rail_JypQNL",
     "z_image_banner_ngqrCJ",
     "lod_premium_collection_rail_fwxRNg",
     "lod_premium_collection_rail_EVhxqK",
     "lod_premium_collection_rail_hLjbkA",
     "lod_premium_reviews_nPkUPe",
     "custom_liquid_UpFHrA",
-    "lod_natal_es_boas_festas",
-    "custom_liquid_NJCFDj",
-    "z_image_banner_qQWiPb"
+    "lod_natal_es_boas_festas"
   ]
 }
